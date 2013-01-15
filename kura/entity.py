@@ -12,6 +12,7 @@ More than you thought you wanted to know about the entity command.
 
 import argparse
 import configparser
+from datetime import datetime
 import hashlib
 import os
 import shutil
@@ -30,10 +31,20 @@ class Error( Exception ):
 ENTITY_OPERATIONS = ['init', 'add', 'rm', 'validate']
 
 class Entity( object ):
+    uid = None
     path = None
+    parent = None
     
-    def __init__( self, entity_path ):
-        self.path = entity_path
+    def __init__( self, path, uid=None ):
+        self.path = path
+        if not uid:
+            uid = os.path.basename(self.path)
+        self.uid = uid
+
+    def __str__(self):
+        return self.__unicode__()
+    def __unicode__(self):
+        return '<Entity: {}>'.format(self.uid)
     
     def payload_path( self ):
         return os.path.join(self.path, 'files')
@@ -47,7 +58,34 @@ class Entity( object ):
         for f in os.listdir(self.payload_path()):
             files.append(f.replace(entity_path, ''))
         return files
-    
+
+    CHECKSUM_ALGORITHMS = ['md5', 'sha1', 'sha256']
+    def checksums( self, algo, debug=False ):
+        checksums = []
+        def file_checksum( path, algo, block_size=1024 ):
+            if algo == 'md5':
+                h = hashlib.md5()
+            elif algo == 'sha1':
+                h = hashlib.sha1()
+            else:
+                return None
+            f = open(path, 'rb')
+            while True:
+                data = f.read(block_size)
+                if not data:
+                    break
+                h.update(data)
+            f.close()
+            return h.hexdigest()
+        if algo not in CHECKSUM_ALGORITHMS:
+            raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
+        for f in self.files():
+            fpath = os.path.join(self.payload_path(), f)
+            cs = file_checksum(fpath, algo)
+            if cs:
+                checksums.append( (cs, fpath) )
+        return checksums
+
     def initialize( self, debug=False ):
         """Create the file structure for a new Entity.
         
@@ -63,9 +101,12 @@ class Entity( object ):
             os.makedirs(self.payload_path())
             if debug:
                 print('Created payload directory {}'.format(self.payload_path()))
-        # update control file
+        # update metadata
         controlfile = ControlFile(self, debug=debug)
         controlfile.write()
+        changelog = Changelog(self, debug=debug)
+        msg = 'Initialized entity {}'.format(self.uid)
+        changelog.write([msg], 'username', 'user@example.com')
     
     def add( self, file_path, debug=False ):
         """Add a file to the Entity.
@@ -73,6 +114,7 @@ class Entity( object ):
         @param file_path String Absolute path to file.
         @returns None for success, or String error message
         """
+        controlfile = ControlFile(self)
         # check all the things!
         dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
         if not os.path.exists(self.path):
@@ -96,10 +138,11 @@ class Entity( object ):
             if debug:
                 print('OK')
         # update metadata
-        controlfile = ControlFile(self)
         controlfile.update_checksums(debug=debug)
         controlfile.write(debug=debug)
-        # TODO write to changelog
+        changelog = Changelog(self, debug=debug)
+        msg = 'Added file: {}'.format(file_path)
+        changelog.write([msg], 'username', 'user@example.com')
     
     def rm( self, file_path=None, debug=False ):
         """Remove a file from the Entity.
@@ -107,6 +150,7 @@ class Entity( object ):
         @param file_path String Path to file, relative to Entity root.
         @returns None for success, or String error message
         """
+        controlfile = ControlFile(self)
         # error checking
         if not file_path:
             raise Error('No file path.')
@@ -125,10 +169,11 @@ class Entity( object ):
             if debug:
                 print('OK')
         # update metadata
-        controlfile = ControlFile(self)
         controlfile.update_checksums(debug=debug)
         controlfile.write(debug=debug)
-        # TODO write to changelog
+        changelog = Changelog(self, debug=debug)
+        msg = 'Removed file: {}'.format(file_path)
+        changelog.write([msg], 'username', 'user@example.com')
 
     def validate( self, debug=False ):
         """Run validator tool on this Entity, return results.
@@ -146,7 +191,7 @@ class Entity( object ):
 
 CONTROL_TEMPLATE = """[Basic]
 standards-version = DDR0.1
-entity = UID
+entity = {uid}
 parent = PARENT_TYPE
 maintainer = MAINTAINER
 uploaders = UPLOADERS
@@ -182,7 +227,8 @@ class ControlFile( object ):
             if debug:
                 print('Initializing control file {} ...'.format(self.filename))
             f = open(self.filename, 'w')
-            f.write(CONTROL_TEMPLATE)
+            txt = CONTROL_TEMPLATE.format(uid=self.entity.uid)
+            f.write(txt)
             f.close()
             if debug:
                 print('OK')
@@ -196,7 +242,6 @@ class ControlFile( object ):
     
     def write( self, debug=False ):
         if debug:
-            
             print('Writing control file {} ...'.format(self.filename))
         with open(self.filename, 'w') as cfile:
             self._config.write(cfile)
@@ -205,32 +250,6 @@ class ControlFile( object ):
         files = self.entity.files()
         payload_path = self.entity.payload_path()
 
-        # internal functions
-        def file_checksum( path, algo, block_size=1024 ):
-            if algo == 'md5':
-                h = hashlib.md5()
-            elif algo == 'sha1':
-                h = hashlib.sha1()
-            else:
-                return None
-            f = open(path, 'rb')
-            while True:
-                data = f.read(block_size)
-                if not data:
-                    break
-                h.update(data)
-            f.close()
-            return h.hexdigest()
-        def checksums( files, payload_path, algo, debug=False ):
-            if algo not in ['sha1', 'sha256', 'md5']:
-                raise Error('BAD ALGORITHM: {}'.format(algo))
-            checksums = []
-            for f in files:
-                fpath = os.path.join(payload_path, f)
-                cs = file_checksum(fpath, algo)
-                if cs:
-                    checksums.append( (cs, fpath) )
-            return checksums
         # return relative path to payload
         def relative_path(entity_path, payload_file):
             if entity_path[-1] != '/':
@@ -238,22 +257,60 @@ class ControlFile( object ):
             return payload_file.replace(entity_path, '')
         
         self._config['Checksums-SHA1'] = {}
-        for sha1,path in checksums(files, payload_path, 'sha1', debug=debug):
+        for sha1,path in self.entity.checksums('sha1', debug=debug):
             path = relative_path(self.entity.path, path)
             self._config['Checksums-SHA1'][sha1] = path
         #
         self._config['Checksums-SHA256'] = {}
-        for sha256,path in checksums(files, payload_path, 'sha256', debug=debug):
+        for sha256,path in self.entity.checksums('sha256', debug=debug):
             path = relative_path(self.entity.path, path)
             self._config['Checksums-SHA256'][sha256] = path
         #
         self._config['Files'] = {}
-        for md5,path in checksums(files, payload_path, 'md5', debug=debug):
+        for md5,path in self.entity.checksums('md5', debug=debug):
             size = os.path.getsize(path)
             path = relative_path(self.entity.path, path)
             self._config['Files'][md5] = '{} ; {}'.format(size,path)
 
 
+
+CHANGELOG_TEMPLATE = """{changes}
+-- {user} <{email}>  {date}
+"""
+CHANGELOG_DATE_FORMAT = "%a, %d %b %Y %H:%M:%S %z"
+
+class Changelog( object ):
+    """changelog inspired by Debian package changelog file.
+    """
+    entity = None
+    filename = None
+    
+    def __init__( self, entity, debug=False ):
+        self.entity = entity
+        self.filename = os.path.join(self.entity.path, 'changelog')
+        if not os.path.exists(self.filename):
+            if debug:
+                print('Initializing changelog {} ...'.format(self.filename))
+            f = open(self.filename, 'w')
+            f.close()
+            if debug:
+                print('OK')
+
+    def write(self, messages, user, email, debug=False):
+        # TODO indent multi-line messages
+        msgs = []
+        for m in messages:
+            msgs.append('* {}'.format(m))
+        changes = '\n'.join(msgs)
+        entry = CHANGELOG_TEMPLATE.format(
+            changes=changes, user=user, email=email,
+            date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
+        if os.path.getsize(self.filename):
+            entry = '\n{}'.format(entry)
+        with open(self.filename, 'a') as f:
+            f.write(entry)
+
+        
 
 # command-line interface
 
@@ -266,6 +323,10 @@ def main():
                         help='Path to an entity')
     parser.add_argument('-f', '--file',
                         help='File to be added/removed to/from an entity.')
+    parser.add_argument('-u', '--user',
+                        help='User who is performing the change.')
+    parser.add_argument('-m', '--mail',
+                        help='Email of user.')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Debug; prints lots of debug info.')
     args = parser.parse_args()
