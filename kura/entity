@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+#
+# This file is part of ddr-cmdln/kura
+#
+
+import argparse
+import sys
+
+from Kura.entity import Entity, ENTITY_OPERATIONS, Error, description, epilog
+
+def main():
+    parser = argparse.ArgumentParser(description=description, epilog=epilog)
+    # no positional arguments
+    parser.add_argument('-o', '--operation', choices=ENTITY_OPERATIONS,
+                        help='Operation to perform (init, add, remove, validate).')
+    parser.add_argument('-e', '--entity',
+                        help='Path to an entity')
+    parser.add_argument('-f', '--file',
+                        help='File to be added/removed to/from an entity.')
+    parser.add_argument('-u', '--user',
+                        help='User who is performing the change.')
+    parser.add_argument('-m', '--mail',
+                        help='Email of user.')
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Debug; prints lots of debug info.')
+    args = parser.parse_args()
+
+    if args.debug:
+        print(args)
+    if not args.operation:
+        sys.stderr.write('Choose an operation!\n')
+        sys.exit(1)
+    
+    # do something
+    e = Entity(args.entity)
+    if   args.operation == 'init':
+        e.initialize(user=args.user, mail=args.mail, debug=args.debug)
+    elif args.operation == 'add':      e.add(file_path=args.file, debug=args.debug)
+    elif args.operation == 'rm':       e.rm(file_path=args.file, debug=args.debug)
+    elif args.operation == 'validate': e.validate(debug=args.debug)
+    else:
+        sys.stderr.write('We fell through!\n')
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

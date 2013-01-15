@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-
-
-
 description="""Create, edit, delete entities"""
 
 epilog="""
@@ -10,7 +6,6 @@ More than you thought you wanted to know about the entity command.
 
 
 
-import argparse
 import configparser
 from datetime import datetime
 import hashlib
@@ -309,41 +304,3 @@ class Changelog( object ):
             entry = '\n{}'.format(entry)
         with open(self.filename, 'a') as f:
             f.write(entry)
-
-        
-
-# command-line interface
-
-def main():
-    parser = argparse.ArgumentParser(description=description, epilog=epilog)
-    # no positional arguments
-    parser.add_argument('-o', '--operation', choices=ENTITY_OPERATIONS,
-                        help='Operation to perform (init, add, remove, validate).')
-    parser.add_argument('-e', '--entity',
-                        help='Path to an entity')
-    parser.add_argument('-f', '--file',
-                        help='File to be added/removed to/from an entity.')
-    parser.add_argument('-u', '--user',
-                        help='User who is performing the change.')
-    parser.add_argument('-m', '--mail',
-                        help='Email of user.')
-    parser.add_argument('-d', '--debug', action='store_true',
-                        help='Debug; prints lots of debug info.')
-    args = parser.parse_args()
-
-    if args.debug:
-        print(args)
-    if not args.operation:
-        raise Error('Choose an operation!')
-    
-    # do something
-    e = Entity(args.entity)
-    if   args.operation == 'init':     e.initialize(debug=args.debug)
-    elif args.operation == 'add':      e.add(file_path=args.file, debug=args.debug)
-    elif args.operation == 'rm':       e.rm(file_path=args.file, debug=args.debug)
-    elif args.operation == 'validate': e.validate(debug=args.debug)
-    else:
-        raise Error('We fell through!')
-
-if __name__ == '__main__':
-    main()
