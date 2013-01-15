@@ -1,35 +1,150 @@
-import ConfigParser
+#!/usr/bin/env python
+
+
+
+description="""Create, edit, delete entities"""
+
+epilog="""
+More than you thought you wanted to know about the entity command.
+"""
+
+
+
+import argparse
+import configparser
 import hashlib
-import logging
 import os
 import shutil
-
-import config
-conf = config.read_config(path='/etc/kura.conf')
+import sys
 
 
 
-class Error(Exception):
-    def __init__(self, value):
+class Error( Exception ):
+    def __init__( self, value ):
         self.value = value
-    def __str__(self):
+    def __str__( self ):
         return repr(self.value)
 
 
 
-def _payload_path(entity_path):
-    return os.path.join(entity_path, 'files')
+ENTITY_OPERATIONS = ['init', 'add', 'rm', 'validate']
 
-def _payload_file_path(payload_file, entity_path):
-    """Given absolute paths to payload file and entity, return relative path to payload
-    """
-    if entity_path[-1] != '/':
-        entity_path = '%s/' % entity_path
-    return payload_file.replace(entity_path, '')
+class Entity( object ):
+    path = None
+    
+    def __init__( self, entity_path ):
+        self.path = entity_path
+    
+    def payload_path( self ):
+        return os.path.join(self.path, 'files')
+    
+    def files( self ):
+        """Returns relative paths to payload files."""
+        files = []
+        entity_path = self.path
+        if entity_path[-1] != '/':
+            entity_path = '{}/'.format(entity_path)
+        for f in os.listdir(self.payload_path()):
+            files.append(f.replace(entity_path, ''))
+        return files
+    
+    def initialize( self, debug=False ):
+        """Create the file structure for a new Entity.
+        
+        @param entity_path String Absolute path to entity dir.
+        """
+        # create directory if doesn't exist
+        if not os.path.exists(self.path):
+            os.makedirs(self.path)
+            if debug:
+                print('Created directory {}'.format(self.path))
+        # make payload dir if doesn't exist
+        if not os.path.exists(self.payload_path()):
+            os.makedirs(self.payload_path())
+            if debug:
+                print('Created payload directory {}'.format(self.payload_path()))
+        # update control file
+        controlfile = ControlFile(self, debug=debug)
+        controlfile.write()
+    
+    def add( self, file_path, debug=False ):
+        """Add a file to the Entity.
+        
+        @param file_path String Absolute path to file.
+        @returns None for success, or String error message
+        """
+        # check all the things!
+        dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
+        if not os.path.exists(self.path):
+            raise Error('Entity does not seem to exist: {}'.format(self.path))
+        if not os.path.exists(file_path):
+            raise Error('File does not exist: {}'.format(file_path))
+        if not os.path.exists(self.payload_path()):
+            raise Error('Files directory does not exist: {}'.format(self.payload_path()))
+        # TODO add force overwrite option
+        #if os.path.exists(dest_path):
+        #    raise Error('File already copied: {}'.format(dest_path))
+        # copy the file already!
+        # TODO hand off to background task? show progress bar?
+        if debug:
+            print('copying {}'.format(file_path)) 
+            print('     -> {}'.format(dest_path)) 
+        shutil.copyfile(file_path, dest_path)
+        if not os.path.exists(dest_path):
+            raise Error('File not copied: {}'.format(dest_path))
+        else:
+            if debug:
+                print('OK')
+        # update metadata
+        controlfile = ControlFile(self)
+        controlfile.update_checksums(debug=debug)
+        controlfile.write(debug=debug)
+        # TODO write to changelog
+    
+    def rm( self, file_path=None, debug=False ):
+        """Remove a file from the Entity.
+        
+        @param file_path String Path to file, relative to Entity root.
+        @returns None for success, or String error message
+        """
+        # error checking
+        if not file_path:
+            raise Error('No file path.')
+        rm_path = os.path.join(self.payload_path(), file_path)
+        if debug:
+            print("rm {}".format(rm_path))
+        if not os.path.exists(file_path):
+            raise Error('File does not exist: {}'.format(file_path))
+        # remove file
+        if debug:
+            print('removing {}'.format(rm_path))
+        os.remove(rm_path)
+        if os.path.exists(rm_path):
+            raise Error('File not removed: {}'.format(rm_path))
+        else:
+            if debug:
+                print('OK')
+        # update metadata
+        controlfile = ControlFile(self)
+        controlfile.update_checksums(debug=debug)
+        controlfile.write(debug=debug)
+        # TODO write to changelog
+
+    def validate( self, debug=False ):
+        """Run validator tool on this Entity, return results.
+        """
+        if debug:
+            print("validate('{}')".format(self.path))
+        # error checking
+        if not os.path.exists(self.path):
+            raise Error('Entity does not seem to exist: {}'.format(self.path))
+        # OK GO
+        # validate entity
+        # write to log
 
 
 
-METADATA_TEMPLATE = """[Basic]
+CONTROL_TEMPLATE = """[Basic]
 standards-version = DDR0.1
 entity = UID
 parent = PARENT_TYPE
@@ -50,172 +165,124 @@ extended = DESCRIPTION_EXTENDED
 
 [Files]"""
 
-def _metadata_filename(entity_path):
-    return os.path.join(entity_path, 'control')
+class ControlFile( object ):
+    """control file inspired by Debian package control file but using INI syntax.
+    """
+    entity = None
+    entity_path = None
+    filename = None
+    _config = None
+    CHECKSUMS = ['sha1', 'sha256', 'files']
+    
+    def __init__( self, entity, debug=False ):
+        self.entity = entity
+        self.entity_path = self.entity.path
+        self.filename = os.path.join(self.entity_path, 'control')
+        if not os.path.exists(self.filename):
+            if debug:
+                print('Initializing control file {} ...'.format(self.filename))
+            f = open(self.filename, 'w')
+            f.write(CONTROL_TEMPLATE)
+            f.close()
+            if debug:
+                print('OK')
+        self.read(debug=debug)
+    
+    def read( self, debug=False ):
+        if debug:
+            print('Reading control file {} ...'.format(self.filename))
+        self._config = configparser.ConfigParser()
+        self._config.read([self.filename])
+    
+    def write( self, debug=False ):
+        if debug:
+            
+            print('Writing control file {} ...'.format(self.filename))
+        with open(self.filename, 'w') as cfile:
+            self._config.write(cfile)
+    
+    def update_checksums( self, debug=False ):
+        files = self.entity.files()
+        payload_path = self.entity.payload_path()
 
-def _read_metadata_file(entity_path, debug=False):
-    path = _metadata_filename(entity_path)
-    c = ConfigParser.ConfigParser()
-    c.read([path])
-    if debug:
-        for section in c.sections():
-            print '[%s]' % section
-            for item in c.items(section):
-                print item
-    return c
+        # internal functions
+        def file_checksum( path, algo, block_size=1024 ):
+            if algo == 'md5':
+                h = hashlib.md5()
+            elif algo == 'sha1':
+                h = hashlib.sha1()
+            else:
+                return None
+            f = open(path, 'rb')
+            while True:
+                data = f.read(block_size)
+                if not data:
+                    break
+                h.update(data)
+            f.close()
+            return h.hexdigest()
+        def checksums( files, payload_path, algo, debug=False ):
+            if algo not in ['sha1', 'sha256', 'md5']:
+                raise Error('BAD ALGORITHM: {}'.format(algo))
+            checksums = []
+            for f in files:
+                fpath = os.path.join(payload_path, f)
+                cs = file_checksum(fpath, algo)
+                if cs:
+                    checksums.append( (cs, fpath) )
+            return checksums
+        # return relative path to payload
+        def relative_path(entity_path, payload_file):
+            if entity_path[-1] != '/':
+                entity_path = '{}/'.format(entity_path)
+            return payload_file.replace(entity_path, '')
+        
+        self._config['Checksums-SHA1'] = {}
+        for sha1,path in checksums(files, payload_path, 'sha1', debug=debug):
+            path = relative_path(self.entity.path, path)
+            self._config['Checksums-SHA1'][sha1] = path
+        #
+        self._config['Checksums-SHA256'] = {}
+        for sha256,path in checksums(files, payload_path, 'sha256', debug=debug):
+            path = relative_path(self.entity.path, path)
+            self._config['Checksums-SHA256'][sha256] = path
+        #
+        self._config['Files'] = {}
+        for md5,path in checksums(files, payload_path, 'md5', debug=debug):
+            size = os.path.getsize(path)
+            path = relative_path(self.entity.path, path)
+            self._config['Files'][md5] = '{} ; {}'.format(size,path)
 
-def _write_metadata_file(metadata, entity_path, debug=False):
-    path = _metadata_filename(entity_path)
-    with open(path, 'wb') as mfile:
-        metadata.write(mfile)
-    if debug:
-        for section in metadata.sections():
-            print '[%s]' % section
-            for item in metadata.items(section):
-                print item
 
 
+# command-line interface
 
-def _checksum_for_file(path, algo, block_size=1024):
-    if algo == 'md5':
-        h = hashlib.md5()
-    elif algo == 'sha1':
-        h = hashlib.sha1()
+def main():
+    parser = argparse.ArgumentParser(description=description, epilog=epilog)
+    # no positional arguments
+    parser.add_argument('-o', '--operation', choices=ENTITY_OPERATIONS,
+                        help='Operation to perform (init, add, remove, validate).')
+    parser.add_argument('-e', '--entity',
+                        help='Path to an entity')
+    parser.add_argument('-f', '--file',
+                        help='File to be added/removed to/from an entity.')
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Debug; prints lots of debug info.')
+    args = parser.parse_args()
+
+    if args.debug:
+        print(args)
+    if not args.operation:
+        raise Error('Choose an operation!')
+    
+    # do something
+    e = Entity(args.entity)
+    if   args.operation == 'init':     e.initialize(debug=args.debug)
+    elif args.operation == 'add':      e.add(file_path=args.file, debug=args.debug)
+    elif args.operation == 'rm':       e.rm(file_path=args.file, debug=args.debug)
+    elif args.operation == 'validate': e.validate(debug=args.debug)
     else:
-        return None
-    f = open(path, 'rb')
-    while True:
-        data = f.read(block_size)
-        if not data:
-            break
-        h.update(data)
-    f.close()
-    return h.hexdigest()
+        raise Error('We fell through!')
 
-def _checksums(payload_path, algo, debug=False):
-    if algo not in ['sha1', 'sha256', 'md5']:
-        raise Error('BAD ALGORITHM: %s' % algo)
-    checksums = []
-    for f in os.listdir(payload_path):
-        fpath = os.path.join(payload_path, f)
-        cs = _checksum_for_file(fpath, algo)
-        if cs:
-            checksums.append( (cs, fpath) )
-    return checksums
-
-def _files_list(payload_path, debug=False):
-    files = []
-    checksums = _checksums(payload_path, 'md5', debug=debug)
-    for md5,path in checksums:
-        files.append((md5, os.path.getsize(path), path))
-    return files
-
-
-
-def init(entity_path, debug=False):
-    """Create the file structure for a new Entity.
-    
-    @param entity_path String Absolute path to entity dir.
-    """
-    # create directory if doesn't exist
-    if not os.path.exists(entity_path):
-        os.makedirs(entity_path)
-        if debug:
-            print 'Created directory %s' % entity_path
-    # make payload dir if doesn't exist
-    payload_path = _payload_path(entity_path)
-    if not os.path.exists(payload_path):
-        os.makedirs(payload_path)
-        if debug:
-            print 'Created payload directory %s' % payload_path
-    # write blank metadata file
-    metadata_path = _metadata_filename(entity_path)
-    if not os.path.exists(metadata_path):
-        if debug:
-            print 'Writing metadata file %s ...' % metadata_path
-        metadata = open(metadata_path, 'w')
-        metadata.write(METADATA_TEMPLATE)
-        metadata.close()
-        if debug:
-            print 'OK'
-    # TODO write to log
-
-def add(entity_path, file_path, debug=False):
-    """Add a file to the Entity.
-    
-    @param entity_path String Absolute path to entity dir.
-    @param file_path String Absolute path to file.
-    @returns None for success, or String error message
-    """
-    # check all the things!
-    payload_path = _payload_path(entity_path)
-    metadata_path = _metadata_filename(entity_path)
-    dest_path = os.path.join(payload_path, os.path.basename(file_path))
-    if not os.path.exists(entity_path):
-        raise Error('Entity does not seem to exist: %s' % entity_path)
-    if not os.path.exists(payload_path):
-        raise Error('Files directory does not exist: %s' % payload_path)
-    if not os.path.exists(metadata_path):
-        raise Error('Metadata file does not exist: %s' % metadata_path)
-    if not os.path.exists(file_path):
-        raise Error('File does not exist: %s' % file_path)
-    # TODO add force overwrite option
-    #if os.path.exists(dest_path):
-    #    raise Error('File already copied: %s' % dest_path)
-    metadata = _read_metadata_file(entity_path, debug=debug)
-    # copy the file already!
-    # TODO hand off to background task? show progress bar?
-    if debug:
-        print 'copying %s' % file_path
-        print '     -> %s' % dest_path
-    shutil.copyfile(file_path, dest_path)
-    if not os.path.exists(dest_path):
-        raise Error('File not copied: %s' % dest_path)
-    else:
-        if debug:
-            print 'OK'
-    # update metadata
-    for sha1,path in _checksums(payload_path, 'sha1', debug=debug):
-        path = _payload_file_path(path, entity_path)
-        metadata.set('Checksums-SHA1', sha1, path)
-    for sha256,path in _checksums(payload_path, 'sha256', debug=debug):
-        path = _payload_file_path(path, entity_path)
-        metadata.set('Checksums-SHA256', sha256, path)
-    for md5,size,path in _files_list(payload_path, debug=debug):
-        path = _payload_file_path(path, entity_path)
-        metadata.set('Files', md5, '%s ; %s' % (size,path))
-    _write_metadata_file(metadata, entity_path, debug=debug)
-    # TODO write to log
-
-def rm(entity_path, file_path, debug=False):
-    """Remove a file from the Entity.
-    
-    @param entity_path String Absolute path to entity dir.
-    @param file_path String Path to file, relative to Entity root.
-    @returns None for success, or String error message
-    """
-    # confirm that entity exists
-    if not os.path.exists(entity_path):
-        raise Error('Entity does not seem to exist: %s' % entity_path)
-    # confirm that metadata file exists, read it
-    metadata_path = _metadata_filename(entity_path)
-    if not os.path.exists(metadata_path):
-        raise Error('Metadata file does not exist: %s' % metadata_path)
-    metadata = _read_metadata_file(entity_path)
-    # confirm that file_path exists
-    if not os.path.exists(file_path):
-        raise Error('File does not exist: %s' % file_path)
-    # OK GO
-    # remove file
-    # update metadata SHA1
-    # update metadata SHA256
-    # update metadata files
-    # write to log
-    pass
-
-def validate(entity_path):
-    """Run validator tool on this Entity, return results.
-    
-    @param entity_path String Absolute path to entity dir.
-    """
-    pass
+if __name__ == '__main__':
+    main()
