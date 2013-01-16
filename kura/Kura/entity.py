@@ -13,6 +13,8 @@ import os
 import shutil
 import sys
 
+from bs4 import BeautifulSoup
+
 
 
 class Error( Exception ):
@@ -106,9 +108,12 @@ class Entity( object ):
         # update metadata
         controlfile = ControlFile(self, debug=debug)
         controlfile.write()
+        mets = METS(self, debug=debug)
+        mets.write()
         changelog = Changelog(self, debug=debug)
         msg = 'Initialized entity {}'.format(self.uid)
         changelog.write([msg], 'username', 'user@example.com')
+        
     
     def add( self, file_path, debug=False ):
         """Add a file to the Entity.
@@ -117,6 +122,7 @@ class Entity( object ):
         @returns None for success, or String error message
         """
         controlfile = ControlFile(self)
+        mets = METS(self, debug=debug)
         # check all the things!
         dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
         if not os.path.exists(self.path):
@@ -142,6 +148,8 @@ class Entity( object ):
         # update metadata
         controlfile.update_checksums(debug=debug)
         controlfile.write(debug=debug)
+        mets.update_filesec(debug=debug)
+        mets.write()
         changelog = Changelog(self, debug=debug)
         msg = 'Added file: {}'.format(file_path)
         changelog.write([msg], 'username', 'user@example.com')
@@ -262,6 +270,111 @@ class ControlFile( object ):
             size = os.path.getsize(path)
             path = relative_path(self.entity.path, path)
             self._config['Files'][md5] = '{} ; {}'.format(size,path)
+
+
+
+METS_TEMPLATE = """<mets>
+  <metsHdr></metsHdr>
+  <dmdSec></dmdSec>
+  <amdSec></amdSec>
+  <fileSec></fileSec>
+  <structMap></structMap>
+  <structLink></structLink>
+  <behaviorSec></behaviorSec>
+</mets>"""
+
+class METS( object ):
+    """Metadata Encoding and Transmission Standard (METS) file.
+    """
+    entity = None
+    entity_path = None
+    filename = None
+    soup = None
+    
+    def __init__( self, entity, debug=False ):
+        self.entity = entity
+        self.entity_path = self.entity.path
+        self.filename = os.path.join(self.entity_path, 'mets.xml')
+        if not os.path.exists(self.filename):
+            if debug:
+                print('Initializing METS file {}'.format(self.filename))
+            # start fresh
+            now = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+            soup = BeautifulSoup(METS_TEMPLATE, 'xml')
+            soup.mets['OBJID'] = self.entity.uid
+            soup.mets['LABEL'] = self.entity.uid
+            soup.mets['TYPE'] = 'unknown'
+            soup.mets.metsHdr['CREATEDATE'] = now
+            soup.mets.metsHdr['LASTMODDATE'] = now
+            # insert mets:agent
+            with open(self.filename, 'w') as mfile:
+                mfile.write(soup.prettify())
+            if debug:
+                print('OK')
+        self.read(debug=debug)
+    
+    def read( self, debug=False ):
+        if debug:
+            print('Reading METS file {}'.format(self.filename))
+        with open(self.filename, 'r') as mfile:
+            self.soup = BeautifulSoup(mfile, 'xml')
+    
+    def write( self, debug=False ):
+        if debug:
+            print('Writing METS file {}'.format(self.filename))
+        with open(self.filename, 'w') as mfile:
+            mfile.write(self.soup.prettify())
+    
+    def update_filesec( self, debug=False ):
+        """
+        <fileSec>
+          <fileGrp USE="master">
+            <file GROUPID="GID1" ID="FID1" ADMID="AMD1" SEQ="1" MIMETYPE="image/tiff" CHECKSUM="80172D87C6A762C0053CAD9215AE2535" CHECKSUMTYPE="MD5">
+              <FLocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" xlink:href="1147733144860875.tiff"/>
+            </file>
+          </fileGrp>
+          <fileGrp USE="usecopy">
+            <file GROUPID="GID1" ID="FID2" ADMID="AMD2" SEQ="1" MIMETYPE="image/jpeg" CHECKSUM="4B02150574E1B321B526B095F82BBA0E" CHECKSUMTYPE="MD5">
+              <FLocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" xlink:href="1147733144860875.jpg"/>
+            </file>
+          </fileGrp>
+        </fileSec>
+        """
+        files = self.entity.files()
+        payload_path = self.entity.payload_path()
+
+        # return relative path to payload
+        def relative_path(entity_path, payload_file):
+            if entity_path[-1] != '/':
+                entity_path = '{}/'.format(entity_path)
+            return payload_file.replace(entity_path, '')
+        n = 0
+        # remove existing files
+        filesec = self.soup.new_tag('fileSec')
+        self.soup.fileSec.replace_with(filesec)
+        # add new ones
+        for md5,path in self.entity.checksums('md5', debug=debug):
+            print(md5,path)
+            n = n + 1
+            use = 'unknown'
+            seq = n
+            gid = 'GID{}'.format(n)
+            fid = 'FID{}'.format(n)
+            aid = 'AMD{}'.format(n)
+            mimetype = 'mimetype'
+            path = relative_path(self.entity.path, path)
+            # add fileGrp, file, Floca
+            fileGrp = self.soup.new_tag('fileGrp', USE='master')
+            self.soup.fileSec.append(fileGrp)
+            f = self.soup.new_tag('file',
+                                  GROUPID=gid, ID=fid, ADMID=aid, SEQ=seq, MIMETYPE=mimetype,
+                                  CHECKSUM=md5, CHECKSUMTYPE='md5')
+            fileGrp.append(f)
+            flocat = self.soup.new_tag('Flocat',
+                                       LOCTYPE='OTHER', OTHERLOCTYPE='fileid',
+                                       href=path)
+            f.append(flocat)
+
 
 
 
