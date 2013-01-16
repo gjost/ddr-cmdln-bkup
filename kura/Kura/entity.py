@@ -25,169 +25,6 @@ class Error( Exception ):
 
 
 
-class Entity( object ):
-    uid = None
-    path = None
-    parent = None
-    
-    def __init__( self, path, uid=None ):
-        self.path = path
-        if not uid:
-            uid = os.path.basename(self.path)
-        self.uid = uid
-
-    def __str__(self):
-        return self.__unicode__()
-    def __unicode__(self):
-        return '<Entity: {}>'.format(self.uid)
-    
-    def payload_path( self ):
-        return os.path.join(self.path, 'files')
-    
-    def files( self ):
-        """Returns relative paths to payload files."""
-        files = []
-        entity_path = self.path
-        if entity_path[-1] != '/':
-            entity_path = '{}/'.format(entity_path)
-        for f in os.listdir(self.payload_path()):
-            files.append(f.replace(entity_path, ''))
-        return files
-
-    @staticmethod
-    def checksum_algorithms():
-        return ['md5', 'sha1', 'sha256']
-    
-    def checksums( self, algo, debug=False ):
-        checksums = []
-        def file_checksum( path, algo, block_size=1024 ):
-            if algo == 'md5':
-                h = hashlib.md5()
-            elif algo == 'sha1':
-                h = hashlib.sha1()
-            else:
-                return None
-            f = open(path, 'rb')
-            while True:
-                data = f.read(block_size)
-                if not data:
-                    break
-                h.update(data)
-            f.close()
-            return h.hexdigest()
-        if algo not in Entity.checksum_algorithms():
-            raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
-        for f in self.files():
-            fpath = os.path.join(self.payload_path(), f)
-            cs = file_checksum(fpath, algo)
-            if cs:
-                checksums.append( (cs, fpath) )
-        return checksums
-
-    # operations exposed to the command-line tool ------------------------------
-    
-    @staticmethod
-    def operations():
-        return ['init', 'add', 'rm',]
-
-    def initialize( self, debug=False ):
-        """Create the file structure for a new Entity.
-        
-        @param entity_path String Absolute path to entity dir.
-        """
-        # create directory if doesn't exist
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
-            if debug:
-                print('Created directory {}'.format(self.path))
-        # make payload dir if doesn't exist
-        if not os.path.exists(self.payload_path()):
-            os.makedirs(self.payload_path())
-            if debug:
-                print('Created payload directory {}'.format(self.payload_path()))
-        # update metadata
-        controlfile = ControlFile(self, debug=debug)
-        controlfile.write()
-        mets = METS(self, debug=debug)
-        mets.write()
-        changelog = Changelog(self, debug=debug)
-        msg = 'Initialized entity {}'.format(self.uid)
-        changelog.write([msg], 'username', 'user@example.com')
-        
-    
-    def add( self, file_path, debug=False ):
-        """Add a file to the Entity.
-        
-        @param file_path String Absolute path to file.
-        @returns None for success, or String error message
-        """
-        controlfile = ControlFile(self)
-        mets = METS(self, debug=debug)
-        # check all the things!
-        dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
-        if not os.path.exists(self.path):
-            raise Error('Entity does not seem to exist: {}'.format(self.path))
-        if not os.path.exists(file_path):
-            raise Error('File does not exist: {}'.format(file_path))
-        if not os.path.exists(self.payload_path()):
-            raise Error('Files directory does not exist: {}'.format(self.payload_path()))
-        # TODO add force overwrite option
-        #if os.path.exists(dest_path):
-        #    raise Error('File already copied: {}'.format(dest_path))
-        # copy the file already!
-        # TODO hand off to background task? show progress bar?
-        if debug:
-            print('copying {}'.format(file_path)) 
-            print('     -> {}'.format(dest_path)) 
-        shutil.copyfile(file_path, dest_path)
-        if not os.path.exists(dest_path):
-            raise Error('File not copied: {}'.format(dest_path))
-        else:
-            if debug:
-                print('OK')
-        # update metadata
-        controlfile.update_checksums(debug=debug)
-        controlfile.write(debug=debug)
-        mets.update_filesec(debug=debug)
-        mets.write()
-        changelog = Changelog(self, debug=debug)
-        msg = 'Added file: {}'.format(file_path)
-        changelog.write([msg], 'username', 'user@example.com')
-    
-    def rm( self, file_path=None, debug=False ):
-        """Remove a file from the Entity.
-        
-        @param file_path String Path to file, relative to Entity root.
-        @returns None for success, or String error message
-        """
-        controlfile = ControlFile(self)
-        # error checking
-        if not file_path:
-            raise Error('No file path.')
-        rm_path = os.path.join(self.payload_path(), file_path)
-        if debug:
-            print("rm {}".format(rm_path))
-        if not os.path.exists(file_path):
-            raise Error('File does not exist: {}'.format(file_path))
-        # remove file
-        if debug:
-            print('removing {}'.format(rm_path))
-        os.remove(rm_path)
-        if os.path.exists(rm_path):
-            raise Error('File not removed: {}'.format(rm_path))
-        else:
-            if debug:
-                print('OK')
-        # update metadata
-        controlfile.update_checksums(debug=debug)
-        controlfile.write(debug=debug)
-        changelog = Changelog(self, debug=debug)
-        msg = 'Removed file: {}'.format(file_path)
-        changelog.write([msg], 'username', 'user@example.com')
-
-
-
-
 CONTROL_TEMPLATE = """[Basic]
 standards-version = DDR0.1
 entity = {uid}
@@ -416,3 +253,165 @@ class Changelog( object ):
             entry = '\n{}'.format(entry)
         with open(self.filename, 'a') as f:
             f.write(entry)
+
+
+
+class Entity( object ):
+    uid = None
+    path = None
+    parent = None
+    
+    def __init__( self, path, uid=None ):
+        self.path = path
+        if not uid:
+            uid = os.path.basename(self.path)
+        self.uid = uid
+
+    def __str__(self):
+        return self.__unicode__()
+    def __unicode__(self):
+        return '<Entity: {}>'.format(self.uid)
+    
+    def payload_path( self ):
+        return os.path.join(self.path, 'files')
+    
+    def files( self ):
+        """Returns relative paths to payload files."""
+        files = []
+        entity_path = self.path
+        if entity_path[-1] != '/':
+            entity_path = '{}/'.format(entity_path)
+        for f in os.listdir(self.payload_path()):
+            files.append(f.replace(entity_path, ''))
+        return files
+
+    @staticmethod
+    def checksum_algorithms():
+        return ['md5', 'sha1', 'sha256']
+    
+    def checksums( self, algo, debug=False ):
+        checksums = []
+        def file_checksum( path, algo, block_size=1024 ):
+            if algo == 'md5':
+                h = hashlib.md5()
+            elif algo == 'sha1':
+                h = hashlib.sha1()
+            else:
+                return None
+            f = open(path, 'rb')
+            while True:
+                data = f.read(block_size)
+                if not data:
+                    break
+                h.update(data)
+            f.close()
+            return h.hexdigest()
+        if algo not in Entity.checksum_algorithms():
+            raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
+        for f in self.files():
+            fpath = os.path.join(self.payload_path(), f)
+            cs = file_checksum(fpath, algo)
+            if cs:
+                checksums.append( (cs, fpath) )
+        return checksums
+
+    # operations exposed to the command-line tool ------------------------------
+    
+    @staticmethod
+    def operations():
+        return ['init', 'add', 'rm',]
+
+    def initialize( self, debug=False ):
+        """Create the file structure for a new Entity.
+        
+        @param entity_path String Absolute path to entity dir.
+        """
+        # create directory if doesn't exist
+        if not os.path.exists(self.path):
+            os.makedirs(self.path)
+            if debug:
+                print('Created directory {}'.format(self.path))
+        # make payload dir if doesn't exist
+        if not os.path.exists(self.payload_path()):
+            os.makedirs(self.payload_path())
+            if debug:
+                print('Created payload directory {}'.format(self.payload_path()))
+        # update metadata
+        controlfile = ControlFile(self, debug=debug)
+        controlfile.write()
+        mets = METS(self, debug=debug)
+        mets.write()
+        changelog = Changelog(self, debug=debug)
+        msg = 'Initialized entity {}'.format(self.uid)
+        changelog.write([msg], 'username', 'user@example.com')
+        
+    
+    def add( self, file_path, debug=False ):
+        """Add a file to the Entity.
+        
+        @param file_path String Absolute path to file.
+        @returns None for success, or String error message
+        """
+        controlfile = ControlFile(self)
+        mets = METS(self, debug=debug)
+        # check all the things!
+        dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
+        if not os.path.exists(self.path):
+            raise Error('Entity does not seem to exist: {}'.format(self.path))
+        if not os.path.exists(file_path):
+            raise Error('File does not exist: {}'.format(file_path))
+        if not os.path.exists(self.payload_path()):
+            raise Error('Files directory does not exist: {}'.format(self.payload_path()))
+        # TODO add force overwrite option
+        #if os.path.exists(dest_path):
+        #    raise Error('File already copied: {}'.format(dest_path))
+        # copy the file already!
+        # TODO hand off to background task? show progress bar?
+        if debug:
+            print('copying {}'.format(file_path)) 
+            print('     -> {}'.format(dest_path)) 
+        shutil.copyfile(file_path, dest_path)
+        if not os.path.exists(dest_path):
+            raise Error('File not copied: {}'.format(dest_path))
+        else:
+            if debug:
+                print('OK')
+        # update metadata
+        controlfile.update_checksums(debug=debug)
+        controlfile.write(debug=debug)
+        mets.update_filesec(debug=debug)
+        mets.write()
+        changelog = Changelog(self, debug=debug)
+        msg = 'Added file: {}'.format(file_path)
+        changelog.write([msg], 'username', 'user@example.com')
+    
+    def rm( self, file_path=None, debug=False ):
+        """Remove a file from the Entity.
+        
+        @param file_path String Path to file, relative to Entity root.
+        @returns None for success, or String error message
+        """
+        controlfile = ControlFile(self)
+        # error checking
+        if not file_path:
+            raise Error('No file path.')
+        rm_path = os.path.join(self.payload_path(), file_path)
+        if debug:
+            print("rm {}".format(rm_path))
+        if not os.path.exists(file_path):
+            raise Error('File does not exist: {}'.format(file_path))
+        # remove file
+        if debug:
+            print('removing {}'.format(rm_path))
+        os.remove(rm_path)
+        if os.path.exists(rm_path):
+            raise Error('File not removed: {}'.format(rm_path))
+        else:
+            if debug:
+                print('OK')
+        # update metadata
+        controlfile.update_checksums(debug=debug)
+        controlfile.write(debug=debug)
+        changelog = Changelog(self, debug=debug)
+        msg = 'Removed file: {}'.format(file_path)
+        changelog.write([msg], 'username', 'user@example.com')
