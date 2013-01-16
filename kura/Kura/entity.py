@@ -6,7 +6,7 @@ More than you thought you wanted to know about the entity command.
 
 
 
-import configparser
+import ConfigParser
 from datetime import datetime
 import hashlib
 import os
@@ -236,7 +236,7 @@ class ControlFile( object ):
     def read( self, debug=False ):
         if debug:
             print('Reading control file {} ...'.format(self.filename))
-        self._config = configparser.ConfigParser()
+        self._config = ConfigParser.ConfigParser()
         self._config.read([self.filename])
     
     def write( self, debug=False ):
@@ -255,21 +255,24 @@ class ControlFile( object ):
                 entity_path = '{}/'.format(entity_path)
             return payload_file.replace(entity_path, '')
         
-        self._config['Checksums-SHA1'] = {}
-        for sha1,path in self.entity.checksums('sha1', debug=debug):
+        self._config.remove_section('Checksums-SHA1')
+        self._config.add_section('Checksums-SHA1')
+        for sha1,path in entity.checksums('sha1', debug=debug):
             path = relative_path(self.entity.path, path)
-            self._config['Checksums-SHA1'][sha1] = path
+            self._config.set('Checksums-SHA1', sha1, path)
         #
-        self._config['Checksums-SHA256'] = {}
-        for sha256,path in self.entity.checksums('sha256', debug=debug):
+        self._config.remove_section('Checksums-SHA256')
+        self._config.add_section('Checksums-SHA256')
+        for sha256,path in entity.checksums('sha256', debug=debug):
             path = relative_path(self.entity.path, path)
-            self._config['Checksums-SHA256'][sha256] = path
+            self._config.set('Checksums-SHA256', sha256, path)
         #
-        self._config['Files'] = {}
-        for md5,path in self.entity.checksums('md5', debug=debug):
+        self._config.remove_section('Files')
+        self._config.add_section('Files')
+        for md5,path in entity.checksums('md5', debug=debug):
             size = os.path.getsize(path)
             path = relative_path(self.entity.path, path)
-            self._config['Files'][md5] = '{} ; {}'.format(size,path)
+            self._config.set('Files', md5, '{} ; {}'.format(size,path))
 
 
 
