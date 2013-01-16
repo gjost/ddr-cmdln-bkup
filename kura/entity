@@ -34,7 +34,7 @@ def main():
     # do something
     e = Entity(args.entity)
     if   args.operation == 'init':
-        e.initialize(user=args.user, mail=args.mail, debug=args.debug)
+        e.initialize(debug=args.debug)
     elif args.operation == 'add':      e.add(file_path=args.file, debug=args.debug)
     elif args.operation == 'rm':       e.rm(file_path=args.file, debug=args.debug)
     elif args.operation == 'validate': e.validate(debug=args.debug)
