@@ -23,8 +23,6 @@ class Error( Exception ):
 
 
 
-ENTITY_OPERATIONS = ['init', 'add', 'rm', 'validate']
-
 class Entity( object ):
     uid = None
     path = None
@@ -54,7 +52,10 @@ class Entity( object ):
             files.append(f.replace(entity_path, ''))
         return files
 
-    CHECKSUM_ALGORITHMS = ['md5', 'sha1', 'sha256']
+    @staticmethod
+    def checksum_algorithms():
+        return ['md5', 'sha1', 'sha256']
+    
     def checksums( self, algo, debug=False ):
         checksums = []
         def file_checksum( path, algo, block_size=1024 ):
@@ -72,7 +73,7 @@ class Entity( object ):
                 h.update(data)
             f.close()
             return h.hexdigest()
-        if algo not in CHECKSUM_ALGORITHMS:
+        if algo not in Entity.checksum_algorithms():
             raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
         for f in self.files():
             fpath = os.path.join(self.payload_path(), f)
@@ -80,6 +81,12 @@ class Entity( object ):
             if cs:
                 checksums.append( (cs, fpath) )
         return checksums
+
+    # operations exposed to the command-line tool ------------------------------
+    
+    @staticmethod
+    def operations():
+        return ['init', 'add', 'rm',]
 
     def initialize( self, debug=False ):
         """Create the file structure for a new Entity.
@@ -170,17 +177,6 @@ class Entity( object ):
         msg = 'Removed file: {}'.format(file_path)
         changelog.write([msg], 'username', 'user@example.com')
 
-    def validate( self, debug=False ):
-        """Run validator tool on this Entity, return results.
-        """
-        if debug:
-            print("validate('{}')".format(self.path))
-        # error checking
-        if not os.path.exists(self.path):
-            raise Error('Entity does not seem to exist: {}'.format(self.path))
-        # OK GO
-        # validate entity
-        # write to log
 
 
 
