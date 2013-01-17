@@ -14,6 +14,7 @@ import shutil
 import sys
 
 from bs4 import BeautifulSoup
+import git
 
 
 
@@ -49,21 +50,19 @@ extended = DESCRIPTION_EXTENDED
 class ControlFile( object ):
     """control file inspired by Debian package control file but using INI syntax.
     """
-    entity = None
     entity_path = None
     filename = None
     _config = None
     CHECKSUMS = ['sha1', 'sha256', 'files']
     
-    def __init__( self, entity, debug=False ):
-        self.entity = entity
-        self.entity_path = self.entity.path
+    def __init__( self, entity_path, entity_uid, debug=False ):
+        self.entity_path = entity_path
         self.filename = os.path.join(self.entity_path, 'control')
         if not os.path.exists(self.filename):
             if debug:
                 print('Initializing control file {} ...'.format(self.filename))
             f = open(self.filename, 'w')
-            txt = CONTROL_TEMPLATE.format(uid=self.entity.uid)
+            txt = CONTROL_TEMPLATE.format(uid=entity_uid)
             f.write(txt)
             f.close()
             if debug:
@@ -82,10 +81,7 @@ class ControlFile( object ):
         with open(self.filename, 'w') as cfile:
             self._config.write(cfile)
     
-    def update_checksums( self, debug=False ):
-        files = self.entity.files()
-        payload_path = self.entity.payload_path()
-
+    def update_checksums( self, entity, debug=False ):
         # return relative path to payload
         def relative_path(entity_path, payload_file):
             if entity_path[-1] != '/':
@@ -95,20 +91,20 @@ class ControlFile( object ):
         self._config.remove_section('Checksums-SHA1')
         self._config.add_section('Checksums-SHA1')
         for sha1,path in entity.checksums('sha1', debug=debug):
-            path = relative_path(self.entity.path, path)
+            path = relative_path(entity.path, path)
             self._config.set('Checksums-SHA1', sha1, path)
         #
         self._config.remove_section('Checksums-SHA256')
         self._config.add_section('Checksums-SHA256')
         for sha256,path in entity.checksums('sha256', debug=debug):
-            path = relative_path(self.entity.path, path)
+            path = relative_path(entity.path, path)
             self._config.set('Checksums-SHA256', sha256, path)
         #
         self._config.remove_section('Files')
         self._config.add_section('Files')
         for md5,path in entity.checksums('md5', debug=debug):
             size = os.path.getsize(path)
-            path = relative_path(self.entity.path, path)
+            path = relative_path(entity.path, path)
             self._config.set('Files', md5, '{} ; {}'.format(size,path))
 
 
@@ -126,14 +122,12 @@ METS_TEMPLATE = """<mets>
 class METS( object ):
     """Metadata Encoding and Transmission Standard (METS) file.
     """
-    entity = None
     entity_path = None
     filename = None
     soup = None
     
-    def __init__( self, entity, debug=False ):
-        self.entity = entity
-        self.entity_path = self.entity.path
+    def __init__( self, entity_path, entity_uid, debug=False ):
+        self.entity_path = entity_path
         self.filename = os.path.join(self.entity_path, 'mets.xml')
         if not os.path.exists(self.filename):
             if debug:
@@ -141,8 +135,8 @@ class METS( object ):
             # start fresh
             now = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
             soup = BeautifulSoup(METS_TEMPLATE, 'xml')
-            soup.mets['OBJID'] = self.entity.uid
-            soup.mets['LABEL'] = self.entity.uid
+            soup.mets['OBJID'] = entity_uid
+            soup.mets['LABEL'] = entity_uid
             soup.mets['TYPE'] = 'unknown'
             soup.mets.metsHdr['CREATEDATE'] = now
             soup.mets.metsHdr['LASTMODDATE'] = now
@@ -165,7 +159,7 @@ class METS( object ):
         with open(self.filename, 'w') as mfile:
             mfile.write(self.soup.prettify())
     
-    def update_filesec( self, debug=False ):
+    def update_filesec( self, entity, debug=False ):
         """
         <fileSec>
           <fileGrp USE="master">
@@ -180,9 +174,8 @@ class METS( object ):
           </fileGrp>
         </fileSec>
         """
-        files = self.entity.files()
-        payload_path = self.entity.payload_path()
-
+        payload_path = entity.payload_path()
+        
         # return relative path to payload
         def relative_path(entity_path, payload_file):
             if entity_path[-1] != '/':
@@ -193,8 +186,7 @@ class METS( object ):
         filesec = self.soup.new_tag('fileSec')
         self.soup.fileSec.replace_with(filesec)
         # add new ones
-        for md5,path in self.entity.checksums('md5', debug=debug):
-            print(md5,path)
+        for md5,path in entity.checksums('md5', debug=debug):
             n = n + 1
             use = 'unknown'
             seq = n
@@ -202,7 +194,7 @@ class METS( object ):
             fid = 'FID{}'.format(n)
             aid = 'AMD{}'.format(n)
             mimetype = 'mimetype'
-            path = relative_path(self.entity.path, path)
+            path = relative_path(entity.path, path)
             # add fileGrp, file, Floca
             fileGrp = self.soup.new_tag('fileGrp', USE='master')
             self.soup.fileSec.append(fileGrp)
@@ -226,12 +218,10 @@ CHANGELOG_DATE_FORMAT = "%a, %d %b %Y %H:%M:%S %z"
 class Changelog( object ):
     """changelog inspired by Debian package changelog file.
     """
-    entity = None
     filename = None
     
-    def __init__( self, entity, debug=False ):
-        self.entity = entity
-        self.filename = os.path.join(self.entity.path, 'changelog')
+    def __init__( self, entity_path, debug=False ):
+        self.filename = os.path.join(entity_path, 'changelog')
         if not os.path.exists(self.filename):
             if debug:
                 print('Initializing changelog {} ...'.format(self.filename))
@@ -256,16 +246,92 @@ class Changelog( object ):
 
 
 
+GITIGNORE = """*~
+*.pyc"""
+
+class Repo( object ):
+    entity_path = None
+    gitignore = None
+    repo = None
+
+    def __init__( self, entity_path, debug=False ):
+        self.entity_path = entity_path
+        self.gitignore = os.path.join(self.entity_path, '.gitignore')
+        if not os.path.exists(self.gitignore):
+            with open(self.gitignore, 'w') as gi:
+                gi.write(self.gitignore)
+        if debug:
+            print('Initializing git repo: {}'.format(self.entity_path))
+        #self.repo = git.Repo(self.entity_path)
+
+    def initialize( self, entity, debug=False ):
+        if debug:
+            print('git init {}'.format(self.entity_path))
+        self.repo = git.Repo.init(self.entity_path)
+        g = self.repo.git
+        g.config('user.name', entity.user)
+        g.config('user.email', entity.mail)
+        index = self.repo.index
+        index.add(['.gitignore', 'control', 'mets.xml', 'changelog',])
+        commit = index.commit('Initialized {}'.format(entity.uid))
+
+    def add( self, entity, file_path, msg, debug=False ):
+        # relative_path includes the 'files/' dir
+        relative_path = os.path.join(entity.payload_path(), file_path)
+        self.repo = git.Repo(entity.path)
+        g = self.repo.git
+        g.config('user.name', entity.user)
+        g.config('user.email', entity.mail)
+        index = self.repo.index
+        index.add([relative_path, 'control', 'mets.xml', 'changelog',])
+        commit = index.commit(msg)
+
+    def rm( self, entity, file_path, msg, debug=False ):
+        # relative_path includes the 'files/' dir
+        relative_path = os.path.join(entity.payload_path(), file_path)
+        self.repo = git.Repo(entity.path)
+        g = self.repo.git
+        g.config('user.name', entity.user)
+        g.config('user.email', entity.mail)
+        index = self.repo.index
+        index.remove([relative_path])
+        index.add(['control', 'mets.xml', 'changelog',])
+        commit = index.commit(msg)
+
+
+
 class Entity( object ):
+    user = None
+    mail = None
     uid = None
     path = None
     parent = None
+    control = None
+    mets = None
+    changelog = None
+    repo = None
     
-    def __init__( self, path, uid=None ):
+    def __init__( self, path, user, mail, uid=None, debug=False ):
         self.path = path
         if not uid:
             uid = os.path.basename(self.path)
-        self.uid = uid
+        self.uid  = uid
+        self.user = user
+        self.mail = mail
+        # create directory if doesn't exist
+        if not os.path.exists(self.path):
+            os.makedirs(self.path)
+            if debug:
+                print('Created directory {}'.format(self.path))
+        # make payload dir if doesn't exist
+        if not os.path.exists(self.payload_path()):
+            os.makedirs(self.payload_path())
+            if debug:
+                print('Created payload directory {}'.format(self.payload_path()))
+        self.control   = ControlFile(self.path, self.uid)
+        self.mets      = METS(self.path, self.uid)
+        self.changelog = Changelog(self.path)
+        self.repo      = Repo(self.path, debug=debug)
 
     def __str__(self):
         return self.__unicode__()
@@ -326,24 +392,16 @@ class Entity( object ):
         
         @param entity_path String Absolute path to entity dir.
         """
-        # create directory if doesn't exist
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
-            if debug:
-                print('Created directory {}'.format(self.path))
-        # make payload dir if doesn't exist
-        if not os.path.exists(self.payload_path()):
-            os.makedirs(self.payload_path())
-            if debug:
-                print('Created payload directory {}'.format(self.payload_path()))
+        if debug:
+            print('Initializing {}'.format(self.uid))
         # update metadata
-        controlfile = ControlFile(self, debug=debug)
-        controlfile.write()
-        mets = METS(self, debug=debug)
-        mets.write()
-        changelog = Changelog(self, debug=debug)
+        self.control.write()
+        self.mets.write()
         msg = 'Initialized entity {}'.format(self.uid)
-        changelog.write([msg], 'username', 'user@example.com')
+        self.changelog.write([msg], self.user, self.mail)
+        self.repo.initialize(self, debug=debug)
+        if debug:
+            print('DONE')
         
     
     def add( self, file_path, debug=False ):
@@ -352,8 +410,6 @@ class Entity( object ):
         @param file_path String Absolute path to file.
         @returns None for success, or String error message
         """
-        controlfile = ControlFile(self)
-        mets = METS(self, debug=debug)
         # check all the things!
         dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
         if not os.path.exists(self.path):
@@ -377,13 +433,13 @@ class Entity( object ):
             if debug:
                 print('OK')
         # update metadata
-        controlfile.update_checksums(debug=debug)
-        controlfile.write(debug=debug)
-        mets.update_filesec(debug=debug)
-        mets.write()
-        changelog = Changelog(self, debug=debug)
+        self.control.update_checksums(self, debug=debug)
+        self.mets.update_filesec(self, debug=debug)
+        self.control.write()
+        self.mets.write()
         msg = 'Added file: {}'.format(file_path)
-        changelog.write([msg], 'username', 'user@example.com')
+        self.changelog.write([msg], self.user, self.mail)
+        self.repo.add(self, file_path, msg, debug=debug)
     
     def rm( self, file_path=None, debug=False ):
         """Remove a file from the Entity.
@@ -391,7 +447,6 @@ class Entity( object ):
         @param file_path String Path to file, relative to Entity root.
         @returns None for success, or String error message
         """
-        controlfile = ControlFile(self)
         # error checking
         if not file_path:
             raise Error('No file path.')
@@ -410,8 +465,10 @@ class Entity( object ):
             if debug:
                 print('OK')
         # update metadata
-        controlfile.update_checksums(debug=debug)
-        controlfile.write(debug=debug)
-        changelog = Changelog(self, debug=debug)
+        self.control.update_checksums(self, debug=debug)
+        self.mets.update_filesec(self, debug=debug)
+        self.control.write()
+        self.mets.write()
         msg = 'Removed file: {}'.format(file_path)
-        changelog.write([msg], 'username', 'user@example.com')
+        self.changelog.write([msg], self.user, self.mail)
+        self.repo.rm(self, file_path, msg, debug=debug)
