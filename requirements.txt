@@ -1,0 +1,12 @@
+# capsule
+
+# kiroku
+
+# kura
+
+beautifulsoup4
+bpython
+GitPython
+lxml
+
+# validator
