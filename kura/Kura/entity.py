@@ -250,6 +250,11 @@ GITIGNORE = """*~
 *.pyc"""
 
 class Repo( object ):
+    """
+    NOTES:
+    - Multiple people may work with the same repo, so author is specified on every
+      commit, using the username and email from the command.
+    """
     entity_path = None
     gitignore = None
     repo = None
@@ -265,6 +270,8 @@ class Repo( object ):
         #self.repo = git.Repo(self.entity_path)
 
     def initialize( self, entity, debug=False ):
+        """Initialize Git repo for the specified entity.
+        """
         if debug:
             print('git init {}'.format(self.entity_path))
         self.repo = git.Repo.init(self.entity_path)
@@ -276,6 +283,8 @@ class Repo( object ):
         commit = index.commit('Initialized {}'.format(entity.uid))
 
     def add( self, entity, file_path, msg, debug=False ):
+        """Add specified file, update metadata.
+        """
         # relative_path includes the 'files/' dir
         relative_path = os.path.join(entity.payload_path(), file_path)
         self.repo = git.Repo(entity.path)
@@ -287,6 +296,8 @@ class Repo( object ):
         commit = index.commit(msg)
 
     def rm( self, entity, file_path, msg, debug=False ):
+        """Remove specified file, update metadata.
+        """
         # relative_path includes the 'files/' dir
         relative_path = os.path.join(entity.payload_path(), file_path)
         self.repo = git.Repo(entity.path)
