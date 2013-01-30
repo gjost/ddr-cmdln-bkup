@@ -493,7 +493,8 @@ class Entity( object ):
         self.mets.update_filesec(self, debug=debug)
         self.control.write()
         self.mets.write()
-        msg = 'Added file: {}'.format(file_path)
+        relpath = dest_path.replace('{}/'.format(self.path), '')
+        msg = 'Added file: {}'.format(relpath)
         self.changelog.write([msg], self.user, self.mail)
         # git add,commit
         self.repo.add(self, file_path, msg, debug=debug)
@@ -523,7 +524,8 @@ class Entity( object ):
         self.mets.update_filesec(self, debug=debug)
         self.control.write()
         self.mets.write()
-        msg = 'Removed file: {}'.format(file_path)
+        relpath = file_path.replace('{}/'.format(self.path), '')
+        msg = 'Removed file: {}'.format(relpath)
         self.changelog.write([msg], self.user, self.mail)
         # git rm,commit
         self.repo.rm(self, file_path, msg, debug=debug)
