@@ -11,6 +11,7 @@ from datetime import datetime
 import hashlib
 import os
 import shutil
+import subprocess
 import sys
 
 from bs4 import BeautifulSoup
@@ -262,28 +263,42 @@ class Repo( object ):
     def __init__( self, entity_path, debug=False ):
         self.entity_path = entity_path
         self.gitignore = os.path.join(self.entity_path, '.gitignore')
-        if not os.path.exists(self.gitignore):
-            with open(self.gitignore, 'w') as gi:
-                gi.write(self.gitignore)
+        #if not os.path.exists(self.gitignore):
+        #    with open(self.gitignore, 'w') as gi:
+        #        gi.write(self.gitignore)
         if debug:
             print('Initializing git repo: {}'.format(self.entity_path))
         #self.repo = git.Repo(self.entity_path)
 
-    def initialize( self, entity, debug=False ):
-        """Initialize Git repo for the specified entity.
+    def clone( self, entity, debug=False ):
+        """Clone the git repo from Gitolite.
+        """
+        url = 'git@mits:{}.git'.format(entity.uid)
+        print(url)
+        self.repo = git.Repo.clone_from(url, entity.path)
+    
+    def setup( self, entity, debug=False ):
+        """Add entity files and git annex to newly-initialized entity repo.
         """
         if debug:
-            print('git init {}'.format(self.entity_path))
-        self.repo = git.Repo.init(self.entity_path)
+            print('git init {}'.format(entity.path))
+        # git init
+        self.repo = git.Repo(entity.path)
+        # there is no master branch at this point
+        os.system('git branch')
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
+        # git add
         index = self.repo.index
-        index.add(['.gitignore', 'control', 'mets.xml', 'changelog',])
+        index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit('Initialized {}'.format(entity.uid))
+        # master branch should be created by now
+        os.system('git branch')
+        os.system('git annex init')
 
     def add( self, entity, file_path, msg, debug=False ):
-        """Add specified file, update metadata.
+        """git annex add specified file, update metadata.
         """
         # relative_path includes the 'files/' dir
         relative_path = os.path.join(entity.payload_path(), file_path)
@@ -291,12 +306,18 @@ class Repo( object ):
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
+        # git annex add
+        os.system('cd {} && git annex add {}'.format(entity.path, relative_path))
+        # git add
         index = self.repo.index
-        index.add([relative_path, 'control', 'mets.xml', 'changelog',])
+        index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit(msg)
 
     def rm( self, entity, file_path, msg, debug=False ):
-        """Remove specified file, update metadata.
+        """remove specified file, update metadata.
+        NOTES:
+        - Uses regular git rm, not git annex.
+        - This actually DELETES the file!
         """
         # relative_path includes the 'files/' dir
         relative_path = os.path.join(entity.payload_path(), file_path)
@@ -304,10 +325,27 @@ class Repo( object ):
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
+        # git rm (no annex)
         index = self.repo.index
         index.remove([relative_path])
         index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit(msg)
+
+    def sync(self, entity, debug=False ):
+        """Fetches metadata, syncs annex media data, uploads updates.
+        
+        NOTE: Does not pull or push git-annex media files.
+        """
+        os.chdir(entity.path)
+        # git co master
+        print( subprocess.check_output('pwd') )
+        print( subprocess.check_output('cd {} && git checkout master'.format(entity.path)) )
+        print( subprocess.check_output('cd {} && git fetch origin'.format(entity.path)) )
+        print( subprocess.check_output('git pull origin master') )
+        print( subprocess.check_output('git checkout git-annex') )
+        print( subprocess.check_output('git pull origin git-annex') )
+        #print( subprocess.check_output('git checkout master') )
+
 
 
 
@@ -329,20 +367,16 @@ class Entity( object ):
         self.uid  = uid
         self.user = user
         self.mail = mail
-        # create directory if doesn't exist
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
-            if debug:
-                print('Created directory {}'.format(self.path))
-        # make payload dir if doesn't exist
-        if not os.path.exists(self.payload_path()):
-            os.makedirs(self.payload_path())
-            if debug:
-                print('Created payload directory {}'.format(self.payload_path()))
-        self.control   = ControlFile(self.path, self.uid)
-        self.mets      = METS(self.path, self.uid)
-        self.changelog = Changelog(self.path)
-        self.repo      = Repo(self.path, debug=debug)
+        ## create directory if doesn't exist
+        #if not os.path.exists(self.path):
+        #    os.makedirs(self.path)
+        #    if debug:
+        #        print('Created directory {}'.format(self.path))
+        if os.path.exists(self.path):
+            self.control   = ControlFile(self.path, self.uid)
+            self.mets      = METS(self.path, self.uid)
+            self.changelog = Changelog(self.path)
+            self.repo      = Repo(self.path, debug=debug)
 
     def __str__(self):
         return self.__unicode__()
@@ -405,12 +439,19 @@ class Entity( object ):
         """
         if debug:
             print('Initializing {}'.format(self.uid))
+        # clone repo from Gitolite
+        self.repo      = Repo(self.path, debug=debug)
+        self.repo.clone(self, debug=debug)
+        if os.path.exists(self.path):
+            self.control   = ControlFile(self.path, self.uid)
+            self.mets      = METS(self.path, self.uid)
+            self.changelog = Changelog(self.path)
         # update metadata
         self.control.write()
         self.mets.write()
         msg = 'Initialized entity {}'.format(self.uid)
         self.changelog.write([msg], self.user, self.mail)
-        self.repo.initialize(self, debug=debug)
+        self.repo.setup(self, debug=debug)
         if debug:
             print('DONE')
         
@@ -427,8 +468,11 @@ class Entity( object ):
             raise Error('Entity does not seem to exist: {}'.format(self.path))
         if not os.path.exists(file_path):
             raise Error('File does not exist: {}'.format(file_path))
+        # make payload dir if doesn't exist
         if not os.path.exists(self.payload_path()):
-            raise Error('Files directory does not exist: {}'.format(self.payload_path()))
+            os.makedirs(self.payload_path())
+            if debug:
+                print('Created payload directory {}'.format(self.payload_path()))
         # TODO add force overwrite option
         #if os.path.exists(dest_path):
         #    raise Error('File already copied: {}'.format(dest_path))
@@ -436,7 +480,8 @@ class Entity( object ):
         # TODO hand off to background task? show progress bar?
         if debug:
             print('copying {}'.format(file_path)) 
-            print('     -> {}'.format(dest_path)) 
+            print('     -> {}'.format(dest_path))
+        # add
         shutil.copyfile(file_path, dest_path)
         if not os.path.exists(dest_path):
             raise Error('File not copied: {}'.format(dest_path))
@@ -450,10 +495,13 @@ class Entity( object ):
         self.mets.write()
         msg = 'Added file: {}'.format(file_path)
         self.changelog.write([msg], self.user, self.mail)
+        # git add,commit
         self.repo.add(self, file_path, msg, debug=debug)
     
     def rm( self, file_path=None, debug=False ):
         """Remove a file from the Entity.
+        
+        IMPORTANT: This actually deletes the file -- there is no undo!
         
         @param file_path String Path to file, relative to Entity root.
         @returns None for success, or String error message
@@ -470,11 +518,6 @@ class Entity( object ):
         if debug:
             print('removing {}'.format(rm_path))
         os.remove(rm_path)
-        if os.path.exists(rm_path):
-            raise Error('File not removed: {}'.format(rm_path))
-        else:
-            if debug:
-                print('OK')
         # update metadata
         self.control.update_checksums(self, debug=debug)
         self.mets.update_filesec(self, debug=debug)
@@ -482,4 +525,11 @@ class Entity( object ):
         self.mets.write()
         msg = 'Removed file: {}'.format(file_path)
         self.changelog.write([msg], self.user, self.mail)
+        # git rm,commit
         self.repo.rm(self, file_path, msg, debug=debug)
+        #
+        if os.path.exists(rm_path):
+            raise Error('File not removed: {}'.format(rm_path))
+        else:
+            if debug:
+                print('OK')
