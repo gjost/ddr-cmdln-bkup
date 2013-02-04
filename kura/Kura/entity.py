@@ -273,19 +273,23 @@ class Repo( object ):
     def clone( self, entity, debug=False ):
         """Clone the git repo from Gitolite.
         """
+        if debug:
+            print('Repo.clone({})'.format(entity.path))
         url = 'git@mits:{}.git'.format(entity.uid)
-        print(url)
+        if debug:
+            print('cloning: {}'.format(url))
         self.repo = git.Repo.clone_from(url, entity.path)
+        if debug:
+            print('Repo.clone() DONE')
     
     def setup( self, entity, debug=False ):
         """Add entity files and git annex to newly-initialized entity repo.
         """
         if debug:
-            print('git init {}'.format(entity.path))
+            print('Repo.setup({})'.format(entity.path))
         # git init
         self.repo = git.Repo(entity.path)
         # there is no master branch at this point
-        os.system('git branch')
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
@@ -294,31 +298,49 @@ class Repo( object ):
         index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit('Initialized {}'.format(entity.uid))
         # master branch should be created by now
-        os.system('git branch')
+        os.chdir(entity.path)
+        if debug:
+            print(os.system('git branch'))
         os.system('git annex init')
+        if debug:
+            print('Repo.setup() DONE')
 
-    def add( self, entity, file_path, msg, debug=False ):
+    def add( self, entity, relative_path, msg, debug=False ):
         """git annex add specified file, update metadata.
+        
+        NOTE: This method does not copy files to the entity directory!
+              It adds files already in $ENTITY/files to git annex!
+        @param entity Entity object
+        @param relative_path Path to file inside $ENTITY, including 'files/'.
         """
-        # relative_path includes the 'files/' dir
-        relative_path = os.path.join(entity.payload_path(), file_path)
+        if debug:
+            print('Repo.add({}, {}, "{}")'.format(entity.path, relative_path, msg))
         self.repo = git.Repo(entity.path)
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
         # git annex add
-        os.system('cd {} && git annex add {}'.format(entity.path, relative_path))
+        os.chdir(entity.path)
+        cmd = 'git annex add {}'.format(relative_path)
+        if debug:
+            print(cmd)
+        os.system(cmd)
         # git add
         index = self.repo.index
         index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit(msg)
+        if debug:
+            print('Repo.add() DONE')
 
     def rm( self, entity, file_path, msg, debug=False ):
         """remove specified file, update metadata.
+        
         NOTES:
         - Uses regular git rm, not git annex.
         - This actually DELETES the file!
         """
+        if debug:
+            print('Repo.rm({}, {}, "{}")'.format(entity.path, file_path, msg))
         # relative_path includes the 'files/' dir
         relative_path = os.path.join(entity.payload_path(), file_path)
         self.repo = git.Repo(entity.path)
@@ -330,6 +352,8 @@ class Repo( object ):
         index.remove([relative_path])
         index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit(msg)
+        if debug:
+            print('Repo.rm() DONE')
 
     def sync(self, entity, debug=False ):
         """Fetches metadata, syncs annex media data, uploads updates.
@@ -487,7 +511,7 @@ class Entity( object ):
             raise Error('File not copied: {}'.format(dest_path))
         else:
             if debug:
-                print('OK')
+                print('Copy OK')
         # update metadata
         self.control.update_checksums(self, debug=debug)
         self.mets.update_filesec(self, debug=debug)
@@ -497,7 +521,9 @@ class Entity( object ):
         msg = 'Added file: {}'.format(relpath)
         self.changelog.write([msg], self.user, self.mail)
         # git add,commit
-        self.repo.add(self, file_path, msg, debug=debug)
+        print(file_path)
+        print(relpath)
+        self.repo.add(self, relpath, msg, debug=debug)
     
     def rm( self, file_path=None, debug=False ):
         """Remove a file from the Entity.
