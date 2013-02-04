@@ -305,23 +305,26 @@ class Repo( object ):
         if debug:
             print('Repo.setup() DONE')
 
-    def add( self, entity, relative_path, msg, debug=False ):
+    def add( self, entity, payload_path, msg, debug=False ):
         """git annex add specified file, update metadata.
         
         NOTE: This method does not copy files to the entity directory!
               It adds files already in $ENTITY/files to git annex!
         @param entity Entity object
-        @param relative_path Path to file inside $ENTITY, including 'files/'.
+        @param payload_path Path to file inside $ENTITY, NOT INCLUDING 'files/'.
+        @param msg Git commit message.
         """
         if debug:
-            print('Repo.add({}, {}, "{}")'.format(entity.path, relative_path, msg))
+            print('Repo.add({}, {}, "{}")'.format(entity.path, payload_path, msg))
         self.repo = git.Repo(entity.path)
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
+        # file path
+        fpath = os.path.join('files', payload_path)
         # git annex add
         os.chdir(entity.path)
-        cmd = 'git annex add {}'.format(relative_path)
+        cmd = 'git annex add {}'.format(fpath)
         if debug:
             print(cmd)
         os.system(cmd)
@@ -332,24 +335,27 @@ class Repo( object ):
         if debug:
             print('Repo.add() DONE')
 
-    def rm( self, entity, file_path, msg, debug=False ):
+    def rm( self, entity, payload_path, msg, debug=False ):
         """remove specified file, update metadata.
         
         NOTES:
         - Uses regular git rm, not git annex.
         - This actually DELETES the file!
+        @param entity Entity object
+        @param payload_path Path to file inside $ENTITY, not including 'files/'.
+        @param msg Git commit message.
         """
         if debug:
-            print('Repo.rm({}, {}, "{}")'.format(entity.path, file_path, msg))
-        # relative_path includes the 'files/' dir
-        relative_path = os.path.join(entity.payload_path(), file_path)
+            print('Repo.rm({}, {}, "{}")'.format(entity.path, payload_path, msg))
         self.repo = git.Repo(entity.path)
         g = self.repo.git
         g.config('user.name', entity.user)
         g.config('user.email', entity.mail)
+        # file path
+        fpath = os.path.join('files', payload_path)
         # git rm (no annex)
         index = self.repo.index
-        index.remove([relative_path])
+        index.remove([fpath])
         index.add(['control', 'mets.xml', 'changelog',])
         commit = index.commit(msg)
         if debug:
@@ -407,8 +413,11 @@ class Entity( object ):
     def __unicode__(self):
         return '<Entity: {}>'.format(self.uid)
     
-    def payload_path( self ):
-        return os.path.join(self.path, 'files')
+    def payload_path( self, trailing_slash=False ):
+        p = os.path.join(self.path, 'files')
+        if trailing_slash:
+            p = '{}/'.format(p)
+        return p
     
     def files( self ):
         """Returns relative paths to payload files."""
@@ -486,6 +495,8 @@ class Entity( object ):
         @param file_path String Absolute path to file.
         @returns None for success, or String error message
         """
+        if debug:
+            print('Entity.add({})'.format(file_path))
         # check all the things!
         dest_path = os.path.join(self.payload_path(), os.path.basename(file_path))
         if not os.path.exists(self.path):
@@ -505,7 +516,7 @@ class Entity( object ):
         if debug:
             print('copying {}'.format(file_path)) 
             print('     -> {}'.format(dest_path))
-        # add
+        # copy file into payload dir
         shutil.copyfile(file_path, dest_path)
         if not os.path.exists(dest_path):
             raise Error('File not copied: {}'.format(dest_path))
@@ -517,30 +528,29 @@ class Entity( object ):
         self.mets.update_filesec(self, debug=debug)
         self.control.write()
         self.mets.write()
-        relpath = dest_path.replace('{}/'.format(self.path), '')
-        msg = 'Added file: {}'.format(relpath)
+        git_add_path = dest_path.replace(self.payload_path(trailing_slash=True), '')
+        msg = 'Added file: {}'.format(git_add_path)
         self.changelog.write([msg], self.user, self.mail)
         # git add,commit
-        print(file_path)
-        print(relpath)
-        self.repo.add(self, relpath, msg, debug=debug)
+        self.repo.add(self, git_add_path, msg, debug=debug)
     
-    def rm( self, file_path=None, debug=False ):
+    def rm( self, file_path, debug=False ):
         """Remove a file from the Entity.
         
         IMPORTANT: This actually deletes the file -- there is no undo!
-        
-        @param file_path String Path to file, relative to Entity root.
+        @param file_path Path to file inside $ENTITY, not including 'files/'.
         @returns None for success, or String error message
         """
+        if debug:
+            print('Entity.rm({})'.format(file_path))
         # error checking
         if not file_path:
             raise Error('No file path.')
         rm_path = os.path.join(self.payload_path(), file_path)
         if debug:
             print("rm {}".format(rm_path))
-        if not os.path.exists(file_path):
-            raise Error('File does not exist: {}'.format(file_path))
+#        if not os.path.exists(file_path):
+#            raise Error('File does not exist: {}'.format(file_path))
         # remove file
         if debug:
             print('removing {}'.format(rm_path))

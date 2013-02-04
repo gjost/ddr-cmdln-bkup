@@ -98,8 +98,7 @@ class TestEntity(unittest.TestCase):
         with open(ENTITY_CHANGELOG, 'r') as ch:
             changelog = ch.read()
         for ffile in TEST_FILES:
-            ffile['rel'] = os.path.join('files', ffile['file'])
-            changelog_entry = '* Added file: {}'.format(ffile['rel'])
+            changelog_entry = '* Added file: {}'.format(ffile['file'])
             self.assertTrue(changelog_entry in changelog)
 
     def test_01add_control(self):
@@ -133,6 +132,73 @@ class TestEntity(unittest.TestCase):
             self.assertTrue(mets_href in mets)
 
     # remove -----------------------------------------------------------
+
+    def test_02rm(self):
+        """Remove files from entity, ensure they are in fact gone.
+        """
+        if DEBUG:
+            print('\ntest_02rm')
+        ffile = TEST_FILES[1]
+        f = ffile['file']
+        debug = ''
+        if DEBUG:
+            debug = ' -d'
+        cmd = '{}{} -u {} -m {} -e {} -o rm -f {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
+        if DEBUG:
+            print(cmd)
+        out = subprocess.check_output(cmd, shell=True)
+        if DEBUG:
+            print(out)
+        # files dir
+        ENTITY_FILES_DIR = os.path.join(TEST_ENTITY, 'files')
+        self.assertTrue(os.path.exists(ENTITY_FILES_DIR))
+        
+        ffile['abs'] = os.path.join(ENTITY_FILES_DIR, ffile['file'])
+        # file should be gone...
+        self.assertFalse(os.path.exists(ffile['abs']))
+    
+    def test_02rm_changelog(self):
+        """Checks that removal is noted in changelog
+        """
+        if DEBUG:
+            print('\ntest_02rm_changelog')
+        changelog = ''
+        with open(ENTITY_CHANGELOG, 'r') as ch:
+            changelog = ch.read()
+        ffile = TEST_FILES[1]
+        changelog_entry = '* Removed file: {}'.format(ffile['file'])
+        self.assertTrue(changelog_entry in changelog)
+     
+    def test_02rm_control(self):
+        """Checks that removed files no longer appear in control
+        """
+        if DEBUG:
+            print('\ntest_02rm_control')
+        control = ''
+        with open(ENTITY_CONTROL, 'r') as co:
+            control = co.read()
+        ffile = TEST_FILES[1]
+        ffile['rel'] = os.path.join('files', ffile['file'])
+        control_sha1 = '{} = {}'.format(ffile['sha1'], ffile['rel'])
+        control_md5 = '{} = {} ; {}'.format(ffile['md5'], ffile['size'], ffile['rel'])
+        self.assertFalse(control_sha1 in control)
+        self.assertFalse(control_md5 in control)
+     
+    def test_02rm_mets(self):
+        """Checks that removed files no longer appear in mets.xml
+        """
+        if DEBUG:
+            print('\ntest_02rm_mets')
+        mets = ''
+        with open(ENTITY_METS, 'r') as mx:
+            mets = mx.read()
+        ffile = TEST_FILES[1]
+        ffile['rel'] = os.path.join('files', ffile['file'])
+        mets_md5 = 'CHECKSUM="{}"'.format(ffile['md5'])
+        mets_href = 'href="{}"'.format(ffile['rel'])
+        self.assertFalse(mets_md5 in mets)
+        self.assertFalse(mets_href in mets)
+    
 
 
 if __name__ == '__main__':
