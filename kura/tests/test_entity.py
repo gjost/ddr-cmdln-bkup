@@ -43,7 +43,10 @@ class TestEntity(unittest.TestCase):
         if os.path.exists(TEST_ENTITY):
             shutil.rmtree(TEST_ENTITY, ignore_errors=True)
         #
-        cmd = '{} -u {} -m {} -e {} -o init'.format(CMD_PATH, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY)
+        debug = ''
+        if DEBUG:
+            debug = ' --debug'
+        cmd = '{}{} --user {} --mail {} --entity {} --operation init'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY)
         if DEBUG:
             print(cmd)
         out = subprocess.check_output(cmd, shell=True)
@@ -72,8 +75,8 @@ class TestEntity(unittest.TestCase):
             f = os.path.join(TEST_FILES_DIR, ffile['file'])
             debug = ''
             if DEBUG:
-                debug = ' -d'
-            cmd = '{}{} -u {} -m {} -e {} -o add -f {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
+                debug = ' --debug'
+            cmd = '{}{} --user {} --mail {} --entity {} --operation add --file {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
             if DEBUG:
                 print(cmd)
             out = subprocess.check_output(cmd, shell=True)
@@ -142,8 +145,8 @@ class TestEntity(unittest.TestCase):
         f = ffile['file']
         debug = ''
         if DEBUG:
-            debug = ' -d'
-        cmd = '{}{} -u {} -m {} -e {} -o rm -f {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
+            debug = ' --debug'
+        cmd = '{}{} --user {} --mail {} --entity {} --operation rm --file {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
         if DEBUG:
             print(cmd)
         out = subprocess.check_output(cmd, shell=True)
