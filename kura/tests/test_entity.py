@@ -4,6 +4,8 @@ import subprocess
 import sys
 import unittest
 
+DEBUG = False
+
 CMD_PATH = os.path.join(sys.path[0], '..', 'entity')
 
 TEST_TMP_PATH = '/tmp/'
@@ -36,14 +38,17 @@ class TestEntity(unittest.TestCase):
     # initialize -------------------------------------------------------
     
     def test_00init(self):
-        #print('\nentity init')
+        if DEBUG:
+            print('\ntest_00init')
         if os.path.exists(TEST_ENTITY):
             shutil.rmtree(TEST_ENTITY, ignore_errors=True)
         #
         cmd = '{} -u {} -m {} -e {} -o init'.format(CMD_PATH, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY)
-        #print(cmd)
+        if DEBUG:
+            print(cmd)
         out = subprocess.check_output(cmd, shell=True)
-        #print(out)
+        if DEBUG:
+            print(out)
         
         # directories exist
         self.assertTrue(os.path.exists(TEST_ENTITY))
@@ -61,18 +66,22 @@ class TestEntity(unittest.TestCase):
     def test_01add(self):
         """Add files to entity, ensure they were added.
         """
-        #print('\nentity add')
+        if DEBUG:
+            print('\ntest_01add')
         for ffile in TEST_FILES:
             f = os.path.join(TEST_FILES_DIR, ffile['file'])
-            cmd = '{} -u {} -m {} -e {} -o add -f {}'.format(CMD_PATH, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
-            #print(cmd)
+            debug = ''
+            if DEBUG:
+                debug = ' -d'
+            cmd = '{}{} -u {} -m {} -e {} -o add -f {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_ENTITY, f)
+            if DEBUG:
+                print(cmd)
             out = subprocess.check_output(cmd, shell=True)
-            #print(out)
-
+            if DEBUG:
+                print(out)
         # files dir
         ENTITY_FILES_DIR = os.path.join(TEST_ENTITY, 'files')
         self.assertTrue(os.path.exists(ENTITY_FILES_DIR))
-        
         for ffile in TEST_FILES:
             ffile['abs'] = os.path.join(ENTITY_FILES_DIR, ffile['file'])
             # each file should exist...
@@ -80,10 +89,11 @@ class TestEntity(unittest.TestCase):
             # and should be a git-annex file
             self.assertTrue(os.path.islink(ffile['abs']))
             
-
     def test_01add_changelog(self):
         """Checks that each added file appears in changelog
         """
+        if DEBUG:
+            print('\ntest_01add_changelog')
         changelog = ''
         with open(ENTITY_CHANGELOG, 'r') as ch:
             changelog = ch.read()
@@ -95,6 +105,8 @@ class TestEntity(unittest.TestCase):
     def test_01add_control(self):
         """Checks that each added file appears in control
         """
+        if DEBUG:
+            print('\ntest_01add_control')
         control = ''
         with open(ENTITY_CONTROL, 'r') as co:
             control = co.read()
@@ -108,6 +120,8 @@ class TestEntity(unittest.TestCase):
     def test_01add_mets(self):
         """Checks that each added file appears in mets.xml
         """
+        if DEBUG:
+            print('\ntest_01add_mets')
         mets = ''
         with open(ENTITY_METS, 'r') as mx:
             mets = mx.read()
