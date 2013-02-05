@@ -4,6 +4,9 @@ import subprocess
 import sys
 import unittest
 
+from lxml import etree
+
+
 DEBUG = False
 
 CMD_PATH = os.path.join(sys.path[0], '..', 'entity')
@@ -30,8 +33,26 @@ TEST_FILES = [
      'size':   '6539',},
     ]
 
-class TestEntity(unittest.TestCase):
 
+def xml_is_valid(file_path):
+    """Just checks that the specified file is valid XML.
+    """
+    try:
+        xml = etree.parse(file_path)
+        mets_xsd = os.path.join(TEST_FILES_DIR, 'mets.xsd')
+        xsd = etree.parse(mets_xsd)
+        xmlschema = etree.XMLSchema(xsd)
+        xmlschema.assertValid(xml)
+        print ("document validates!")
+        return True
+    except etree.XMLSyntaxError as e:
+        print ("PARSING ERROR", e)
+    except AssertionError as e:
+        print ("INVALID DOCUMENT", e)
+    return False
+
+class TestEntity(unittest.TestCase):
+    
     def setUp(self):
         pass
 
@@ -58,6 +79,8 @@ class TestEntity(unittest.TestCase):
         self.assertTrue(os.path.exists(ENTITY_CHANGELOG))
         self.assertTrue(os.path.exists(ENTITY_CONTROL))
         self.assertTrue(os.path.exists(ENTITY_METS))
+#        # mets.xml validates
+#        self.assertTrue(xml_is_valid(ENTITY_METS))
         # git, git-annex
         git = os.path.join(TEST_ENTITY,'.git')
         annex = os.path.join(git, 'annex')
@@ -133,6 +156,8 @@ class TestEntity(unittest.TestCase):
             mets_href = 'href="{}"'.format(ffile['rel'])
             self.assertTrue(mets_md5 in mets)
             self.assertTrue(mets_href in mets)
+#        # mets.xml validates
+#        self.assertTrue(xml_is_valid(ENTITY_METS))
 
     # remove -----------------------------------------------------------
 
@@ -201,6 +226,8 @@ class TestEntity(unittest.TestCase):
         mets_href = 'href="{}"'.format(ffile['rel'])
         self.assertFalse(mets_md5 in mets)
         self.assertFalse(mets_href in mets)
+#        # mets.xml validates
+#        self.assertTrue(xml_is_valid(ENTITY_METS))
     
 
 
