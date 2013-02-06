@@ -200,17 +200,20 @@ def create(user_name, user_mail, collection_path, debug=False):
     if debug:
         print('collection.create DONE')
 
+
 def destroy():
     """
     Removes an entire collection's files from the local system.  Does not remove files from the server!  That will remain a manual operation.
     """
     pass
 
+
 def status(collection_path, debug=False):
     """
     Gathers information about the status of the collection.
     """
     pass
+
 
 def update(user_name, user_mail, collection_path, updated_files, debug=False):
     """
@@ -243,6 +246,7 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     index = repo.index
     index.add(updated_files)
     commit = index.commit('Updated collection file(s)')
+
 
 def sync(user_name, user_mail, collection_path, debug=False):
     """git pull/push to workbench server, git-annex sync
@@ -392,6 +396,7 @@ def annex_pull(collection_path, entity_file_path, debug=False):
     @param entity_file_path Relative path to collection files dir.
     """
     pass
+
 
 def annex_push(collection_path, entity_file_path, debug=False):
     """Push a git-annex file to workbench.
