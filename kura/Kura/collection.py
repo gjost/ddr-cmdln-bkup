@@ -363,25 +363,30 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
         changelog.write(entry)
     git_files.append(changelog_path_rel)
     
-    ## git add
-    #index = repo.index
-    #index.add(git_files)
-    #commit = index.commit(changelog_messages[0])
-    ## master branch should be created by now
-    #os.chdir(collection_path)
-    #if debug:
-    #    print(os.system('git branch'))
-    #def run(cmd, debug=False):
-    #    out = subprocess.check_output(cmd, shell=True)
-    #    if debug:
-    #        print(out)
-    #run('git annex init', debug)
-    #run('git push origin master', debug)
-    #run('git checkout git-annex', debug)
-    #run('git push origin git-annex', debug)
-    #run('git checkout master', debug)
-    #if debug:
-    #    print('collection.entity_create DONE')
+    # git add
+    repo = git.Repo(collection_path)
+    g = repo.git
+    g.config('user.name', user_name)
+    g.config('user.email', user_mail)
+    index = repo.index
+    index.add(git_files)
+    commit = index.commit(changelog_messages[0])
+    # master branch should be created by now
+    os.chdir(collection_path)
+    if debug:
+        print(os.system('git branch'))
+    def run(cmd, debug=False):
+        out = subprocess.check_output(cmd, shell=True)
+        if debug:
+            print(out)
+    run('git annex init', debug)
+    run('git push origin master', debug)
+    run('git checkout git-annex', debug)
+    run('git push origin git-annex', debug)
+    run('git checkout master', debug)
+    if debug:
+        print('collection.entity_create DONE')
+
 
 def entity_destroy():
     """Remove the specified entity from the collection.
