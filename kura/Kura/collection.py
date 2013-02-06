@@ -92,6 +92,7 @@ More than you thought you wanted to know about the collection command.
 OPERATIONS = [
     'create',
     'destroy',
+    'status',
     'update',
     'sync',
     'ecreate',
