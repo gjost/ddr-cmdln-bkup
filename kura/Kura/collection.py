@@ -282,6 +282,9 @@ def sync(user_name, user_mail, collection_path, debug=False):
     run('git push origin git-annex', debug=debug)
     run('git checkout master', debug=debug)
     run('git push origin master', debug=debug)
+    # git annex sync
+    run('git annex sync', debug=debug)
+
 
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
     """Create an entity and add it to the collection.
