@@ -96,6 +96,7 @@ OPERATIONS = [
     'sync',
     'ecreate',
     'edestroy',
+    'eupdate',
     'pull',
     'push',
     ]
@@ -392,6 +393,53 @@ def entity_destroy():
     """Remove the specified entity from the collection.
     """
     pass
+
+
+def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, debug=False):
+    """
+    Commits changes to the specified file in the entity.  NOTE: Does not push to the workbench server.
+    Updates entity changelog but NOT in collection changelog.
+    Makes an entry in git log.
+    @param updated_files List of paths to updated file(s), relative to entity/files.
+    """
+    entity_path_rel = os.path.join('files', entity_uid)
+    entity_path_abs = os.path.join(collection_path, entity_path_rel)
+    # entity file paths are relative to collection root
+    git_files = []
+    for f in updated_files:
+        git_files.append( os.path.join( 'files', entity_uid, f) )
+    
+    # entity changelog
+    entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
+    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
+    if debug:
+        print('Updating entity changelog {}'.format(entity_changelog_path_abs))
+    entity_changelog_messages = []
+    for f in updated_files:
+        p = os.path.join(entity_uid, f)
+        entity_changelog_messages.append('Updated entity file {}'.format(p))
+    lines = []
+    [lines.append('* {}'.format(m)) for m in entity_changelog_messages]
+    changes = '\n'.join(lines)
+    entry = CHANGELOG_TEMPLATE.format(
+        changes=changes, user=user_name, email=user_mail,
+        date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
+    with open(entity_changelog_path_abs, 'a') as entity_changelog:
+        entity_changelog.write('\n')
+        entity_changelog.write(entry)
+    git_files.append(entity_changelog_path_rel)
+    
+    # git add
+    if debug:
+        print('git_files {}'.format(git_files))
+    repo = git.Repo(collection_path)
+    g = repo.git
+    g.config('user.name', user_name)
+    g.config('user.email', user_mail)
+    index = repo.index
+    index.add(git_files)
+    commit = index.commit('Updated entity file(s)')
+
 
 def annex_pull(collection_path, entity_file_path, debug=False):
     """Pull a git-annex file from workbench.
