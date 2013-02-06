@@ -104,6 +104,8 @@ OPERATIONS = [
 def create(user_name, user_mail, collection_path, debug=False):
     """Create a new collection
 
+    Clones a blank collection object from workbench server, adds files, commits.
+    
     - clones new repo from gitolite server
     # Easier to have Gitolite create repo then clone (http://sitaramc.github.com/gitolite/repos.html)
     # than to add existing to Gitolite (http://sitaramc.github.com/gitolite/rare.html#existing).
@@ -200,14 +202,19 @@ def create(user_name, user_mail, collection_path, debug=False):
 
 def destroy():
     """
+    Removes an entire collection's files from the local system.  Does not remove files from the server!  That will remain a manual operation.
     """
     pass
 
 def status(collection_path, debug=False):
+    """
+    Gathers information about the status of the collection.
+    """
     pass
 
 def update(user_name, user_mail, collection_path, updated_files, debug=False):
     """
+    Commits changes to the specified file.  NOTE: Does not push to the workbench server.
     @param updated_files List of relative paths to updated file(s).
     """
     repo = git.Repo(collection_path)
@@ -238,7 +245,9 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     commit = index.commit('Updated collection file(s)')
 
 def sync(user_name, user_mail, collection_path, debug=False):
-    """Push regular git files up to gitolite server
+    """git pull/push to workbench server, git-annex sync
+
+    Pulls changes from and pushes changes to the workbench server.
 
     For this to work properly with Gitolite, it's necessary to push/pull
     on both the master AND git-annex branches.
@@ -247,7 +256,7 @@ def sync(user_name, user_mail, collection_path, debug=False):
     - pull on master,git-annex branches
     - push on git-annex,master branches
     
-    TODO This assumes that origin is the gitolite server...
+    TODO This assumes that origin is the workbench server...
     """
     # git co master
     def run(cmd, debug=False):
@@ -271,7 +280,7 @@ def sync(user_name, user_mail, collection_path, debug=False):
     run('git push origin master', debug=debug)
 
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
-    """
+    """Create an entity and add it to the collection.
     """
     # create collection files/ dir if not already present
     # mets.xml
@@ -368,12 +377,12 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     #    print('collection.entity_create DONE')
 
 def entity_destroy():
-    """
+    """Remove the specified entity from the collection.
     """
     pass
 
 def annex_pull(collection_path, entity_file_path, debug=False):
-    """Pull a git-annex file from gitolite.
+    """Pull a git-annex file from workbench.
 
     Example file_paths:
         ddr-densho-1-1/files/video1.mov
@@ -385,7 +394,7 @@ def annex_pull(collection_path, entity_file_path, debug=False):
     pass
 
 def annex_push(collection_path, entity_file_path, debug=False):
-    """Push a git-annex file to gitolite.
+    """Push a git-annex file to workbench.
 
     Example file_paths:
         ddr-densho-1-1/files/video1.mov
