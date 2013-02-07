@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import subprocess
+import sys
 
 import git
 
@@ -9,77 +10,41 @@ import git
 GIT_USER = 'git'
 GIT_SERVER = 'mits'
 
+MODULE_PATH = os.path.join(sys.path[0])
 
+TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
+GITIGNORE_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'gitignore.template')
+CHANGELOG_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'changelog.template')
+CHANGELOG_DATE_FORMAT       = os.path.join(TEMPLATE_PATH, 'changelog-date.template')
+COLLECTION_CONTROL_TEMPLATE = os.path.join(TEMPLATE_PATH, 'collection/control.template')
+COLLECTION_EAD_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'collection/ead.xml.template')
+ENTITY_CONTROL_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'entity/control.template' )
+ENTITY_METS_TEMPLATE        = os.path.join(TEMPLATE_PATH, 'entity/mets.xml.template' )
 
-CHANGELOG_TEMPLATE = """{changes}
--- {user} <{email}>  {date}
-"""
-CHANGELOG_DATE_FORMAT = "%a, %d %b %Y %H:%M:%S %z"
+def load_template(filename):
+    template = ''
+    with open(filename, 'r') as f:
+        template = f.read()
+    return template
 
-
-CONTROL_TEMPLATE = """[Basic]
-standards-version = DDR0.1
-organization = ORGANIZATION
-collection = {cid}
-maintainer = MAINTAINER
-uploaders = UPLOADERS
-changed-by = CHANGED_BY
-
-[Description]
-short = DESCRIPTION_SINGLELINE
-extended = DESCRIPTION_EXTENDED
-	DESCRIPTION_EXTENDED_CONTINUED
-
-[Entities]"""
-
-
-EAD_TEMPLATE = """<mets>
-  <metsHdr></metsHdr>
-  <dmdSec></dmdSec>
-  <amdSec></amdSec>
-  <fileSec></fileSec>
-  <structMap></structMap>
-  <structLink></structLink>
-  <behaviorSec></behaviorSec>
-</mets>"""
-
-
-GITIGNORE_TEMPLATE = """*~
-*.pyc"""
-
-
-ENTITY_CONTROL_TEMPLATE = """[Basic]
-standards-version = DDR0.1
-organization = ORGANIZATION
-parent = {cid}
-entity = {eid}
-maintainer = MAINTAINER
-uploaders = UPLOADERS
-changed-by = CHANGED_BY
-format = MIMETYPE
-
-[Description]
-short = DESCRIPTION_SINGLELINE
-extended = DESCRIPTION_EXTENDED
-	DESCRIPTION_EXTENDED_CONTINUED
-
-[Checksums-SHA1]
-
-[Checksums-SHA256]
-
-[Files]"""
-
-
-ENTITY_METS_TEMPLATE = """<mets>
-  <metsHdr></metsHdr>
-  <dmdSec></dmdSec>
-  <amdSec></amdSec>
-  <fileSec></fileSec>
-  <structMap></structMap>
-  <structLink></structLink>
-  <behaviorSec></behaviorSec>
-</mets>"""
-
+def write_changelog_entry(path, messages, user, email, debug=False):
+    if debug:
+        print('Updating changelog {} ...'.format(path))
+    template = load_template(CHANGELOG_TEMPLATE)
+    date_format = load_template(CHANGELOG_DATE_FORMAT)
+    # one line per message
+    lines = []
+    [lines.append('* {}'.format(m)) for m in messages]
+    changes = '\n'.join(lines)
+    # render
+    entry = template.format(
+        changes=changes,
+        user=user,
+        email=email,
+        date=datetime.now().strftime(date_format)
+        )
+    with open(path, 'a') as changelog:
+        changelog.write(entry)
 
 
 
@@ -142,8 +107,9 @@ def create(user_name, user_mail, collection_path, debug=False):
     control_path_abs = os.path.join(collection_path, control_path_rel)
     if debug:
         print('Creating control {} ...'.format(control_path_abs))
+    control_template = load_template(COLLECTION_CONTROL_TEMPLATE)
     with open(control_path_abs, 'w') as control:
-        control.write(CONTROL_TEMPLATE.format(cid=collection_uid))
+        control.write(control_template.format(cid=collection_uid))
     git_files.append(control_path_rel)
 
     # ead.xml
@@ -151,26 +117,18 @@ def create(user_name, user_mail, collection_path, debug=False):
     ead_path_abs = os.path.join(collection_path, ead_path_rel)
     if debug:
         print('Creating ead.xml {} ...'.format(ead_path_abs))
+    ead_template = load_template(COLLECTION_EAD_TEMPLATE)
     with open(ead_path_abs, 'w') as ead:
-        ead.write(EAD_TEMPLATE)
+        ead.write(ead_template)
     git_files.append(ead_path_rel)
 
     # changelog
     changelog_path_rel = 'changelog'
-    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
-    if debug:
-        print('Creating changelog {} ...'.format(changelog_path_abs))
-    changelog_messages = [
-        'Initialized collection {}'.format(collection_uid),
-        ]
-    lines = []
-    [lines.append('* {}'.format(m)) for m in changelog_messages]
-    changes = '\n'.join(lines)
-    entry = CHANGELOG_TEMPLATE.format(
-        changes=changes, user=user_name, email=user_mail,
-        date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
-    with open(changelog_path_abs, 'a') as changelog:
-        changelog.write(entry)
+    changelog_messages = ['Initialized collection {}'.format(collection_uid)]
+    write_changelog_entry(
+        os.path.join(collection_path, changelog_path_rel),
+        changelog_messages,
+        user_name, user_mail, debug=debug)
     git_files.append(changelog_path_rel)
 
     # .gitignore
@@ -178,8 +136,9 @@ def create(user_name, user_mail, collection_path, debug=False):
     gitignore_path_abs = os.path.join(collection_path, gitignore_path_rel)
     if debug:
         print('Creating .gitignore {} ...'.format(gitignore_path_abs))
+    gitignore_template = load_template(GITIGNORE_TEMPLATE)
     with open(gitignore_path_abs, 'w') as gitignore:
-        gitignore.write(GITIGNORE_TEMPLATE)
+        gitignore.write(gitignore_template)
     git_files.append(gitignore_path_rel)
     
     # git add
@@ -226,24 +185,18 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     g = repo.git
     g.config('user.name', user_name)
     g.config('user.email', user_mail)
+    
     # changelog
     changelog_path_rel = 'changelog'
-    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
-    if debug:
-        print('Updating changelog {} ...'.format(changelog_path_abs))
     changelog_messages = []
     for f in updated_files:
         changelog_messages.append('Updated collection file(s) {}'.format(f))
-    lines = []
-    [lines.append('* {}'.format(m)) for m in changelog_messages]
-    changes = '\n'.join(lines)
-    entry = CHANGELOG_TEMPLATE.format(
-        changes=changes, user=user_name, email=user_mail,
-        date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
-    with open(changelog_path_abs, 'a') as changelog:
-        changelog.write('\n')
-        changelog.write(entry)
+    write_changelog_entry(
+        os.path.join(collection_path, changelog_path_rel),
+        changelog_messages,
+        user_name, user_mail, debug=debug)
     updated_files.append(changelog_path_rel)
+    
     # git add
     index = repo.index
     index.add(updated_files)
@@ -328,41 +281,22 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
 
     # entity changelog
     entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
-    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
-    if debug:
-        print('Creating entity changelog {} ...'.format(entity_changelog_path_abs))
-    entity_changelog_messages = [
-        'Initialized entity {}'.format(entity_uid),
-        ]
-    lines = []
-    [lines.append('* {}'.format(m)) for m in entity_changelog_messages]
-    changes = '\n'.join(lines)
-    entry = CHANGELOG_TEMPLATE.format(
-        changes=changes, user=user_name, email=user_mail,
-        date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
-    with open(entity_changelog_path_abs, 'a') as entity_changelog:
-        entity_changelog.write(entry)
+    entity_changelog_messages = ['Initialized entity {}'.format(entity_uid),]
+    write_changelog_entry(
+        os.path.join(collection_path, entity_changelog_path_rel),
+        entity_changelog_messages,
+        user, email, debug=debug)
     git_files.append(entity_changelog_path_rel)
 
     # collection ead.xml
 
     # collection changelog
     changelog_path_rel = 'changelog'
-    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
-    if debug:
-        print('Creating changelog {} ...'.format(changelog_path_abs))
-    changelog_messages = [
-        'Initialized entity {}'.format(entity_uid),
-        ]
-    lines = []
-    [lines.append('* {}'.format(m)) for m in changelog_messages]
-    changes = '\n'.join(lines)
-    entry = CHANGELOG_TEMPLATE.format(
-        changes=changes, user=user_name, email=user_mail,
-        date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
-    with open(changelog_path_abs, 'a') as changelog:
-        changelog.write('\n')
-        changelog.write(entry)
+    changelog_messages = ['Initialized entity {}'.format(entity_uid),]
+    write_changelog_entry(
+        os.path.join(collection_path, changelog_path_rel),
+        changelog_messages,
+        user, email, debug=debug)
     git_files.append(changelog_path_rel)
     
     # git add
@@ -412,22 +346,14 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     
     # entity changelog
     entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
-    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
-    if debug:
-        print('Updating entity changelog {}'.format(entity_changelog_path_abs))
     entity_changelog_messages = []
     for f in updated_files:
         p = os.path.join(entity_uid, f)
         entity_changelog_messages.append('Updated entity file {}'.format(p))
-    lines = []
-    [lines.append('* {}'.format(m)) for m in entity_changelog_messages]
-    changes = '\n'.join(lines)
-    entry = CHANGELOG_TEMPLATE.format(
-        changes=changes, user=user_name, email=user_mail,
-        date=datetime.now().strftime(CHANGELOG_DATE_FORMAT))
-    with open(entity_changelog_path_abs, 'a') as entity_changelog:
-        entity_changelog.write('\n')
-        entity_changelog.write(entry)
+    write_changelog_entry(
+        os.path.join(collection_path, entity_changelog_path_rel),
+        entity_changelog_messages,
+        user, email, debug=debug)
     git_files.append(entity_changelog_path_rel)
     
     # git add
