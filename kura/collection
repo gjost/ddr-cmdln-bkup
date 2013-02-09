@@ -41,6 +41,9 @@ def main():
     if not args.operation:
         sys.stderr.write('Choose an operation!\n')
         sys.exit(1)
+    if (args.operation in ['add', 'update']) and not (args.file):
+        sys.stderr.write('Specify an file!\n')
+        sys.exit(1)
     if (args.operation in ['ecreate','edestroy','eupdate']) and not (args.entity):
         sys.stderr.write('Specify an entity!\n')
         sys.exit(1)
