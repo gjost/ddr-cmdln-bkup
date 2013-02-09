@@ -94,6 +94,7 @@ def create(user_name, user_mail, collection_path, debug=False):
     if debug:
         print('cloning: {}'.format(url))
     repo = git.Repo.clone_from(url, collection_path)
+    # TODO always start on master branch
     if debug:
         print('cloned')
     # there is no master branch at this point
@@ -181,7 +182,12 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     Commits changes to the specified file.  NOTE: Does not push to the workbench server.
     @param updated_files List of relative paths to updated file(s).
     """
+    if debug:
+        print('update({}, {}, {}, {})'.format(
+            user_name, user_mail, collection_path, updated_files, debug=False))
+    
     repo = git.Repo(collection_path)
+    # TODO always start on master branch
     g = repo.git
     g.config('user.name', user_name)
     g.config('user.email', user_mail)
@@ -198,9 +204,13 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     updated_files.append(changelog_path_rel)
     
     # git add
+    if debug:
+        print('updated_files {}'.format(updated_files))
     index = repo.index
     index.add(updated_files)
     commit = index.commit('Updated collection file(s)')
+    if debug:
+        print('commit {}'.format(commit))
 
 
 def sync(user_name, user_mail, collection_path, debug=False):
@@ -217,13 +227,25 @@ def sync(user_name, user_mail, collection_path, debug=False):
     
     TODO This assumes that origin is the workbench server...
     """
-    # git co master
+    if debug:
+        print('update({}, {}, {})'.format(
+            user_name, user_mail, collection_path, debug=False))
+    
+    repo = git.Repo(collection_path)
+    # TODO always start on master branch
+    g = repo.git
+    g.config('user.name', user_name)
+    g.config('user.email', user_mail)
+    
     def run(cmd, debug=False):
+        if debug:
+            print('kura.collection.sync: {}'.format(cmd))
         out = subprocess.check_output(cmd, shell=True)
         if debug:
             print(out)
     os.chdir(collection_path)
     run('pwd', debug=debug)
+    # TODO git checkout master
     run('git branch', debug=debug)
     # fetch
     run('git fetch origin', debug=debug)
@@ -241,9 +263,16 @@ def sync(user_name, user_mail, collection_path, debug=False):
     run('git annex sync', debug=debug)
 
 
+
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
     """Create an entity and add it to the collection.
     """
+    repo = git.Repo(collection_path)
+    # TODO always start on master branch
+    g = repo.git
+    g.config('user.name', user_name)
+    g.config('user.email', user_mail)
+    
     # create collection files/ dir if not already present
     # mets.xml
     # control
@@ -254,7 +283,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
 
     entity_path_rel = os.path.join('files', entity_uid)
     entity_path_abs = os.path.join(collection_path, entity_path_rel)
-    
+        
     # entity dir
     if not os.path.exists(entity_path_abs):
         os.makedirs(entity_path_abs)
@@ -300,10 +329,6 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     git_files.append(changelog_path_rel)
     
     # git add
-    repo = git.Repo(collection_path)
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
     index = repo.index
     index.add(git_files)
     commit = index.commit(changelog_messages[0])
@@ -337,6 +362,12 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     Makes an entry in git log.
     @param updated_files List of paths to updated file(s), relative to entity/files.
     """
+    repo = git.Repo(collection_path)
+    # TODO always start on master branch
+    g = repo.git
+    g.config('user.name', user_name)
+    g.config('user.email', user_mail)
+
     entity_path_rel = os.path.join('files', entity_uid)
     entity_path_abs = os.path.join(collection_path, entity_path_rel)
     # entity file paths are relative to collection root
@@ -359,10 +390,6 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     # git add
     if debug:
         print('git_files {}'.format(git_files))
-    repo = git.Repo(collection_path)
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
     index = repo.index
     index.add(git_files)
     commit = index.commit('Updated entity file(s)')
