@@ -101,6 +101,8 @@ def create(user_name, user_mail, collection_path, debug=False):
     g = repo.git
     g.config('user.name', user_name)
     g.config('user.email', user_mail)
+    
+    g.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
     git_files = []
 
     # control
