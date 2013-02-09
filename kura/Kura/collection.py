@@ -316,7 +316,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     write_changelog_entry(
         os.path.join(collection_path, entity_changelog_path_rel),
         entity_changelog_messages,
-        user, email, debug=debug)
+        user=user_name, email=user_mail, debug=debug)
     git_files.append(entity_changelog_path_rel)
 
     # collection ead.xml
@@ -327,7 +327,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     write_changelog_entry(
         os.path.join(collection_path, changelog_path_rel),
         changelog_messages,
-        user, email, debug=debug)
+        user=user_name, email=user_mail, debug=debug)
     git_files.append(changelog_path_rel)
     
     # git add
