@@ -36,7 +36,7 @@ GITWEB_URL = 'http://partner.densho.org/gitweb'
 
 
 
-def last_local_commit(path, branch):
+def last_local_commit(path, branch, debug=False):
     """Gets hash of last LOCAL commit on specified branch.
     
     $ git log <branch> -1
@@ -52,7 +52,7 @@ def last_local_commit(path, branch):
     h = log1.split('\n')[0].split(' ')[1]
     return h
 
-def last_remote_commit(path, branch):
+def last_remote_commit(path, branch, debug=False):
     """Gets hash of last REMOTE commit on specified branch.
     
     $ git ls-remote --heads
@@ -70,7 +70,7 @@ def last_remote_commit(path, branch):
             h = line.split('\t')[0]
     return h    
 
-def file_in_local_commit(path, branch, commit, filename):
+def file_in_local_commit(path, branch, commit, filename, debug=False):
     """Tells whether specified filename appears in specified commit message.
     
     IMPORTANT: We're not really checking to see if an actual file was in an
@@ -81,13 +81,20 @@ def file_in_local_commit(path, branch, commit, filename):
     changelog                       |    2 ++
     files/ddr-testing-3-2/changelog |    2 ++
     """
+    if debug:
+        print('file_in_local_commit({}, {}, {}, {})'.format(
+            path, branch, commit, filename))
     present = None
     os.chdir(path)
     log = subprocess.check_output('git log -1 --stat -p {} {}|grep \|'.format(commit, branch), shell=True)
+    if debug:
+        print(log)
     for line in log.split('\n'):
         linefile = line.split('|')[0].strip()
         if linefile == filename:
             present = True
+    if debug:
+        print('file_in_local_commit() {}'.format(present))
     return present
 
 def file_in_remote_commit(collection_cid, commit, filename, debug=False):
@@ -200,7 +207,7 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
             print('\n----------------------------------------------------------------------')
             print('test_03_update')
-        # make changes to a file
+        # simulate making changes to a file
         srcfile = os.path.join(TEST_FILES_DIR, 'collection', 'update_control')
         destfile = COLLECTION_CONTROL
         shutil.copy(srcfile, destfile)
@@ -215,7 +222,7 @@ class TestCollection( unittest.TestCase ):
         # tests
         # TODO we need to test status, that modified file was actually committed
         commit = last_local_commit(TEST_COLLECTION, 'master')
-        self.assertTrue(file_in_local_commit(TEST_COLLECTION, 'master', commit, 'control'))
+        self.assertTrue(file_in_local_commit(TEST_COLLECTION, 'master', commit, 'control', debug=debug))
     
     def test_04_sync( self ):
         """git pull/push to workbench server, git-annex sync
