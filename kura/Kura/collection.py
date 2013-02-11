@@ -386,7 +386,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     write_changelog_entry(
         os.path.join(collection_path, entity_changelog_path_rel),
         entity_changelog_messages,
-        user, email, debug=debug)
+        user=user_name, email=user_mail, debug=debug)
     git_files.append(entity_changelog_path_rel)
     
     # git add
