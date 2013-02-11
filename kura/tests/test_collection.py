@@ -323,7 +323,7 @@ class TestCollection( unittest.TestCase ):
                     TEST_COLLECTION, 'master', commit, destfilerelpath, debug=debug))
     
     def test_13_entity_add( self ):
-        """Add a file to entity, push it, and confirm that in remote repo
+        """git annex add file to entity, push it, and confirm that in remote repo
         """
         pass
         # TODO file_in_remote_commit(collection_cid, commit, filename, debug=False)

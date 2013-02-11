@@ -397,6 +397,47 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     commit = index.commit('Updated entity file(s)')
 
 
+def entity_annex_add(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+    """git annex add a file, update changelog and mets,xml.
+    
+    All this function does is git annex add the file, update changelog and
+    mets.xml, and commit.
+    It does not copy the file into the entity dir.
+    It does not mark the file as master/mezzanine/access/etc or edit any metadata.
+    It does not perform any background processing on the file.
+    
+    @param collection_path Absolute path to collection
+    @param entity_uid Entity UID
+    @param file_path Absolute path to new file.
+    """
+    repo = git.Repo(collection_path)
+    # TODO always start on master branch
+    g = repo.git
+    g.config('user.name', user_name)
+    g.config('user.email', user_mail)
+
+    # git annex add it
+    # update changelog
+    # update mets
+    # commit
+
+def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+    """Wrapper around entity_annex_add() that 
+    """
+
+def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+    """
+    """
+    pass
+
+def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+    """
+    """
+    pass
+
+
+
+
 def annex_pull(collection_path, entity_file_path, debug=False):
     """Pull a git-annex file from workbench.
 
