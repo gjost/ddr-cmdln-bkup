@@ -270,8 +270,15 @@ class TestCollection( unittest.TestCase ):
             if DEBUG:
                 print('OUT: {}'.format(out))
         # tests
-        #self.assertTrue(...)
-    
+        self.assertTrue(os.path.exists(COLLECTION_FILES))
+        for eid in TEST_EIDS:
+            entity_path = os.path.join(COLLECTION_FILES,eid)
+            self.assertTrue(os.path.exists(entity_path))
+            self.assertTrue(os.path.exists(os.path.join(entity_path,'changelog')))
+            self.assertTrue(os.path.exists(os.path.join(entity_path,'control')))
+            self.assertTrue(os.path.exists(os.path.join(entity_path,'mets.xml')))
+            # TODO test contents of entity files
+        
     def test_11_entity_destroy( self ):
         """Remove entity from the collection
         """
