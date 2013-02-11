@@ -298,8 +298,29 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
             print('\n----------------------------------------------------------------------')
             print('test_12_entity_update')
-        # tests
-        #self.assertTrue(...)
+        # simulate making changes to a file for each entity
+        eid_files = [[TEST_EIDS[0], 'update_control', 'control'],
+                     [TEST_EIDS[1], 'update_mets', 'mets.xml'],]
+        for eid,srcfilename,destfilename in eid_files:
+            entity_path = os.path.join(COLLECTION_FILES,eid)
+            srcfile  = os.path.join(TEST_FILES_DIR, 'entity', srcfilename)
+            destfile = os.path.join(entity_path,              destfilename)
+            shutil.copy(srcfile, destfile)
+            # run update
+            cmd = '{}{} --user {} --mail {} --collection {} --operation eupdate --entity {} --file {}'.format(
+                CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
+            if DEBUG:
+                print(cmd)
+            out = subprocess.check_output(cmd, shell=True)
+            if DEBUG:
+                print(out)
+            # test that modified file appears in local commit
+            commit = last_local_commit(TEST_COLLECTION, 'master')
+            # entity files will appear in local commits as "files/ddr-testing-X-Y/FILENAME"
+            destfilerelpath = os.path.join('files', eid, destfilename)
+            self.assertTrue(
+                file_in_local_commit(
+                    TEST_COLLECTION, 'master', commit, destfilerelpath, debug=debug))
     
     def test_13_entity_add( self ):
         """Add a file to entity, push it, and confirm that in remote repo
