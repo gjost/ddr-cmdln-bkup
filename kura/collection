@@ -8,8 +8,7 @@ import sys
 
 from Kura.collection import OPERATIONS, description, epilog
 from Kura.collection import create, destroy, update, sync
-from Kura.collection import entity_create, entity_destroy, entity_update
-
+from Kura.collection import entity_create, entity_destroy, entity_update, entity_annex_add
 
 def main():
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
@@ -44,8 +43,11 @@ def main():
     if (args.operation in ['add', 'update']) and not (args.file):
         sys.stderr.write('Specify an file!\n')
         sys.exit(1)
-    if (args.operation in ['ecreate','edestroy','eupdate']) and not (args.entity):
+    if (args.operation in ['ecreate','edestroy','eupdate', 'eadd']) and not (args.entity):
         sys.stderr.write('Specify an entity!\n')
+        sys.exit(1)
+    if (args.operation in ['eupdate','eadd']) and not (args.file):
+        sys.stderr.write('Specify a file!\n')
         sys.exit(1)
     
     # do something
@@ -57,6 +59,7 @@ def main():
     elif args.operation == 'ecreate':  entity_create( args.user, args.mail, args.collection, args.entity, args.debug)
     elif args.operation == 'edestroy': entity_destroy(args.user, args.mail, args.collection, args.entity, args.debug)
     elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file],   args.debug)
+    elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file,   args.debug)
     else:
         sys.stderr.write('We fell through!\n')
         sys.exit(1)

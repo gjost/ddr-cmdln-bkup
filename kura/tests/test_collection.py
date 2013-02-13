@@ -31,6 +31,7 @@ COLLECTION_GIT       = os.path.join(TEST_COLLECTION, '.git')
 COLLECTION_GITIGNORE = os.path.join(TEST_COLLECTION, '.gitignore')
 
 TEST_FILES_DIR = os.path.join(sys.path[0], 'files')
+TEST_MEDIA_DIR = os.path.join(sys.path[0], '..', 'files', 'entity')
 
 GITWEB_URL = 'http://partner.densho.org/gitweb'
 
@@ -325,8 +326,51 @@ class TestCollection( unittest.TestCase ):
     def test_13_entity_add( self ):
         """git annex add file to entity, push it, and confirm that in remote repo
         """
-        pass
-        # TODO file_in_remote_commit(collection_cid, commit, filename, debug=False)
+        debug = ''
+        if DEBUG:
+            debug = ' --debug'
+            print('\n----------------------------------------------------------------------')
+            print('test_13_entity_add')
+        eid = TEST_EIDS[0]
+        for f in os.listdir(TEST_MEDIA_DIR):
+            entity_path = os.path.join(COLLECTION_FILES,eid)
+            entity_files_dir = os.path.join(entity_path, 'files')
+            if not os.path.exists(entity_files_dir):
+                os.mkdir(entity_files_dir)
+            srcfile  = os.path.join(TEST_MEDIA_DIR, f)
+            destfile = os.path.join(entity_files_dir, f)
+            shutil.copy(srcfile, destfile)
+            # run update
+            cmd = '{}{} --user {} --mail {} --collection {} --operation eadd --entity {} --file {}'.format(
+                CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
+            if DEBUG:
+                print(cmd)
+            out = subprocess.check_output(cmd, shell=True)
+            if DEBUG:
+                print(out)
+        
+        # test file checksums in control
+        control_checksums = ['a58d0c947a747a9bce655938b5c251f72a377c00 = files/6a00e55055.png',
+                             'c07a01ce976885e56138e821b3063a5ba2e97078 = files/20121205.jpg',
+                             'fadfbcd8ceb71b9cfc765b9710db8c2c = 6539 ; files/6a00e55055.png',
+                             '42d55eb5ac104c86655b3382213deef1 = 12457 ; files/20121205.jpg',]
+        with open(os.path.join(COLLECTION_FILES,eid,'control'), 'r') as ecf:
+            control = ecf.read()
+            for cs in control_checksums:
+                self.assertTrue(cs in control)
+        # test file checksums in mets.xml
+        mets_checksums = [
+            '<file ADMID="AMD1" CHECKSUM="fadfbcd8ceb71b9cfc765b9710db8c2c" CHECKSUMTYPE="md5" GROUPID="GID1" ID="FID1" MIMETYPE="mimetype" SEQ="1">',
+            '<Flocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" href="files/6a00e55055.png"/>',
+            '<file ADMID="AMD2" CHECKSUM="42d55eb5ac104c86655b3382213deef1" CHECKSUMTYPE="md5" GROUPID="GID2" ID="FID2" MIMETYPE="mimetype" SEQ="2">',
+            '<Flocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" href="files/20121205.jpg"/>',
+        ]
+        with open(os.path.join(COLLECTION_FILES,eid,'mets.xml'), 'r') as mf:
+            mets = mf.read()
+            for cs in mets_checksums:
+                self.assertTrue(cs in mets)
+        # TODO test 20121205.jpg,6a00e55055.png in local commit
+        # TODO test 20121205.jpg,6a00e55055.png in remote commit
 
     def test_20_pull( self ):
         """

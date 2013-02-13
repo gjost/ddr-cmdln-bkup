@@ -256,6 +256,7 @@ OPERATIONS = [
     'ecreate',
     'edestroy',
     'eupdate',
+    'eadd',
     'pull',
     'push',
     ]
@@ -592,7 +593,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     commit = index.commit('Updated entity file(s)')
 
 
-def entity_annex_add(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file, debug=False):
     """git annex add a file, update changelog and mets,xml.
     
     All this function does is git annex add the file, update changelog and
@@ -603,17 +604,68 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, file_pat
     
     @param collection_path Absolute path to collection
     @param entity_uid Entity UID
-    @param file_path Absolute path to new file.
+    @param file_path Path to new file relative to entity files dir.
     """
+    if debug:
+        print('entity_annex_add({}, {}, {}, {}, {})'.format(
+            user_name, user_mail, collection_path, entity_uid, new_file))
     repo = git.Repo(collection_path)
     # TODO always start on master branch
     g = repo.git
     g.config('user.name', user_name)
     g.config('user.email', user_mail)
-
-    # git annex add it
-    # update changelog
-    # update mets
+    
+    entity_dir = os.path.join(collection_path, 'files', entity_uid)
+    entity_files_dir = os.path.join(entity_dir, 'files')
+    new_file_abs = os.path.join(entity_files_dir, new_file)
+    # relative to collection repo
+    new_file_rel = new_file_abs.replace(collection_path, '')
+    # relative to entity_dir
+    new_file_rel_entity = new_file_abs.replace('{}/'.format(entity_dir), '')
+    if debug:
+        print('new_file_abs {}'.format(new_file_abs))
+        print('new_file_rel {}'.format(new_file_rel))
+        print('new_file_rel_entity {}'.format(new_file_rel_entity))
+    
+    if not os.path.exists(entity_dir):
+        print('ERR: Entity does not exist: {}'.format(entity_uid))
+        sys.exit(1)
+    if not os.path.exists(entity_files_dir):
+        os.makedirs(entity_files_dir)
+    if not os.path.exists(new_file_abs):
+        print('ERR: File does not exist: {}'.format(new_file_abs))
+        sys.exit(1)
+    
+    def run(cmd, debug=False):
+        out = subprocess.check_output(cmd, shell=True)
+        if debug:
+            print(out)
+    os.chdir(collection_path)
+    run('git checkout master', debug)
+    
+    updated_files = []
+    # update entity changelog
+    entity_changelog_path_rel = os.path.join(entity_dir, 'changelog')
+    changelog_messages = []
+    for f in [new_file_rel_entity]:
+        changelog_messages.append('Added entity file {}'.format(f))
+    write_changelog_entry(
+        os.path.join(collection_path, entity_changelog_path_rel),
+        changelog_messages,
+        user_name, user_mail, debug=debug)
+    updated_files.append(entity_changelog_path_rel)
+    # update entity control
+    e = Entity(entity_dir)
+    c = ControlFile(os.path.join(entity_dir,'control'))
+    c.entity_update_checksums(e)
+    c.write()
+    # update entity mets
+    m = METS(e, debug)
+    m.update_filesec(e)
+    m.write()
+    # git annex add
+    #add_cmd = 'git annex add {}'.format(new_file_rel)
+    #run(add_cmd, debug)
     # commit
 
 def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
