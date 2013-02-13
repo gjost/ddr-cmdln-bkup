@@ -303,8 +303,9 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     control_path_abs = os.path.join(collection_path, control_path_rel)
     if debug:
         print('Creating control {} ...'.format(control_path_abs))
+    control_template = load_template(ENTITY_CONTROL_TEMPLATE)
     with open(control_path_abs, 'w') as control:
-        control.write(ENTITY_CONTROL_TEMPLATE.format(cid=collection_uid, eid=entity_uid))
+        control.write(control_template.format(cid=collection_uid, eid=entity_uid))
     git_files.append(control_path_rel)
 
     # entity mets.xml
@@ -312,8 +313,9 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     mets_path_abs = os.path.join(collection_path, mets_path_rel)
     if debug:
         print('Creating mets.xml {} ...'.format(mets_path_abs))
+    mets_template = load_template(ENTITY_METS_TEMPLATE)
     with open(mets_path_abs, 'w') as mets:
-        mets.write(ENTITY_METS_TEMPLATE)
+        mets.write(mets_template)
     git_files.append(mets_path_rel)
 
     # entity changelog
