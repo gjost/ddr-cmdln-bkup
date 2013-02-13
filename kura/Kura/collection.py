@@ -43,7 +43,13 @@ def write_changelog_entry(path, messages, user, email, debug=False):
         email=email,
         date=datetime.now().strftime(date_format)
         )
+    try:
+        preexisting = os.path.getsize(path)
+    except:
+        preexisting = False
     with open(path, 'a') as changelog:
+        if preexisting:
+            changelog.write('\n')
         changelog.write(entry)
 
 
