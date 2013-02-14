@@ -227,6 +227,37 @@ class METS( object ):
             f.append(flocat)
 
 
+class Collection( object ):
+    path = None
+    
+    def __init__( self, path, uid=None, debug=False ):
+        self.path = path
+        if not uid:
+            uid = os.path.basename(self.path)
+        self.uid  = uid
+    
+    def payload_path( self, trailing_slash=False ):
+        p = os.path.join(self.path, 'files')
+        if trailing_slash:
+            p = '{}/'.format(p)
+        return p
+    
+    def entities( self, debug=False ):
+        """Returns relative paths to entities."""
+        entities = []
+        cpath = self.path
+        if cpath[-1] != '/':
+            cpath = '{}/'.format(cpath)
+        print(self.payload_path())
+        for uid in os.listdir(self.payload_path()):
+            epath = os.path.join(self.payload_path(), uid)
+            e = Entity(epath)
+            print(e.uid)
+            entities.append(e)
+        return entities
+
+
+
 class Entity( object ):
     path = None
     
@@ -506,6 +537,7 @@ def sync(user_name, user_mail, collection_path, debug=False):
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
     """Create an entity and add it to the collection.
     """
+    collection = Collection(collection_path)
     repo = git.Repo(collection_path)
     # TODO always start on master branch
     g = repo.git
@@ -559,8 +591,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     git_files.append(entity_changelog_path_rel)
 
     # update collection ead.xml
-    ead = EAD(e, debug)
-    ead.update_dsc(e)
+    ead = EAD(collection, debug)
+    ead.update_dsc(collection)
     ead.write()
 
     # collection changelog
