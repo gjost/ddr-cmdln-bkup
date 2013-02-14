@@ -146,19 +146,23 @@ class EAD( object ):
           </c01>
         </dsc>
         """
-        # TODO keep as much existing <dsc> data as possible!
+        # TODO Instead of creating a new <dsc>, read current data then recreate with additional files
         dsc = self.soup.new_tag('dsc')
         self.soup.dsc.replace_with(dsc)
-        head = self.soup.new_tag('head', contents='Inventory')
+        head = self.soup.new_tag('head')
+        head.string = 'Inventory'
+        self.soup.dsc.append(head)
+        n = 0
         for entity in collection.entities(debug=debug):
             n = n + 1
             # add c01, did, unittitle
             c01 = self.soup.new_tag('c01')
             did = self.soup.new_tag('did')
-            unittitle = self.soup.new_tag('unittitle', eid=entity.eid, contents=entity.description.short)
+            c01.append(did)
+            unittitle = self.soup.new_tag('unittitle', eid=entity.uid)
+            unittitle.string = 'Entity description goes here'
+            did.append(unittitle)
             self.soup.dsc.append(c01)
-            self.soup.dsc.append(did)
-            self.soup.dsc.append(unittitle)
 
 
 class METS( object ):
