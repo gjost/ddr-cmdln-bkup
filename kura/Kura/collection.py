@@ -109,6 +109,58 @@ class ControlFile( object ):
             self._config.set('Files', md5, '{} ; {}'.format(size,path))
 
 
+class EAD( object ):
+    """Encoded Archival Description (EAD) file.
+    """
+    collection_path = None
+    filename = None
+    soup = None
+    
+    def __init__( self, collection, debug=False ):
+        self.collection_path = collection.path
+        self.filename = os.path.join(self.collection_path, 'ead.xml')
+        self.read(debug=debug)
+        if debug:
+            print(self.soup.prettify())
+    
+    def read( self, debug=False ):
+        if debug:
+            print('Reading EAD file {}'.format(self.filename))
+        with open(self.filename, 'r') as e:
+            self.soup = BeautifulSoup(e, 'xml')
+    
+    def write( self, debug=False ):
+        if debug:
+            print('Writing EAD file {}'.format(self.filename))
+        with open(self.filename, 'w') as e:
+            e.write(self.soup.prettify())
+    
+    def update_dsc( self, collection, debug=False ):
+        """
+        <dsc type="combined">
+          <head>Inventory</head>
+          <c01>
+            <did>
+              <unittitle eid="{eid}">{title}</unittitle>
+            </did>
+          </c01>
+        </dsc>
+        """
+        # TODO keep as much existing <dsc> data as possible!
+        dsc = self.soup.new_tag('dsc')
+        self.soup.dsc.replace_with(dsc)
+        head = self.soup.new_tag('head', contents='Inventory')
+        for entity in collection.entities(debug=debug):
+            n = n + 1
+            # add c01, did, unittitle
+            c01 = self.soup.new_tag('c01')
+            did = self.soup.new_tag('did')
+            unittitle = self.soup.new_tag('unittitle', eid=entity.eid, contents=entity.description.short)
+            self.soup.dsc.append(c01)
+            self.soup.dsc.append(did)
+            self.soup.dsc.append(unittitle)
+
+
 class METS( object ):
     """Metadata Encoding and Transmission Standard (METS) file.
     """
@@ -515,7 +567,10 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
         user=user_name, email=user_mail, debug=debug)
     git_files.append(entity_changelog_path_rel)
 
-    # collection ead.xml
+    # update collection ead.xml
+    ead = EAD(e, debug)
+    ead.update_dsc(e)
+    ead.write()
 
     # collection changelog
     changelog_path_rel = 'changelog'

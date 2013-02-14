@@ -1,9 +1,12 @@
-<mets>
-  <metsHdr></metsHdr>
-  <dmdSec></dmdSec>
-  <amdSec></amdSec>
-  <fileSec></fileSec>
-  <structMap></structMap>
-  <structLink></structLink>
-  <behaviorSec></behaviorSec>
-</mets>
+<ead>
+  <eadheader/>
+  <archdesc/>
+  <bioghist/>
+  <scopecontent/>
+  <relatedmaterial/>
+  <separatedmaterial/>
+  <controlaccess/>
+  <accessrestrict/>
+  <userestrict/>
+  <dsc/>
+</ead>
