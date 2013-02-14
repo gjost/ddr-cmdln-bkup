@@ -217,22 +217,13 @@ class METS( object ):
         for md5,path in entity.checksums('md5', debug=debug):
             n = n + 1
             use = 'unknown'
-            seq = n
-            gid = 'GID{}'.format(n)
-            fid = 'FID{}'.format(n)
-            aid = 'AMD{}'.format(n)
-            mimetype = 'mimetype'
             path = relative_path(entity.path, path)
             # add fileGrp, file, Floca
             fileGrp = self.soup.new_tag('fileGrp', USE='master')
             self.soup.fileSec.append(fileGrp)
-            f = self.soup.new_tag('file',
-                                  GROUPID=gid, ID=fid, ADMID=aid, SEQ=seq, MIMETYPE=mimetype,
-                                  CHECKSUM=md5, CHECKSUMTYPE='md5')
+            f = self.soup.new_tag('file', CHECKSUM=md5, CHECKSUMTYPE='md5')
             fileGrp.append(f)
-            flocat = self.soup.new_tag('Flocat',
-                                       LOCTYPE='OTHER', OTHERLOCTYPE='fileid',
-                                       href=path)
+            flocat = self.soup.new_tag('Flocat', href=path)
             f.append(flocat)
 
 
