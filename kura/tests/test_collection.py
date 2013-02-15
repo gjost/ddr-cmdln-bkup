@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import shutil
 import subprocess
@@ -11,7 +12,8 @@ import requests
 DEBUG = False
 #DEBUG = True
 
-TEST_CID       = 'ddr-testing-3'
+
+TEST_CID       = 'ddr-testing-{}'.format(datetime.now().strftime('%Y%m%d%H%M'))
 TEST_EIDS      = []
 for n in [1,2]:
     TEST_EIDS.append('{}-{}'.format(TEST_CID, n))
