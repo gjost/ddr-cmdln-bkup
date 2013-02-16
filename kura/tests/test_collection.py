@@ -272,7 +272,8 @@ class TestCollection( unittest.TestCase ):
             out = subprocess.check_output(cmd, shell=True)
             if DEBUG:
                 print('OUT: {}'.format(out))
-        # tests
+        
+        # confirm entity files exist
         self.assertTrue(os.path.exists(COLLECTION_FILES))
         for eid in TEST_EIDS:
             entity_path = os.path.join(COLLECTION_FILES,eid)
@@ -280,7 +281,34 @@ class TestCollection( unittest.TestCase ):
             self.assertTrue(os.path.exists(os.path.join(entity_path,'changelog')))
             self.assertTrue(os.path.exists(os.path.join(entity_path,'control')))
             self.assertTrue(os.path.exists(os.path.join(entity_path,'mets.xml')))
-            # TODO test contents of entity files
+        # TODO test contents of entity files
+        
+        # confirm entities in changelog
+        changelog_entries = []
+        for eid in TEST_EIDS:
+            changelog_entries.append('* Initialized entity {}'.format(eid))
+        changelog = None
+        with open(COLLECTION_CHANGELOG,'r') as cl:
+            changelog = cl.read()
+        for entry in changelog_entries:
+            self.assertTrue(entry in changelog)
+        
+        # confirm entities in control
+        self.assertTrue(os.path.exists(COLLECTION_CONTROL))
+        control = None
+        with open(COLLECTION_CONTROL, 'r') as cn:
+            control = cn.read()
+        for eid in TEST_EIDS:
+            self.assertTrue(eid in control)
+        
+        # confirm entities in ead.xml
+        self.assertTrue(os.path.exists(COLLECTION_EAD))
+        ead = None
+        with open(COLLECTION_EAD, 'r') as ec:
+            ead = ec.read()
+        for eid in TEST_EIDS:
+            entry = '<unittitle eid="{}">'.format(eid)
+            self.assertTrue(entry in ead)
         
     def test_11_entity_destroy( self ):
         """Remove entity from the collection
