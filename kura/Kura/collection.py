@@ -611,8 +611,9 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     ead = EAD(collection, debug)
     ead.update_dsc(collection)
     ead.write()
+    git_files.append(ead.filename)
 
-    # collection changelog
+    # update collection changelog
     changelog_path_rel = 'changelog'
     changelog_messages = ['Initialized entity {}'.format(entity_uid),]
     write_changelog_entry(
@@ -620,6 +621,12 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
         changelog_messages,
         user=user_name, email=user_mail, debug=debug)
     git_files.append(changelog_path_rel)
+
+    # update collection control
+    ctl = CollectionControlFile(os.path.join(collection.path,'control'))
+    ctl.update_checksums(collection)
+    ctl.write()
+    git_files.append('control')
     
     # git add
     index = repo.index
