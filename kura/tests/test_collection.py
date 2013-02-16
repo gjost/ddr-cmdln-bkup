@@ -264,6 +264,8 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
             print('\n----------------------------------------------------------------------')
             print('test_10_entity_create')
+        
+        # add the entity
         for eid in TEST_EIDS:
             cmd = '{}{} --user {} --mail {} --collection {} --operation ecreate --entity {}'.format(
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
@@ -319,7 +321,11 @@ class TestCollection( unittest.TestCase ):
             print('\n----------------------------------------------------------------------')
             print('test_11_entity_destroy')
         # tests
-        #self.assertTrue(...)
+        # TODO confirm entity files gone
+        # TODO confirm entity destruction mentioned in changelog
+        # TODO confirm entity no longer in control
+        # TODO confirm entity no longer in ead.xml <dsc>
+        # TODO confirm entity desctruction properly recorded for posterity
     
     def test_12_entity_update( self ):
         """Register changes to specified file; does not push.

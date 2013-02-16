@@ -264,11 +264,9 @@ class Collection( object ):
         cpath = self.path
         if cpath[-1] != '/':
             cpath = '{}/'.format(cpath)
-        print(self.payload_path())
         for uid in os.listdir(self.payload_path()):
             epath = os.path.join(self.payload_path(), uid)
             e = Entity(epath)
-            print(e.uid)
             entities.append(e)
         return entities
 
