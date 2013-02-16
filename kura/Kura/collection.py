@@ -233,6 +233,7 @@ class METS( object ):
 
 class Collection( object ):
     path = None
+    uid = None
     
     def __init__( self, path, uid=None, debug=False ):
         self.path = path
@@ -264,6 +265,7 @@ class Collection( object ):
 
 class Entity( object ):
     path = None
+    uid = None
     
     def __init__( self, path, uid=None, debug=False ):
         self.path = path
