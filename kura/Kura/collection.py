@@ -61,7 +61,6 @@ class ControlFile( object ):
     """
     path = None
     _config = None
-    CHECKSUMS = ['sha1', 'sha256', 'files']
     
     def __init__( self, path, debug=False ):
         self.path = path
@@ -73,7 +72,7 @@ class ControlFile( object ):
     def read( self, debug=False ):
         if debug:
             print('Reading control file {} ...'.format(self.path))
-        self._config = ConfigParser.ConfigParser()
+        self._config = ConfigParser.ConfigParser(allow_no_value=True)
         self._config.read([self.path])
     
     def write( self, debug=False ):
@@ -81,8 +80,20 @@ class ControlFile( object ):
             print('Writing control file {} ...'.format(self.path))
         with open(self.path, 'w') as cfile:
             self._config.write(cfile)
-    
-    def entity_update_checksums( self, entity, debug=False ):
+
+class CollectionControlFile( ControlFile ):
+    def update_checksums( self, collection, debug=False ):
+        self._config.remove_section('Entities')
+        self._config.add_section('Entities')
+        uids = []
+        [uids.append(entity.uid) for entity in collection.entities()]
+        uids.sort()
+        [self._config.set('Entities', uid) for uid in uids]
+
+
+class EntityControlFile( ControlFile ):
+    CHECKSUMS = ['sha1', 'sha256', 'files']
+    def update_checksums( self, entity, debug=False ):
         # return relative path to payload
         def relative_path(entity_path, payload_file):
             if entity_path[-1] != '/':
@@ -740,8 +751,8 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     updated_files.append(entity_changelog_path_rel)
     # update entity control
     e = Entity(entity_dir)
-    c = ControlFile(os.path.join(entity_dir,'control'))
-    c.entity_update_checksums(e)
+    c = EntityControlFile(os.path.join(entity_dir,'control'))
+    c.update_checksums(e)
     c.write()
     # update entity mets
     m = METS(e, debug)
