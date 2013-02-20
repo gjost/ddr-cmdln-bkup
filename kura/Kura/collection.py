@@ -13,16 +13,17 @@ import git
 GIT_USER = 'git'
 GIT_SERVER = 'mits'
 
-MODULE_PATH = os.path.join(sys.path[0])
+path = os.path.abspath(__file__)
+MODULE_PATH = os.path.dirname(path)
 
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
-GITIGNORE_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'gitignore.template')
-CHANGELOG_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'changelog.template')
-CHANGELOG_DATE_FORMAT       = os.path.join(TEMPLATE_PATH, 'changelog-date.template')
-COLLECTION_CONTROL_TEMPLATE = os.path.join(TEMPLATE_PATH, 'collection/control.template')
-COLLECTION_EAD_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'collection/ead.xml.template')
-ENTITY_CONTROL_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'entity/control.template' )
-ENTITY_METS_TEMPLATE        = os.path.join(TEMPLATE_PATH, 'entity/mets.xml.template' )
+GITIGNORE_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
+CHANGELOG_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'changelog.tpl')
+CHANGELOG_DATE_FORMAT       = os.path.join(TEMPLATE_PATH, 'changelog-date.tpl')
+COLLECTION_CONTROL_TEMPLATE = os.path.join(TEMPLATE_PATH, 'collection_control.tpl')
+COLLECTION_EAD_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'collection_ead.xml.tpl')
+ENTITY_CONTROL_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'entity_control.tpl' )
+ENTITY_METS_TEMPLATE        = os.path.join(TEMPLATE_PATH, 'entity_mets.xml.tpl' )
 
 def load_template(filename):
     template = ''

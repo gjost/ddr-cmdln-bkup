@@ -18,7 +18,7 @@ TEST_EIDS      = []
 for n in [1,2]:
     TEST_EIDS.append('{}-{}'.format(TEST_CID, n))
 
-CMD_PATH = os.path.join(sys.path[0], '..', 'collection')
+CMD_PATH = 'collection'
 
 TEST_TMP_PATH  = '/tmp/'
 TEST_USER_NAME = 'gjost'
