@@ -150,7 +150,7 @@ class TestCollection( unittest.TestCase ):
         if os.path.exists(TEST_COLLECTION):
             shutil.rmtree(TEST_COLLECTION, ignore_errors=True)
         #
-        cmd = '{}{} --user {} --mail {} --collection {} --operation create'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        cmd = '{} create {} --user {} --mail {} --collection {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         if DEBUG:
             print(cmd)
         out = subprocess.check_output(cmd, shell=True)
@@ -215,7 +215,7 @@ class TestCollection( unittest.TestCase ):
         destfile = COLLECTION_CONTROL
         shutil.copy(srcfile, destfile)
         # run update
-        cmd = '{}{} --user {} --mail {} --collection {} --operation update --file {}'.format(
+        cmd = '{} update {} --user {} --mail {} --collection {} --file {}'.format(
             CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
         if DEBUG:
             print(cmd)
@@ -235,7 +235,7 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
             print('\n----------------------------------------------------------------------')
             print('test_04_sync')
-        cmd = '{}{} --user {} --mail {} --collection {} --operation sync'.format(
+        cmd = '{} sync {} --user {} --mail {} --collection {}'.format(
             CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         if DEBUG:
             print('CMD: {}'.format(cmd))
@@ -267,7 +267,7 @@ class TestCollection( unittest.TestCase ):
         
         # add the entity
         for eid in TEST_EIDS:
-            cmd = '{}{} --user {} --mail {} --collection {} --operation ecreate --entity {}'.format(
+            cmd = '{} ecreate {} --user {} --mail {} --collection {} --entity {}'.format(
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
             if DEBUG:
                 print('CMD: {}'.format(cmd))
@@ -344,7 +344,7 @@ class TestCollection( unittest.TestCase ):
             destfile = os.path.join(entity_path,              destfilename)
             shutil.copy(srcfile, destfile)
             # run update
-            cmd = '{}{} --user {} --mail {} --collection {} --operation eupdate --entity {} --file {}'.format(
+            cmd = '{} eupdate {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
             if DEBUG:
                 print(cmd)
@@ -377,7 +377,7 @@ class TestCollection( unittest.TestCase ):
             destfile = os.path.join(entity_files_dir, f)
             shutil.copy(srcfile, destfile)
             # run update
-            cmd = '{}{} --user {} --mail {} --collection {} --operation eadd --entity {} --file {}'.format(
+            cmd = '{} eadd {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
             if DEBUG:
                 print(cmd)

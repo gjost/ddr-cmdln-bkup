@@ -13,7 +13,7 @@ from Kura.collection import entity_create, entity_destroy, entity_update, entity
 def main():
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
     # no positional arguments
-    parser.add_argument('-o', '--operation', choices=OPERATIONS,
+    parser.add_argument('operation', choices=OPERATIONS,
                         help='Operation to perform.')
     parser.add_argument('-c', '--collection',
                         help='Absolute file path to the collection')
