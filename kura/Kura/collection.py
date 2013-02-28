@@ -25,6 +25,38 @@ COLLECTION_EAD_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'collection_ead.xml.tp
 ENTITY_CONTROL_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'entity_control.tpl' )
 ENTITY_METS_TEMPLATE        = os.path.join(TEMPLATE_PATH, 'entity_mets.xml.tpl' )
 
+def gitolite_connect_ok( debug=False ):
+    """See if we can connect to gitolite server.
+    
+    We should do some lightweight operation, just enough to make sure we can connect.
+    But we can't ping.
+    
+    http://gitolite.com/gitolite/user.html#info
+    "The only command that is always available to every user is the info command
+    (run ssh git@host info -h for help), which tells you what version of gitolite
+    and git are on the server, and what repositories you have access to. The list
+    of repos is very useful if you have doubts about the spelling of some new repo
+    that you know was setup."
+    Sample output:
+        hello gjost, this is git@mits running gitolite3 v3.2-19-gb9bbb78 on git 1.7.2.5
+        
+         R W C  ddr-densho-[0-9]+
+         R W C  ddr-densho-[0-9]+-[0-9]+
+         R W C  ddr-dev-[0-9]+
+        ...
+    """
+    cmd = 'ssh {}@{} info'.format(GIT_USER, GIT_SERVER)
+    if debug:
+        print(cmd)
+    r = envoy.run(cmd)
+    if debug:
+        print(r.status_code)
+    if r.status_code == 0:
+        lines = r.std_out.split('\n')
+        if len(lines) and ('this is git@{} running gitolite'.format(GIT_SERVER) in lines[0]):
+            return True
+    return False
+
 def load_template(filename):
     template = ''
     with open(filename, 'r') as f:
@@ -379,6 +411,9 @@ def create(user_name, user_mail, collection_path, debug=False):
     """
     if debug:
         print('collection.create({})'.format(collection_path))
+    if not gitolite_connect_ok(debug=debug):
+        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+        sys.exit(1)
     collection_uid = os.path.basename(collection_path)
     url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
     if debug:
@@ -455,14 +490,16 @@ def destroy():
     """
     Removes an entire collection's files from the local system.  Does not remove files from the server!  That will remain a manual operation.
     """
-    pass
+    if debug:
+        print('destroy()')
 
 
 def status(collection_path, debug=False):
     """
     Gathers information about the status of the collection.
     """
-    pass
+    if debug:
+        print('status()')
 
 
 def update(user_name, user_mail, collection_path, updated_files, debug=False):
@@ -473,6 +510,9 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     if debug:
         print('update({}, {}, {}, {})'.format(
             user_name, user_mail, collection_path, updated_files, debug=False))
+    if not gitolite_connect_ok(debug=debug):
+        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+        sys.exit(1)
     
     repo = git.Repo(collection_path)
     # TODO always start on master branch
@@ -516,8 +556,11 @@ def sync(user_name, user_mail, collection_path, debug=False):
     TODO This assumes that origin is the workbench server...
     """
     if debug:
-        print('update({}, {}, {})'.format(
+        print('sync({}, {}, {})'.format(
             user_name, user_mail, collection_path, debug=False))
+    if not gitolite_connect_ok(debug=debug):
+        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+        sys.exit(1)
     
     repo = git.Repo(collection_path)
     # TODO always start on master branch
@@ -549,6 +592,12 @@ def sync(user_name, user_mail, collection_path, debug=False):
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
     """Create an entity and add it to the collection.
     """
+    if debug:
+        print('entity_create({}, {})'.format(collection_path, entity_uid))
+    if not gitolite_connect_ok(debug=debug):
+        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+        sys.exit(1)
+    
     collection = Collection(collection_path)
     repo = git.Repo(collection_path)
     # TODO always start on master branch
@@ -643,7 +692,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
 def entity_destroy():
     """Remove the specified entity from the collection.
     """
-    pass
+    if debug:
+        print('entity_destroy()')
 
 
 def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, debug=False):
@@ -653,6 +703,12 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     Makes an entry in git log.
     @param updated_files List of paths to updated file(s), relative to entity/files.
     """
+    if debug:
+        print('entity_update({}, {}, {})'.format(collection_path, entity_uid, updated_files))
+    if not gitolite_connect_ok(debug=debug):
+        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+        sys.exit(1)
+    
     repo = git.Repo(collection_path)
     # TODO always start on master branch
     g = repo.git
@@ -702,6 +758,9 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     if debug:
         print('entity_annex_add({}, {}, {}, {}, {})'.format(
             user_name, user_mail, collection_path, entity_uid, new_file))
+    if not gitolite_connect_ok(debug=debug):
+        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+        sys.exit(1)
     repo = git.Repo(collection_path)
     # TODO always start on master branch
     g = repo.git
@@ -760,16 +819,20 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
 def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """Wrapper around entity_annex_add() that 
     """
+    if debug:
+        print('entity_add_master()')
 
 def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """
     """
-    pass
+    if debug:
+        print('entity_add_mezzanine()')
 
 def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """
     """
-    pass
+    if debug:
+        print('entity_add_access()')
 
 
 
