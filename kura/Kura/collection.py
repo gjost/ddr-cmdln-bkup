@@ -2,10 +2,10 @@ import ConfigParser
 from datetime import datetime
 import hashlib
 import os
-import subprocess
 import sys
 
 from bs4 import BeautifulSoup
+import envoy
 import git
 
 
@@ -30,6 +30,12 @@ def load_template(filename):
     with open(filename, 'r') as f:
         template = f.read()
     return template
+
+def run(cmd, debug=False):
+    """Run a command without expecting results."""
+    r = envoy.run(cmd)
+    if debug:
+        print(r.std_out)
 
 def write_changelog_entry(path, messages, user, email, debug=False):
     if debug:
@@ -436,10 +442,6 @@ def create(user_name, user_mail, collection_path, debug=False):
     os.chdir(collection_path)
     if debug:
         print(os.system('git branch'))
-    def run(cmd, debug=False):
-        out = subprocess.check_output(cmd, shell=True)
-        if debug:
-            print(out)
     run('git annex init', debug)
     run('git push origin master', debug)
     run('git checkout git-annex', debug)
@@ -523,12 +525,6 @@ def sync(user_name, user_mail, collection_path, debug=False):
     g.config('user.name', user_name)
     g.config('user.email', user_mail)
     
-    def run(cmd, debug=False):
-        if debug:
-            print('kura.collection.sync: {}'.format(cmd))
-        out = subprocess.check_output(cmd, shell=True)
-        if debug:
-            print(out)
     os.chdir(collection_path)
     run('pwd', debug=debug)
     # TODO git checkout master
@@ -635,10 +631,6 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     os.chdir(collection_path)
     if debug:
         print(os.system('git branch'))
-    def run(cmd, debug=False):
-        out = subprocess.check_output(cmd, shell=True)
-        if debug:
-            print(out)
     run('git annex init', debug)
     run('git push origin master', debug)
     run('git checkout git-annex', debug)
@@ -737,10 +729,6 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
         print('ERR: File does not exist: {}'.format(new_file_abs))
         sys.exit(1)
     
-    def run(cmd, debug=False):
-        out = subprocess.check_output(cmd, shell=True)
-        if debug:
-            print(out)
     os.chdir(collection_path)
     run('git checkout master', debug)
     
