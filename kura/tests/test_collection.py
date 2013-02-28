@@ -397,10 +397,10 @@ class TestCollection( unittest.TestCase ):
                 self.assertTrue(cs in control)
         # test file checksums in mets.xml
         mets_checksums = [
-            '<file ADMID="AMD1" CHECKSUM="fadfbcd8ceb71b9cfc765b9710db8c2c" CHECKSUMTYPE="md5" GROUPID="GID1" ID="FID1" MIMETYPE="mimetype" SEQ="1">',
-            '<Flocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" href="files/6a00e55055.png"/>',
-            '<file ADMID="AMD2" CHECKSUM="42d55eb5ac104c86655b3382213deef1" CHECKSUMTYPE="md5" GROUPID="GID2" ID="FID2" MIMETYPE="mimetype" SEQ="2">',
-            '<Flocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" href="files/20121205.jpg"/>',
+            '<file CHECKSUM="fadfbcd8ceb71b9cfc765b9710db8c2c" CHECKSUMTYPE="md5">',
+            '<Flocat href="files/6a00e55055.png"/>',
+            '<file CHECKSUM="42d55eb5ac104c86655b3382213deef1" CHECKSUMTYPE="md5">',
+            '<Flocat href="files/20121205.jpg"/>',
         ]
         with open(os.path.join(COLLECTION_FILES,eid,'mets.xml'), 'r') as mf:
             mets = mf.read()
