@@ -1,5 +1,6 @@
 import ConfigParser
 from datetime import datetime
+from functools import wraps
 import hashlib
 import os
 import sys
@@ -390,6 +391,30 @@ OPERATIONS = [
     ]
 
 
+
+def requires_network(f):
+    """Indicate that function requires network access; check if can connect to gitolite server.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not gitolite_connect_ok():
+            print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
+            sys.exit(1)
+        return f(*args, **kwargs)
+    return wrapper
+
+def local_only(f):
+    """Indicate that function requires no network access.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        return f(*args, **kwargs)
+    return wrapper
+
+
+
+
+@requires_network
 def create(user_name, user_mail, collection_path, debug=False):
     """Create a new collection
 
@@ -411,9 +436,6 @@ def create(user_name, user_mail, collection_path, debug=False):
     """
     if debug:
         print('collection.create({})'.format(collection_path))
-    if not gitolite_connect_ok(debug=debug):
-        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-        sys.exit(1)
     collection_uid = os.path.basename(collection_path)
     url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
     if debug:
@@ -486,6 +508,7 @@ def create(user_name, user_mail, collection_path, debug=False):
         print('collection.create DONE')
 
 
+@local_only
 def destroy():
     """
     Removes an entire collection's files from the local system.  Does not remove files from the server!  That will remain a manual operation.
@@ -494,6 +517,7 @@ def destroy():
         print('destroy()')
 
 
+@local_only
 def status(collection_path, debug=False):
     """
     Gathers information about the status of the collection.
@@ -502,6 +526,7 @@ def status(collection_path, debug=False):
         print('status()')
 
 
+@local_only
 def update(user_name, user_mail, collection_path, updated_files, debug=False):
     """
     Commits changes to the specified file.  NOTE: Does not push to the workbench server.
@@ -510,9 +535,6 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     if debug:
         print('update({}, {}, {}, {})'.format(
             user_name, user_mail, collection_path, updated_files, debug=False))
-    if not gitolite_connect_ok(debug=debug):
-        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-        sys.exit(1)
     
     repo = git.Repo(collection_path)
     # TODO always start on master branch
@@ -541,6 +563,7 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
         print('commit {}'.format(commit))
 
 
+@requires_network
 def sync(user_name, user_mail, collection_path, debug=False):
     """git pull/push to workbench server, git-annex sync
 
@@ -558,9 +581,6 @@ def sync(user_name, user_mail, collection_path, debug=False):
     if debug:
         print('sync({}, {}, {})'.format(
             user_name, user_mail, collection_path, debug=False))
-    if not gitolite_connect_ok(debug=debug):
-        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-        sys.exit(1)
     
     repo = git.Repo(collection_path)
     # TODO always start on master branch
@@ -589,14 +609,12 @@ def sync(user_name, user_mail, collection_path, debug=False):
 
 
 
+@local_only
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
     """Create an entity and add it to the collection.
     """
     if debug:
         print('entity_create({}, {})'.format(collection_path, entity_uid))
-    if not gitolite_connect_ok(debug=debug):
-        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-        sys.exit(1)
     
     collection = Collection(collection_path)
     repo = git.Repo(collection_path)
@@ -689,6 +707,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
         print('collection.entity_create DONE')
 
 
+@local_only
 def entity_destroy():
     """Remove the specified entity from the collection.
     """
@@ -696,6 +715,7 @@ def entity_destroy():
         print('entity_destroy()')
 
 
+@local_only
 def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, debug=False):
     """
     Commits changes to the specified file in the entity.  NOTE: Does not push to the workbench server.
@@ -705,9 +725,6 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     """
     if debug:
         print('entity_update({}, {}, {})'.format(collection_path, entity_uid, updated_files))
-    if not gitolite_connect_ok(debug=debug):
-        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-        sys.exit(1)
     
     repo = git.Repo(collection_path)
     # TODO always start on master branch
@@ -742,6 +759,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     commit = index.commit('Updated entity file(s)')
 
 
+@local_only
 def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file, debug=False):
     """git annex add a file, update changelog and mets,xml.
     
@@ -816,18 +834,21 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     #run(add_cmd, debug)
     # commit
 
+@local_only
 def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """Wrapper around entity_annex_add() that 
     """
     if debug:
         print('entity_add_master()')
 
+@local_only
 def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """
     """
     if debug:
         print('entity_add_mezzanine()')
 
+@local_only
 def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """
     """
@@ -836,7 +857,7 @@ def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_pa
 
 
 
-
+@requires_network
 def annex_pull(collection_path, entity_file_path, debug=False):
     """Pull a git-annex file from workbench.
 
@@ -850,6 +871,7 @@ def annex_pull(collection_path, entity_file_path, debug=False):
     pass
 
 
+@requires_network
 def annex_push(collection_path, entity_file_path, debug=False):
     """Push a git-annex file to workbench.
 
