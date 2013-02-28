@@ -1,3 +1,5 @@
+# dependencies used in all environments
+
 beautifulsoup4
 bpython
 envoy
