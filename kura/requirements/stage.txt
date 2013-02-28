@@ -1,3 +1,3 @@
 # dependencies for stage environment
 
---r _base.txt  # includes the _base.txt requirements file
+-r _base.txt  # include _base.txt
