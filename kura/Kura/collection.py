@@ -694,17 +694,6 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     index = repo.index
     index.add(git_files)
     commit = index.commit(changelog_messages[0])
-    # master branch should be created by now
-    os.chdir(collection_path)
-    if debug:
-        print(os.system('git branch'))
-    run('git annex init', debug)
-    run('git push origin master', debug)
-    run('git checkout git-annex', debug)
-    run('git push origin git-annex', debug)
-    run('git checkout master', debug)
-    if debug:
-        print('collection.entity_create DONE')
 
 
 @local_only
