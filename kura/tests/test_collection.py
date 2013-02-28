@@ -32,8 +32,9 @@ COLLECTION_FILES     = os.path.join(TEST_COLLECTION, 'files')
 COLLECTION_GIT       = os.path.join(TEST_COLLECTION, '.git')
 COLLECTION_GITIGNORE = os.path.join(TEST_COLLECTION, '.gitignore')
 
-TEST_FILES_DIR = os.path.join(sys.path[0], 'files')
-TEST_MEDIA_DIR = os.path.join(sys.path[0], '..', 'files', 'entity')
+MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
+TEST_FILES_DIR = os.path.join(MODULE_PATH, 'files')
+TEST_MEDIA_DIR = os.path.join(MODULE_PATH, '..', 'files', 'entity')
 
 GITWEB_URL = 'http://partner.densho.org/gitweb'
 
