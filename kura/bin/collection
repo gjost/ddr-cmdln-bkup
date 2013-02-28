@@ -6,9 +6,9 @@
 import argparse
 import sys
 
-from Kura.collection import OPERATIONS, description, epilog
-from Kura.collection import create, destroy, update, sync
-from Kura.collection import entity_create, entity_destroy, entity_update, entity_annex_add
+from Kura.commands import OPERATIONS, description, epilog
+from Kura.commands import create, destroy, update, sync
+from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 
 def main():
     parser = argparse.ArgumentParser(description=description, epilog=epilog)

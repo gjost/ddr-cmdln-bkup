@@ -1,30 +1,24 @@
-import ConfigParser
 from datetime import datetime
 from functools import wraps
-import hashlib
 import os
 import sys
 
-from bs4 import BeautifulSoup
 import envoy
 import git
 
+from Kura.models import Collection, Entity
+from Kura.changelog import write_changelog_entry
+from Kura.control import CollectionControlFile, EntityControlFile
+from Kura.xml import EAD, METS
 
 
 GIT_USER = 'git'
 GIT_SERVER = 'mits'
 
-path = os.path.abspath(__file__)
-MODULE_PATH = os.path.dirname(path)
-
+MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
-GITIGNORE_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
-CHANGELOG_TEMPLATE          = os.path.join(TEMPLATE_PATH, 'changelog.tpl')
-CHANGELOG_DATE_FORMAT       = os.path.join(TEMPLATE_PATH, 'changelog-date.tpl')
-COLLECTION_CONTROL_TEMPLATE = os.path.join(TEMPLATE_PATH, 'collection_control.tpl')
-COLLECTION_EAD_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'collection_ead.xml.tpl')
-ENTITY_CONTROL_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'entity_control.tpl' )
-ENTITY_METS_TEMPLATE        = os.path.join(TEMPLATE_PATH, 'entity_mets.xml.tpl' )
+GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
+
 
 def gitolite_connect_ok( debug=False ):
     """See if we can connect to gitolite server.
@@ -58,315 +52,30 @@ def gitolite_connect_ok( debug=False ):
             return True
     return False
 
-def load_template(filename):
-    template = ''
-    with open(filename, 'r') as f:
-        template = f.read()
-    return template
-
 def run(cmd, debug=False):
     """Run a command without expecting results."""
     r = envoy.run(cmd)
     if debug:
         print(r.std_out)
 
-def write_changelog_entry(path, messages, user, email, debug=False):
-    if debug:
-        print('Updating changelog {} ...'.format(path))
-    template = load_template(CHANGELOG_TEMPLATE)
-    date_format = load_template(CHANGELOG_DATE_FORMAT)
-    # one line per message
-    lines = []
-    [lines.append('* {}'.format(m)) for m in messages]
-    changes = '\n'.join(lines)
-    # render
-    entry = template.format(
-        changes=changes,
-        user=user,
-        email=email,
-        date=datetime.now().strftime(date_format)
-        )
-    try:
-        preexisting = os.path.getsize(path)
-    except:
-        preexisting = False
-    with open(path, 'a') as changelog:
-        if preexisting:
-            changelog.write('\n')
-        changelog.write(entry)
-
-
-class ControlFile( object ):
-    """control file inspired by Debian package control file but using INI syntax.
+def requires_network(f):
+    """Indicate that function requires network access; check if can connect to gitolite server.
     """
-    path = None
-    _config = None
-    
-    def __init__( self, path, debug=False ):
-        self.path = path
-        if not os.path.exists(self.path):
-            print('ERR: control file not initialized')
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not gitolite_connect_ok():
+            print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
             sys.exit(1)
-        self.read(debug=debug)
-    
-    def read( self, debug=False ):
-        if debug:
-            print('Reading control file {} ...'.format(self.path))
-        self._config = ConfigParser.ConfigParser(allow_no_value=True)
-        self._config.read([self.path])
-    
-    def write( self, debug=False ):
-        if debug:
-            print('Writing control file {} ...'.format(self.path))
-        with open(self.path, 'w') as cfile:
-            self._config.write(cfile)
+        return f(*args, **kwargs)
+    return wrapper
 
-class CollectionControlFile( ControlFile ):
-    def update_checksums( self, collection, debug=False ):
-        self._config.remove_section('Entities')
-        self._config.add_section('Entities')
-        uids = []
-        [uids.append(entity.uid) for entity in collection.entities()]
-        uids.sort()
-        [self._config.set('Entities', uid) for uid in uids]
-
-
-class EntityControlFile( ControlFile ):
-    CHECKSUMS = ['sha1', 'sha256', 'files']
-    def update_checksums( self, entity, debug=False ):
-        # return relative path to payload
-        def relative_path(entity_path, payload_file):
-            if entity_path[-1] != '/':
-                entity_path = '{}/'.format(entity_path)
-            return payload_file.replace(entity_path, '')
-        
-        self._config.remove_section('Checksums-SHA1')
-        self._config.add_section('Checksums-SHA1')
-        for sha1,path in entity.checksums('sha1', debug=debug):
-            path = relative_path(entity.path, path)
-            self._config.set('Checksums-SHA1', sha1, path)
-        #
-        self._config.remove_section('Checksums-SHA256')
-        self._config.add_section('Checksums-SHA256')
-        for sha256,path in entity.checksums('sha256', debug=debug):
-            path = relative_path(entity.path, path)
-            self._config.set('Checksums-SHA256', sha256, path)
-        #
-        self._config.remove_section('Files')
-        self._config.add_section('Files')
-        for md5,path in entity.checksums('md5', debug=debug):
-            size = os.path.getsize(path)
-            path = relative_path(entity.path, path)
-            self._config.set('Files', md5, '{} ; {}'.format(size,path))
-
-
-class EAD( object ):
-    """Encoded Archival Description (EAD) file.
+def local_only(f):
+    """Indicate that function requires no network access.
     """
-    collection_path = None
-    filename = None
-    soup = None
-    
-    def __init__( self, collection, debug=False ):
-        self.collection_path = collection.path
-        self.filename = os.path.join(self.collection_path, 'ead.xml')
-        self.read(debug=debug)
-        if debug:
-            print(self.soup.prettify())
-    
-    def read( self, debug=False ):
-        if debug:
-            print('Reading EAD file {}'.format(self.filename))
-        with open(self.filename, 'r') as e:
-            self.soup = BeautifulSoup(e, 'xml')
-    
-    def write( self, debug=False ):
-        if debug:
-            print('Writing EAD file {}'.format(self.filename))
-        with open(self.filename, 'w') as e:
-            e.write(self.soup.prettify())
-    
-    def update_dsc( self, collection, debug=False ):
-        """
-        <dsc type="combined">
-          <head>Inventory</head>
-          <c01>
-            <did>
-              <unittitle eid="{eid}">{title}</unittitle>
-            </did>
-          </c01>
-        </dsc>
-        """
-        # TODO Instead of creating a new <dsc>, read current data then recreate with additional files
-        dsc = self.soup.new_tag('dsc')
-        self.soup.dsc.replace_with(dsc)
-        head = self.soup.new_tag('head')
-        head.string = 'Inventory'
-        self.soup.dsc.append(head)
-        n = 0
-        for entity in collection.entities(debug=debug):
-            n = n + 1
-            # add c01, did, unittitle
-            c01 = self.soup.new_tag('c01')
-            did = self.soup.new_tag('did')
-            c01.append(did)
-            unittitle = self.soup.new_tag('unittitle', eid=entity.uid)
-            unittitle.string = 'Entity description goes here'
-            did.append(unittitle)
-            self.soup.dsc.append(c01)
-
-
-class METS( object ):
-    """Metadata Encoding and Transmission Standard (METS) file.
-    """
-    entity_path = None
-    filename = None
-    soup = None
-    
-    def __init__( self, entity, debug=False ):
-        self.entity_path = entity.path
-        self.filename = os.path.join(self.entity_path, 'mets.xml')
-        self.read(debug=debug)
-        if debug:
-            print(self.soup.prettify())
-    
-    def read( self, debug=False ):
-        if debug:
-            print('Reading METS file {}'.format(self.filename))
-        with open(self.filename, 'r') as mfile:
-            self.soup = BeautifulSoup(mfile, 'xml')
-    
-    def write( self, debug=False ):
-        if debug:
-            print('Writing METS file {}'.format(self.filename))
-        with open(self.filename, 'w') as mfile:
-            mfile.write(self.soup.prettify())
-    
-    def update_filesec( self, entity, debug=False ):
-        """
-        <fileSec>
-          <fileGrp USE="master">
-            <file GROUPID="GID1" ID="FID1" ADMID="AMD1" SEQ="1" MIMETYPE="image/tiff" CHECKSUM="80172D87C6A762C0053CAD9215AE2535" CHECKSUMTYPE="MD5">
-              <FLocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" xlink:href="1147733144860875.tiff"/>
-            </file>
-          </fileGrp>
-          <fileGrp USE="usecopy">
-            <file GROUPID="GID1" ID="FID2" ADMID="AMD2" SEQ="1" MIMETYPE="image/jpeg" CHECKSUM="4B02150574E1B321B526B095F82BBA0E" CHECKSUMTYPE="MD5">
-              <FLocat LOCTYPE="OTHER" OTHERLOCTYPE="fileid" xlink:href="1147733144860875.jpg"/>
-            </file>
-          </fileGrp>
-        </fileSec>
-        """
-        payload_path = entity.payload_path()
-        
-        # return relative path to payload
-        def relative_path(entity_path, payload_file):
-            if entity_path[-1] != '/':
-                entity_path = '{}/'.format(entity_path)
-            return payload_file.replace(entity_path, '')
-        n = 0
-        # remove existing files
-        filesec = self.soup.new_tag('fileSec')
-        self.soup.fileSec.replace_with(filesec)
-        # add new ones
-        for md5,path in entity.checksums('md5', debug=debug):
-            n = n + 1
-            use = 'unknown'
-            path = relative_path(entity.path, path)
-            # add fileGrp, file, Floca
-            fileGrp = self.soup.new_tag('fileGrp', USE='master')
-            self.soup.fileSec.append(fileGrp)
-            f = self.soup.new_tag('file', CHECKSUM=md5, CHECKSUMTYPE='md5')
-            fileGrp.append(f)
-            flocat = self.soup.new_tag('Flocat', href=path)
-            f.append(flocat)
-
-
-class Collection( object ):
-    path = None
-    uid = None
-    
-    def __init__( self, path, uid=None, debug=False ):
-        self.path = path
-        if not uid:
-            uid = os.path.basename(self.path)
-        self.uid  = uid
-    
-    def payload_path( self, trailing_slash=False ):
-        p = os.path.join(self.path, 'files')
-        if trailing_slash:
-            p = '{}/'.format(p)
-        return p
-    
-    def entities( self, debug=False ):
-        """Returns relative paths to entities."""
-        entities = []
-        cpath = self.path
-        if cpath[-1] != '/':
-            cpath = '{}/'.format(cpath)
-        for uid in os.listdir(self.payload_path()):
-            epath = os.path.join(self.payload_path(), uid)
-            e = Entity(epath)
-            entities.append(e)
-        return entities
-
-
-
-class Entity( object ):
-    path = None
-    uid = None
-    
-    def __init__( self, path, uid=None, debug=False ):
-        self.path = path
-        if not uid:
-            uid = os.path.basename(self.path)
-        self.uid  = uid
-    
-    def payload_path( self, trailing_slash=False ):
-        p = os.path.join(self.path, 'files')
-        if trailing_slash:
-            p = '{}/'.format(p)
-        return p
-    
-    def files( self ):
-        """Returns relative paths to payload files."""
-        files = []
-        entity_path = self.path
-        if entity_path[-1] != '/':
-            entity_path = '{}/'.format(entity_path)
-        for f in os.listdir(self.payload_path()):
-            files.append(f.replace(entity_path, ''))
-        return files
-
-    @staticmethod
-    def checksum_algorithms():
-        return ['md5', 'sha1', 'sha256']
-    
-    def checksums( self, algo, debug=False ):
-        checksums = []
-        def file_checksum( path, algo, block_size=1024 ):
-            if algo == 'md5':
-                h = hashlib.md5()
-            elif algo == 'sha1':
-                h = hashlib.sha1()
-            else:
-                return None
-            f = open(path, 'rb')
-            while True:
-                data = f.read(block_size)
-                if not data:
-                    break
-                h.update(data)
-            f.close()
-            return h.hexdigest()
-        if algo not in Entity.checksum_algorithms():
-            raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
-        for f in self.files():
-            fpath = os.path.join(self.payload_path(), f)
-            cs = file_checksum(fpath, algo)
-            if cs:
-                checksums.append( (cs, fpath) )
-        return checksums
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        return f(*args, **kwargs)
+    return wrapper
 
 
 
@@ -389,29 +98,6 @@ OPERATIONS = [
     'pull',
     'push',
     ]
-
-
-
-def requires_network(f):
-    """Indicate that function requires network access; check if can connect to gitolite server.
-    """
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if not gitolite_connect_ok():
-            print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-            sys.exit(1)
-        return f(*args, **kwargs)
-    return wrapper
-
-def local_only(f):
-    """Indicate that function requires no network access.
-    """
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        return f(*args, **kwargs)
-    return wrapper
-
-
 
 
 @requires_network
@@ -455,21 +141,13 @@ def create(user_name, user_mail, collection_path, debug=False):
     # control
     control_path_rel = 'control'
     control_path_abs = os.path.join(collection_path, control_path_rel)
-    if debug:
-        print('Creating control {} ...'.format(control_path_abs))
-    control_template = load_template(COLLECTION_CONTROL_TEMPLATE)
-    with open(control_path_abs, 'w') as control:
-        control.write(control_template.format(cid=collection_uid))
+    CollectionControlFile.create(control_path_abs, collection_uid)
     git_files.append(control_path_rel)
 
     # ead.xml
     ead_path_rel = 'ead.xml'
     ead_path_abs = os.path.join(collection_path, ead_path_rel)
-    if debug:
-        print('Creating ead.xml {} ...'.format(ead_path_abs))
-    ead_template = load_template(COLLECTION_EAD_TEMPLATE)
-    with open(ead_path_abs, 'w') as ead:
-        ead.write(ead_template)
+    EAD.create(ead_path_abs)
     git_files.append(ead_path_rel)
 
     # changelog
@@ -608,7 +286,6 @@ def sync(user_name, user_mail, collection_path, debug=False):
     run('git annex sync', debug=debug)
 
 
-
 @local_only
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
     """Create an entity and add it to the collection.
@@ -643,21 +320,13 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     # entity control
     control_path_rel = os.path.join(entity_path_rel, 'control')
     control_path_abs = os.path.join(collection_path, control_path_rel)
-    if debug:
-        print('Creating control {} ...'.format(control_path_abs))
-    control_template = load_template(ENTITY_CONTROL_TEMPLATE)
-    with open(control_path_abs, 'w') as control:
-        control.write(control_template.format(cid=collection_uid, eid=entity_uid))
+    EntityControlFile.create(control_path_abs, collection_uid, entity_uid)
     git_files.append(control_path_rel)
 
     # entity mets.xml
     mets_path_rel = os.path.join(entity_path_rel, 'mets.xml')
     mets_path_abs = os.path.join(collection_path, mets_path_rel)
-    if debug:
-        print('Creating mets.xml {} ...'.format(mets_path_abs))
-    mets_template = load_template(ENTITY_METS_TEMPLATE)
-    with open(mets_path_abs, 'w') as mets:
-        mets.write(mets_template)
+    METS.create(mets_path_abs)
     git_files.append(mets_path_rel)
 
     # entity changelog
@@ -823,12 +492,14 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     #run(add_cmd, debug)
     # commit
 
+
 @local_only
 def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """Wrapper around entity_annex_add() that 
     """
     if debug:
         print('entity_add_master()')
+
 
 @local_only
 def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
@@ -837,13 +508,13 @@ def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file
     if debug:
         print('entity_add_mezzanine()')
 
+
 @local_only
 def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
     """
     """
     if debug:
         print('entity_add_access()')
-
 
 
 @requires_network
