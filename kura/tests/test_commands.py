@@ -181,17 +181,6 @@ class TestCollection( unittest.TestCase ):
         self.assertEqual(remote_hash_master, local_hash_master)
         self.assertEqual(remote_hash_gitannex, local_hash_gitannex)
 
-    def test_01_destroy( self ):
-        """Destroy a collection.
-        """
-        debug = ''
-        if DEBUG:
-            debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_01_destroy')
-        # tests
-        #self.assertTrue(...)
-
     def test_02_status( self ):
         """Get status info for collection.
         """
@@ -461,6 +450,17 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
             print('\n----------------------------------------------------------------------')
             print('test_21_push')
+        # tests
+        #self.assertTrue(...)
+    
+    def test_99_destroy( self ):
+        """Destroy a collection.
+        """
+        debug = ''
+        if DEBUG:
+            debug = ' --debug'
+            print('\n----------------------------------------------------------------------')
+            print('test_01_destroy')
         # tests
         #self.assertTrue(...)
 
