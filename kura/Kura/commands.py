@@ -95,6 +95,7 @@ OPERATIONS = [
     'create',
     'destroy',
     'status',
+    'astatus',
     'update',
     'sync',
     'ecreate',
@@ -200,12 +201,26 @@ def destroy():
 
 
 @local_only
-def status(collection_path, debug=False):
+def status(collection_path , debug=False):
     """
     Gathers information about the status of the collection.
     """
     if debug:
-        print('status()')
+        print('status({})'.format(collection_path))
+    repo = git.Repo(collection_path)
+    print(repo.git.status())
+
+
+@local_only
+def annex_status(collection_path , debug=False):
+    """
+    Gathers information about the status of the collection.
+    """
+    if debug:
+        print('annex_status({})'.format(collection_path))
+    repo = git.Repo(collection_path)
+    print(repo.git.annex('status'))
+
 
 
 @local_only

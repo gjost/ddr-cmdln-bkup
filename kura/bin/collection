@@ -7,7 +7,8 @@ import argparse
 import sys
 
 from Kura.commands import OPERATIONS, description, epilog
-from Kura.commands import create, destroy, status, update, sync
+from Kura.commands import create, destroy, update, sync
+from Kura.commands import status, annex_status
 from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 
 def main():
@@ -37,7 +38,7 @@ def main():
         messages.append('choose an operation')
     if not args.collection:
         messages.append('specify a collection')
-    if args.operation != 'status':
+    if args.operation not in ['status', 'astatus']:
         if not args.user:
             messages.append('specify a user')
         if not args.mail:
@@ -55,6 +56,7 @@ def main():
     
     # do something
     if   args.operation == 'status':   status(args.collection, args.debug)
+    elif args.operation == 'astatus':  annex_status(args.collection, args.debug)
     elif args.operation == 'create':   create(        args.user, args.mail, args.collection,              args.debug)
     elif args.operation == 'destroy':  destroy(       args.user, args.mail, args.collection,              args.debug)
     elif args.operation == 'update':   update(        args.user, args.mail, args.collection, [args.file],   args.debug)
