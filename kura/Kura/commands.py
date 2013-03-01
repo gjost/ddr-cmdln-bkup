@@ -132,16 +132,14 @@ def create(user_name, user_mail, collection_path, debug=False):
     url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
     if debug:
         print('cloning: {}'.format(url))
+    
     repo = git.Repo.clone_from(url, collection_path)
-    # TODO always start on master branch
+    # there is no master branch at this point
     if debug:
         print('cloned')
-    # there is no master branch at this point
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
-    
-    g.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
+    repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
     git_files = []
 
     # control
@@ -176,18 +174,18 @@ def create(user_name, user_mail, collection_path, debug=False):
     git_files.append(gitignore_path_rel)
     
     # git add
-    index = repo.index
-    index.add(git_files)
-    commit = index.commit(changelog_messages[0])
-    # master branch should be created by now
-    os.chdir(collection_path)
-    if debug:
-        print(os.system('git branch'))
-    run('git annex init', debug)
-    run('git push origin master', debug)
-    run('git checkout git-annex', debug)
-    run('git push origin git-annex', debug)
-    run('git checkout master', debug)
+    repo.index.add(git_files)
+    commit = repo.index.commit(changelog_messages[0])
+    # master branch should be created by this point
+    
+    # git annex init
+    repo.git.annex('init')
+    # this little dance is necessary for some reason -- see notes
+    repo.git.push('origin', 'master')
+    repo.git.checkout('git-annex')
+    repo.git.push('origin', 'git-annex')
+    repo.git.checkout('master')
+    
     if debug:
         print('collection.create DONE')
 
@@ -221,10 +219,9 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
             user_name, user_mail, collection_path, updated_files, debug=False))
     
     repo = git.Repo(collection_path)
-    # TODO always start on master branch
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
+    repo.git.checkout('master')
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
     
     # changelog
     changelog_path_rel = 'changelog'
@@ -240,9 +237,8 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     # git add
     if debug:
         print('updated_files {}'.format(updated_files))
-    index = repo.index
-    index.add(updated_files)
-    commit = index.commit('Updated collection file(s)')
+    repo.index.add(updated_files)
+    commit = repo.index.commit('Updated collection file(s)')
     if debug:
         print('commit {}'.format(commit))
 
@@ -267,29 +263,23 @@ def sync(user_name, user_mail, collection_path, debug=False):
             user_name, user_mail, collection_path, debug=False))
     
     repo = git.Repo(collection_path)
-    # TODO always start on master branch
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
-    
-    os.chdir(collection_path)
-    run('pwd', debug=debug)
-    # TODO git checkout master
-    run('git branch', debug=debug)
+    repo.git.checkout('master')
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
     # fetch
-    run('git fetch origin', debug=debug)
+    repo.git.fetch('origin')
     # pull on master,git-annex branches
-    run('git checkout master', debug=debug)
-    run('git pull origin master', debug=debug)
-    run('git checkout git-annex', debug=debug)
-    run('git pull origin git-annex', debug=debug)
+    repo.git.checkout('master')
+    repo.git.pull('origin', 'master')
+    repo.git.checkout('git-annex')
+    repo.git.pull('origin', 'git-annex')
     # push on git-annex,master branches
-    run('git checkout git-annex', debug=debug)
-    run('git push origin git-annex', debug=debug)
-    run('git checkout master', debug=debug)
-    run('git push origin master', debug=debug)
+    repo.git.checkout('git-annex')
+    repo.git.push('origin', 'git-annex')
+    repo.git.checkout('master')
+    repo.git.push('origin', 'master')
     # git annex sync
-    run('git annex sync', debug=debug)
+    repo.git.annex('sync')
 
 
 @local_only
@@ -301,10 +291,9 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     
     collection = Collection(collection_path)
     repo = git.Repo(collection_path)
-    # TODO always start on master branch
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
+    repo.git.checkout('master')
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
     
     # create collection files/ dir if not already present
     # mets.xml
@@ -366,9 +355,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     git_files.append('control')
     
     # git add
-    index = repo.index
-    index.add(git_files)
-    commit = index.commit(changelog_messages[0])
+    repo.index.add(git_files)
+    commit = repo.index.commit(changelog_messages[0])
 
 
 @local_only
@@ -391,10 +379,9 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
         print('entity_update({}, {}, {})'.format(collection_path, entity_uid, updated_files))
     
     repo = git.Repo(collection_path)
-    # TODO always start on master branch
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
+    repo.git.checkout('master')
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
 
     entity_path_rel = os.path.join('files', entity_uid)
     entity_path_abs = os.path.join(collection_path, entity_path_rel)
@@ -418,9 +405,8 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     # git add
     if debug:
         print('git_files {}'.format(git_files))
-    index = repo.index
-    index.add(git_files)
-    commit = index.commit('Updated entity file(s)')
+    repo.index.add(git_files)
+    commit = repo.index.commit('Updated entity file(s)')
 
 
 @local_only
@@ -443,11 +429,11 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     if not gitolite_connect_ok(debug=debug):
         print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
         sys.exit(1)
+    
     repo = git.Repo(collection_path)
-    # TODO always start on master branch
-    g = repo.git
-    g.config('user.name', user_name)
-    g.config('user.email', user_mail)
+    repo.git.checkout('master')
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
     
     entity_dir = os.path.join(collection_path, 'files', entity_uid)
     entity_files_dir = os.path.join(entity_dir, 'files')
@@ -470,9 +456,6 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
         print('ERR: File does not exist: {}'.format(new_file_abs))
         sys.exit(1)
     
-    os.chdir(collection_path)
-    run('git checkout master', debug)
-    
     updated_files = []
     # update entity changelog
     entity_changelog_path_rel = os.path.join(entity_dir, 'changelog')
@@ -493,10 +476,10 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     m = METS(e, debug)
     m.update_filesec(e)
     m.write()
-    # git annex add
-    #add_cmd = 'git annex add {}'.format(new_file_rel)
-    #run(add_cmd, debug)
-    # commit
+#    # git annex add
+#    repo.git.annex('add', new_file_rel)
+#    # commit
+#    commit = repo.index.commit('Updated entity file(s)')
 
 
 @local_only
