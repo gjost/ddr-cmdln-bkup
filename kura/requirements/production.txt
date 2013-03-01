@@ -1,3 +1,4 @@
 # dependencies for production environment
 
--r _base.txt  # include _base.txt
+# include base
+-r _base.txt
