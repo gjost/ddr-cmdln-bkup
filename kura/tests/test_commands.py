@@ -1,10 +1,10 @@
 from datetime import datetime
 import os
 import shutil
-import subprocess
 import sys
 import unittest
 
+import envoy
 import requests
 
 
@@ -51,9 +51,9 @@ def last_local_commit(path, branch, debug=False):
     h = ''
     os.chdir(path)
     # get last commit
-    log1 = subprocess.check_output('git log {} -1'.format(branch), shell=True)
+    run = envoy.run('git log {} -1'.format(branch))
     # 'commit 925315a29179c63f0849c0149451f1dd30010c02\nAuthor: gjost <geoffrey.jost@densho.org>\nDate:   Fri Feb 8 15:50:31 2013 -0700\n\n    Initialized entity ddr-testing-3-2\n'
-    h = log1.split('\n')[0].split(' ')[1]
+    h = run.std_out.split('\n')[0].split(' ')[1]
     return h
 
 def last_remote_commit(path, branch, debug=False):
@@ -68,8 +68,8 @@ def last_remote_commit(path, branch, debug=False):
     h = ''
     os.chdir(path)
     ref_head = 'refs/heads/{}'.format(branch)
-    out = subprocess.check_output('git ls-remote --heads', shell=True)
-    for line in out.split('\n'):
+    run = envoy.run('git ls-remote --heads')
+    for line in run.std_out.split('\n'):
         if ref_head in line:
             h = line.split('\t')[0]
     return h    
@@ -90,10 +90,10 @@ def file_in_local_commit(path, branch, commit, filename, debug=False):
             path, branch, commit, filename))
     present = None
     os.chdir(path)
-    log = subprocess.check_output('git log -1 --stat -p {} {}|grep \|'.format(commit, branch), shell=True)
+    run = envoy.run('git log -1 --stat -p {} {}|grep \|'.format(commit, branch))
     if debug:
-        print(log)
-    for line in log.split('\n'):
+        print(run.std_out)
+    for line in run.std_out.split('\n'):
         linefile = line.split('|')[0].strip()
         if linefile == filename:
             present = True
@@ -154,9 +154,9 @@ class TestCollection( unittest.TestCase ):
         cmd = '{} create {} --user {} --mail {} --collection {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         if DEBUG:
             print(cmd)
-        out = subprocess.check_output(cmd, shell=True)
+        run = envoy.run(cmd)
         if DEBUG:
-            print(out)
+            print(run.std_out)
         
         # directories exist
         self.assertTrue(os.path.exists(TEST_COLLECTION))
@@ -193,11 +193,11 @@ class TestCollection( unittest.TestCase ):
         cmd = '{} status {} --collection {}'.format(CMD_PATH, debug, TEST_COLLECTION)
         if DEBUG:
             print(cmd)
-        out = subprocess.check_output(cmd, shell=True)
+        run = envoy.run(cmd)
         if DEBUG:
-            print(out)
+            print(run.std_out)
         # tests
-        lines = out.split('\n')
+        lines = run.std_out.split('\n')
         self.assertTrue('# On branch master' in lines)
         self.assertTrue('nothing to commit (working directory clean)' in lines)
 
@@ -213,18 +213,17 @@ class TestCollection( unittest.TestCase ):
         cmd = '{} astatus {} --collection {}'.format(CMD_PATH, debug, TEST_COLLECTION)
         if DEBUG:
             print(cmd)
-        out = subprocess.check_output(cmd, shell=True)
+        run = envoy.run(cmd)
         if DEBUG:
-            print(out)
+            print(run.std_out)
         # tests
-        lines = out.split('\n')
+        lines = run.std_out.split('\n')
         self.assertTrue( 'local annex keys: 0'                       in lines)
         self.assertTrue( 'local annex size: 0 bytes'                 in lines)
         self.assertTrue( 'known annex keys: 0'                       in lines)
         self.assertTrue( 'known annex size: 0 bytes'                 in lines)
         self.assertTrue( 'bloom filter size: 16 mebibytes (0% full)' in lines)
         
-    
     def test_03_update( self ):
         """Register changes to specified file; does not push.
         """
@@ -242,9 +241,9 @@ class TestCollection( unittest.TestCase ):
             CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
         if DEBUG:
             print(cmd)
-        out = subprocess.check_output(cmd, shell=True)
+        run = envoy.run(cmd)
         if DEBUG:
-            print(out)
+            print(run.std_out)
         # tests
         # TODO we need to test status, that modified file was actually committed
         commit = last_local_commit(TEST_COLLECTION, 'master')
@@ -262,9 +261,9 @@ class TestCollection( unittest.TestCase ):
             CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         if DEBUG:
             print('CMD: {}'.format(cmd))
-        out = subprocess.check_output(cmd, shell=True)
+        run = envoy.run(cmd)
         if DEBUG:
-            print('OUT: {}'.format(out))
+            print('OUT: {}'.format(run.std_out))
         # tests
         # check that local,remote commits exist and are equal
         # indicates that local changes made it up to workbench
@@ -294,9 +293,9 @@ class TestCollection( unittest.TestCase ):
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
             if DEBUG:
                 print('CMD: {}'.format(cmd))
-            out = subprocess.check_output(cmd, shell=True)
+            run = envoy.run(cmd)
             if DEBUG:
-                print('OUT: {}'.format(out))
+                print('OUT: {}'.format(run.std_out))
         
         # confirm entity files exist
         self.assertTrue(os.path.exists(COLLECTION_FILES))
@@ -371,9 +370,9 @@ class TestCollection( unittest.TestCase ):
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
             if DEBUG:
                 print(cmd)
-            out = subprocess.check_output(cmd, shell=True)
+            run = envoy.run(cmd)
             if DEBUG:
-                print(out)
+                print(run.std_out)
             # test that modified file appears in local commit
             commit = last_local_commit(TEST_COLLECTION, 'master')
             # entity files will appear in local commits as "files/ddr-testing-X-Y/FILENAME"
@@ -404,9 +403,9 @@ class TestCollection( unittest.TestCase ):
                 CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
             if DEBUG:
                 print(cmd)
-            out = subprocess.check_output(cmd, shell=True)
+            run = envoy.run(cmd)
             if DEBUG:
-                print(out)
+                print(run.std_out)
         
         # test file checksums in control
         control_checksums = ['a58d0c947a747a9bce655938b5c251f72a377c00 = files/6a00e55055.png',
