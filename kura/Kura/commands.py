@@ -52,18 +52,6 @@ def gitolite_connect_ok( debug=False ):
             return True
     return False
 
-def load_template(filename):
-    template = ''
-    with open(filename, 'r') as f:
-        template = f.read()
-    return template
-
-def run(cmd, debug=False):
-    """Run a command without expecting results."""
-    r = envoy.run(cmd)
-    if debug:
-        print(r.std_out)
-
 def requires_network(f):
     """Indicate that function requires network access; check if can connect to gitolite server.
     """
@@ -169,7 +157,8 @@ def create(user_name, user_mail, collection_path, debug=False):
     gitignore_path_abs = os.path.join(collection_path, gitignore_path_rel)
     if debug:
         print('Creating .gitignore {} ...'.format(gitignore_path_abs))
-    gitignore_template = load_template(GITIGNORE_TEMPLATE)
+    with open(filename, 'r') as f:
+        gitignore_template = f.read()
     with open(gitignore_path_abs, 'w') as gitignore:
         gitignore.write(gitignore_template)
     git_files.append(gitignore_path_rel)
