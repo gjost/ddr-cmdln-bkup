@@ -200,8 +200,41 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
             print('\n----------------------------------------------------------------------')
             print('test_02_status')
+        # check status
+        cmd = '{} status {} --collection {}'.format(CMD_PATH, debug, TEST_COLLECTION)
+        if DEBUG:
+            print(cmd)
+        out = subprocess.check_output(cmd, shell=True)
+        if DEBUG:
+            print(out)
         # tests
-        #self.assertTrue(...)
+        lines = out.split('\n')
+        self.assertTrue('# On branch master' in lines)
+        self.assertTrue('nothing to commit (working directory clean)' in lines)
+
+    def test_02_annex_status( self ):
+        """Get annex status info for collection.
+        """
+        debug = ''
+        if DEBUG:
+            debug = ' --debug'
+            print('\n----------------------------------------------------------------------')
+            print('test_02_annex_status')
+        # check status
+        cmd = '{} astatus {} --collection {}'.format(CMD_PATH, debug, TEST_COLLECTION)
+        if DEBUG:
+            print(cmd)
+        out = subprocess.check_output(cmd, shell=True)
+        if DEBUG:
+            print(out)
+        # tests
+        lines = out.split('\n')
+        self.assertTrue( 'local annex keys: 0'                       in lines)
+        self.assertTrue( 'local annex size: 0 bytes'                 in lines)
+        self.assertTrue( 'known annex keys: 0'                       in lines)
+        self.assertTrue( 'known annex size: 0 bytes'                 in lines)
+        self.assertTrue( 'bloom filter size: 16 mebibytes (0% full)' in lines)
+        
     
     def test_03_update( self ):
         """Register changes to specified file; does not push.
