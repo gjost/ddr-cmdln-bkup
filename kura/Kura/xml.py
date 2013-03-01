@@ -31,7 +31,7 @@ class EAD( object ):
             print(self.soup.prettify())
     
     @staticmethod
-    def create( path, ):
+    def create( path, debug=False ):
         if debug:
             print('Creating ead.xml {} ...'.format(path))
         t = load_template(EAD_TEMPLATE)
@@ -95,7 +95,7 @@ class METS( object ):
             print(self.soup.prettify())
     
     @staticmethod
-    def create( path, ):
+    def create( path, debug=False ):
         if debug:
             print('Creating mets.xml {} ...'.format(path))
         t = load_template(METS_TEMPLATE)

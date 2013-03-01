@@ -52,6 +52,12 @@ def gitolite_connect_ok( debug=False ):
             return True
     return False
 
+def load_template(filename):
+    template = ''
+    with open(filename, 'r') as f:
+        template = f.read()
+    return template
+
 def run(cmd, debug=False):
     """Run a command without expecting results."""
     r = envoy.run(cmd)
