@@ -441,9 +441,6 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     if debug:
         print('entity_annex_add({}, {}, {}, {}, {})'.format(
             user_name, user_mail, collection_path, entity_uid, new_file))
-    if not gitolite_connect_ok(debug=debug):
-        print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-        sys.exit(1)
     
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
