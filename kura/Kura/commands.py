@@ -97,8 +97,8 @@ OPERATIONS = [
 
 @requires_network
 def create(user_name, user_mail, collection_path, debug=False):
-    """Create a new collection
-
+    """Command-line function for creating a new collection.
+    
     Clones a blank collection object from workbench server, adds files, commits.
     
     - clones new repo from gitolite server
@@ -182,8 +182,9 @@ def create(user_name, user_mail, collection_path, debug=False):
 
 @local_only
 def destroy():
-    """
-    Removes an entire collection's files from the local system.  Does not remove files from the server!  That will remain a manual operation.
+    """Command-line function for removing  an entire collection's files from the local system.
+    
+    Does not remove files from the server!  That will remain a manual operation.
     """
     if debug:
         print('destroy()')
@@ -191,8 +192,7 @@ def destroy():
 
 @local_only
 def status(collection_path , debug=False):
-    """
-    Gathers information about the status of the collection.
+    """Command-line function for running git status on collection repository.
     """
     if debug:
         print('status({})'.format(collection_path))
@@ -202,8 +202,7 @@ def status(collection_path , debug=False):
 
 @local_only
 def annex_status(collection_path , debug=False):
-    """
-    Gathers information about the status of the collection.
+    """Command-line function for running git annex status on collection repository.
     """
     if debug:
         print('annex_status({})'.format(collection_path))
@@ -214,8 +213,9 @@ def annex_status(collection_path , debug=False):
 
 @local_only
 def update(user_name, user_mail, collection_path, updated_files, debug=False):
-    """
-    Commits changes to the specified file.  NOTE: Does not push to the workbench server.
+    """Command-line function for commiting changes to the specified file.
+    
+    NOTE: Does not push to the workbench server.
     @param updated_files List of relative paths to updated file(s).
     """
     if debug:
@@ -249,8 +249,8 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
 
 @requires_network
 def sync(user_name, user_mail, collection_path, debug=False):
-    """git pull/push to workbench server, git-annex sync
-
+    """Command-line function for git pull/push to workbench server, git-annex sync
+    
     Pulls changes from and pushes changes to the workbench server.
 
     For this to work properly with Gitolite, it's necessary to push/pull
@@ -288,7 +288,7 @@ def sync(user_name, user_mail, collection_path, debug=False):
 
 @local_only
 def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
-    """Create an entity and add it to the collection.
+    """Command-line function for creating an entity and adding it to the collection.
     """
     if debug:
         print('entity_create({}, {})'.format(collection_path, entity_uid))
@@ -365,7 +365,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
 
 @local_only
 def entity_destroy():
-    """Remove the specified entity from the collection.
+    """Command-line function for removing the specified entity from the collection.
     """
     if debug:
         print('entity_destroy()')
@@ -373,8 +373,9 @@ def entity_destroy():
 
 @local_only
 def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, debug=False):
-    """
-    Commits changes to the specified file in the entity.  NOTE: Does not push to the workbench server.
+    """Command-line function for committing changes to the specified entity file.
+    
+    NOTE: Does not push to the workbench server.
     Updates entity changelog but NOT in collection changelog.
     Makes an entry in git log.
     @param updated_files List of paths to updated file(s), relative to entity/files.
@@ -415,7 +416,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
 
 @local_only
 def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file, debug=False):
-    """git annex add a file, update changelog and mets,xml.
+    """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
     mets.xml, and commit.
