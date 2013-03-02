@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import os
 import shutil
 import sys
@@ -38,6 +39,10 @@ TEST_MEDIA_DIR = os.path.join(MODULE_PATH, '..', 'files', 'entity')
 
 GITWEB_URL = 'http://partner.densho.org/gitweb'
 
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+LOGGING_FILE = '/tmp/ddr-cmdln.log'
+logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
 
 
 def last_local_commit(path, branch, debug=False):
@@ -85,20 +90,18 @@ def file_in_local_commit(path, branch, commit, filename, debug=False):
     changelog                       |    2 ++
     files/ddr-testing-3-2/changelog |    2 ++
     """
-    if debug:
-        print('file_in_local_commit({}, {}, {}, {})'.format(
-            path, branch, commit, filename))
+    logging.debug('file_in_local_commit({}, {}, {}, {})'.format(
+        path, branch, commit, filename))
     present = None
     os.chdir(path)
     run = envoy.run('git log -1 --stat -p {} {}|grep \|'.format(commit, branch))
-    if debug:
-        print(run.std_out)
-    for line in run.std_out.split('\n'):
-        linefile = line.split('|')[0].strip()
-        if linefile == filename:
-            present = True
-    if debug:
-        print('file_in_local_commit() {}'.format(present))
+    if run.std_out:
+        logging.debug('\n{}'.format(run.std_out))
+        for line in run.std_out.split('\n'):
+            linefile = line.split('|')[0].strip()
+            if linefile == filename:
+                present = True
+    logging.debug('    present: {}'.format(present))
     return present
 
 def file_in_remote_commit(collection_cid, commit, filename, debug=False):
@@ -109,25 +112,24 @@ def file_in_remote_commit(collection_cid, commit, filename, debug=False):
     
     @return True if present, False if not present, or None if could not contact workbench.
     """
-    if debug:
-        print('file_in_remote_commit({}, {}, {})'.format(collection_cid, commit, filename))
+    logging.debug('file_in_remote_commit({}, {}, {})'.format(collection_cid, commit, filename))
     # TODO
     url = '{gitweb}/?a=commitdiff_plain;p={repo}.git;h={hash}'.format(
         gitweb=GITWEB_URL, repo=collection_cid, hash=commit)
-    if debug:
-        print(url)
+    logging.debug('    {}'.format(url))
     try:
         r = requests.get(url)
     except:
         return None
-    if debug:
-        print(r.status_code)
+    logging.debug(r.status_code)
     if r and r.status_code == 200:
         for line in r.text.split('\n'):
-            print(line)
+            logging.debug(line)
             match = '+++ b/{}'.format(filename)
             if line == match:
+                logging.debug('    OK')
                 return True
+    logging.debug('    not present')
     return False
     
 
@@ -143,20 +145,17 @@ class TestCollection( unittest.TestCase ):
     def test_00_create( self ):
         """Create a collection.
         """
+        logging.debug('test_00_create -------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_00_create')
         if os.path.exists(TEST_COLLECTION):
             shutil.rmtree(TEST_COLLECTION, ignore_errors=True)
         #
-        cmd = '{} create {} --user {} --mail {} --collection {}'.format(CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
-        if DEBUG:
-            print(cmd)
+        cmd = '{} create {} --log {} --user {} --mail {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        logging.debug(cmd)
         run = envoy.run(cmd)
-        if DEBUG:
-            print(run.std_out)
+        logging.debug(run.std_out)
         
         # directories exist
         self.assertTrue(os.path.exists(TEST_COLLECTION))
@@ -184,18 +183,14 @@ class TestCollection( unittest.TestCase ):
     def test_02_status( self ):
         """Get status info for collection.
         """
+        logging.debug('test_02_status -------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_02_status')
         # check status
-        cmd = '{} status {} --collection {}'.format(CMD_PATH, debug, TEST_COLLECTION)
-        if DEBUG:
-            print(cmd)
+        cmd = '{} status {} --log {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION)
+        logging.debug(cmd)
         run = envoy.run(cmd)
-        if DEBUG:
-            print(run.std_out)
         # tests
         lines = run.std_out.split('\n')
         self.assertTrue('# On branch master' in lines)
@@ -204,18 +199,14 @@ class TestCollection( unittest.TestCase ):
     def test_02_annex_status( self ):
         """Get annex status info for collection.
         """
+        logging.debug('test_02_annex_status -------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_02_annex_status')
         # check status
-        cmd = '{} astatus {} --collection {}'.format(CMD_PATH, debug, TEST_COLLECTION)
-        if DEBUG:
-            print(cmd)
+        cmd = '{} astatus {} --log {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION)
+        logging.debug(cmd)
         run = envoy.run(cmd)
-        if DEBUG:
-            print(run.std_out)
         # tests
         lines = run.std_out.split('\n')
         self.assertTrue( 'local annex keys: 0'                       in lines)
@@ -227,23 +218,20 @@ class TestCollection( unittest.TestCase ):
     def test_03_update( self ):
         """Register changes to specified file; does not push.
         """
+        logging.debug('test_03_update -------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_03_update')
         # simulate making changes to a file
         srcfile = os.path.join(TEST_FILES_DIR, 'collection', 'update_control')
         destfile = COLLECTION_CONTROL
         shutil.copy(srcfile, destfile)
         # run update
-        cmd = '{} update {} --user {} --mail {} --collection {} --file {}'.format(
-            CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
-        if DEBUG:
-            print(cmd)
+        cmd = '{} update {} --log {} --user {} --mail {} --collection {} --file {}'.format(
+            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
+        logging.debug(cmd)
         run = envoy.run(cmd)
-        if DEBUG:
-            print(run.std_out)
+        logging.debug(run.std_out)
         # tests
         # TODO we need to test status, that modified file was actually committed
         commit = last_local_commit(TEST_COLLECTION, 'master')
@@ -252,18 +240,15 @@ class TestCollection( unittest.TestCase ):
     def test_04_sync( self ):
         """git pull/push to workbench server, git-annex sync
         """
+        logging.debug('test_04_sync ---------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_04_sync')
-        cmd = '{} sync {} --user {} --mail {} --collection {}'.format(
-            CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
-        if DEBUG:
-            print('CMD: {}'.format(cmd))
+        cmd = '{} sync {} --log {} --user {} --mail {} --collection {}'.format(
+            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        logging.debug('{}'.format(cmd))
         run = envoy.run(cmd)
-        if DEBUG:
-            print('OUT: {}'.format(run.std_out))
+        logging.debug(run.std_out)
         # tests
         # check that local,remote commits exist and are equal
         # indicates that local changes made it up to workbench
@@ -277,25 +262,23 @@ class TestCollection( unittest.TestCase ):
         self.assertTrue(local_hash_gitannex)
         self.assertEqual(remote_hash_master, local_hash_master)
         self.assertEqual(remote_hash_gitannex, local_hash_gitannex)
+        # TODO sync is not actually working, but these tests aren't capturing that
     
     def test_10_entity_create( self ):
         """Create new entity in the collection
         """
+        logging.debug('test_10_entity_create ------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_10_entity_create')
         
         # add the entity
         for eid in TEST_EIDS:
-            cmd = '{} ecreate {} --user {} --mail {} --collection {} --entity {}'.format(
-                CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
-            if DEBUG:
-                print('CMD: {}'.format(cmd))
+            cmd = '{} ecreate {} --log {} --user {} --mail {} --collection {} --entity {}'.format(
+                CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
+            logging.debug(cmd)
             run = envoy.run(cmd)
-            if DEBUG:
-                print('OUT: {}'.format(run.std_out))
+            logging.debug(run.std_out)
         
         # confirm entity files exist
         self.assertTrue(os.path.exists(COLLECTION_FILES))
@@ -337,11 +320,10 @@ class TestCollection( unittest.TestCase ):
     def test_11_entity_destroy( self ):
         """Remove entity from the collection
         """
+        logging.debug('test_11_entity_destroy -----------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_11_entity_destroy')
         # tests
         # TODO confirm entity files gone
         # TODO confirm entity destruction mentioned in changelog
@@ -352,11 +334,10 @@ class TestCollection( unittest.TestCase ):
     def test_12_entity_update( self ):
         """Register changes to specified file; does not push.
         """
+        logging.debug('test_12_entity_update ------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_12_entity_update')
         # simulate making changes to a file for each entity
         eid_files = [[TEST_EIDS[0], 'update_control', 'control'],
                      [TEST_EIDS[1], 'update_mets', 'mets.xml'],]
@@ -366,13 +347,11 @@ class TestCollection( unittest.TestCase ):
             destfile = os.path.join(entity_path,              destfilename)
             shutil.copy(srcfile, destfile)
             # run update
-            cmd = '{} eupdate {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
-                CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
-            if DEBUG:
-                print(cmd)
+            cmd = '{} eupdate {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
+                CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
+            logging.debug(cmd)
             run = envoy.run(cmd)
-            if DEBUG:
-                print(run.std_out)
+            logging.debug(run.std_out)
             # test that modified file appears in local commit
             commit = last_local_commit(TEST_COLLECTION, 'master')
             # entity files will appear in local commits as "files/ddr-testing-X-Y/FILENAME"
@@ -384,11 +363,10 @@ class TestCollection( unittest.TestCase ):
     def test_13_entity_add( self ):
         """git annex add file to entity, push it, and confirm that in remote repo
         """
+        logging.debug('test_13_entity_add ---------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_13_entity_add')
         eid = TEST_EIDS[0]
         for f in os.listdir(TEST_MEDIA_DIR):
             entity_path = os.path.join(COLLECTION_FILES,eid)
@@ -399,13 +377,11 @@ class TestCollection( unittest.TestCase ):
             destfile = os.path.join(entity_files_dir, f)
             shutil.copy(srcfile, destfile)
             # run update
-            cmd = '{} eadd {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
-                CMD_PATH, debug, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
-            if DEBUG:
-                print(cmd)
+            cmd = '{} eadd {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
+                CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
+            logging.debug(cmd)
             run = envoy.run(cmd)
-            if DEBUG:
-                print(run.std_out)
+            logging.debug(run.std_out)
         
         # test file checksums in control
         control_checksums = ['a58d0c947a747a9bce655938b5c251f72a377c00 = files/6a00e55055.png',
@@ -433,33 +409,30 @@ class TestCollection( unittest.TestCase ):
     def test_20_pull( self ):
         """
         """
+        logging.debug('test_20_pull ---------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_20_pull')
         # tests
         #self.assertTrue(...)
     
     def test_21_push( self ):
         """
         """
+        logging.debug('test_21_push ---------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_21_push')
         # tests
         #self.assertTrue(...)
     
     def test_99_destroy( self ):
         """Destroy a collection.
         """
+        logging.debug('test_99_destroy ------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-            print('\n----------------------------------------------------------------------')
-            print('test_01_destroy')
         # tests
         #self.assertTrue(...)
 

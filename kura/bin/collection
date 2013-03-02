@@ -4,6 +4,7 @@
 #
 
 import argparse
+import logging
 import sys
 
 from Kura.commands import OPERATIONS, description, epilog
@@ -26,12 +27,11 @@ def main():
                         help='User who is performing the change.')
     parser.add_argument('-m', '--mail',
                         help='Email of user.')
+    parser.add_argument('-l', '--log',
+                        help='Log file..')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Debug; prints lots of debug info.')
     args = parser.parse_args()
-
-    if args.debug:
-        print(args)
 
     messages = []
     if not args.operation:
@@ -55,16 +55,16 @@ def main():
         sys.exit(1)
     
     # do something
-    if   args.operation == 'status':   status(args.collection, args.debug)
-    elif args.operation == 'astatus':  annex_status(args.collection, args.debug)
-    elif args.operation == 'create':   create(        args.user, args.mail, args.collection,              args.debug)
-    elif args.operation == 'destroy':  destroy(       args.user, args.mail, args.collection,              args.debug)
-    elif args.operation == 'update':   update(        args.user, args.mail, args.collection, [args.file],   args.debug)
-    elif args.operation == 'sync':     sync(          args.user, args.mail, args.collection,              args.debug)
-    elif args.operation == 'ecreate':  entity_create( args.user, args.mail, args.collection, args.entity, args.debug)
-    elif args.operation == 'edestroy': entity_destroy(args.user, args.mail, args.collection, args.entity, args.debug)
-    elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file],   args.debug)
-    elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file,   args.debug)
+    if   args.operation == 'status':   status(args.collection, args.debug, args.log)
+    elif args.operation == 'astatus':  annex_status(args.collection, args.debug, args.log)
+    elif args.operation == 'create':   create(        args.user, args.mail, args.collection,              args.debug, args.log)
+    elif args.operation == 'destroy':  destroy(       args.user, args.mail, args.collection,              args.debug, args.log)
+    elif args.operation == 'update':   update(        args.user, args.mail, args.collection, [args.file], args.debug, args.log)
+    elif args.operation == 'sync':     sync(          args.user, args.mail, args.collection,              args.debug, args.log)
+    elif args.operation == 'ecreate':  entity_create( args.user, args.mail, args.collection, args.entity, args.debug, args.log)
+    elif args.operation == 'edestroy': entity_destroy(args.user, args.mail, args.collection, args.entity, args.debug, args.log)
+    elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file], args.debug, args.log)
+    elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file,  args.debug, args.log)
     else:
         sys.stderr.write('We fell through!\n')
         sys.exit(1)

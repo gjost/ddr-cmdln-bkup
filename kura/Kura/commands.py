@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import wraps
+import logging
 import os
 import sys
 
@@ -18,6 +19,10 @@ GIT_SERVER = 'mits'
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
+
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+LOGGING_FILE = '/tmp/ddr-cmdln.log'
 
 
 def gitolite_connect_ok( debug=False ):
@@ -96,7 +101,7 @@ OPERATIONS = [
 
 
 @requires_network
-def create(user_name, user_mail, collection_path, debug=False):
+def create(user_name, user_mail, collection_path, debug=False, logfile=None):
     """Command-line function for creating a new collection.
     
     Clones a blank collection object from workbench server, adds files, commits.
@@ -115,17 +120,23 @@ def create(user_name, user_mail, collection_path, debug=False):
     background:entity init: $ git add changelog control ead.xml .gitignore
     background:entity init: $ git commit
     """
-    if debug:
-        print('collection.create({})'.format(collection_path))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('collection.create({})'.format(collection_path))
     collection_uid = os.path.basename(collection_path)
     url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
-    if debug:
-        print('cloning: {}'.format(url))
     
     repo = git.Repo.clone_from(url, collection_path)
+    logging.debug('    git clone {}'.format(url))
+    if repo:
+        logging.debug('    OK')
+    else:
+        logging.error('    COULD NOT CLONE!')
+    if os.path.exists(os.path.join(collection_path, '.git')):
+        logging.debug('    .git/ is present')
+    else:
+        logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
-    if debug:
-        print('cloned')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
@@ -162,65 +173,84 @@ def create(user_name, user_mail, collection_path, debug=False):
     git_files.append(gitignore_path_rel)
     
     # git add
+    for f in git_files:
+        logging.debug('    git add {}'.format(f))
     repo.index.add(git_files)
     commit = repo.index.commit(changelog_messages[0])
     # master branch should be created by this point
     
     # git annex init
+    logging.debug('    git annex init')
     repo.git.annex('init')
+    if os.path.exists(os.path.join(collection_path, '.git', 'annex')):
+        logging.debug('    .git/annex/ OK')
+    else:
+        logging.error('    .git/annex/ IS MISSING!')
+    
     # this little dance is necessary for some reason -- see notes
+    logging.debug('    pushing master')
     repo.git.push('origin', 'master')
+    logging.debug('    OK')
     repo.git.checkout('git-annex')
+    logging.debug('    pushing git-annex')
     repo.git.push('origin', 'git-annex')
+    logging.debug('    OK')
     repo.git.checkout('master')
     
-    if debug:
-        print('collection.create DONE')
+    logging.debug('    collection.create DONE')
 
 
 @local_only
-def destroy():
+def destroy(logfile=None):
     """Command-line function for removing  an entire collection's files from the local system.
     
     Does not remove files from the server!  That will remain a manual operation.
     """
-    if debug:
-        print('destroy()')
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('destroy()')
 
 
 @local_only
-def status(collection_path , debug=False):
+def status(collection_path, debug=False, logfile=None):
     """Command-line function for running git status on collection repository.
     """
-    if debug:
-        print('status({})'.format(collection_path))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('status({})'.format(collection_path))
     repo = git.Repo(collection_path)
-    print(repo.git.status())
+    status = repo.git.status()
+    logging.debug('STDOUT\n{}'.format(status))
+    print(status)
 
 
 @local_only
-def annex_status(collection_path , debug=False):
+def annex_status(collection_path, debug=False, logfile=None):
     """Command-line function for running git annex status on collection repository.
     """
-    if debug:
-        print('annex_status({})'.format(collection_path))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('annex_status({})'.format(collection_path))
     repo = git.Repo(collection_path)
-    print(repo.git.annex('status'))
-
+    status = repo.git.annex('status')
+    logging.debug('STDOUT\n{}'.format(status))
+    print(status)
 
 
 @local_only
-def update(user_name, user_mail, collection_path, updated_files, debug=False):
+def update(user_name, user_mail, collection_path, updated_files, debug=False, logfile=None):
     """Command-line function for commiting changes to the specified file.
     
     NOTE: Does not push to the workbench server.
     @param updated_files List of relative paths to updated file(s).
     """
-    if debug:
-        print('update({}, {}, {}, {})'.format(
-            user_name, user_mail, collection_path, updated_files, debug=False))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('collection.update({}, {}, {}, {})'.format(user_name, user_mail, collection_path, updated_files))
     
     repo = git.Repo(collection_path)
+    if repo:
+        logging.debug('    git repo {}'.format(collection_path))
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
@@ -237,16 +267,17 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False):
     updated_files.append(changelog_path_rel)
     
     # git add
-    if debug:
-        print('updated_files {}'.format(updated_files))
+    for f in updated_files:
+        logging.debug('    git add {}'.format(f))
     repo.index.add(updated_files)
     commit = repo.index.commit('Updated collection file(s)')
-    if debug:
-        print('commit {}'.format(commit))
+    logging.debug('    commit {}'.format(commit))
+    
+    logging.debug('    collection.update DONE')
 
 
 @requires_network
-def sync(user_name, user_mail, collection_path, debug=False):
+def sync(user_name, user_mail, collection_path, debug=False, logfile=None):
     """Command-line function for git pull/push to workbench server, git-annex sync
     
     Pulls changes from and pushes changes to the workbench server.
@@ -260,9 +291,9 @@ def sync(user_name, user_mail, collection_path, debug=False):
     
     TODO This assumes that origin is the workbench server...
     """
-    if debug:
-        print('sync({}, {}, {})'.format(
-            user_name, user_mail, collection_path, debug=False))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('sync({}, {}, {})'.format(user_name, user_mail, collection_path))
     
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -270,26 +301,37 @@ def sync(user_name, user_mail, collection_path, debug=False):
     repo.git.config('user.email', user_mail)
     # fetch
     repo.git.fetch('origin')
-    # pull on master,git-annex branches
+    # pull on master,git-annex branches 
+    logging.debug('    git pull origin master')
     repo.git.checkout('master')
     repo.git.pull('origin', 'master')
+    logging.debug('    OK')
+    logging.debug('    git pull origin git-annex')
     repo.git.checkout('git-annex')
     repo.git.pull('origin', 'git-annex')
+    logging.debug('    OK')
     # push on git-annex,master branches
+    logging.debug('    git push origin git-annex')
     repo.git.checkout('git-annex')
     repo.git.push('origin', 'git-annex')
+    logging.debug('    OK')
+    logging.debug('    git push origin master')
     repo.git.checkout('master')
     repo.git.push('origin', 'master')
+    logging.debug('    OK')
     # git annex sync
+    logging.debug('    git annex sync')
     repo.git.annex('sync')
+    logging.debug('    OK')
 
 
 @local_only
-def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False):
+def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False, logfile=None):
     """Command-line function for creating an entity and adding it to the collection.
     """
-    if debug:
-        print('entity_create({}, {})'.format(collection_path, entity_uid))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_create({}, {})'.format(collection_path, entity_uid))
     
     collection = Collection(collection_path)
     repo = git.Repo(collection_path)
@@ -357,20 +399,24 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
     git_files.append('control')
     
     # git add
+    for f in git_files:
+        logging.debug('    git add {}'.format(f))
     repo.index.add(git_files)
     commit = repo.index.commit(changelog_messages[0])
+    logging.debug('    collection.entity_create DONE')
 
 
 @local_only
-def entity_destroy():
+def entity_destroy(logfile=None):
     """Command-line function for removing the specified entity from the collection.
     """
-    if debug:
-        print('entity_destroy()')
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_destroy()')
 
 
 @local_only
-def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, debug=False):
+def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, debug=False, logfile=None):
     """Command-line function for committing changes to the specified entity file.
     
     NOTE: Does not push to the workbench server.
@@ -378,8 +424,9 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     Makes an entry in git log.
     @param updated_files List of paths to updated file(s), relative to entity/files.
     """
-    if debug:
-        print('entity_update({}, {}, {})'.format(collection_path, entity_uid, updated_files))
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_update({}, {}, {})'.format(collection_path, entity_uid, updated_files))
     
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -406,14 +453,16 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     git_files.append(entity_changelog_path_rel)
     
     # git add
-    if debug:
-        print('git_files {}'.format(git_files))
+    for f in git_files:
+        logging.debug('    git add {}'.format(f))
     repo.index.add(git_files)
     commit = repo.index.commit('Updated entity file(s)')
+    
+    logging.debug('    collection.entity_update DONE')
 
 
 @local_only
-def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file, debug=False):
+def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file, debug=False, logfile=None):
     """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
@@ -426,8 +475,9 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     @param entity_uid Entity UID
     @param file_path Path to new file relative to entity files dir.
     """
-    if debug:
-        print('entity_annex_add({}, {}, {}, {}, {})'.format(
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_annex_add({}, {}, {}, {}, {})'.format(
             user_name, user_mail, collection_path, entity_uid, new_file))
     
     repo = git.Repo(collection_path)
@@ -435,25 +485,27 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     
+    if not os.path.exists(os.path.join(collection_path, '.git', 'annex')):
+        logging.error('    .git/annex IS MISSING!')
+        sys.exit(1)
     entity_dir = os.path.join(collection_path, 'files', entity_uid)
     entity_files_dir = os.path.join(entity_dir, 'files')
+    # absolute path to new file
     new_file_abs = os.path.join(entity_files_dir, new_file)
     # relative to collection repo
     new_file_rel = new_file_abs.replace(collection_path, '')
     # relative to entity_dir
     new_file_rel_entity = new_file_abs.replace('{}/'.format(entity_dir), '')
-    if debug:
-        print('new_file_abs {}'.format(new_file_abs))
-        print('new_file_rel {}'.format(new_file_rel))
-        print('new_file_rel_entity {}'.format(new_file_rel_entity))
-    
+    logging.debug('    new_file_abs {}'.format(new_file_abs))
+    logging.debug('    new_file_rel {}'.format(new_file_rel))
+    logging.debug('    new_file_rel_entity {}'.format(new_file_rel_entity))
     if not os.path.exists(entity_dir):
-        print('ERR: Entity does not exist: {}'.format(entity_uid))
+        logging.error('    Entity does not exist: {}'.format(entity_uid))
         sys.exit(1)
     if not os.path.exists(entity_files_dir):
         os.makedirs(entity_files_dir)
     if not os.path.exists(new_file_abs):
-        print('ERR: File does not exist: {}'.format(new_file_abs))
+        logging.error('    File does not exist: {}'.format(new_file_abs))
         sys.exit(1)
     
     updated_files = []
@@ -483,31 +535,34 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
 
 
 @local_only
-def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path, debug=False, logfile=None):
     """Wrapper around entity_annex_add() that 
     """
-    if debug:
-        print('entity_add_master()')
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_add_master({}, {}, {}, {}, {})'.format(user_name, user_mail, collection_path, entity_uid, file_path))
 
 
 @local_only
-def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path, debug=False, logfile=None):
     """
     """
-    if debug:
-        print('entity_add_mezzanine()')
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_add_mezzanine({}, {}, {}, {}, {})'.format(user_name, user_mail, collection_path, entity_uid, file_path))
 
 
 @local_only
-def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path, debug=False):
+def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path, debug=False, logfile=None):
     """
     """
-    if debug:
-        print('entity_add_access()')
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('entity_add_access({}, {}, {}, {}, {})'.format(user_name, user_mail, collection_path, entity_uid, file_path))
 
 
 @requires_network
-def annex_pull(collection_path, entity_file_path, debug=False):
+def annex_pull(collection_path, entity_file_path, debug=False, logfile=None):
     """Pull a git-annex file from workbench.
 
     Example file_paths:
@@ -517,11 +572,13 @@ def annex_pull(collection_path, entity_file_path, debug=False):
         
     @param entity_file_path Relative path to collection files dir.
     """
-    pass
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('annex_pull({}, {})'.format(collection_path, entity_file_path))
 
 
 @requires_network
-def annex_push(collection_path, entity_file_path, debug=False):
+def annex_push(collection_path, entity_file_path, debug=False, logfile=None):
     """Push a git-annex file to workbench.
 
     Example file_paths:
@@ -531,4 +588,6 @@ def annex_push(collection_path, entity_file_path, debug=False):
         
     @param entity_file_path Relative path to collection files dir.
     """
-    pass
+    if logfile:
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=logfile)
+    logging.debug('annex_push({}, {})'.format(collection_path, entity_file_path))
