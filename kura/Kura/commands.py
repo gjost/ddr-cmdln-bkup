@@ -155,9 +155,7 @@ def create(user_name, user_mail, collection_path, debug=False):
     # .gitignore
     gitignore_path_rel = '.gitignore'
     gitignore_path_abs = os.path.join(collection_path, gitignore_path_rel)
-    if debug:
-        print('Creating .gitignore {} ...'.format(gitignore_path_abs))
-    with open(filename, 'r') as f:
+    with open(GITIGNORE_TEMPLATE, 'r') as f:
         gitignore_template = f.read()
     with open(gitignore_path_abs, 'w') as gitignore:
         gitignore.write(gitignore_template)
