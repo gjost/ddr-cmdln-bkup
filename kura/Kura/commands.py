@@ -142,27 +142,32 @@ def create(user_name, user_mail, collection_path, debug=False, logfile=None):
     repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
     git_files = []
 
+    # add files
     # control
     control_path_rel = 'control'
     control_path_abs = os.path.join(collection_path, control_path_rel)
     CollectionControlFile.create(control_path_abs, collection_uid)
-    git_files.append(control_path_rel)
-
+    if os.path.exists(control_path_abs):
+        git_files.append(control_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE control')
     # ead.xml
     ead_path_rel = 'ead.xml'
     ead_path_abs = os.path.join(collection_path, ead_path_rel)
     EAD.create(ead_path_abs)
-    git_files.append(ead_path_rel)
-
+    if os.path.exists(ead_path_abs):
+        git_files.append(ead_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE ead')
     # changelog
     changelog_path_rel = 'changelog'
+    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
     changelog_messages = ['Initialized collection {}'.format(collection_uid)]
-    write_changelog_entry(
-        os.path.join(collection_path, changelog_path_rel),
-        changelog_messages,
-        user_name, user_mail, debug=debug)
-    git_files.append(changelog_path_rel)
-
+    write_changelog_entry(changelog_path_abs, changelog_messages, user_name, user_mail, debug=debug)
+    if os.path.exists(changelog_path_abs):
+        git_files.append(changelog_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE changelog')
     # .gitignore
     gitignore_path_rel = '.gitignore'
     gitignore_path_abs = os.path.join(collection_path, gitignore_path_rel)
@@ -170,8 +175,10 @@ def create(user_name, user_mail, collection_path, debug=False, logfile=None):
         gitignore_template = f.read()
     with open(gitignore_path_abs, 'w') as gitignore:
         gitignore.write(gitignore_template)
-    git_files.append(gitignore_path_rel)
-    
+    if os.path.exists(gitignore_path_abs):
+        git_files.append(gitignore_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE .gitignore')
     # git add
     for f in git_files:
         logging.debug('    git add {}'.format(f))
@@ -257,15 +264,18 @@ def update(user_name, user_mail, collection_path, updated_files, debug=False, lo
     
     # changelog
     changelog_path_rel = 'changelog'
+    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
     changelog_messages = []
     for f in updated_files:
         changelog_messages.append('Updated collection file(s) {}'.format(f))
     write_changelog_entry(
-        os.path.join(collection_path, changelog_path_rel),
+        changelog_path_abs,
         changelog_messages,
         user_name, user_mail, debug=debug)
-    updated_files.append(changelog_path_rel)
-    
+    if os.path.exists(gitignore_path_abs):
+        updated_files.append(changelog_path_abs)
+    else:
+        logging.error('    COULD NOT UPDATE changelog')
     # git add
     for f in updated_files:
         logging.debug('    git add {}'.format(f))
@@ -355,43 +365,48 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, debug=False
         os.makedirs(entity_path_abs)
     
     git_files = []
-    
     # entity control
     control_path_rel = os.path.join(entity_path_rel, 'control')
     control_path_abs = os.path.join(collection_path, control_path_rel)
     EntityControlFile.create(control_path_abs, collection_uid, entity_uid)
-    git_files.append(control_path_rel)
-
+    if os.path.exists(control_path_abs):
+        git_files.append(control_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE control')
     # entity mets.xml
     mets_path_rel = os.path.join(entity_path_rel, 'mets.xml')
     mets_path_abs = os.path.join(collection_path, mets_path_rel)
     METS.create(mets_path_abs)
-    git_files.append(mets_path_rel)
-
+    if os.path.exists(mets_path_abs):
+        git_files.append(mets_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE mets')
     # entity changelog
     entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
+    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
     entity_changelog_messages = ['Initialized entity {}'.format(entity_uid),]
     write_changelog_entry(
-        os.path.join(collection_path, entity_changelog_path_rel),
+        entity_changelog_path_abs,
         entity_changelog_messages,
         user=user_name, email=user_mail, debug=debug)
-    git_files.append(entity_changelog_path_rel)
-
+    if os.path.exists(entity_changelog_path_abs):
+        git_files.append(entity_changelog_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE changelog')
     # update collection ead.xml
     ead = EAD(collection, debug)
     ead.update_dsc(collection)
     ead.write()
     git_files.append(ead.filename)
-
     # update collection changelog
     changelog_path_rel = 'changelog'
+    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
     changelog_messages = ['Initialized entity {}'.format(entity_uid),]
     write_changelog_entry(
-        os.path.join(collection_path, changelog_path_rel),
+        changelog_path_abs,
         changelog_messages,
         user=user_name, email=user_mail, debug=debug)
     git_files.append(changelog_path_rel)
-
     # update collection control
     ctl = CollectionControlFile(os.path.join(collection.path,'control'))
     ctl.update_checksums(collection)
@@ -442,12 +457,13 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     
     # entity changelog
     entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
+    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
     entity_changelog_messages = []
     for f in updated_files:
         p = os.path.join(entity_uid, f)
         entity_changelog_messages.append('Updated entity file {}'.format(p))
     write_changelog_entry(
-        os.path.join(collection_path, entity_changelog_path_rel),
+        entity_changelog_path_abs,
         entity_changelog_messages,
         user=user_name, email=user_mail, debug=debug)
     git_files.append(entity_changelog_path_rel)
@@ -508,23 +524,27 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
         logging.error('    File does not exist: {}'.format(new_file_abs))
         sys.exit(1)
     
-    updated_files = []
+    git_files = []
     # update entity changelog
     entity_changelog_path_rel = os.path.join(entity_dir, 'changelog')
+    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
     changelog_messages = []
     for f in [new_file_rel_entity]:
         changelog_messages.append('Added entity file {}'.format(f))
     write_changelog_entry(
-        os.path.join(collection_path, entity_changelog_path_rel),
+        entity_changelog_path_abs,
         changelog_messages,
         user_name, user_mail, debug=debug)
-    updated_files.append(entity_changelog_path_rel)
+    git_files.append(entity_changelog_path_rel)
     # update entity control
+    entity_control_path_rel = os.path.join(entity_dir,'control')
     e = Entity(entity_dir)
-    c = EntityControlFile(os.path.join(entity_dir,'control'))
+    c = EntityControlFile(entity_control_path_rel)
     c.update_checksums(e)
     c.write()
+    git_files.append(entity_control_path_rel)
     # update entity mets
+    entity_mets_path_rel = os.path.join(entity_dir,'mets.xml')
     m = METS(e, debug)
     m.update_filesec(e)
     m.write()
