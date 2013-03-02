@@ -76,6 +76,33 @@ def local_only(f):
         return f(*args, **kwargs)
     return wrapper
 
+def all_files_staged(repo, files, logging):
+    """Confirms that all files in the list were in fact staged.
+    @param repo a Gitpython Repo
+    @param files List of file paths, relative to repo root
+    @returns True or False
+    """
+    confirmed = []
+    staged_files = repo.git.diff('--cached', '--name-only')
+    for f in files:
+        if f in staged_files:
+            confirmed.append(f)
+        else:
+            logging.error('    NOT STAGED {}'.format(f))
+    if len(confirmed) == len(files):
+        logging.debug('    all files confirmed staged')
+        return True
+    return False
+
+def all_files_committed(repo, commit, files, logging):
+    """Confirms that all files in the list were present in the commit.
+    @param repo A Gitpython Repo
+    @param commit A Gitpython Commit
+    @param files List of file paths, relative to repo root
+    @returns True or False
+    """
+    return False
+
 
 
 description="""Create, edit, delete collections"""
