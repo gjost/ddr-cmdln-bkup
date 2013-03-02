@@ -58,7 +58,9 @@ def last_local_commit(path, branch, debug=False):
     # get last commit
     run = envoy.run('git log {} -1'.format(branch))
     # 'commit 925315a29179c63f0849c0149451f1dd30010c02\nAuthor: gjost <geoffrey.jost@densho.org>\nDate:   Fri Feb 8 15:50:31 2013 -0700\n\n    Initialized entity ddr-testing-3-2\n'
-    h = run.std_out.split('\n')[0].split(' ')[1]
+    h = None
+    if run.std_out:
+        h = run.std_out.split('\n')[0].split(' ')[1]
     return h
 
 def last_remote_commit(path, branch, debug=False):
