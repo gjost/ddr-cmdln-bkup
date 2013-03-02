@@ -575,10 +575,18 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     m = METS(e, debug)
     m.update_filesec(e)
     m.write()
-#    # git annex add
-#    repo.git.annex('add', new_file_rel)
-#    # commit
-#    commit = repo.index.commit('Updated entity file(s)')
+    git_files.append(entity_mets_path_rel)
+    # git annex add
+    logging.debug('    git annex add {}'.format(new_file_rel))
+    repo.git.annex('add', new_file_rel)
+    # TODO confirm new file actually added to git annex
+    # git add
+    for f in git_files:
+        logging.debug('    git add {}'.format(f))
+    repo.index.add(git_files)
+    # commit
+    commit = repo.index.commit('Added entity file(s)')
+    logging.debug('    collection.entity_annex_add DONE')
 
 
 @local_only
