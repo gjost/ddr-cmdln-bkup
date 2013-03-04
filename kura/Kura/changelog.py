@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import os
 
 
@@ -14,9 +15,8 @@ def load_template(filename):
         template = f.read()
     return template
 
-def write_changelog_entry(path, messages, user, email, debug=False):
-    if debug:
-        print('Updating changelog {} ...'.format(path))
+def write_changelog_entry(path, messages, user, email):
+    logging.debug('    write_changelog_entry({})'.format(path))
     template = load_template(CHANGELOG_TEMPLATE)
     date_format = load_template(CHANGELOG_DATE_FORMAT)
     # one line per message

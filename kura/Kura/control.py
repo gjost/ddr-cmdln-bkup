@@ -1,4 +1,5 @@
 import ConfigParser
+import logging
 import os
 
 
@@ -21,36 +22,33 @@ class ControlFile( object ):
     path = None
     _config = None
     
-    def __init__( self, path, debug=False ):
+    def __init__( self, path ):
         self.path = path
         if not os.path.exists(self.path):
             print('ERR: control file not initialized')
             sys.exit(1)
-        self.read(debug=debug)
+        self.read()
     
-    def read( self, debug=False ):
-        if debug:
-            print('Reading control file {} ...'.format(self.path))
+    def read( self ):
+        logging.debug('    ControlFile.read({})'.format(self.path))
         self._config = ConfigParser.ConfigParser(allow_no_value=True)
         self._config.read([self.path])
     
-    def write( self, debug=False ):
-        if debug:
-            print('Writing control file {} ...'.format(self.path))
+    def write( self ):
+        logging.debug('    ControlFile.write({})'.format(self.path))
         with open(self.path, 'w') as cfile:
             self._config.write(cfile)
 
 
 class CollectionControlFile( ControlFile ):
     @staticmethod
-    def create( path, collection_uid, debug=False ):
-        if debug:
-            print('Creating control {} ...'.format(path))
+    def create( path, collection_uid ):
+        logging.debug('    CollectionControlFile.create({})'.format(path))
         t = load_template(COLLECTION_CONTROL_TEMPLATE)
         with open(path, 'w') as f:
             f.write(t.format(cid=collection_uid))
     
-    def update_checksums( self, collection, debug=False ):
+    def update_checksums( self, collection ):
         self._config.remove_section('Entities')
         self._config.add_section('Entities')
         uids = []
@@ -61,15 +59,14 @@ class CollectionControlFile( ControlFile ):
 
 class EntityControlFile( ControlFile ):
     @staticmethod
-    def create( path, collection_uid, entity_uid, debug=False ):
-        if debug:
-            print('Creating control {} ...'.format(path))
+    def create( path, collection_uid, entity_uid ):
+        logging.debug('    EntityControlFile.create({})'.format(path))
         t = load_template(ENTITY_CONTROL_TEMPLATE)
         with open(path, 'w') as f:
             f.write(t.format(cid=collection_uid, eid=entity_uid))
     
     CHECKSUMS = ['sha1', 'sha256', 'files']
-    def update_checksums( self, entity, debug=False ):
+    def update_checksums( self, entity ):
         # return relative path to payload
         def relative_path(entity_path, payload_file):
             if entity_path[-1] != '/':
@@ -78,19 +75,19 @@ class EntityControlFile( ControlFile ):
         
         self._config.remove_section('Checksums-SHA1')
         self._config.add_section('Checksums-SHA1')
-        for sha1,path in entity.checksums('sha1', debug=debug):
+        for sha1,path in entity.checksums('sha1'):
             path = relative_path(entity.path, path)
             self._config.set('Checksums-SHA1', sha1, path)
         #
         self._config.remove_section('Checksums-SHA256')
         self._config.add_section('Checksums-SHA256')
-        for sha256,path in entity.checksums('sha256', debug=debug):
+        for sha256,path in entity.checksums('sha256'):
             path = relative_path(entity.path, path)
             self._config.set('Checksums-SHA256', sha256, path)
         #
         self._config.remove_section('Files')
         self._config.add_section('Files')
-        for md5,path in entity.checksums('md5', debug=debug):
+        for md5,path in entity.checksums('md5'):
             size = os.path.getsize(path)
             path = relative_path(entity.path, path)
             self._config.set('Files', md5, '{} ; {}'.format(size,path))

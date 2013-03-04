@@ -5,12 +5,17 @@
 
 import argparse
 import logging
+import os
 import sys
 
 from Kura.commands import OPERATIONS, description, epilog
 from Kura.commands import create, destroy, update, sync
 from Kura.commands import status, annex_status
 from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
+
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+LOGGING_FILE = '/tmp/ddr-cmdln.log'
 
 def main():
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
@@ -32,7 +37,10 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Debug; prints lots of debug info.')
     args = parser.parse_args()
-
+    
+    if args.log and (os.path.exists(args.log) or os.path.exists(os.path.basename(args.log))):
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=args.log)
+    
     messages = []
     if not args.operation:
         messages.append('choose an operation')
@@ -55,16 +63,16 @@ def main():
         sys.exit(1)
     
     # do something
-    if   args.operation == 'status':   status(args.collection, args.debug, args.log)
-    elif args.operation == 'astatus':  annex_status(args.collection, args.debug, args.log)
-    elif args.operation == 'create':   create(        args.user, args.mail, args.collection,              args.debug, args.log)
-    elif args.operation == 'destroy':  destroy(       args.user, args.mail, args.collection,              args.debug, args.log)
-    elif args.operation == 'update':   update(        args.user, args.mail, args.collection, [args.file], args.debug, args.log)
-    elif args.operation == 'sync':     sync(          args.user, args.mail, args.collection,              args.debug, args.log)
-    elif args.operation == 'ecreate':  entity_create( args.user, args.mail, args.collection, args.entity, args.debug, args.log)
-    elif args.operation == 'edestroy': entity_destroy(args.user, args.mail, args.collection, args.entity, args.debug, args.log)
-    elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file], args.debug, args.log)
-    elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file,  args.debug, args.log)
+    if   args.operation == 'status':   status(args.collection)
+    elif args.operation == 'astatus':  annex_status(args.collection)
+    elif args.operation == 'create':   create(        args.user, args.mail, args.collection)
+    elif args.operation == 'destroy':  destroy(       args.user, args.mail, args.collection)
+    elif args.operation == 'update':   update(        args.user, args.mail, args.collection, [args.file])
+    elif args.operation == 'sync':     sync(          args.user, args.mail, args.collection)
+    elif args.operation == 'ecreate':  entity_create( args.user, args.mail, args.collection, args.entity)
+    elif args.operation == 'edestroy': entity_destroy(args.user, args.mail, args.collection, args.entity)
+    elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file])
+    elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file)
     else:
         sys.stderr.write('We fell through!\n')
         sys.exit(1)

@@ -1,3 +1,4 @@
+import logging
 import os
 
 from bs4 import BeautifulSoup
@@ -23,34 +24,30 @@ class EAD( object ):
     filename = None
     soup = None
     
-    def __init__( self, collection, debug=False ):
+    def __init__( self, collection ):
         self.collection_path = collection.path
         self.filename = os.path.join(self.collection_path, 'ead.xml')
-        self.read(debug=debug)
-        if debug:
-            print(self.soup.prettify())
+        self.read()
+        logging.debug('\n{}'.format(self.soup.prettify()))
     
     @staticmethod
-    def create( path, debug=False ):
-        if debug:
-            print('Creating ead.xml {} ...'.format(path))
+    def create( path ):
+        logging.debug('    EAD.create({})'.format(path))
         t = load_template(EAD_TEMPLATE)
         with open(path, 'w') as f:
             f.write(t)
 
-    def read( self, debug=False ):
-        if debug:
-            print('Reading EAD file {}'.format(self.filename))
+    def read( self ):
+        logging.debug('    EAD.read({})'.format(self.filename))
         with open(self.filename, 'r') as e:
             self.soup = BeautifulSoup(e, 'xml')
     
-    def write( self, debug=False ):
-        if debug:
-            print('Writing EAD file {}'.format(self.filename))
+    def write( self ):
+        logging.debug('    EAD.write({})'.format(self.filename))
         with open(self.filename, 'w') as e:
             e.write(self.soup.prettify())
     
-    def update_dsc( self, collection, debug=False ):
+    def update_dsc( self, collection ):
         """
         <dsc type="combined">
           <head>Inventory</head>
@@ -68,7 +65,7 @@ class EAD( object ):
         head.string = 'Inventory'
         self.soup.dsc.append(head)
         n = 0
-        for entity in collection.entities(debug=debug):
+        for entity in collection.entities():
             n = n + 1
             # add c01, did, unittitle
             c01 = self.soup.new_tag('c01')
@@ -87,34 +84,30 @@ class METS( object ):
     filename = None
     soup = None
     
-    def __init__( self, entity, debug=False ):
+    def __init__( self, entity ):
         self.entity_path = entity.path
         self.filename = os.path.join(self.entity_path, 'mets.xml')
-        self.read(debug=debug)
-        if debug:
-            print(self.soup.prettify())
+        self.read()
+        logging.debug('\n{}'.format(self.soup.prettify()))
     
     @staticmethod
-    def create( path, debug=False ):
-        if debug:
-            print('Creating mets.xml {} ...'.format(path))
+    def create( path ):
+        logging.debug('    METS.create({})'.format(path))
         t = load_template(METS_TEMPLATE)
         with open(path, 'w') as f:
             f.write(t)
     
-    def read( self, debug=False ):
-        if debug:
-            print('Reading METS file {}'.format(self.filename))
+    def read( self ):
+        logging.debug('    METS.read({})'.format(self.filename))
         with open(self.filename, 'r') as mfile:
             self.soup = BeautifulSoup(mfile, 'xml')
     
-    def write( self, debug=False ):
-        if debug:
-            print('Writing METS file {}'.format(self.filename))
+    def write( self ):
+        logging.debug('    METS.write({})'.format(self.filename))
         with open(self.filename, 'w') as mfile:
             mfile.write(self.soup.prettify())
     
-    def update_filesec( self, entity, debug=False ):
+    def update_filesec( self, entity ):
         """
         <fileSec>
           <fileGrp USE="master">
@@ -141,7 +134,7 @@ class METS( object ):
         filesec = self.soup.new_tag('fileSec')
         self.soup.fileSec.replace_with(filesec)
         # add new ones
-        for md5,path in entity.checksums('md5', debug=debug):
+        for md5,path in entity.checksums('md5'):
             n = n + 1
             use = 'unknown'
             path = relative_path(entity.path, path)

@@ -6,7 +6,7 @@ class Collection( object ):
     path = None
     uid = None
     
-    def __init__( self, path, uid=None, debug=False ):
+    def __init__( self, path, uid=None ):
         self.path = path
         if not uid:
             uid = os.path.basename(self.path)
@@ -18,7 +18,7 @@ class Collection( object ):
             p = '{}/'.format(p)
         return p
     
-    def entities( self, debug=False ):
+    def entities( self ):
         """Returns relative paths to entities."""
         entities = []
         cpath = self.path
@@ -35,7 +35,7 @@ class Entity( object ):
     path = None
     uid = None
     
-    def __init__( self, path, uid=None, debug=False ):
+    def __init__( self, path, uid=None ):
         self.path = path
         if not uid:
             uid = os.path.basename(self.path)
@@ -61,7 +61,7 @@ class Entity( object ):
     def checksum_algorithms():
         return ['md5', 'sha1', 'sha256']
     
-    def checksums( self, algo, debug=False ):
+    def checksums( self, algo ):
         checksums = []
         def file_checksum( path, algo, block_size=1024 ):
             if algo == 'md5':
