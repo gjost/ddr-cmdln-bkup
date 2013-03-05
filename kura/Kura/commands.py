@@ -128,6 +128,43 @@ OPERATIONS = [
     ]
 
 
+
+def commit_files(repo, message, regular_files=[], annex_files=[]):
+    """git-add and git-annex-add files and commit them
+    
+    @param repo GitPython Repo object
+    @param message String
+    @param regular_files List of filenames relative to repo root.
+    @param annex_files List of filenames relative to repo root.
+    """
+    added = annex_files + regular_files
+    added.sort()
+    logging.debug('    files added:         {}'.format(added))
+    
+    if annex_files:
+        repo.git.annex('add', annex_files)
+    if regular_files:
+        repo.index.add(regular_files)
+    
+    staged = list_staged(repo)
+    staged.sort()
+    logging.debug('    files staged:        {}'.format(staged))
+    logging.debug('    all files staged:    {}'.format(added == staged))
+    # TODO cancel commit if list of staged doesn't match list of files added?
+    
+    commit = repo.index.commit(message)
+    logging.debug('    commit: {}'.format(commit.hexsha))
+    
+    committed = list_committed(repo, commit)
+    committed.sort()
+    logging.debug('    files committed:     {}'.format(committed))
+    logging.debug('    all files committed: {}'.format(added == staged == committed))
+    # TODO complain if list of committed files doesn't match lists of added and staged files?
+    
+    return repo
+
+
+
 @command
 @requires_network
 def create(user_name, user_mail, collection_path):
@@ -205,13 +242,9 @@ def create(user_name, user_mail, collection_path):
         git_files.append(gitignore_path_rel)
     else:
         logging.error('    COULD NOT CREATE .gitignore')
-    # git add
-    for f in git_files:
-        logging.debug('    git add {}'.format(f))
-    repo.index.add(git_files)
-    commit = repo.index.commit(changelog_messages[0])
+    # add files and commit
+    repo = commit_files(repo, changelog_messages[0], git_files, [])
     # master branch should be created by this point
-    
     # git annex init
     logging.debug('    git annex init')
     repo.git.annex('init')
@@ -292,12 +325,8 @@ def update(user_name, user_mail, collection_path, updated_files):
         updated_files.append(changelog_path_abs)
     else:
         logging.error('    COULD NOT UPDATE changelog')
-    # git add
-    for f in updated_files:
-        logging.debug('    git add {}'.format(f))
-    repo.index.add(updated_files)
-    commit = repo.index.commit('Updated collection file(s)')
-    logging.debug('    commit {}'.format(commit))
+    # add files and commit
+    repo = commit_files(repo, 'Updated metadata files', updated_files, [])
 
 
 @command
@@ -420,12 +449,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     ctl.update_checksums(collection)
     ctl.write()
     git_files.append('control')
-    
-    # git add
-    for f in git_files:
-        logging.debug('    git add {}'.format(f))
-    repo.index.add(git_files)
-    commit = repo.index.commit(changelog_messages[0])
+    # add files and commit
+    repo = commit_files(repo, changelog_messages[0], git_files, [])
 
 
 @command
@@ -470,12 +495,8 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
         entity_changelog_messages,
         user=user_name, email=user_mail)
     git_files.append(entity_changelog_path_rel)
-    
-    # git add
-    for f in git_files:
-        logging.debug('    git add {}'.format(f))
-    repo.index.add(git_files)
-    commit = repo.index.commit('Updated entity file(s)')
+    # add files and commit
+    repo = commit_files(repo, 'Updated entity file(s)', git_files, [])
 
 
 @command
@@ -546,16 +567,19 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     m.update_filesec(e)
     m.write()
     git_files.append(entity_mets_path_rel)
-    # git annex add
-    logging.debug('    git annex add {}'.format(new_file_rel))
-    repo.git.annex('add', new_file_rel)
-    # TODO confirm new file actually added to git annex
-    # git add
-    for f in git_files:
-        logging.debug('    git add {}'.format(f))
-    repo.index.add(git_files)
-    # commit
-    commit = repo.index.commit('Added entity file(s)')
+
+    # add files and commit
+    repo = commit_files(repo, 'Added entity file(s)', git_files, [new_file_rel])
+#    # git annex add
+#    logging.debug('    git annex add {}'.format(new_file_rel))
+#    repo.git.annex('add', new_file_rel)
+#    # TODO confirm new file actually added to git annex
+#    # git add
+#    for f in git_files:
+#        logging.debug('    git add {}'.format(f))
+#    repo.index.add(git_files)
+#    # commit
+#    commit = repo.index.commit('Added entity file(s)')
 
 
 @command
