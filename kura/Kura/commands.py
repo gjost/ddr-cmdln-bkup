@@ -82,32 +82,27 @@ def command(f):
         return f(*args, **kwargs)
     return wrapper
 
-def all_files_staged(repo, files, logging):
-    """Confirms that all files in the list were in fact staged.
+def list_staged(repo):
+    """Returns list of currently staged files
+    
+    Works for git-annex files just like for regular files.
     @param repo a Gitpython Repo
-    @param files List of file paths, relative to repo root
-    @returns True or False
     """
-    confirmed = []
-    staged_files = repo.git.diff('--cached', '--name-only')
-    for f in files:
-        if f in staged_files:
-            confirmed.append(f)
-        else:
-            logging.error('    NOT STAGED {}'.format(f))
-    if len(confirmed) == len(files):
-        logging.debug('    all files confirmed staged')
-        return True
-    return False
+    return repo.git.diff('--cached', '--name-only').split('\n')
 
-def all_files_committed(repo, commit, files, logging):
-    """Confirms that all files in the list were present in the commit.
+def list_committed(repo, commit):
+    """Returns list of all files in the commit
+
+    $ git log -1 --stat 0a1b2c3d4e...|grep \|
+
     @param repo A Gitpython Repo
     @param commit A Gitpython Commit
-    @param files List of file paths, relative to repo root
-    @returns True or False
     """
-    return False
+    # return just the files from the specific commit's log entry
+    entry = repo.git.log('-1', '--stat', commit.hexsha).split('\n')
+    entrylines = [line for line in entry if '|' in line]
+    files = [line.split('|')[0].strip() for line in entrylines]
+    return files
 
 
 
