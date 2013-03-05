@@ -522,29 +522,32 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     if not os.path.exists(os.path.join(collection_path, '.git', 'annex')):
         logging.error('    .git/annex IS MISSING!')
         sys.exit(1)
-    entity_dir = os.path.join(collection_path, 'files', entity_uid)
-    entity_files_dir = os.path.join(entity_dir, 'files')
+
+    entity_path_rel = os.path.join('files', entity_uid)
+    entity_path_abs = os.path.join(collection_path, entity_path_rel)
+    entity_files_rel = os.path.join(entity_path_rel, 'files')
+    entity_files_abs = os.path.join(entity_path_abs, 'files')
     # absolute path to new file
-    new_file_abs = os.path.join(entity_files_dir, new_file)
+    new_file_abs = os.path.join(entity_files_abs, new_file)
     # relative to collection repo
-    new_file_rel = new_file_abs.replace(collection_path, '')
+    new_file_rel = os.path.join(entity_files_rel, new_file)
     # relative to entity_dir
-    new_file_rel_entity = new_file_abs.replace('{}/'.format(entity_dir), '')
+    new_file_rel_entity = new_file_abs.replace('{}/'.format(entity_path_abs), '')
     logging.debug('    new_file_abs {}'.format(new_file_abs))
     logging.debug('    new_file_rel {}'.format(new_file_rel))
     logging.debug('    new_file_rel_entity {}'.format(new_file_rel_entity))
-    if not os.path.exists(entity_dir):
+    if not os.path.exists(entity_path_abs):
         logging.error('    Entity does not exist: {}'.format(entity_uid))
         sys.exit(1)
-    if not os.path.exists(entity_files_dir):
-        os.makedirs(entity_files_dir)
+    if not os.path.exists(entity_files_abs):
+        os.makedirs(entity_files_abs)
     if not os.path.exists(new_file_abs):
         logging.error('    File does not exist: {}'.format(new_file_abs))
         sys.exit(1)
     
     git_files = []
     # update entity changelog
-    entity_changelog_path_rel = os.path.join(entity_dir, 'changelog')
+    entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
     entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
     changelog_messages = []
     for f in [new_file_rel_entity]:
@@ -555,14 +558,16 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
         user_name, user_mail)
     git_files.append(entity_changelog_path_rel)
     # update entity control
-    entity_control_path_rel = os.path.join(entity_dir,'control')
-    e = Entity(entity_dir)
-    c = EntityControlFile(entity_control_path_rel)
+    entity_control_path_rel = os.path.join(entity_path_rel,'control')
+    entity_control_path_abs = os.path.join(entity_path_abs,'control')
+    e = Entity(entity_path_abs)
+    c = EntityControlFile(entity_control_path_abs)
     c.update_checksums(e)
     c.write()
     git_files.append(entity_control_path_rel)
     # update entity mets
-    entity_mets_path_rel = os.path.join(entity_dir,'mets.xml')
+    entity_mets_path_rel = os.path.join(entity_path_rel,'mets.xml')
+    entity_mets_path_abs = os.path.join(entity_path_abs,'mets.xml')
     m = METS(e)
     m.update_filesec(e)
     m.write()
