@@ -407,16 +407,33 @@ class TestCollection( unittest.TestCase ):
                 self.assertTrue(cs in mets)
         # TODO test 20121205.jpg,6a00e55055.png in local commit
         # TODO test 20121205.jpg,6a00e55055.png in remote commit
-
-    def test_20_pull( self ):
+    
+    def test_14_sync_again( self ):
+        """Sync again, this time to see if 
         """
-        """
-        logging.debug('test_20_pull ---------------------------------------------------------')
+        logging.debug('test_14_sync_again ---------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
+        cmd = '{} sync {} --log {} --user {} --mail {} --collection {}'.format(
+            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        logging.debug('{}'.format(cmd))
+        run = envoy.run(cmd)
+        logging.debug(run.std_out)
         # tests
-        #self.assertTrue(...)
+        # check that local,remote commits exist and are equal
+        # indicates that local changes made it up to workbench
+        remote_hash_master   = last_remote_commit(TEST_COLLECTION, 'master')
+        remote_hash_gitannex = last_remote_commit(TEST_COLLECTION, 'git-annex')
+        local_hash_master   = last_local_commit(TEST_COLLECTION, 'master')
+        local_hash_gitannex = last_local_commit(TEST_COLLECTION, 'git-annex')
+        self.assertTrue(remote_hash_master)
+        self.assertTrue(remote_hash_gitannex)
+        self.assertTrue(local_hash_master)
+        self.assertTrue(local_hash_gitannex)
+        self.assertEqual(remote_hash_master, local_hash_master)
+        self.assertEqual(remote_hash_gitannex, local_hash_gitannex)
+        # TODO sync is not actually working, but these tests aren't capturing that
     
     def test_21_push( self ):
         """
