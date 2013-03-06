@@ -12,6 +12,7 @@ from Kura.commands import OPERATIONS, description, epilog
 from Kura.commands import create, destroy, update, sync
 from Kura.commands import status, annex_status
 from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
+from Kura.commands import annex_push, annex_pull
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
@@ -46,7 +47,7 @@ def main():
         messages.append('choose an operation')
     if not args.collection:
         messages.append('specify a collection')
-    if args.operation not in ['status', 'astatus']:
+    if args.operation not in ['status', 'astatus', 'push', 'pull',]:
         if not args.user:
             messages.append('specify a user')
         if not args.mail:
@@ -73,6 +74,7 @@ def main():
     elif args.operation == 'edestroy': entity_destroy(args.user, args.mail, args.collection, args.entity)
     elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file])
     elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file)
+    elif args.operation == 'push':     annex_push(args.collection, args.file)
     else:
         sys.stderr.write('We fell through!\n')
         sys.exit(1)

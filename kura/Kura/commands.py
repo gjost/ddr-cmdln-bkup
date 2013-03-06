@@ -649,23 +649,51 @@ def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_pa
 
 @command
 @requires_network
-def annex_pull(collection_path, entity_file_path):
-    """Pull a git-annex file from workbench.
+def annex_push(collection_path, file_path_rel):
+    """Push a git-annex file to workbench.
 
     Example file_paths:
         ddr-densho-1-1/files/video1.mov
         ddr-densho-42-17/files/image35.jpg
         ddr-one-35-248/files/newspaper.pdf
-        
-    @param entity_file_path Relative path to collection files dir.
+    
+    $ git annex copy PATH --to=REMOTE
+    
+    @param file_path_rel Path to file relative to collection root
     """
-    pass
+    annex_path = os.path.join(collection_path, '.git', 'annex')
+    file_path_abs = os.path.join(collection_path, file_path_rel)
+    logging.debug('    collection_path {}'.format(collection_path))
+    logging.debug('    file_path_rel {}'.format(file_path_rel))
+    logging.debug('    file_path_abs {}'.format(file_path_abs))
+    if not os.path.exists(collection_path):
+        logging.error('    NO COLLECTION AT {}'.format(collection_path))
+        sys.exit(1)
+    if not os.path.exists(annex_path):
+        logging.error('    NO GIT ANNEX AT {}'.format(annex_path))
+        sys.exit(1)
+    if not os.path.exists(file_path_abs):
+        logging.error('    NO FILE AT {}'.format(file_path_abs))
+        sys.exit(1)
+    # let's do this thing
+    repo = git.Repo(collection_path)
+    repo.git.checkout('master')
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+    logging.debug('    git annex copy -t {} {}'.format(GIT_REMOTE_NAME, file_path_rel))
+    stdout = repo.git.annex('copy', '-t', GIT_REMOTE_NAME, file_path_rel)
+    logging.debug('\n{}'.format(stdout))
+    # confirm that it worked
+    remotes = annex_whereis_file(repo, file_path_rel)
+    logging.debug('    present in remotes {}'.format(remotes))
+    logging.debug('    it worked: {}'.format(GIT_REMOTE_NAME in remotes))
+    logging.debug('    DONE')
 
 
 @command
 @requires_network
-def annex_push(collection_path, entity_file_path):
-    """Push a git-annex file to workbench.
+def annex_pull(collection_path, entity_file_path):
+    """Pull a git-annex file from workbench.
 
     Example file_paths:
         ddr-densho-1-1/files/video1.mov
