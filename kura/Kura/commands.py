@@ -25,6 +25,26 @@ GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 def collection_git_url(collection_uid):
     return '{}@{}:{}'.format(GIT_USER, GIT_SERVER, collection_uid)
 
+def annex_whereis_file(repo, file_path_rel):
+    """Show remotes that the file appears in
+    
+    $ git annex whereis files/ddr-testing-201303051120-1/files/20121205.jpg
+    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
+            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
+            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
+    ok
+    """
+    remotes = []
+    stdout = repo.git.annex('whereis', file_path_rel)
+    logging.debug('\n{}'.format(stdout))
+    lines = stdout.split('\n')
+    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
+        num_copies = int(lines[0].split(' ')[2].replace('(',''))
+        logging.debug('    {} copies'.format(num_copies))
+        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
+        logging.debug('    remotes: {}'.format(remotes))
+    return remotes
+
 def gitolite_connect_ok():
     """See if we can connect to gitolite server.
     
