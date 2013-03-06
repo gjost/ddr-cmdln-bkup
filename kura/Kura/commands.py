@@ -15,6 +15,7 @@ from Kura.xml import EAD, METS
 
 GIT_USER = 'git'
 GIT_SERVER = 'mits'
+GIT_REMOTE_NAME = 'workbench'
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
@@ -203,6 +204,7 @@ def create(user_name, user_mail, collection_path):
     else:
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
+    repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
@@ -307,12 +309,15 @@ def update(user_name, user_mail, collection_path, updated_files):
     NOTE: Does not push to the workbench server.
     @param updated_files List of relative paths to updated file(s).
     """
+    collection_uid = os.path.basename(collection_path)
     repo = git.Repo(collection_path)
     if repo:
         logging.debug('    git repo {}'.format(collection_path))
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
     # changelog
     changelog_path_rel = 'changelog'
@@ -352,6 +357,8 @@ def sync(user_name, user_mail, collection_path):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     # fetch
     repo.git.fetch('origin')
     # pull on master,git-annex branches 
@@ -388,6 +395,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
     # create collection files/ dir if not already present
     # mets.xml
@@ -478,6 +487,8 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
 
     entity_path_rel = os.path.join('files', entity_uid)
     entity_path_abs = os.path.join(collection_path, entity_path_rel)
@@ -521,6 +532,8 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
     if not os.path.exists(os.path.join(collection_path, '.git', 'annex')):
         logging.error('    .git/annex IS MISSING!')
