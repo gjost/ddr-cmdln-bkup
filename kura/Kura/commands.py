@@ -21,6 +21,9 @@ TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
 
+def collection_git_url(collection_uid):
+    return '{}@{}:{}'.format(GIT_USER, GIT_SERVER, collection_uid)
+
 def gitolite_connect_ok():
     """See if we can connect to gitolite server.
     
