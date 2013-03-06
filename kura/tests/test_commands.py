@@ -6,8 +6,11 @@ import sys
 import unittest
 
 import envoy
+import git
 import requests
 
+from Kura.commands import annex_whereis_file
+from Kura.commands import GIT_REMOTE_NAME
 
 
 DEBUG = False
@@ -435,10 +438,40 @@ class TestCollection( unittest.TestCase ):
         self.assertEqual(remote_hash_gitannex, local_hash_gitannex)
         # TODO sync is not actually working, but these tests aren't capturing that
     
-    def test_21_push( self ):
+    def test_20_push( self ):
+        """git annex copy a file to the server; confirm it was actually copied.
+        """
+        logging.debug('test_20_push ---------------------------------------------------------')
+        debug = ''
+        if DEBUG:
+            debug = ' --debug'
+
+        repo = git.Repo(TEST_COLLECTION)
+        # test one of the files in the first entity
+        eid = '{}-1'.format(TEST_CID)
+        f = os.listdir(TEST_MEDIA_DIR)[0]
+        entity_path = os.path.join(COLLECTION_FILES,eid)
+        pushfile_abs = os.path.join(entity_path, 'files', f)
+        pushfile_rel = pushfile_abs.replace('{}/'.format(TEST_COLLECTION), '') 
+        #logging.debug(pushfile_abs)
+        #logging.debug(os.path.exists(pushfile_abs))
+        #logging.debug(pushfile_rel)
+        self.assertTrue( os.path.exists(pushfile_abs))
+        # run update
+        cmd = '{} push {} --log {} --collection {} --file {}'.format(
+            CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION, pushfile_rel)
+        logging.debug(cmd)
+        run = envoy.run(cmd)
+        logging.debug(run.std_out)
+        # confirm that GIT_REMOTE_NAME appears in list of remotes the file appears in
+        remotes = annex_whereis_file(repo, pushfile_rel)
+        logging.debug('    remotes {}'.format(remotes))
+        self.assertTrue(GIT_REMOTE_NAME in remotes)
+
+    def test_21_pull( self ):
         """
         """
-        logging.debug('test_21_push ---------------------------------------------------------')
+        logging.debug('test_21_pull ---------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
