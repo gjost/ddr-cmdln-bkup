@@ -350,7 +350,7 @@ def update(user_name, user_mail, collection_path, updated_files):
         changelog_path_abs,
         changelog_messages,
         user_name, user_mail)
-    if os.path.exists(gitignore_path_abs):
+    if os.path.exists(changelog_path_abs):
         updated_files.append(changelog_path_abs)
     else:
         logging.error('    COULD NOT UPDATE changelog')
