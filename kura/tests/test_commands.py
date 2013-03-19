@@ -185,10 +185,10 @@ class TestCollection( unittest.TestCase ):
         self.assertEqual(remote_hash_master, local_hash_master)
         self.assertEqual(remote_hash_gitannex, local_hash_gitannex)
 
-    def test_02_status( self ):
+    def test_020_status( self ):
         """Get status info for collection.
         """
-        logging.debug('test_02_status -------------------------------------------------------')
+        logging.debug('test_020_status -------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
@@ -201,10 +201,10 @@ class TestCollection( unittest.TestCase ):
         self.assertTrue('# On branch master' in lines)
         self.assertTrue('nothing to commit (working directory clean)' in lines)
 
-    def test_02_annex_status( self ):
+    def test_021_annex_status( self ):
         """Get annex status info for collection.
         """
-        logging.debug('test_02_annex_status -------------------------------------------------')
+        logging.debug('test_021_annex_status -------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
