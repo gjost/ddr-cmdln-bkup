@@ -159,7 +159,7 @@ class TestCollection( unittest.TestCase ):
         #
         cmd = '{} create {} --log {} --user {} --mail {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         logging.debug(cmd)
-        run = envoy.run(cmd)
+        run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
         
         # directories exist
@@ -195,7 +195,7 @@ class TestCollection( unittest.TestCase ):
         # check status
         cmd = '{} status {} --log {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION)
         logging.debug(cmd)
-        run = envoy.run(cmd)
+        run = envoy.run(cmd, timeout=30)
         # tests
         lines = run.std_out.split('\n')
         self.assertTrue('# On branch master' in lines)
@@ -211,7 +211,7 @@ class TestCollection( unittest.TestCase ):
         # check status
         cmd = '{} astatus {} --log {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION)
         logging.debug(cmd)
-        run = envoy.run(cmd)
+        run = envoy.run(cmd, timeout=30)
         # tests
         lines = run.std_out.split('\n')
         self.assertTrue( 'local annex keys: 0'                       in lines)
@@ -235,7 +235,7 @@ class TestCollection( unittest.TestCase ):
         cmd = '{} update {} --log {} --user {} --mail {} --collection {} --file {}'.format(
             CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
         logging.debug(cmd)
-        run = envoy.run(cmd)
+        run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
         # tests
         # TODO we need to test status, that modified file was actually committed
@@ -252,7 +252,7 @@ class TestCollection( unittest.TestCase ):
         cmd = '{} sync {} --log {} --user {} --mail {} --collection {}'.format(
             CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         logging.debug('{}'.format(cmd))
-        run = envoy.run(cmd)
+        run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
         # tests
         # check that local,remote commits exist and are equal
@@ -282,7 +282,7 @@ class TestCollection( unittest.TestCase ):
             cmd = '{} ecreate {} --log {} --user {} --mail {} --collection {} --entity {}'.format(
                 CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
             logging.debug(cmd)
-            run = envoy.run(cmd)
+            run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
         
         # confirm entity files exist
@@ -355,7 +355,7 @@ class TestCollection( unittest.TestCase ):
             cmd = '{} eupdate {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
                 CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
             logging.debug(cmd)
-            run = envoy.run(cmd)
+            run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
             # test that modified file appears in local commit
             commit = last_local_commit(TEST_COLLECTION, 'master')
@@ -385,7 +385,7 @@ class TestCollection( unittest.TestCase ):
             cmd = '{} eadd {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
                 CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
             logging.debug(cmd)
-            run = envoy.run(cmd)
+            run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
         
         # test file checksums in control
@@ -421,7 +421,7 @@ class TestCollection( unittest.TestCase ):
         cmd = '{} sync {} --log {} --user {} --mail {} --collection {}'.format(
             CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         logging.debug('{}'.format(cmd))
-        run = envoy.run(cmd)
+        run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
         # tests
         # check that local,remote commits exist and are equal

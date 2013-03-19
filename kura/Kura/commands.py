@@ -68,7 +68,7 @@ def gitolite_connect_ok():
     logging.debug('    Kura.commands.gitolite_connect_ok()')
     cmd = 'ssh {}@{} info'.format(GIT_USER, GIT_SERVER)
     logging.debug('        {}'.format(cmd))
-    r = envoy.run(cmd)
+    r = envoy.run(cmd, timeout=30)
     logging.debug('        {}'.format(r.status_code))
     if r.status_code == 0:
         lines = r.std_out.split('\n')
@@ -84,6 +84,7 @@ def requires_network(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not gitolite_connect_ok():
+            logging.error('Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
             print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
             sys.exit(1)
         return f(*args, **kwargs)
