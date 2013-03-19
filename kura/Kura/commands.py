@@ -313,7 +313,7 @@ def status(collection_path):
 
 
 @command
-@local_only
+@requires_network
 def annex_status(collection_path):
     """Command-line function for running git annex status on collection repository.
     """
