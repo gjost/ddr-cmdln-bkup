@@ -230,6 +230,7 @@ def create(user_name, user_mail, collection_path):
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    repo.git.config('annex.sshcaching', 'false')
     git_files = []
 
     # add files
@@ -338,6 +339,7 @@ def update(user_name, user_mail, collection_path, updated_files):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
@@ -379,6 +381,7 @@ def sync(user_name, user_mail, collection_path):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     # fetch
@@ -417,6 +420,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
@@ -509,6 +513,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
 
@@ -554,6 +559,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
