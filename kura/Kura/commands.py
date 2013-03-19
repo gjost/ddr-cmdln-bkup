@@ -103,6 +103,7 @@ def command(f):
     """
     @wraps(f)
     def wrapper(*args, **kwargs):
+        logging.debug('------------------------------------------------------------------------')
         logging.debug('{}.{}({}, {})'.format(f.__module__, f.__name__, args, kwargs))
         return f(*args, **kwargs)
     return wrapper
