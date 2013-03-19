@@ -447,26 +447,23 @@ class TestCollection( unittest.TestCase ):
             debug = ' --debug'
 
         repo = git.Repo(TEST_COLLECTION)
-        # test one of the files in the first entity
-        eid = '{}-1'.format(TEST_CID)
-        f = os.listdir(TEST_MEDIA_DIR)[0]
-        entity_path = os.path.join(COLLECTION_FILES,eid)
-        pushfile_abs = os.path.join(entity_path, 'files', f)
-        pushfile_rel = pushfile_abs.replace('{}/'.format(TEST_COLLECTION), '') 
-        #logging.debug(pushfile_abs)
-        #logging.debug(os.path.exists(pushfile_abs))
-        #logging.debug(pushfile_rel)
-        self.assertTrue( os.path.exists(pushfile_abs))
-        # run update
-        cmd = '{} push {} --log {} --collection {} --file {}'.format(
-            CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION, pushfile_rel)
-        logging.debug(cmd)
-        run = envoy.run(cmd)
-        logging.debug(run.std_out)
-        # confirm that GIT_REMOTE_NAME appears in list of remotes the file appears in
-        remotes = annex_whereis_file(repo, pushfile_rel)
-        logging.debug('    remotes {}'.format(remotes))
-        self.assertTrue(GIT_REMOTE_NAME in remotes)
+        # push all files for first entity
+        eid = TEST_EIDS[0]
+        for f in os.listdir(TEST_MEDIA_DIR):
+            entity_path = os.path.join(COLLECTION_FILES,eid)
+            pushfile_abs = os.path.join(entity_path, 'files', f)
+            pushfile_rel = pushfile_abs.replace('{}/'.format(TEST_COLLECTION), '')
+            self.assertTrue(os.path.exists(pushfile_abs))
+            # run update
+            cmd = '{} push {} --log {} --collection {} --file {}'.format(
+                CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION, pushfile_rel)
+            logging.debug(cmd)
+            run = envoy.run(cmd, timeout=30)
+            logging.debug(run.std_out)
+            # confirm that GIT_REMOTE_NAME appears in list of remotes the file appears in
+            remotes = annex_whereis_file(repo, pushfile_rel)
+            logging.debug('    remotes {}'.format(remotes))
+            self.assertTrue(GIT_REMOTE_NAME in remotes)
 
     def test_21_pull( self ):
         """
