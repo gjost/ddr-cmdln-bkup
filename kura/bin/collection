@@ -56,7 +56,7 @@ def main():
             messages.append('specify a user')
         if not args.mail:
             messages.append('specify an email address')
-    if (args.operation in ['add', 'update']) and not (args.file):
+    if (args.operation in ['add', 'update', 'eupdate', 'eadd', 'pull',]) and not (args.file):
         messages.append('specify an file')
     if (args.operation in ['ecreate','edestroy','eupdate', 'eadd']) and not (args.entity):
         messages.append('specify an entity')
@@ -84,6 +84,7 @@ def main():
     elif args.operation == 'eupdate':  entity_update( args.user, args.mail, args.collection, args.entity, [args.file])
     elif args.operation == 'eadd':     entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file)
     elif args.operation == 'push':     annex_push(args.collection, args.file)
+    elif args.operation == 'pull':     annex_pull(args.collection, args.file)
     else:
         sys.stderr.write('We fell through!\n')
         sys.exit(1)

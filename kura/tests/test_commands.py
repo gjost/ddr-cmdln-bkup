@@ -500,6 +500,43 @@ class TestCollection( unittest.TestCase ):
         annex = os.path.join(git, 'annex')
         self.assertTrue(os.path.exists(git))
         self.assertTrue(os.path.exists(annex))
+
+    def test_31_pull( self ):
+        """git-annex pull files into collection from test_30_clone.
+        
+        IMPORTANT: This test cannot be run without running all the previous tests!
+        """
+        logging.debug('test_31_pull ---------------------------------------------------------')
+        debug = ''
+        if DEBUG:
+            debug = ' --debug'
+        self.assertTrue(os.path.exists(ALT_COLLECTION))
+        repo = git.Repo(ALT_COLLECTION)
+        # pull all files for first entity
+        eid = TEST_EIDS[0]
+        for f in os.listdir(TEST_MEDIA_DIR):
+            entity_path = os.path.join(COLLECTION_FILES,eid)
+            file_abs = os.path.join(entity_path, 'files', f)
+            file_rel = file_abs.replace(TEST_TMP_PATH, '').replace(TEST_CID, '', 1)
+            if file_rel.startswith('/'):
+                file_rel = file_rel[1:]
+            logging.debug('entity_path: {}'.format(entity_path))
+            logging.debug('file_abs: {}'.format(file_abs))
+            logging.debug('file_rel: {}'.format(file_rel))
+            # link should exist but file should NOT exist yet
+            #self.assertTrue(os.path.lexists(file_rel))
+            #self.assertTrue(os.path.islink(file_rel))
+            #self.assertFalse(os.path.exists(file_rel))
+            # run update
+            cmd = '{} pull {} --log {} --collection {} --file {}'.format(
+                CMD_PATH, debug, LOGGING_FILE, ALT_COLLECTION, file_rel)
+            logging.debug(cmd)
+            run = envoy.run(cmd, timeout=30)
+            logging.debug(run.std_out)
+            # file should exist, be a symlink, and point to annex dir
+            self.assertTrue(os.path.exists(file_rel))
+            self.assertTrue(os.path.islink(file_rel))
+            self.assertTrue('/.git/annex/objects/' in os.readlink(file_rel))
     
     def test_99_destroy( self ):
         """Destroy a collection.
