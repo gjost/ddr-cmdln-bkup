@@ -36,6 +36,14 @@ COLLECTION_FILES     = os.path.join(TEST_COLLECTION, 'files')
 COLLECTION_GIT       = os.path.join(TEST_COLLECTION, '.git')
 COLLECTION_GITIGNORE = os.path.join(TEST_COLLECTION, '.gitignore')
 
+ALT_COLLECTION = '{}-alt'.format(TEST_COLLECTION)
+ALT_CHANGELOG  = os.path.join(ALT_COLLECTION, 'changelog')
+ALT_CONTROL    = os.path.join(ALT_COLLECTION, 'control')
+ALT_EAD        = os.path.join(ALT_COLLECTION, 'ead.xml')
+ALT_FILES      = os.path.join(ALT_COLLECTION, 'files')
+ALT_GIT        = os.path.join(ALT_COLLECTION, '.git')
+ALT_GITIGNORE  = os.path.join(ALT_COLLECTION, '.gitignore')
+
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEST_FILES_DIR = os.path.join(MODULE_PATH, 'files')
 TEST_MEDIA_DIR = os.path.join(MODULE_PATH, '..', 'files', 'entity')
@@ -465,15 +473,33 @@ class TestCollection( unittest.TestCase ):
             logging.debug('    remotes {}'.format(remotes))
             self.assertTrue(GIT_REMOTE_NAME in remotes)
 
-    def test_21_pull( self ):
+    def test_30_clone( self ):
+        """Clone an existing collection to an alternate location.
+        
+        IMPORTANT: This test cannot be run without running all the previous tests!
         """
-        """
-        logging.debug('test_21_pull ---------------------------------------------------------')
+        logging.debug('test_30_clone --------------------------------------------------------')
         debug = ''
         if DEBUG:
             debug = ' --debug'
-        # tests
-        #self.assertTrue(...)
+        #if os.path.exists(ALT_COLLECTION):
+        #    shutil.rmtree(ALT_COLLECTION, ignore_errors=True)
+        #
+        cmd = '{} clone {} --log {} --user {} --mail {} --cid {} --dest {}'.format(
+            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_CID, ALT_COLLECTION)
+        logging.debug(cmd)
+        run = envoy.run(cmd, timeout=30)
+        logging.debug(run.std_out)
+        # directories exist
+        self.assertTrue(os.path.exists(ALT_COLLECTION))
+        self.assertTrue(os.path.exists(ALT_CHANGELOG))
+        self.assertTrue(os.path.exists(ALT_CONTROL))
+        self.assertTrue(os.path.exists(ALT_EAD))
+        # git, git-annex
+        git   = os.path.join(ALT_COLLECTION, '.git')
+        annex = os.path.join(git, 'annex')
+        self.assertTrue(os.path.exists(git))
+        self.assertTrue(os.path.exists(annex))
     
     def test_99_destroy( self ):
         """Destroy a collection.

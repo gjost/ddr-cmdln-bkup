@@ -140,6 +140,7 @@ More than you thought you wanted to know about the collection command.
 
 OPERATIONS = [
     'create',
+    'clone',
     'destroy',
     'status',
     'astatus',
@@ -189,6 +190,38 @@ def commit_files(repo, message, regular_files=[], annex_files=[]):
     
     return repo
 
+
+
+@command
+@requires_network
+def clone(user_name, user_mail, collection_uid, alt_collection_path):
+    """Command-line function for cloning an existing collection.
+    
+    Clones existing collection object from workbench server.
+    """
+    url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
+    
+    repo = git.Repo.clone_from(url, alt_collection_path)
+    logging.debug('    git clone {}'.format(url))
+    if repo:
+        logging.debug('    OK')
+    else:
+        logging.error('    COULD NOT CLONE!')
+    if os.path.exists(os.path.join(alt_collection_path, '.git')):
+        logging.debug('    .git/ is present')
+    else:
+        logging.error('    .git/ IS MISSING!')
+    # git annex init if not already existing
+    if not os.path.exists(os.path.join(alt_collection_path, '.git', 'annex')):
+        logging.debug('    git annex init')
+        repo.git.annex('init')
+    #
+    repo.git.checkout('master')
+    repo.git.config('user.name', user_name)
+    repo.git.config('user.email', user_mail)
+    repo.git.config('annex.sshcaching', 'false')
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
 
 
 @command
