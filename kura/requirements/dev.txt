@@ -6,3 +6,4 @@
 bpython
 coverage
 nose
+sphinx
