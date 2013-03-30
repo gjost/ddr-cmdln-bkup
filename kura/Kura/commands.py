@@ -85,8 +85,7 @@ def requires_network(f):
     def wrapper(*args, **kwargs):
         if not gitolite_connect_ok():
             logging.error('Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-            print('ERR: Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-            sys.exit(1)
+            return 1,'cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER)
         return f(*args, **kwargs)
     return wrapper
 
@@ -207,10 +206,12 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
         logging.debug('    OK')
     else:
         logging.error('    COULD NOT CLONE!')
+        return 1,'could not clone'
     if os.path.exists(os.path.join(alt_collection_path, '.git')):
         logging.debug('    .git/ is present')
     else:
         logging.error('    .git/ IS MISSING!')
+        return 1,'.git/ is missing'
     # git annex init if not already existing
     if not os.path.exists(os.path.join(alt_collection_path, '.git', 'annex')):
         logging.debug('    git annex init')
@@ -222,6 +223,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+    return 0,'ok'
 
 
 @command
@@ -323,6 +325,7 @@ def create(user_name, user_mail, collection_path):
     repo.git.push('origin', 'git-annex')
     logging.debug('    OK')
     repo.git.checkout('master')
+    return 0,'ok'
 
 
 @command
@@ -332,7 +335,7 @@ def destroy():
     
     Does not remove files from the server!  That will remain a manual operation.
     """
-    pass
+    return 1,'not implemented yet'
 
 
 @command
@@ -343,7 +346,7 @@ def status(collection_path):
     repo = git.Repo(collection_path)
     status = repo.git.status()
     logging.debug('\n{}'.format(status))
-    print(status)
+    return 0,status
 
 
 @command
@@ -354,7 +357,7 @@ def annex_status(collection_path):
     repo = git.Repo(collection_path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
-    print(status)
+    return 0,status
 
 
 @command
@@ -392,6 +395,7 @@ def update(user_name, user_mail, collection_path, updated_files):
         logging.error('    COULD NOT UPDATE changelog')
     # add files and commit
     repo = commit_files(repo, 'Updated metadata files', updated_files, [])
+    return 0,'ok'
 
 
 @command
@@ -522,6 +526,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     git_files.append('control')
     # add files and commit
     repo = commit_files(repo, changelog_messages[0], git_files, [])
+    return 0,'ok'
 
 
 @command
@@ -529,7 +534,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
 def entity_destroy():
     """Command-line function for removing the specified entity from the collection.
     """
-    pass
+    return 1,'not implemented yet'
 
 
 @command
@@ -571,6 +576,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     git_files.append(entity_changelog_path_rel)
     # add files and commit
     repo = commit_files(repo, 'Updated entity file(s)', git_files, [])
+    return 0,'ok'
 
 
 @command
@@ -598,7 +604,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     
     if not os.path.exists(os.path.join(collection_path, '.git', 'annex')):
         logging.error('    .git/annex IS MISSING!')
-        sys.exit(1)
+        return 1,'.git/annex IS MISSING!'
 
     entity_path_rel = os.path.join('files', entity_uid)
     entity_path_abs = os.path.join(collection_path, entity_path_rel)
@@ -615,12 +621,12 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     logging.debug('    new_file_rel_entity {}'.format(new_file_rel_entity))
     if not os.path.exists(entity_path_abs):
         logging.error('    Entity does not exist: {}'.format(entity_uid))
-        sys.exit(1)
+        return 1,'entity does not exist: {}'.format(entity_uid)
     if not os.path.exists(entity_files_abs):
         os.makedirs(entity_files_abs)
     if not os.path.exists(new_file_abs):
         logging.error('    File does not exist: {}'.format(new_file_abs))
-        sys.exit(1)
+        return 1,'File does not exist: {}'.format(new_file_abs)
     
     git_files = []
     # update entity changelog
@@ -662,6 +668,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
 #    repo.index.add(git_files)
 #    # commit
 #    commit = repo.index.commit('Added entity file(s)')
+    return 0,'ok'
 
 
 @command
@@ -669,7 +676,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
 def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path):
     """Wrapper around entity_annex_add() that 
     """
-    pass
+    return 1,'not implemented yet'
 
 
 @command
@@ -677,7 +684,7 @@ def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_pa
 def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path):
     """
     """
-    pass
+    return 1,'not implemented yet'
 
 
 @command
@@ -685,7 +692,7 @@ def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file
 def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path):
     """
     """
-    pass
+    return 1,'not implemented yet'
 
 
 @command
@@ -709,13 +716,13 @@ def annex_push(collection_path, file_path_rel):
     logging.debug('    file_path_abs {}'.format(file_path_abs))
     if not os.path.exists(collection_path):
         logging.error('    NO COLLECTION AT {}'.format(collection_path))
-        sys.exit(1)
+        return 1,'no collection'
     if not os.path.exists(annex_path):
         logging.error('    NO GIT ANNEX AT {}'.format(annex_path))
-        sys.exit(1)
+        return 1,'no annex'
     if not os.path.exists(file_path_abs):
         logging.error('    NO FILE AT {}'.format(file_path_abs))
-        sys.exit(1)
+        return 1,'no file'
     # let's do this thing
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -729,6 +736,7 @@ def annex_push(collection_path, file_path_rel):
     logging.debug('    present in remotes {}'.format(remotes))
     logging.debug('    it worked: {}'.format(GIT_REMOTE_NAME in remotes))
     logging.debug('    DONE')
+    return 0,'ok'
 
 
 @command
@@ -751,10 +759,10 @@ def annex_pull(collection_path, file_path_rel):
     logging.debug('    file_path_abs {}'.format(file_path_abs))
     if not os.path.exists(collection_path):
         logging.error('    NO COLLECTION AT {}'.format(collection_path))
-        sys.exit(1)
+        return 1,'no collection'
     if not os.path.exists(annex_path):
         logging.error('    NO GIT ANNEX AT {}'.format(annex_path))
-        sys.exit(1)
+        return 1,'no annex'
     # let's do this thing
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -770,3 +778,4 @@ def annex_pull(collection_path, file_path_rel):
     itworked = (exists and lexists and islink)
     logging.debug('    it worked: {}'.format(itworked))
     logging.debug('    DONE')
+    return 0,'ok'
