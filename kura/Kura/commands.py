@@ -33,6 +33,10 @@ def annex_whereis_file(repo, file_path_rel):
             0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
             c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
     ok
+    
+    @param repo: A GitPython Repo object
+    @param collection_uid: A valid DDR collection UID
+    @return: List of names of remote repositories.
     """
     remotes = []
     stdout = repo.git.annex('whereis', file_path_rel)
@@ -64,6 +68,8 @@ def gitolite_connect_ok():
          R W C  ddr-densho-[0-9]+-[0-9]+
          R W C  ddr-dev-[0-9]+
         ...
+    
+    @return: True or False
     """
     logging.debug('    Kura.commands.gitolite_connect_ok()')
     cmd = 'ssh {}@{} info'.format(GIT_USER, GIT_SERVER)
@@ -111,7 +117,9 @@ def list_staged(repo):
     """Returns list of currently staged files
     
     Works for git-annex files just like for regular files.
-    @param repo a Gitpython Repo
+    
+    @param repo: A Gitpython Repo object
+    @return: List of filenames
     """
     return repo.git.diff('--cached', '--name-only').split('\n')
 
@@ -120,8 +128,9 @@ def list_committed(repo, commit):
 
     $ git log -1 --stat 0a1b2c3d4e...|grep \|
 
-    @param repo A Gitpython Repo
-    @param commit A Gitpython Commit
+    @param repo: A Gitpython Repo object
+    @param commit: A Gitpython Commit object
+    @return: list of filenames
     """
     # return just the files from the specific commit's log entry
     entry = repo.git.log('-1', '--stat', commit.hexsha).split('\n')
@@ -158,10 +167,11 @@ OPERATIONS = [
 def commit_files(repo, message, regular_files=[], annex_files=[]):
     """git-add and git-annex-add files and commit them
     
-    @param repo GitPython Repo object
-    @param message String
-    @param regular_files List of filenames relative to repo root.
-    @param annex_files List of filenames relative to repo root.
+    @param repo: GitPython Repo object
+    @param message: String
+    @param regular_files: List of filenames relative to repo root.
+    @param annex_files: List of filenames relative to repo root.
+    @return: GitPython Repo object
     """
     added = annex_files + regular_files
     added.sort()
@@ -197,6 +207,12 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     """Command-line function for cloning an existing collection.
     
     Clones existing collection object from workbench server.
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_uid: A valid DDR collection UID
+    @param alt_collection_path: Absolute path to which repo will be cloned (includes collection UID)
+    @return: message ('ok' if successful)
     """
     url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
     
@@ -246,6 +262,11 @@ def create(user_name, user_mail, collection_path):
     background:entity init: $ git annex init
     background:entity init: $ git add changelog control ead.xml .gitignore
     background:entity init: $ git commit
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
     """
     collection_uid = os.path.basename(collection_path)
     url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
@@ -334,6 +355,8 @@ def destroy():
     """Command-line function for removing  an entire collection's files from the local system.
     
     Does not remove files from the server!  That will remain a manual operation.
+    
+    @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
 
@@ -342,6 +365,9 @@ def destroy():
 @local_only
 def status(collection_path):
     """Command-line function for running git status on collection repository.
+    
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
     """
     repo = git.Repo(collection_path)
     status = repo.git.status()
@@ -353,6 +379,9 @@ def status(collection_path):
 @requires_network
 def annex_status(collection_path):
     """Command-line function for running git annex status on collection repository.
+    
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
     """
     repo = git.Repo(collection_path)
     status = repo.git.annex('status')
@@ -366,7 +395,11 @@ def update(user_name, user_mail, collection_path, updated_files):
     """Command-line function for commiting changes to the specified file.
     
     NOTE: Does not push to the workbench server.
-    @param updated_files List of relative paths to updated file(s).
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param updated_files: List of relative paths to updated file(s).
+    @return: message ('ok' if successful)
     """
     collection_uid = os.path.basename(collection_path)
     repo = git.Repo(collection_path)
@@ -413,6 +446,11 @@ def sync(user_name, user_mail, collection_path):
     - push on git-annex,master branches
     
     TODO This assumes that origin is the workbench server...
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
     """
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -445,12 +483,19 @@ def sync(user_name, user_mail, collection_path):
     logging.debug('    git annex sync')
     repo.git.annex('sync')
     logging.debug('    OK')
+    return 0,'ok'
 
 
 @command
 @local_only
 def entity_create(user_name, user_mail, collection_path, entity_uid):
     """Command-line function for creating an entity and adding it to the collection.
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @return: message ('ok' if successful)
     """
     collection = Collection(collection_path)
     repo = git.Repo(collection_path)
@@ -533,6 +578,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
 @local_only
 def entity_destroy():
     """Command-line function for removing the specified entity from the collection.
+    
+    @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
 
@@ -545,7 +592,13 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     NOTE: Does not push to the workbench server.
     Updates entity changelog but NOT in collection changelog.
     Makes an entry in git log.
-    @param updated_files List of paths to updated file(s), relative to entity/files.
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @param updated_files: List of paths to updated file(s), relative to entity/files.
+    @return: message ('ok' if successful)
     """
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -590,9 +643,12 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     It does not mark the file as master/mezzanine/access/etc or edit any metadata.
     It does not perform any background processing on the file.
     
-    @param collection_path Absolute path to collection
-    @param entity_uid Entity UID
-    @param file_path Path to new file relative to entity files dir.
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @param file_path: Path to new file relative to entity files dir.
+    @return: message ('ok' if successful)
     """
     repo = git.Repo(collection_path)
     repo.git.checkout('master')
@@ -675,6 +731,13 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
 @local_only
 def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path):
     """Wrapper around entity_annex_add() that 
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @param file_path: Path to new file relative to entity files dir.
+    @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
 
@@ -683,6 +746,12 @@ def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_pa
 @local_only
 def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path):
     """
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @param file_path: Path to new file relative to entity files dir.
+    @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
 
@@ -691,6 +760,12 @@ def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file
 @local_only
 def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path):
     """
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @param file_path: Path to new file relative to entity files dir.
+    @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
 
@@ -707,7 +782,9 @@ def annex_push(collection_path, file_path_rel):
     
     $ git annex copy PATH --to=REMOTE
     
-    @param file_path_rel Path to file relative to collection root
+    @param collection_path: Absolute path to collection repo.
+    @param file_path_rel: Path to file relative to collection root
+    @return: message ('ok' if successful)
     """
     annex_path = os.path.join(collection_path, '.git', 'annex')
     file_path_abs = os.path.join(collection_path, file_path_rel)
@@ -749,8 +826,9 @@ def annex_pull(collection_path, file_path_rel):
         ddr-densho-42-17/files/image35.jpg
         ddr-one-35-248/files/newspaper.pdf
         
-    @param collection_path Absolute path to collection repo.
-    @param file_path_rel Path to file relative to collection root.
+    @param collection_path: Absolute path to collection repo.
+    @param file_path_rel: Path to file relative to collection root.
+    @return: message ('ok' if successful)
     """
     annex_path = os.path.join(collection_path, '.git', 'annex')
     file_path_abs = os.path.join(collection_path, file_path_rel)
