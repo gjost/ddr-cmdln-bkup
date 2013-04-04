@@ -14,7 +14,7 @@ from Kura.xml import EAD, METS
 
 
 GIT_USER = 'git'
-GIT_SERVER = 'mits'
+GIT_SERVER = os.getenv('GITOLITE_SERVER', 'mits')
 GIT_REMOTE_NAME = 'workbench'
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
