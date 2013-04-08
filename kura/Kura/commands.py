@@ -1,3 +1,4 @@
+import ConfigParser
 from datetime import datetime
 from functools import wraps
 import logging
@@ -8,15 +9,26 @@ import sys
 import envoy
 import git
 
+from Kura import CONFIG_FILE
 from Kura.models import Collection, Entity
 from Kura.changelog import write_changelog_entry
 from Kura.control import CollectionControlFile, EntityControlFile
 from Kura.xml import EAD, METS
 
 
-GIT_USER = 'git'
-GIT_SERVER = os.getenv('GITOLITE_SERVER', 'mits')
-GIT_REMOTE_NAME = GIT_SERVER
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+GITOLITE = config.get('workbench','gitolite')
+GIT_REMOTE_NAME = config.get('workbench','remote')
+
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
@@ -24,7 +36,7 @@ GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
 
 def collection_git_url(collection_uid):
-    return '{}@{}:{}'.format(GIT_USER, GIT_SERVER, collection_uid)
+    return '{}:{}'.format(GITOLITE, collection_uid)
 
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in
@@ -73,13 +85,13 @@ def gitolite_connect_ok():
     @return: True or False
     """
     logging.debug('    Kura.commands.gitolite_connect_ok()')
-    cmd = 'ssh {}@{} info'.format(GIT_USER, GIT_SERVER)
+    cmd = 'ssh {} info'.format(GITOLITE)
     logging.debug('        {}'.format(cmd))
     r = envoy.run(cmd, timeout=30)
     logging.debug('        {}'.format(r.status_code))
     if r.status_code == 0:
         lines = r.std_out.split('\n')
-        if len(lines) and ('this is git@{} running gitolite'.format(GIT_SERVER) in lines[0]):
+        if len(lines) and ('this is {} running gitolite'.format(GITOLITE) in lines[0]):
             logging.debug('        OK ')
             return True
     logging.debug('        NO CONNECTION')
@@ -91,8 +103,8 @@ def requires_network(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not gitolite_connect_ok():
-            logging.error('Cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER))
-            return 1,'cannot connect to git server {}@{}'.format(GIT_USER,GIT_SERVER)
+            logging.error('Cannot connect to git server {}'.format(GITOLITE))
+            return 1,'cannot connect to git server {}'.format(GITOLITE)
         return f(*args, **kwargs)
     return wrapper
 
@@ -244,7 +256,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     @param alt_collection_path: Absolute path to which repo will be cloned (includes collection UID)
     @return: message ('ok' if successful)
     """
-    url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
+    url = '{}:{}.git'.format(GITOLITE, collection_uid)
     
     repo = git.Repo.clone_from(url, alt_collection_path)
     logging.debug('    git clone {}'.format(url))
@@ -299,7 +311,7 @@ def create(user_name, user_mail, collection_path):
     @return: message ('ok' if successful)
     """
     collection_uid = os.path.basename(collection_path)
-    url = '{}@{}:{}.git'.format(GIT_USER, GIT_SERVER, collection_uid)
+    url = '{}:{}.git'.format(GITOLITE, collection_uid)
     
     repo = git.Repo.clone_from(url, collection_path)
     logging.debug('    git clone {}'.format(url))

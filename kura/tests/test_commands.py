@@ -1,3 +1,4 @@
+import ConfigParser
 from datetime import datetime
 import logging
 import os
@@ -9,24 +10,44 @@ import envoy
 import git
 import requests
 
+from Kura import CONFIG_FILE
 from Kura.commands import annex_whereis_file
-from Kura.commands import GIT_REMOTE_NAME
 
 
-DEBUG = False
-#DEBUG = True
 
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+
+DEBUG = config.get('local','debug')
+
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+LOGGING_FILE = config.get('local','log_file')
+if config.get('local','log_level') == 'debug':
+    LOGGING_LEVEL = logging.DEBUG
+else:
+    LOGGING_LEVEL = logging.ERROR
+logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
+
+GIT_REMOTE_NAME = config.get('workbench','remote')
+GITWEB_URL = config.get('workbench','gitweb_url')
+
+TEST_TMP_PATH  = config.get('testing','base_path')
+TEST_USER_NAME = config.get('testing','user_name')
+TEST_USER_MAIL = config.get('testing','user_mail')
 
 TEST_CID       = 'ddr-testing-{}'.format(datetime.now().strftime('%Y%m%d%H%M'))
-TEST_EIDS      = []
-for n in [1,2]:
-    TEST_EIDS.append('{}-{}'.format(TEST_CID, n))
+TEST_EIDS      = ['{}-{}'.format(TEST_CID, n) for n in [1,2]]
 
 CMD_PATH = 'collection'
-
-TEST_TMP_PATH  = '/tmp/'
-TEST_USER_NAME = 'gjost'
-TEST_USER_MAIL = 'geoffrey.jost@densho.org'
 
 TEST_COLLECTION      = os.path.join(TEST_TMP_PATH,TEST_CID)
 COLLECTION_CHANGELOG = os.path.join(TEST_COLLECTION, 'changelog')
@@ -47,13 +68,6 @@ ALT_GITIGNORE  = os.path.join(ALT_COLLECTION, '.gitignore')
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEST_FILES_DIR = os.path.join(MODULE_PATH, 'files')
 TEST_MEDIA_DIR = os.path.join(MODULE_PATH, '..', 'files', 'entity')
-
-GITWEB_URL = 'http://partner.densho.org/gitweb'
-
-LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
-LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
-LOGGING_FILE = '/tmp/ddr-cmdln.log'
-logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
 
 
 def last_local_commit(path, branch, debug=False):

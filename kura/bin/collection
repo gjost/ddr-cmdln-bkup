@@ -4,19 +4,40 @@
 #
 
 import argparse
+import ConfigParser
 import logging
 import os
 import sys
 
+from Kura import CONFIG_FILE
 from Kura.commands import OPERATIONS, description, epilog
 from Kura.commands import collections_local, create, clone, destroy, update, sync
 from Kura.commands import status, annex_status
 from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from Kura.commands import annex_push, annex_pull
 
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+
+DEBUG = config.get('local','debug')
+
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
-LOGGING_FILE = '/tmp/ddr-cmdln.log'
+LOGGING_FILE = config.get('local','log_file')
+if config.get('local','log_level') == 'debug':
+    LOGGING_LEVEL = logging.DEBUG
+else:
+    LOGGING_LEVEL = logging.ERROR
+logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
 
 def main():
     parser = argparse.ArgumentParser(description=description, epilog=epilog)
