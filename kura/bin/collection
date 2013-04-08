@@ -9,7 +9,7 @@ import os
 import sys
 
 from Kura.commands import OPERATIONS, description, epilog
-from Kura.commands import create, clone, destroy, update, sync
+from Kura.commands import list_collections, create, clone, destroy, update, sync
 from Kura.commands import status, annex_status
 from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from Kura.commands import annex_push, annex_pull
@@ -23,6 +23,12 @@ def main():
     # no positional arguments
     parser.add_argument('operation', choices=OPERATIONS,
                         help='Operation to perform.')
+    parser.add_argument('-b', '--base',
+                        help='Base path - absolute path to dir where local collections are kept.')
+    parser.add_argument('-r', '--repository',
+                        help='Repository keyword.')
+    parser.add_argument('-o', '--organization',
+                        help='Organization keyword.')
     parser.add_argument('-c', '--collection',
                         help='Absolute file path to the collection')
     parser.add_argument('-e', '--entity',
@@ -49,9 +55,16 @@ def main():
     messages = []
     if not args.operation:
         messages.append('choose an operation')
-    if (not args.operation in ['clone']) and (not args.collection):
+    if args.operation in ['clist']:
+        if not args.base:
+            messages.append('specify a base path')
+        if not args.repository:
+            messages.append('specify a repository')
+        if not args.organization:
+            messages.append('specify an organization')
+    if (not args.operation in ['clist', 'clone']) and (not args.collection):
         messages.append('specify a collection')
-    if args.operation not in ['status', 'astatus', 'push', 'pull',]:
+    if args.operation not in ['clist', 'status', 'astatus', 'push', 'pull',]:
         if not args.user:
             messages.append('specify a user')
         if not args.mail:
@@ -78,6 +91,12 @@ def main():
     elif args.operation == 'astatus':
         exit,msg = annex_status(args.collection)
         print(msg)
+    elif args.operation == 'clist':
+        collections = list_collections(args.base, args.repository, args.organization)
+        msg = '\n'.join(collections)
+        if msg:
+            print msg
+        sys.exit(0)
     elif args.operation == 'create':   exit,msg = create(        args.user, args.mail, args.collection)
     elif args.operation == 'clone':    exit,msg = clone(         args.user, args.mail, args.cid, args.dest)
     elif args.operation == 'destroy':  exit,msg = destroy(       args.user, args.mail, args.collection)

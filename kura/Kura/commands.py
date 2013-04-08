@@ -2,6 +2,7 @@ from datetime import datetime
 from functools import wraps
 import logging
 import os
+import re
 import sys
 
 import envoy
@@ -147,6 +148,7 @@ More than you thought you wanted to know about the collection command.
 """
 
 OPERATIONS = [
+    'clist',
     'create',
     'clone',
     'destroy',
@@ -199,6 +201,34 @@ def commit_files(repo, message, regular_files=[], annex_files=[]):
     
     return repo
 
+
+
+@command
+@local_only
+def list_collections(collections_root, repository, organization):
+    """Command-line function for listing collections on the local system.
+    
+    Looks for directories under collection_root with names matching the
+    "{repository}-{organization}-*" pattern and containing ead.xml files.
+    Doesn't check validity beyond that.
+    
+    @param collections_root: Absolute path of dir in which collections are located.
+    @param repository: Repository keyword.
+    @param organization: Organization keyword.
+    @return: list of collection UIDs
+    """
+    collections = []
+    if not os.path.exists(collections_root) and os.path.isdir(collections_root):
+        logging.error('    {} does not exist or is not a directory'.format(collections_root))
+    regex = '{}-{}-[0-9]+'.format(repository, organization)
+    logging.debug('    {}'.format(regex))
+    uid = re.compile(regex)
+    for x in os.listdir(collections_root):
+        m = uid.search(x)
+        if m:
+            collections.append(x)
+    collections.sort()
+    return collections
 
 
 @command
