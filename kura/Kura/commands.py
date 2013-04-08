@@ -148,7 +148,7 @@ More than you thought you wanted to know about the collection command.
 """
 
 OPERATIONS = [
-    'clist',
+    'clocal',
     'create',
     'clone',
     'destroy',
@@ -205,7 +205,7 @@ def commit_files(repo, message, regular_files=[], annex_files=[]):
 
 @command
 @local_only
-def list_collections(collections_root, repository, organization):
+def collections_local(collections_root, repository, organization):
     """Command-line function for listing collections on the local system.
     
     Looks for directories under collection_root with names matching the

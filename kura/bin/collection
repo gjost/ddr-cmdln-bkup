@@ -9,7 +9,7 @@ import os
 import sys
 
 from Kura.commands import OPERATIONS, description, epilog
-from Kura.commands import list_collections, create, clone, destroy, update, sync
+from Kura.commands import collections_local, create, clone, destroy, update, sync
 from Kura.commands import status, annex_status
 from Kura.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from Kura.commands import annex_push, annex_pull
@@ -55,16 +55,16 @@ def main():
     messages = []
     if not args.operation:
         messages.append('choose an operation')
-    if args.operation in ['clist']:
+    if args.operation in ['clocal']:
         if not args.base:
             messages.append('specify a base path')
         if not args.repository:
             messages.append('specify a repository')
         if not args.organization:
             messages.append('specify an organization')
-    if (not args.operation in ['clist', 'clone']) and (not args.collection):
+    if (not args.operation in ['clocal', 'clone']) and (not args.collection):
         messages.append('specify a collection')
-    if args.operation not in ['clist', 'status', 'astatus', 'push', 'pull',]:
+    if args.operation not in ['clocal', 'status', 'astatus', 'push', 'pull',]:
         if not args.user:
             messages.append('specify a user')
         if not args.mail:
@@ -91,8 +91,8 @@ def main():
     elif args.operation == 'astatus':
         exit,msg = annex_status(args.collection)
         print(msg)
-    elif args.operation == 'clist':
-        collections = list_collections(args.base, args.repository, args.organization)
+    elif args.operation == 'clocal':
+        collections = collections_local(args.base, args.repository, args.organization)
         msg = '\n'.join(collections)
         if msg:
             print msg
