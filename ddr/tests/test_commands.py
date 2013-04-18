@@ -10,8 +10,8 @@ import envoy
 import git
 import requests
 
-from Kura import CONFIG_FILE
-from Kura.commands import annex_whereis_file
+from DDR import CONFIG_FILE
+from DDR.commands import annex_whereis_file
 
 
 
@@ -26,15 +26,16 @@ if not os.path.exists(CONFIG_FILE):
 config = ConfigParser.ConfigParser()
 config.read(CONFIG_FILE)
 
-DEBUG = config.get('local','debug')
+DEBUG = config.get('testing','debug')
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
-LOGGING_FILE = config.get('local','log_file')
-if config.get('local','log_level') == 'debug':
+LOGGING_FILE = config.get('testing','log_file')
+if config.get('testing','log_level') == 'debug':
     LOGGING_LEVEL = logging.DEBUG
 else:
     LOGGING_LEVEL = logging.ERROR
+LOGGING_LEVEL = logging.DEBUG
 logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
 
 GIT_REMOTE_NAME = config.get('workbench','remote')
@@ -46,8 +47,6 @@ TEST_USER_MAIL = config.get('testing','user_mail')
 
 TEST_CID       = 'ddr-testing-{}'.format(datetime.now().strftime('%Y%m%d%H%M'))
 TEST_EIDS      = ['{}-{}'.format(TEST_CID, n) for n in [1,2]]
-
-CMD_PATH = 'collection'
 
 TEST_COLLECTION      = os.path.join(TEST_TMP_PATH,TEST_CID)
 COLLECTION_CHANGELOG = os.path.join(TEST_COLLECTION, 'changelog')
@@ -179,7 +178,7 @@ class TestCollection( unittest.TestCase ):
         if os.path.exists(TEST_COLLECTION):
             shutil.rmtree(TEST_COLLECTION, ignore_errors=True)
         #
-        cmd = '{} create {} --log {} --user {} --mail {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        cmd = 'ddr create {} --log {} --user {} --mail {} --collection {}'.format(debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         logging.debug(cmd)
         run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
@@ -215,7 +214,7 @@ class TestCollection( unittest.TestCase ):
         if DEBUG:
             debug = ' --debug'
         # check status
-        cmd = '{} status {} --log {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION)
+        cmd = 'ddr status {} --log {} --collection {}'.format(debug, LOGGING_FILE, TEST_COLLECTION)
         logging.debug(cmd)
         run = envoy.run(cmd, timeout=30)
         # tests
@@ -231,7 +230,7 @@ class TestCollection( unittest.TestCase ):
         if DEBUG:
             debug = ' --debug'
         # check status
-        cmd = '{} astatus {} --log {} --collection {}'.format(CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION)
+        cmd = 'ddr astatus {} --log {} --collection {}'.format(debug, LOGGING_FILE, TEST_COLLECTION)
         logging.debug(cmd)
         run = envoy.run(cmd, timeout=30)
         # tests
@@ -254,8 +253,8 @@ class TestCollection( unittest.TestCase ):
         destfile = COLLECTION_CONTROL
         shutil.copy(srcfile, destfile)
         # run update
-        cmd = '{} update {} --log {} --user {} --mail {} --collection {} --file {}'.format(
-            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
+        cmd = 'ddr update {} --log {} --user {} --mail {} --collection {} --file {}'.format(
+            debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, 'control')
         logging.debug(cmd)
         run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
@@ -271,8 +270,8 @@ class TestCollection( unittest.TestCase ):
         debug = ''
         if DEBUG:
             debug = ' --debug'
-        cmd = '{} sync {} --log {} --user {} --mail {} --collection {}'.format(
-            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        cmd = 'ddr sync {} --log {} --user {} --mail {} --collection {}'.format(
+            debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         logging.debug('{}'.format(cmd))
         run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
@@ -301,8 +300,8 @@ class TestCollection( unittest.TestCase ):
         
         # add the entity
         for eid in TEST_EIDS:
-            cmd = '{} ecreate {} --log {} --user {} --mail {} --collection {} --entity {}'.format(
-                CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
+            cmd = 'ddr ecreate {} --log {} --user {} --mail {} --collection {} --entity {}'.format(
+                debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid)
             logging.debug(cmd)
             run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
@@ -374,8 +373,8 @@ class TestCollection( unittest.TestCase ):
             destfile = os.path.join(entity_path,              destfilename)
             shutil.copy(srcfile, destfile)
             # run update
-            cmd = '{} eupdate {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
-                CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
+            cmd = 'ddr eupdate {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
+                debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, destfilename)
             logging.debug(cmd)
             run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
@@ -404,8 +403,8 @@ class TestCollection( unittest.TestCase ):
             destfile = os.path.join(entity_files_dir, f)
             shutil.copy(srcfile, destfile)
             # run update
-            cmd = '{} eadd {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
-                CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
+            cmd = 'ddr eadd {} --log {} --user {} --mail {} --collection {} --entity {} --file {}'.format(
+                debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION, eid, f)
             logging.debug(cmd)
             run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
@@ -440,8 +439,8 @@ class TestCollection( unittest.TestCase ):
         debug = ''
         if DEBUG:
             debug = ' --debug'
-        cmd = '{} sync {} --log {} --user {} --mail {} --collection {}'.format(
-            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
+        cmd = 'ddr sync {} --log {} --user {} --mail {} --collection {}'.format(
+            debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_COLLECTION)
         logging.debug('{}'.format(cmd))
         run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
@@ -477,8 +476,8 @@ class TestCollection( unittest.TestCase ):
             pushfile_rel = pushfile_abs.replace('{}/'.format(TEST_COLLECTION), '')
             self.assertTrue(os.path.exists(pushfile_abs))
             # run update
-            cmd = '{} push {} --log {} --collection {} --file {}'.format(
-                CMD_PATH, debug, LOGGING_FILE, TEST_COLLECTION, pushfile_rel)
+            cmd = 'ddr push {} --log {} --collection {} --file {}'.format(
+                debug, LOGGING_FILE, TEST_COLLECTION, pushfile_rel)
             logging.debug(cmd)
             run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)
@@ -499,8 +498,8 @@ class TestCollection( unittest.TestCase ):
         #if os.path.exists(ALT_COLLECTION):
         #    shutil.rmtree(ALT_COLLECTION, ignore_errors=True)
         #
-        cmd = '{} clone {} --log {} --user {} --mail {} --cid {} --dest {}'.format(
-            CMD_PATH, debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_CID, ALT_COLLECTION)
+        cmd = 'ddr clone {} --log {} --user {} --mail {} --cid {} --dest {}'.format(
+            debug, LOGGING_FILE, TEST_USER_NAME, TEST_USER_MAIL, TEST_CID, ALT_COLLECTION)
         logging.debug(cmd)
         run = envoy.run(cmd, timeout=30)
         logging.debug(run.std_out)
@@ -542,8 +541,8 @@ class TestCollection( unittest.TestCase ):
             #self.assertTrue(os.path.islink(file_rel))
             #self.assertFalse(os.path.exists(file_rel))
             # run update
-            cmd = '{} pull {} --log {} --collection {} --file {}'.format(
-                CMD_PATH, debug, LOGGING_FILE, ALT_COLLECTION, file_rel)
+            cmd = 'ddr pull {} --log {} --collection {} --file {}'.format(
+                debug, LOGGING_FILE, ALT_COLLECTION, file_rel)
             logging.debug(cmd)
             run = envoy.run(cmd, timeout=30)
             logging.debug(run.std_out)

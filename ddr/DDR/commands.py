@@ -9,11 +9,11 @@ import sys
 import envoy
 import git
 
-from Kura import CONFIG_FILE
-from Kura.models import Collection, Entity
-from Kura.changelog import write_changelog_entry
-from Kura.control import CollectionControlFile, EntityControlFile
-from Kura.xml import EAD, METS
+from DDR import CONFIG_FILE
+from DDR.models import Collection, Entity
+from DDR.changelog import write_changelog_entry
+from DDR.control import CollectionControlFile, EntityControlFile
+from DDR.xml import EAD, METS
 
 
 class NoConfigError(Exception):
@@ -84,7 +84,7 @@ def gitolite_connect_ok():
     
     @return: True or False
     """
-    logging.debug('    Kura.commands.gitolite_connect_ok()')
+    logging.debug('    DDR.commands.gitolite_connect_ok()')
     cmd = 'ssh {} info'.format(GITOLITE)
     logging.debug('        {}'.format(cmd))
     r = envoy.run(cmd, timeout=30)
@@ -153,7 +153,7 @@ def list_committed(repo, commit):
 
 
 
-description="""Create, edit, delete collections"""
+description="""Various commands for manipulating DDR collections and entities."""
 
 epilog="""
 More than you thought you wanted to know about the collection command.

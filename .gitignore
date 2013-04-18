@@ -1,3 +1,6 @@
+.coverage
 *~
 *.pyc
+build
 _build
+tmp
