@@ -232,13 +232,15 @@ def collections_local(collections_root, repository, organization):
     collections = []
     if not os.path.exists(collections_root) and os.path.isdir(collections_root):
         logging.error('    {} does not exist or is not a directory'.format(collections_root))
-    regex = '{}-{}-[0-9]+'.format(repository, organization)
+    regex = '^{}-{}-[0-9]+$'.format(repository, organization)
     logging.debug('    {}'.format(regex))
     uid = re.compile(regex)
     for x in os.listdir(collections_root):
         m = uid.search(x)
         if m:
-            collections.append(x)
+            colldir = os.path.join(collections_root,x)
+            if 'ead.xml' in os.listdir(colldir):
+                collections.append(colldir)
     collections.sort()
     return collections
 
