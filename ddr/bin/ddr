@@ -15,6 +15,7 @@ from DDR.commands import collections_local, create, clone, destroy, update, sync
 from DDR.commands import status, annex_status
 from DDR.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from DDR.commands import annex_push, annex_pull
+from DDR.commands import removables, removables_mounted, mount_point, mount, umount, storage_status
 
 
 class NoConfigError(Exception):
@@ -233,6 +234,47 @@ Example:
     parser_pull.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     parser_pull.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_pull.add_argument('-f', '--file',       required=True, help='Relative path to updated file.')
+
+    # removables
+    parser_remo = subparsers.add_parser('removables', formatter_class=formatter,)
+    parser_remo.set_defaults(func=removables)
+    parser_remo.add_argument('-l', '--log', help='Log file..')
+    parser_remo.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+
+    # mounted
+    parser_mntd = subparsers.add_parser('mounted', formatter_class=formatter,)
+    parser_mntd.set_defaults(func=removables_mounted)
+    parser_mntd.add_argument('-l', '--log', help='Log file..')
+    parser_mntd.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+
+    # mountpoint
+    parser_mtpt = subparsers.add_parser('mountpoint', formatter_class=formatter,)
+    parser_mtpt.set_defaults(func=mount_point)
+    parser_mtpt.add_argument('-l', '--log', help='Log file..')
+    parser_mtpt.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_mtpt.add_argument('-p', '--path',       required=True, help='The path you want a mount point for.')
+
+    # mount
+    parser_mont = subparsers.add_parser('mount', formatter_class=formatter,)
+    parser_mont.set_defaults(func=mount)
+    parser_mont.add_argument('-l', '--log', help='Log file..')
+    parser_mont.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_mont.add_argument('-f', '--device',     required=True, help='The device file you want to mount.')
+    parser_mont.add_argument('-m', '--label',      required=True, help='The label you want to use.')
+
+    # umount
+    parser_umnt = subparsers.add_parser('umount', formatter_class=formatter,)
+    parser_umnt.set_defaults(func=umount)
+    parser_umnt.add_argument('-l', '--log', help='Log file..')
+    parser_umnt.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_umnt.add_argument('-f', '--device',     required=True, help='The device file you want to unmount.')
+
+    # storage_status
+    parser_mtpt = subparsers.add_parser('sstatus', formatter_class=formatter,)
+    parser_mtpt.set_defaults(func=storage_status)
+    parser_mtpt.add_argument('-l', '--log', help='Log file..')
+    parser_mtpt.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_mtpt.add_argument('-p', '--path',       required=True, help='The path you want to check.')
     
     args = parser.parse_args()
     
@@ -267,6 +309,24 @@ Example:
     elif args.cmd == 'eadd':  exit,msg = entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file)
     elif args.cmd == 'push':        exit,msg = annex_push(args.collection, args.file)
     elif args.cmd == 'pull':        exit,msg = annex_pull(args.collection, args.file)
+    elif args.cmd == 'removables':
+        exit,msg = removables()
+        print(msg)
+    elif args.cmd == 'mounted':
+        exit,msg = removables_mounted()
+        print(msg)
+    elif args.cmd == 'mountpoint':
+        exit,msg = mount_point(args.path)
+        print(msg)
+    elif args.cmd == 'mount':
+        exit,msg = mount(args.device, args.label)
+        print(msg)
+    elif args.cmd == 'umount':
+        exit,msg = umount(args.device)
+        print(msg)
+    elif args.cmd == 'sstatus':
+        exit,msg = storage_status(args.path)
+        print(msg)
     
     if exit:
         print(msg)

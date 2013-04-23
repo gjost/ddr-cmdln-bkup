@@ -10,6 +10,7 @@ import envoy
 import git
 
 from DDR import CONFIG_FILE
+from DDR import storage
 from DDR.models import Collection, Entity
 from DDR.changelog import write_changelog_entry
 from DDR.control import CollectionControlFile, EntityControlFile
@@ -217,6 +218,42 @@ def commit_files(repo, message, regular_files=[], annex_files=[]):
 
 @command
 @local_only
+def removables():
+    return 0,storage.removables()
+
+@command
+@local_only
+def removables_mounted():
+    return 0,storage.removables_mounted()
+
+@command
+@local_only
+def mount( device_file, label ):
+    """Command-line function for mounting specified device on local system.
+    """
+    return 0,storage.mount(device_file, label)
+
+@command
+@local_only
+def umount( device_file ):
+    """Command-line function for UNmounting specified device on local system.
+    """
+    return 0,storage.umount(device_file)
+
+@command
+@local_only
+def mount_point( path ):
+    return 0,storage.mount_point(path)
+
+@command
+@local_only
+def storage_status( path ):
+    return 0,storage.storage_status(path)
+
+
+
+@command
+@local_only
 def collections_local(collections_root, repository, organization):
     """Command-line function for listing collections on the local system.
     
@@ -230,18 +267,19 @@ def collections_local(collections_root, repository, organization):
     @return: list of collection UIDs
     """
     collections = []
-    if not os.path.exists(collections_root) and os.path.isdir(collections_root):
+    if os.path.exists(collections_root) and os.path.isdir(collections_root):
+        regex = '^{}-{}-[0-9]+$'.format(repository, organization)
+        logging.debug('    {}'.format(regex))
+        uid = re.compile(regex)
+        for x in os.listdir(collections_root):
+            m = uid.search(x)
+            if m:
+                colldir = os.path.join(collections_root,x)
+                if 'ead.xml' in os.listdir(colldir):
+                    collections.append(colldir)
+        collections.sort()
+    else:
         logging.error('    {} does not exist or is not a directory'.format(collections_root))
-    regex = '^{}-{}-[0-9]+$'.format(repository, organization)
-    logging.debug('    {}'.format(regex))
-    uid = re.compile(regex)
-    for x in os.listdir(collections_root):
-        m = uid.search(x)
-        if m:
-            colldir = os.path.join(collections_root,x)
-            if 'ead.xml' in os.listdir(colldir):
-                collections.append(colldir)
-    collections.sort()
     return collections
 
 
