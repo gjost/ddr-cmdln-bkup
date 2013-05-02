@@ -53,19 +53,19 @@ def removables():
     """
     d = []
     r = envoy.run('udisks --dump', timeout=2)
-    sdbchunks = []
+    sdchunks = []
     chunks = r.std_out.split('========================================================================\n')
     # get sdb* devices (sdb1, sdb2, etc)
     for c in chunks:
-        if 'sdb' in c:
+        if ('sdb' in c) or ('sdc' in c) or ('sdd' in c):
             lines = c.split('\n')
             numbrs = ['0','1','2','3','4','5','6','7','8','9',]
             if lines[0][-1] in numbrs:
-                sdbchunks.append(c)
+                sdchunks.append(c)
     # grab the interesting data for each device
     # IMPORTANT: spaces are removed from these labels when they are assigned!!!
     interesting = ['devicefile', 'isreadonly', 'ismounted', 'mountpaths', 'type', 'uuid', 'label',]
-    for c in sdbchunks:
+    for c in sdchunks:
         attribs = {}
         for l in c.split('\n'):
             if ':' in l:
