@@ -85,27 +85,19 @@ def removables():
 def removables_mounted():
     """List mounted and accessible removable drives.
     
-    This is basically a wrapper around pmount, which allows mounting of
-    removable devices by non-admin users.
-    Requires the pmount package (sudo apt-get install pmount).
-    
-    $ pmount
-    Printing mounted removable devices:
-    /dev/sdb1 on /media/WD5000BMV-2 type fuseblk (rw,nosuid,nodev,relatime,user_id=0,group_id=0,default_permissions,allow_other,blksize=4096)
-    To get a short help, run pmount -h
-    
-    >> removables_mounted()
-    [{'mountpath': '/media/USBDRIVE1', 'devicefile': '/dev/sdb1'}, {'mountpath': '/media/USBDRIVE2', 'devicefile': '/dev/sdb2'}]
+    This is basically a wrapper around df:
+    $ df -h
+    ...
+    /dev/sdc1               466G   76G  391G  17% /media/WD5000BMV-2
     
     @return: List of dicts containing attribs of devices
     """
     d = []
     rdevices = removables()
-    r = envoy.run('pmount', timeout=2)
+    r = envoy.run('df -h', timeout=2)
     for l in r.std_out.split('\n'):
-        if '/dev/' in l:
-            parts = l.split(' ')
-            attrs = {'devicefile':parts[0], 'mountpath':parts[2],}
+        if (l.find('/dev/sd') > -1) and (l.find('/media') > -1):
+            attrs = {'devicefile':l.split()[0], 'mountpath':l.split()[-1],}
             if is_writable(attrs['mountpath']):
                 d.append(attrs)
     return d
