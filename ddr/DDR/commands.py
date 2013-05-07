@@ -242,6 +242,13 @@ def umount( device_file ):
 
 @command
 @local_only
+def remount( device_file, label ):
+    """Command-line function for unmounting and remounting specified device on local system.
+    """
+    return 0,storage.remount(device_file, label)
+
+@command
+@local_only
 def mount_point( path ):
     return 0,storage.mount_point(path)
 

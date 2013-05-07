@@ -39,6 +39,11 @@ def umount( device_file ):
         unmounted = 'unmounted'
     return unmounted
 
+def remount( device_file, label ):
+    unmounted = umount(device_file)
+    mount_path = mount(device_file, label)
+    return mount_path
+
 def removables():
     """List removable drives whether or not they are attached.
     
