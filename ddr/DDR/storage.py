@@ -118,12 +118,12 @@ def is_writable(path):
     """
     return os.access(path, os.W_OK)
 
-def mount_point( path ):
-    """Given an absolute path, finds the mount point.
+def mount_path( path ):
+    """Given an absolute path, finds the mount path.
     
-    >>> mount_point('/media/USBDRIVE1/tmp/ddr-testing-201303211200/files/')
+    >>> mount_path('/media/USBDRIVE1/tmp/ddr-testing-201303211200/files/')
     '/media/USBDRIVE1'
-    >>> mount_point('/home/gjost/ddr-local/ddrlocal')
+    >>> mount_path('/home/gjost/ddr-local/ddrlocal')
     '/'
     
     @param path: Absolute file path
@@ -134,7 +134,7 @@ def mount_point( path ):
         return p1
     if p1 == '':
         return os.sep
-    return mount_point(p1)
+    return mount_path(p1)
 
 def storage_type( path ):
     """Indicates whether path points to internal drive, removable storage, etc.
@@ -142,7 +142,7 @@ def storage_type( path ):
     # get mount pount for path
     # get label for mount at that path
     # 
-    m = mount_point(path)
+    m = mount_path(path)
     if m == '/':
         return 'internal'
     elif '/media' in m:
