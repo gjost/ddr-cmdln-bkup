@@ -142,9 +142,19 @@ def storage_type( path ):
     return 'unknown'
 
 def storage_status( path ):
+    """Indicates status of storage path.
+    
+    If the VM gets paused/saved
     """
-    """
-    status = 'unknown'
-    if path and os.path.exists(path) and is_writable(path):
-        status = 'ok'
-    return status
+    try: exists = os.path.exists(path)
+    except: exists = False
+    try: listable = os.listdir(path)
+    except: listable = False
+    try: writable = os.access(path, os.W_OK)
+    except: writable = False
+    # conditions
+    if exists and listable and writable:
+        return 'ok'
+    elif exists and not listable:
+        return 'unmounted'
+    return 'unknown'
