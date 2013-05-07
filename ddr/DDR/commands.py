@@ -273,20 +273,20 @@ def collections_local(collections_root, repository, organization):
     @param organization: Organization keyword.
     @return: list of collection UIDs
     """
+    if not (os.path.exists(collections_root) and os.path.isdir(collections_root)):
+        message = '{} does not exist or is not a directory'.format(collections_root)
+        raise Exception(message)
     collections = []
-    if os.path.exists(collections_root) and os.path.isdir(collections_root):
-        regex = '^{}-{}-[0-9]+$'.format(repository, organization)
-        logging.debug('    {}'.format(regex))
-        uid = re.compile(regex)
-        for x in os.listdir(collections_root):
-            m = uid.search(x)
-            if m:
-                colldir = os.path.join(collections_root,x)
-                if 'ead.xml' in os.listdir(colldir):
-                    collections.append(colldir)
-        collections.sort()
-    else:
-        logging.error('    {} does not exist or is not a directory'.format(collections_root))
+    regex = '^{}-{}-[0-9]+$'.format(repository, organization)
+    logging.debug('    {}'.format(regex))
+    uid = re.compile(regex)
+    for x in os.listdir(collections_root):
+        m = uid.search(x)
+        if m:
+            colldir = os.path.join(collections_root,x)
+            if 'ead.xml' in os.listdir(colldir):
+                collections.append(colldir)
+    collections.sort()
     return collections
 
 
