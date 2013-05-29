@@ -1,3 +1,4 @@
 # dependencies used in all environments
 
+dateutil
 lxml

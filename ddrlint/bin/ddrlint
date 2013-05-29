@@ -31,18 +31,16 @@ def main():
         test_method = failure[0]
         failures.append(test_method.shortDescription())
     if failures:
-        print('Failures:')
         for msg in failures:
-            print('- {}'.format(msg))
+            print('FAIL: {}'.format(msg))
     
     errors = []
     for error in result.errors:
         test_method = error[0]
         errors.append(test_method.shortDescription())
     if errors:
-        print('Errors:')
         for msg in errors:
-            print('- {}'.format(msg))
+            print('ERROR: {}'.format(msg))
 
 if __name__ == '__main__':
     main()
