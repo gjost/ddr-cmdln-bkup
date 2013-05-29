@@ -1,3 +1,0 @@
-c20aabe5ad7a70cf6dd6f00678b71bd98be71909 data/file1.txt
-d2985049a677bbc4b4e8dea3b89c4820e5668e3a data/file2.txt
-84360cd896a6063ce7aab9d3705590f553c42df2 data/file3.txt

@@ -1,0 +1,48 @@
+#!/usr/bin/python
+description="""
+Intellectual entity validator for Densho Digital Repository.
+"""
+epilog="""
+Text to display after argument listing.
+Does not appear to do linebreaks.
+"""
+
+
+import argparse
+import sys
+import unittest
+
+from ddrlint.ddr_collection import ddr_test_suite
+
+
+def main():
+    parser = argparse.ArgumentParser(description=description, epilog=epilog)
+    parser.add_argument('collection_path', help='Path to collection directory')
+    args = parser.parse_args()
+
+    print('Checking {}'.format(args.collection_path))
+    
+    suite = ddr_test_suite(args.collection_path)
+    result = unittest.TestResult()
+    suite.run(result)
+    
+    failures = []
+    for failure in result.failures:
+        test_method = failure[0]
+        failures.append(test_method.shortDescription())
+    if failures:
+        print('Failures:')
+        for msg in failures:
+            print('- {}'.format(msg))
+    
+    errors = []
+    for error in result.errors:
+        test_method = error[0]
+        errors.append(test_method.shortDescription())
+    if errors:
+        print('Errors:')
+        for msg in errors:
+            print('- {}'.format(msg))
+
+if __name__ == '__main__':
+    main()
