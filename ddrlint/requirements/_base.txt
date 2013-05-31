@@ -1,4 +1,5 @@
 # dependencies used in all environments
 
-dateutil
+python-dateutil
 lxml
+PyYAML
