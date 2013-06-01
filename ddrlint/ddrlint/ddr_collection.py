@@ -10,6 +10,15 @@ from lxml import etree
 import yaml
 
 
+
+TEST_SUITE_VERSION = 'ddr-collection-0.1'
+EMIT_STYLE = 'tap'
+OK = 'ok'
+FAIL = 'not ok'
+ERR = 'error'
+
+
+
 """
 TODO: Rethink XML readable/parsable/valid tests. How will these work on a collection with thousands of entities, each with multiple files?
 """
@@ -228,11 +237,6 @@ def _entity_files_verified(entity_files_info):
 # TESTS ================================================================
 
 
-TEST_SUITE_VERSION = 'ddr-collection-0.1'
-OK = 'ok'
-FAIL = 'not ok'
-ERR = 'error'
-EMIT_STYLE = 'tap'
 
 def _emit(code, msg, data=None):
     if EMIT_STYLE == 'tap':
