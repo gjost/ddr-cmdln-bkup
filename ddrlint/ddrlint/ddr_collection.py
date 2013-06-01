@@ -21,6 +21,12 @@ ERR = 'error'
 
 """
 TODO: Rethink XML readable/parsable/valid tests. How will these work on a collection with thousands of entities, each with multiple files?
+
+TODO: multiple test suites
+examples:
+- validate a single entity
+- validate just the collection metadata files
+
 """
 
 def _read_xml(path):
@@ -442,7 +448,13 @@ def test0501_entity_files_verified(entity_files_info, entity_files_count):
 
 
 
-def ddr_test_suite(collection_path):
+def collection_all_suite(collection_path):
+    """Tests everything that can be tested about a collection.
+
+    You wouldn't want to run this all the time on a collection with hundreds of
+    entities/files.
+    """
+    
     x = [
         'Test suite version: {}'.format(TEST_SUITE_VERSION),
         'path: {}'.format(collection_path),
@@ -499,8 +511,9 @@ def ddr_test_suite(collection_path):
     return x
 
 
+
 if __name__ == '__main__':
     #unittest.main()
     collection_path = './ddr_samples/testcollection'
-    tap = ddr_test_suite(collection_path)
+    tap = collection_all_suite(collection_path)
     print('\n'.join(tap))
