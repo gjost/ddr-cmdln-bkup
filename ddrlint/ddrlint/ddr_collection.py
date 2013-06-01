@@ -256,7 +256,7 @@ def _emit(code, msg, data=None):
 def test00_collection_directory_exists(path):
     if os.path.exists(path):
         return _emit(OK, 'collection directory')
-    return _emit(FAIL, 'collection directory not found', {'path':path})
+    return _emit(FAIL, 'collection directory not found', [path])
         
 
 # changelog file ---------------------------------------------------
@@ -264,53 +264,53 @@ def test00_collection_directory_exists(path):
 def test020_changelog_exists(path):
     if os.path.exists(path):
         return _emit(OK, 'collection changelog')
-    return _emit(FAIL, 'collection changelog file not found', {'path':path})
+    return _emit(FAIL, 'collection changelog file not found', [path])
 
 def test021_changelog_valid(path):
     if _changelog_valid(path):
         return _emit(OK, 'Collection changelog file is valid')
-    return _emit(FAIL, 'Collection changelog file is not valid', {'path':path})
+    return _emit(FAIL, 'Collection changelog file is not valid', [path])
  
 # control file -----------------------------------------------------
 
 def test030_control_exists(path):
     if os.path.exists(path):
         return _emit(OK, 'collection control file')
-    return _emit(FAIL, 'collection control file not found', {'path':path})
+    return _emit(FAIL, 'collection control file not found', [path])
 
 def test031_control_valid(path):
     if _control_valid(path):
         return _emit(OK, 'collection control file is valid')
-    return _emit(FAIL, 'collection control file is not valid', {'path':path})
+    return _emit(FAIL, 'collection control file is not valid', [path])
 
 # ead.xml ----------------------------------------------------------
 
 def test010_ead_exists(path):
     if os.path.exists(path):
         return _emit(OK, 'ead.xml')
-    return _emit(FAIL, 'ead.xml file not found', {'path':path})
+    return _emit(FAIL, 'ead.xml file not found', [path])
 
 def test011_ead_readable(path):
     raw = _read_xml(path)
     if raw:
         return _emit(OK, 'ead.xml is readable')
-    return _emit(FAIL, 'ead.xml is not readable', {'path':path})
+    return _emit(FAIL, 'ead.xml is not readable', [path])
 
 def test012_ead_parsable(path):
     tree = _parse_xml(path)
     if tree:
         return _emit(OK, 'ead.xml is parsable')
-    return _emit(FAIL, 'Collection ead.xml is not parsable', {'path':path})
+    return _emit(FAIL, 'Collection ead.xml is not parsable', [path])
 
 def test013_ead_valid(path):
-    return _emit(FAIL, 'Collection ead.xml is not valid', {'path':path})
+    return _emit(FAIL, 'Collection ead.xml is not valid', [path])
 
 # entities =========================================================
 
 def test040_entities_dir_exists(path):
     if os.path.exists(path) and os.path.isdir(path):
         return _emit(OK, 'collection entities dir')
-    return _emit(FAIL, 'collection entities dir not found', {'path':path})
+    return _emit(FAIL, 'collection entities dir not found', [path])
 
 def test041_entity_dirs_exist(entity_eids, entity_paths):
     passed = []
