@@ -219,18 +219,12 @@ def _checksum_for_file(path, algo, block_size=1024):
     f.close()
     return h.hexdigest()
 
-def _entity_files_verified(entity_files_info):
-    """Takes output of entity_files_info and lists files that exist.
-    NOTE: result is a flat list of absolute file paths.
-    """
-    verified = []
-    for e in entity_files_info:
-        for f in e:
-            if os.path.exists(f['abs']):
-                c = _checksum_for_file(f['abs'], f['checksumtype'])
-                if c and (c == f['checksum']):
-                    verified.append(f)
-    return verified
+def _verify_entity_file(path, checksum, checksumtype):
+    if os.path.exists(path):
+        c = _checksum_for_file(path, checksumtype)
+        if c and (c == checksum):
+            return True
+    return False
 
 
 
@@ -415,6 +409,38 @@ def test0443_entity_mets_valid(entity_metsxml_valid, entity_metsxml_paths):
     else:
         return _emit(FAIL, 'entity mets.xml files not valid', failed)
 
+# entity files ---------------------------------------------------------
+
+def test0500_entity_files_exist(entity_files_info, entity_files_count):
+    passed = []
+    failed = []
+    for entity in entity_files_info:
+        for f in entity:
+            path = f['abs']
+            if os.path.exists(path):
+                passed.append(path)
+            else:
+                failed.append(path)
+    if len(passed) == entity_files_count:
+        return _emit(OK, 'entity payload files all found')
+    else:
+        return _emit(FAIL, 'entity payload files not found', failed)
+
+def test0501_entity_files_verified(entity_files_info, entity_files_count):
+    passed = []
+    failed = []
+    for entity in entity_files_info:
+        for f in entity:
+            if _verify_entity_file(f['abs'], f['checksum'], f['checksumtype']):
+                passed.append(f['abs'])
+            else:
+                failed.append(f['abs'])
+    if len(passed) == entity_files_count:
+        return _emit(OK, 'entity payload files all verified')
+    else:
+        return _emit(FAIL, 'entity payload files not verified', failed)
+
+
 
 def ddr_test_suite(collection_path):
     x = [
@@ -467,8 +493,8 @@ def ddr_test_suite(collection_path):
     # List the files for each entity
     entity_files_info       = _entity_files_info(entity_metsxml_readable)
     entity_files_count      = _entity_files_count(entity_files_info)
-    entity_files_existing   = _entity_files_existing(entity_files_info)
-    entity_files_verified   = _entity_files_verified(entity_files_info)
+    x.append( test0500_entity_files_exist(entity_files_info, entity_files_count) )
+    x.append( test0501_entity_files_verified(entity_files_info, entity_files_count) )
     
     return x
 
