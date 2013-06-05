@@ -3,10 +3,13 @@ import hashlib
 import json
 import os
 import re
+import sys
 import StringIO
 
 from dateutil.parser import parse
 from lxml import etree
+from lxml.etree import XMLSyntaxError
+
 import yaml
 
 
@@ -40,11 +43,17 @@ def _read_xml(path):
 
 def _parse_xml(path):
     """Indicate whether file can be parsed as XML.
-    @return tree: lxml tree object
+    @return status,tree:
+    status: String ('unknown', syn
+    tree: lxml tree object
     """
     raw = _read_xml(path)
-    if raw:
-        return etree.parse(StringIO.StringIO(raw))
+    xml = StringIO.StringIO(raw)
+    try:
+        tree = etree.parse(xml)
+        return tree
+    except XMLSyntaxError:
+        raise
     return None
 
 def _validate_xml(path):
@@ -56,7 +65,10 @@ def _validate_xml(path):
 def _entity_eids(ead_path):
     """List of entity EIDs from the EAD.xml.
     """
-    tree = _parse_xml(ead_path)
+    try:
+        tree = _parse_xml(ead_path)
+    except XMLSyntaxError:
+        raise
     if tree:
         return tree.xpath('/ead/dsc/c01/did/unittitle/@eid')
     return []
@@ -85,10 +97,14 @@ def _entity_xml_filter(entity_paths, filename, function):
     """File paths of entity XML files that pass the filter function.
     """
     passed = []
+    exceptions = []
     for path in entity_paths:
         x = os.path.join(path, filename)
-        if function(x):
-            passed.append(x)
+        try:
+            if function(x):
+                passed.append(x)
+        except XMLSyntaxError:
+            exceptions.append(x)
     return passed
 
 def _changelog_valid(path):
@@ -163,29 +179,33 @@ def _entity_files_info(entity_mets_xmls):
         files = []
         d = os.path.dirname(path)
         eid = d.split(os.path.sep)[-1]
-        tree = _parse_xml(path)
-        for f in tree.xpath('/mets/fileSec/fileGrp/file'):
-            checksum = None
-            checksumtype = None
-            href = None
-            path_abs = None
-            
-            checksum = f.get('checksum')
-            checksumtype = f.get('checksumtype')
-            if not checksum:
-                checksum = f.get('CHECKSUM')
-            if not checksumtype:
-                checksumtype = f.get('CHECKSUMTYPE')
-            
-            # TODO Can there be more than one <Flocat> in a <file>?
-            for href in f.xpath('Flocat/@href'):
-                path_abs = os.path.join(d, href)
-            if href and path_abs and checksum and checksumtype:
-                files.append({'eid': eid,
-                              'href': href,
-                              'abs': path_abs,
-                              'checksum': checksum,
-                              'checksumtype': checksumtype,})
+        try:
+            tree = _parse_xml(path)
+        except:
+            tree = None
+        if tree:
+            for f in tree.xpath('/mets/fileSec/fileGrp/file'):
+                checksum = None
+                checksumtype = None
+                href = None
+                path_abs = None
+                
+                checksum = f.get('checksum')
+                checksumtype = f.get('checksumtype')
+                if not checksum:
+                    checksum = f.get('CHECKSUM')
+                if not checksumtype:
+                    checksumtype = f.get('CHECKSUMTYPE')
+                
+                # TODO Can there be more than one <Flocat> in a <file>?
+                for href in f.xpath('Flocat/@href'):
+                    path_abs = os.path.join(d, href)
+                if href and path_abs and checksum and checksumtype:
+                    files.append({'eid': eid,
+                                  'href': href,
+                                  'abs': path_abs,
+                                  'checksum': checksum,
+                                  'checksumtype': checksumtype,})
         entities.append(files)
     return entities
 
