@@ -17,6 +17,7 @@ import yaml
 TEST_SUITE_VERSION = 'ddr-collection-0.1'
 EMIT_STYLE = 'tap'
 OK = 'ok'
+WARNING = 'warning'
 FAIL = 'not ok'
 ERR = 'error'
 
@@ -440,6 +441,8 @@ def test0443_entity_mets_valid(entity_metsxml_valid, entity_metsxml_paths):
 def test0500_entity_files_exist(entity_files_info, entity_files_count):
     passed = []
     failed = []
+    if not entity_files_count:
+        return _emit(WARNING, 'no entity payload files to find')
     for entity in entity_files_info:
         for f in entity:
             path = f['abs']
@@ -455,6 +458,8 @@ def test0500_entity_files_exist(entity_files_info, entity_files_count):
 def test0501_entity_files_verified(entity_files_info, entity_files_count):
     passed = []
     failed = []
+    if not entity_files_count:
+        return _emit(WARNING, 'no entity payload files to verify')
     for entity in entity_files_info:
         for f in entity:
             if _verify_entity_file(f['abs'], f['checksum'], f['checksumtype']):
