@@ -481,7 +481,8 @@ def collection_all_suite(collection_path):
     """
     
     x = [
-        'Test suite version: {}'.format(TEST_SUITE_VERSION),
+        'ddr_collection version: {}'.format(TEST_SUITE_VERSION),
+        'Suite: collection_all_suite',
         'path: {}'.format(collection_path),
         '---',
         ]
