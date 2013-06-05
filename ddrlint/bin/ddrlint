@@ -12,7 +12,7 @@ import argparse
 import sys
 import unittest
 
-from ddrlint.ddr_collection import ddr_test_suite
+from ddrlint.ddr_collection import collection_all_suite
 
 
 def main():
@@ -20,27 +20,9 @@ def main():
     parser.add_argument('collection_path', help='Path to collection directory')
     args = parser.parse_args()
 
-    print('Checking {}'.format(args.collection_path))
-    
-    suite = ddr_test_suite(args.collection_path)
-    result = unittest.TestResult()
-    suite.run(result)
-    
-    failures = []
-    for failure in result.failures:
-        test_method = failure[0]
-        failures.append(test_method.shortDescription())
-    if failures:
-        for msg in failures:
-            print('FAIL: {}'.format(msg))
-    
-    errors = []
-    for error in result.errors:
-        test_method = error[0]
-        errors.append(test_method.shortDescription())
-    if errors:
-        for msg in errors:
-            print('ERROR: {}'.format(msg))
+    results = collection_all_suite(args.collection_path)
+    for line in results:
+        print(line)
 
 if __name__ == '__main__':
     main()
