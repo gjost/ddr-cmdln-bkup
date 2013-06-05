@@ -276,7 +276,7 @@ def _emit(code, msg, data=None):
 
 def test00_collection_directory_exists(path):
     if os.path.exists(path):
-        return _emit(OK, 'collection directory')
+        return _emit(OK, 'collection directory found')
     return _emit(FAIL, 'collection directory not found', [path])
         
 
@@ -284,7 +284,7 @@ def test00_collection_directory_exists(path):
 
 def test020_changelog_exists(path):
     if os.path.exists(path):
-        return _emit(OK, 'collection changelog')
+        return _emit(OK, 'collection changelog found')
     return _emit(FAIL, 'collection changelog file not found', [path])
 
 def test021_changelog_valid(path):
@@ -296,7 +296,7 @@ def test021_changelog_valid(path):
 
 def test030_control_exists(path):
     if os.path.exists(path):
-        return _emit(OK, 'collection control file')
+        return _emit(OK, 'collection control file found')
     return _emit(FAIL, 'collection control file not found', [path])
 
 def test031_control_valid(path):
@@ -308,7 +308,7 @@ def test031_control_valid(path):
 
 def test010_ead_exists(path):
     if os.path.exists(path):
-        return _emit(OK, 'ead.xml')
+        return _emit(OK, 'ead.xml found')
     return _emit(FAIL, 'ead.xml file not found', [path])
 
 def test011_ead_readable(path):
@@ -330,7 +330,7 @@ def test013_ead_valid(path):
 
 def test040_entities_dir_exists(path):
     if os.path.exists(path) and os.path.isdir(path):
-        return _emit(OK, 'collection entities dir')
+        return _emit(OK, 'collection entities dir found')
     return _emit(FAIL, 'collection entities dir not found', [path])
 
 def test041_entity_dirs_exist(entity_eids, entity_paths):
@@ -342,7 +342,7 @@ def test041_entity_dirs_exist(entity_eids, entity_paths):
         else:
             failed.append(path)
     if len(passed) == len(entity_eids):
-        return _emit(OK, 'entity dirs')
+        return _emit(OK, 'entity dirs found')
     else:
         return _emit(FAIL, 'entity dirs missing', failed)
 
@@ -357,7 +357,7 @@ def test0420_entity_changelogs_exist(entity_changelog_paths, entity_paths):
         else:
             failed.append(path)
     if len(passed) == len(entity_paths):
-        return _emit(OK, 'entity changelogs')
+        return _emit(OK, 'entity changelogs found')
     else:
         return _emit(FAIL, 'entity changelogs missing', failed)
 
@@ -375,7 +375,7 @@ def test0430_entity_controls_exist(entity_control_paths, entity_paths):
         else:
             failed.append(path)
     if len(passed) == len(entity_paths):
-        return _emit(OK, 'entity control files')
+        return _emit(OK, 'entity control files found')
     else:
         return _emit(FAIL, 'entity control files missing', failed)
 
@@ -393,7 +393,7 @@ def test0440_entity_metsxml_exist(entity_metsxml_paths, entity_paths):
         else:
             failed.append(path)
     if len(passed) == len(entity_paths):
-        return _emit(OK, 'entity mets.xml files')
+        return _emit(OK, 'entity mets.xml files found')
     else:
         return _emit(FAIL, 'entity mets.xml files missing', failed)
 
