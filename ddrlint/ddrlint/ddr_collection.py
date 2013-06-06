@@ -57,11 +57,30 @@ def _parse_xml(path):
         raise
     return None
 
-def _validate_xml(path):
-    """Indicate whether XML file is valid.
-    @return boolean
+def _load_xsd_schemas(paths):
+    xsds = []
+    for path in paths:
+        schema = etree.XMLSchema(etree.parse(path))
+        xsds.append({'path':path, 'schema':schema})
+    return xsds
+
+def _validate_xml(path, xsds=[]):
+    """Indicate whether XML file validates against a list of XSDs.
+    
+    @param path: String absolute path to XML file
+    @param xsds: list of etree.XMLSchema objects.
+    @return invalid_xsds: list of XSDs that did NOT validate
     """
-    return False
+    try:
+        tree = etree.parse(path)
+    except XMLSyntaxError:
+        raise
+    invalid_xsds = []
+    for xsd in xsds:
+        valid = xsd['schema'].validate(tree)
+        if not valid:
+            invalid_xsds.append(os.path.basename(xsd['path']))
+    return invalid_xsds
 
 def _entity_eids(ead_path):
     """List of entity EIDs from the EAD.xml.
@@ -94,7 +113,7 @@ def _entity_meta_files(entity_paths, filename):
             existing.append(x)
     return existing
 
-def _entity_xml_filter(entity_paths, filename, function):
+def _entity_xml_filter(function, entity_paths, filename):
     """File paths of entity XML files that pass the filter function.
     """
     passed = []
@@ -107,6 +126,28 @@ def _entity_xml_filter(entity_paths, filename, function):
         except XMLSyntaxError:
             exceptions.append(x)
     return passed
+
+def _entity_xml_validate(entity_paths, filename, xsds):
+    passed = []
+    failed = []
+    for path in entity_paths:
+        path = os.path.join(path, filename)
+        invalid_xsds = _validate_xml(path, xsds)
+        if invalid_xsds:
+            failed.append( (path,invalid_xsds) )
+        else:
+            passed.append(path)
+    return passed,failed
+
+def _collection_xml_validate(ead_path, xsds):
+    passed = []
+    failed = []
+    invalid_xsds = _validate_xml(ead_path, xsds)
+    if invalid_xsds:
+        failed.append( (ead_path,invalid_xsds) )
+    else:
+        passed.append(path)
+    return passed,failed
 
 def _changelog_valid(path):
     """Indicates whether changelog file is valid.
@@ -323,8 +364,16 @@ def test012_ead_parsable(path):
         return _emit(OK, 'ead.xml is parsable')
     return _emit(FAIL, 'Collection ead.xml is not parsable', [path])
 
-def test013_ead_valid(path):
-    return _emit(FAIL, 'Collection ead.xml is not valid', [path])
+def test013_ead_valid(passed, failed):
+    if passed and not failed:
+        return _emit(OK, 'Collection ead.xml is valid')
+    lines = []
+    for path_xsds in failed:
+        path = path_xsds[0]
+        xsds = [os.path.basename(os.path.splitext(basename)[0]) for basename in path_xsds[1]]
+        line = '{} : {}'.format(path, ','.join(xsds))
+        lines.append(line)
+    return _emit(FAIL, 'Collection ead.xml not valid', lines)
 
 # entities =========================================================
 
@@ -423,18 +472,16 @@ def test0442_entity_mets_parsable(entity_metsxml_parsable, entity_metsxml_paths)
     else:
         return _emit(FAIL, 'entity mets.xml files not parsable', failed)
 
-def test0443_entity_mets_valid(entity_metsxml_valid, entity_metsxml_paths):
-    passed = []
-    failed = []
-    for path in entity_metsxml_paths:
-        if path in entity_metsxml_valid:
-            passed.append(path)
-        else:
-            failed.append(path)
-    if len(passed) == len(entity_metsxml_paths):
+def test0443_entity_mets_valid(passed, failed):
+    if passed and not failed:
         return _emit(OK, 'entity mets.xml files valid')
-    else:
-        return _emit(FAIL, 'entity mets.xml files not valid', failed)
+    lines = []
+    for path_xsds in failed:
+        path = path_xsds[0]
+        xsds = [os.path.basename(os.path.splitext(basename)[0]) for basename in path_xsds[1]]
+        line = '{} : {}'.format(path, ','.join(xsds))
+        lines.append(line)
+    return _emit(FAIL, 'entity mets.xml files not valid', lines)
 
 # entity files ---------------------------------------------------------
 
@@ -500,7 +547,9 @@ def collection_all_suite(collection_path):
     x.append( test031_control_valid(control_path) )
     x.append( test010_ead_exists(ead_path)   )
     x.append( test011_ead_readable(ead_path) )
-    x.append( test013_ead_valid(ead_path) )
+    ead_xsds = _load_xsd_schemas(['/tmp/ead.xsd',])
+    ead_passed,ead_failed = _collection_xml_validate(ead_path, ead_xsds)
+    x.append( test013_ead_valid(ead_passed,ead_failed) )
     x.append( test040_entities_dir_exists(collection_path) )
     
     # Read ead.xml and get list of entities
@@ -521,12 +570,17 @@ def collection_all_suite(collection_path):
     x.append( test0431_entity_controls_valid(entity_control_paths) )
     
     # List paths of entity mets.xml files that pass various tests
-    entity_metsxml_readable = _entity_xml_filter(entity_paths, 'mets.xml', _read_xml)
-    entity_metsxml_parsable = _entity_xml_filter(entity_paths, 'mets.xml', _parse_xml)
-    entity_metsxml_valid    = _entity_xml_filter(entity_paths, 'mets.xml', _validate_xml)
+    entity_metsxml_readable = _entity_xml_filter(_read_xml,     entity_paths, 'mets.xml')
+    entity_metsxml_parsable = _entity_xml_filter(_parse_xml,    entity_paths, 'mets.xml')
     x.append( test0441_entity_mets_readable(entity_metsxml_readable, entity_metsxml_paths) )
     x.append( test0442_entity_mets_parsable(entity_metsxml_parsable, entity_metsxml_paths) )
-    x.append( test0443_entity_mets_valid(entity_metsxml_valid, entity_metsxml_paths) )
+    
+    mets_xsds = _load_xsd_schemas(['/tmp/mets.xsd',
+                                   '/tmp/metsrights.xsd',
+                                   '/tmp/mods-3-2.xsd',
+                                   '/tmp/mix10.xsd',])
+    entity_metsxml_passed,entity_metsxml_failed = _entity_xml_validate(entity_paths, 'mets.xml', mets_xsds)
+    x.append( test0443_entity_mets_valid(entity_metsxml_passed, entity_metsxml_failed) )
     
     # List the files for each entity
     entity_files_info       = _entity_files_info(entity_metsxml_readable)
