@@ -21,6 +21,13 @@ WARNING = 'warning'
 FAIL = 'not ok'
 ERR = 'error'
 
+EAD_XSDS = ['/tmp/ead.xsd',]
+
+METS_XSDS = ['/tmp/mets.xsd',
+             '/tmp/metsrights.xsd',
+             '/tmp/mods-3-2.xsd',
+             '/tmp/mix10.xsd',]
+
 
 
 """
@@ -520,6 +527,8 @@ def collection_all_suite(collection_path):
     You wouldn't want to run this all the time on a collection with hundreds of
     entities/files.
     """
+    ead_xsds = _load_xsd_schemas(EAD_XSDS)
+    mets_xsds = _load_xsd_schemas(METS_XSDS)
     
     x = [
         'ddr_collection version: {}'.format(TEST_SUITE_VERSION),
@@ -541,7 +550,6 @@ def collection_all_suite(collection_path):
     x.append( test031_control_valid(control_path) )
     x.append( test010_ead_exists(ead_path)   )
     x.append( test011_ead_readable(ead_path) )
-    ead_xsds = _load_xsd_schemas(['/tmp/ead.xsd',])
     ead_passed,ead_failed = _collection_xml_validate(ead_path, ead_xsds)
     x.append( test013_ead_valid(ead_passed,ead_failed) )
     x.append( test040_entities_dir_exists(collection_path) )
@@ -568,11 +576,6 @@ def collection_all_suite(collection_path):
     entity_metsxml_parsable = _entity_xml_filter(_parse_xml,    entity_paths, 'mets.xml')
     x.append( test0441_entity_mets_readable(entity_metsxml_readable, entity_metsxml_paths) )
     x.append( test0442_entity_mets_parsable(entity_metsxml_parsable, entity_metsxml_paths) )
-    
-    mets_xsds = _load_xsd_schemas(['/tmp/mets.xsd',
-                                   '/tmp/metsrights.xsd',
-                                   '/tmp/mods-3-2.xsd',
-                                   '/tmp/mix10.xsd',])
     entity_metsxml_passed,entity_metsxml_failed = _entity_xml_validate(entity_paths, 'mets.xml', mets_xsds)
     x.append( test0443_entity_mets_valid(entity_metsxml_passed, entity_metsxml_failed) )
     
