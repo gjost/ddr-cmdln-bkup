@@ -1,6 +1,6 @@
 #!/usr/bin/python
 description="""
-Intellectual entity validator for Densho Digital Repository.
+Validator for Densho Digital Repository.
 """
 epilog="""
 Text to display after argument listing.
@@ -9,18 +9,104 @@ Does not appear to do linebreaks.
 
 
 import argparse
+import ConfigParser
+import logging
+import os
 import sys
 import unittest
 
-from ddrlint.ddr_collection import collection_all_suite
+from DDR import CONFIG_FILE
+from ddrlint.ddr_collection import collection_ead_suite, collection_all_suite
+from ddrlint.ddr_collection import entity_mets_suite
+
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+
+DEBUG = config.get('local','debug')
+
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+LOGGING_FILE = config.get('local','log_file')
+if config.get('local','log_level') == 'debug':
+    LOGGING_LEVEL = logging.DEBUG
+else:
+    LOGGING_LEVEL = logging.ERROR
+#logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
+logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
+
 
 
 def main():
-    parser = argparse.ArgumentParser(description=description, epilog=epilog)
-    parser.add_argument('collection_path', help='Path to collection directory')
-    args = parser.parse_args()
+    formatter = argparse.RawDescriptionHelpFormatter
+    parser = argparse.ArgumentParser(description=description,
+                                     epilog=epilog,
+                                     formatter_class=formatter,)
+    
+    subparsers = parser.add_subparsers(
+        dest='cmd',
+        title='Subcommands',
+        description="""Additional help is available for each of the following subcommands.
+Example:
+    $ ddrlint all -c /path/to/collection/ddr-densho-123""",
+        help='additional help')
 
-    results = collection_all_suite(args.collection_path)
+    # all
+    parser_all = subparsers.add_parser('all',
+                                       description='Check all aspects of a collection.',
+                                       epilog='More detail about "all" option here.',
+                                       formatter_class=formatter,)
+    parser_all.set_defaults(func=collection_all_suite)
+    parser_all.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_all.add_argument('-l', '--log', help='Log file..')
+    parser_all.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
+    
+    # ead
+    parser_ead = subparsers.add_parser('ead',
+                                       description='Validate collection ead.xml.',
+                                       epilog='More detail about ead option here.',
+                                       formatter_class=formatter,)
+    parser_ead.set_defaults(func=collection_ead_suite)
+    parser_ead.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_ead.add_argument('-l', '--log', help='Log file..')
+    parser_ead.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
+    
+    # mets
+    parser_mets = subparsers.add_parser('mets',
+                                        description='Validate only the specified entity mets.xml.',
+                                        epilog='More detail about mets option here.',
+                                        formatter_class=formatter,)
+    parser_mets.set_defaults(func=entity_mets_suite)
+    parser_mets.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_mets.add_argument('-l', '--log', help='Log file.')
+    parser_mets.add_argument('-e', '--entity', required=True, help='Absolute file path to the entity')
+
+    args = parser.parse_args()
+    
+    if args.debug:
+        print(args)
+    
+    if args.log and (os.path.exists(args.log) or os.path.exists(os.path.basename(args.log))):
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=args.log)
+    
+    results = []
+    # call selected function
+    #exit,msg = args.func(args)
+    if   args.cmd == 'ead':
+        results = collection_ead_suite(args.collection)
+    elif args.cmd == 'mets':
+        results = entity_mets_suite(args.entity)
+    elif args.cmd == 'all':
+        results = collection_all_suite(args.collection)
+
     for line in results:
         print(line)
 
