@@ -79,7 +79,7 @@ def _validate_xml(path, xsds=[]):
     for xsd in xsds:
         valid = xsd['schema'].validate(tree)
         if not valid:
-            invalid_xsds.append(os.path.basename(xsd['path']))
+            invalid_xsds.append(xsd['path'])
     return invalid_xsds
 
 def _entity_eids(ead_path):
@@ -367,13 +367,10 @@ def test012_ead_parsable(path):
 def test013_ead_valid(passed, failed):
     if passed and not failed:
         return _emit(OK, 'Collection ead.xml is valid')
-    lines = []
-    for path_xsds in failed:
-        path = path_xsds[0]
-        xsds = [os.path.basename(os.path.splitext(basename)[0]) for basename in path_xsds[1]]
-        line = '{} : {}'.format(path, ','.join(xsds))
-        lines.append(line)
-    return _emit(FAIL, 'Collection ead.xml not valid', lines)
+    failures = {}
+    for path,xsds in failed:
+        failures[path] = xsds
+    return _emit(FAIL, 'Collection ead.xml not valid', failures)
 
 # entities =========================================================
 
@@ -475,13 +472,10 @@ def test0442_entity_mets_parsable(entity_metsxml_parsable, entity_metsxml_paths)
 def test0443_entity_mets_valid(passed, failed):
     if passed and not failed:
         return _emit(OK, 'entity mets.xml files valid')
-    lines = []
-    for path_xsds in failed:
-        path = path_xsds[0]
-        xsds = [os.path.basename(os.path.splitext(basename)[0]) for basename in path_xsds[1]]
-        line = '{} : {}'.format(path, ','.join(xsds))
-        lines.append(line)
-    return _emit(FAIL, 'entity mets.xml files not valid', lines)
+    failures = {}
+    for path,xsds in failed:
+        failures[path] = xsds
+    return _emit(FAIL, 'entity mets.xml files not valid', failures)
 
 # entity files ---------------------------------------------------------
 
