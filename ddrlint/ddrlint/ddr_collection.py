@@ -563,6 +563,47 @@ def entity_mets_suite(entity_path):
 
 
 
+def entity_all_suite(entity_path):
+    """Tests everything that can be tested about an entity.
+
+    You wouldn't want to run this all the time on a collection with hundreds of
+    entities/files.
+    """
+    x = [
+        'ddr_collection version: {}'.format(TEST_SUITE_VERSION),
+        'Suite: entity_all_suite',
+        'path: {}'.format(entity_path),
+        '---',
+        ]
+    entity_eids = [os.path.dirname(entity_path)]
+    entity_paths = [entity_path]
+    x.append( test041_entity_dirs_exist(entity_eids, entity_paths) )
+
+    # List paths of entity files found in ead.xml.
+    # Each entity should have one of these files, so list lengths should match
+    # length of entity_paths.
+    entity_changelog_paths  = _entity_meta_files(entity_paths, 'changelog')
+    entity_control_paths    = _entity_meta_files(entity_paths, 'control')
+    x.append( test0420_entity_changelogs_exist(entity_changelog_paths, entity_paths) )
+    x.append( test0430_entity_controls_exist(entity_control_paths, entity_paths) )
+    x.append( test0421_entity_changelogs_valid(entity_changelog_paths) )
+    x.append( test0431_entity_controls_valid(entity_control_paths) )
+
+    mets_results = entity_mets_suite(entity_path)[3:]
+    [x.append(r) for r in mets_results]
+    
+    entity_metsxml_readable = _entity_xml_filter(_read_xml,     entity_paths, 'mets.xml')
+    
+    # List the files for each entity
+    entity_files_info       = _entity_files_info(entity_metsxml_readable)
+    entity_files_count      = _entity_files_count(entity_files_info)
+    x.append( test0500_entity_files_exist(entity_files_info, entity_files_count) )
+    x.append( test0501_entity_files_verified(entity_files_info, entity_files_count) )
+    
+    return x
+
+
+
 def collection_all_suite(collection_path):
     """Tests everything that can be tested about a collection.
 

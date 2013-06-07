@@ -17,7 +17,7 @@ import unittest
 
 from DDR import CONFIG_FILE
 from ddrlint.ddr_collection import collection_ead_suite, collection_all_suite
-from ddrlint.ddr_collection import entity_mets_suite
+from ddrlint.ddr_collection import entity_mets_suite, entity_all_suite
 
 
 class NoConfigError(Exception):
@@ -59,15 +59,15 @@ Example:
     $ ddrlint all -c /path/to/collection/ddr-densho-123""",
         help='additional help')
 
-    # all
-    parser_all = subparsers.add_parser('all',
-                                       description='Check all aspects of a collection.',
-                                       epilog='More detail about "all" option here.',
-                                       formatter_class=formatter,)
-    parser_all.set_defaults(func=collection_all_suite)
-    parser_all.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
-    parser_all.add_argument('-l', '--log', help='Log file..')
-    parser_all.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
+    # collection
+    parser_coll = subparsers.add_parser('collection',
+                                        description='Check all aspects of a collection.',
+                                        epilog='More detail about "all" option here.',
+                                        formatter_class=formatter,)
+    parser_coll.set_defaults(func=collection_all_suite)
+    parser_coll.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_coll.add_argument('-l', '--log', help='Log file..')
+    parser_coll.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     
     # ead
     parser_ead = subparsers.add_parser('ead',
@@ -78,6 +78,16 @@ Example:
     parser_ead.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     parser_ead.add_argument('-l', '--log', help='Log file..')
     parser_ead.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
+    
+    # entity
+    parser_entity = subparsers.add_parser('entity',
+                                          description='Validate only the specified entity.',
+                                          epilog='More detail about entity option here.',
+                                          formatter_class=formatter,)
+    parser_entity.set_defaults(func=entity_all_suite)
+    parser_entity.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_entity.add_argument('-l', '--log', help='Log file.')
+    parser_entity.add_argument('-e', '--entity', required=True, help='Absolute file path to the entity')
     
     # mets
     parser_mets = subparsers.add_parser('mets',
@@ -100,12 +110,10 @@ Example:
     results = []
     # call selected function
     #exit,msg = args.func(args)
-    if   args.cmd == 'ead':
-        results = collection_ead_suite(args.collection)
-    elif args.cmd == 'mets':
-        results = entity_mets_suite(args.entity)
-    elif args.cmd == 'all':
-        results = collection_all_suite(args.collection)
+    if   args.cmd == 'mets':       results = entity_mets_suite(args.entity)
+    elif args.cmd == 'entity':     results = entity_all_suite(args.entity)
+    elif args.cmd == 'ead':        results = collection_ead_suite(args.collection)
+    elif args.cmd == 'collection': results = collection_all_suite(args.collection)
 
     for line in results:
         print(line)
