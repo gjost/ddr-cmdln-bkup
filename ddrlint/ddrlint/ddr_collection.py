@@ -521,6 +521,48 @@ def test0501_entity_files_verified(entity_files_info, entity_files_count):
 
 
 
+# test suites ==========================================================
+
+
+
+def collection_ead_suite(collection_path):
+    ead_xsds = _load_xsd_schemas(EAD_XSDS)
+    x = [
+        'ddr_collection version: {}'.format(TEST_SUITE_VERSION),
+        'Suite: collection_ead_suite',
+        'path: {}'.format(collection_path),
+        '---',
+        ]
+    ead_path       = os.path.join(collection_path, 'ead.xml')
+    x.append( test010_ead_exists(ead_path)   )
+    x.append( test011_ead_readable(ead_path) )
+    ead_passed,ead_failed = _collection_xml_validate(ead_path, ead_xsds)
+    x.append( test013_ead_valid(ead_passed,ead_failed) )
+    return x
+
+
+
+def entity_mets_suite(entity_path):
+    mets_xsds = _load_xsd_schemas(METS_XSDS)
+    x = [
+        'ddr_collection version: {}'.format(TEST_SUITE_VERSION),
+        'Suite: entity_mets_suite',
+        'path: {}'.format(entity_path),
+        '---',
+        ]
+    entity_paths = [entity_path]
+    entity_metsxml_paths    = _entity_meta_files(entity_paths, 'mets.xml')
+    x.append( test0440_entity_metsxml_exist(entity_metsxml_paths, entity_paths) )
+    entity_metsxml_readable = _entity_xml_filter(_read_xml,     entity_paths, 'mets.xml')
+    entity_metsxml_parsable = _entity_xml_filter(_parse_xml,    entity_paths, 'mets.xml')
+    x.append( test0441_entity_mets_readable(entity_metsxml_readable, entity_metsxml_paths) )
+    x.append( test0442_entity_mets_parsable(entity_metsxml_parsable, entity_metsxml_paths) )
+    entity_metsxml_passed,entity_metsxml_failed = _entity_xml_validate(entity_paths, 'mets.xml', mets_xsds)
+    x.append( test0443_entity_mets_valid(entity_metsxml_passed, entity_metsxml_failed) )
+    return x
+
+
+
 def collection_all_suite(collection_path):
     """Tests everything that can be tested about a collection.
 
