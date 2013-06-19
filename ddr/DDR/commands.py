@@ -15,6 +15,7 @@ from DDR.models import Collection, Entity
 from DDR.changelog import write_changelog_entry
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR.xml import EAD, METS
+from DDR.meta import EntityJSON
 
 
 class NoConfigError(Exception):
@@ -596,6 +597,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
         repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
     
     # create collection files/ dir if not already present
+    # entity.json
     # mets.xml
     # control
     # changelog
@@ -619,6 +621,14 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
         git_files.append(control_path_rel)
     else:
         logging.error('    COULD NOT CREATE control')
+    # entity_json
+    json_path_rel = os.path.join(entity_path_rel, 'entity.json')
+    json_path_abs = os.path.join(collection_path, json_path_rel)
+    EntityJSON.create(json_path_abs)
+    if os.path.exists(json_path_abs):
+        git_files.append(json_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE entity.json')
     # entity mets.xml
     mets_path_rel = os.path.join(entity_path_rel, 'mets.xml')
     mets_path_abs = os.path.join(collection_path, mets_path_rel)
@@ -686,7 +696,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
     @param entity_uid: A valid DDR entity UID
-    @param updated_files: List of paths to updated file(s), relative to entity/files.
+    @param updated_files: List of paths to updated file(s), relative to entitys.
     @return: message ('ok' if successful)
     """
     repo = git.Repo(collection_path)
@@ -793,6 +803,13 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     c.update_checksums(e)
     c.write()
     git_files.append(entity_control_path_rel)
+    # update entity json
+    entity_json_path_rel = os.path.join(entity_path_rel,'entity.json')
+    entity_json_path_abs = os.path.join(entity_path_abs,'entity.json')
+    ej = EntityJSON(e)
+    ej.update_checksums(e)
+    ej.write()
+    git_files.append(entity_json_path_rel)
     # update entity mets
     entity_mets_path_rel = os.path.join(entity_path_rel,'mets.xml')
     entity_mets_path_abs = os.path.join(entity_path_abs,'mets.xml')
