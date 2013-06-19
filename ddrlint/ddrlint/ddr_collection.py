@@ -1,3 +1,4 @@
+import ConfigParser
 from datetime import datetime
 import hashlib
 import json
@@ -9,9 +10,21 @@ import StringIO
 from dateutil.parser import parse
 from lxml import etree
 from lxml.etree import XMLSyntaxError
-
 import yaml
 
+from DDR import CONFIG_FILE
+
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
 
 
 TEST_SUITE_VERSION = 'ddr-collection-0.1'
