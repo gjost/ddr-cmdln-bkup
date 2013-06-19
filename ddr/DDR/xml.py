@@ -192,5 +192,6 @@ class METS( object ):
             self.tree.replace(filesec_old, filesec)
         else:
             rtags = self.tree.xpath('/m:mets', namespaces=ns)
-            root = rtags[0]
-            etree.SubElement(root, filesec)
+            if rtags:
+                root = rtags[0]
+                etree.SubElement(root, filesec)
