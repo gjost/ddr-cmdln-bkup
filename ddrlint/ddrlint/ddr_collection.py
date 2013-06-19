@@ -1,5 +1,6 @@
 import ConfigParser
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import wraps
 import hashlib
 import json
 import os
@@ -28,6 +29,7 @@ config.read(CONFIG_FILE)
 
 
 TEST_SUITE_VERSION = 'ddr-collection-0.1'
+TIMED = False
 EMIT_STYLE = 'tap'
 OK = 'ok'
 WARNING = 'warning'
@@ -52,6 +54,18 @@ examples:
 - validate just the collection metadata files
 
 """
+
+
+def timed(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        start = datetime.now()
+        result = f(*args, **kwargs)
+        finish = datetime.now()
+        if TIMED:
+            print('[{}] {}'.format(finish-start, f.__name__))
+        return result
+    return wrapper
 
 def _read_xml(path):
     """Just see if we can get a string from the file
