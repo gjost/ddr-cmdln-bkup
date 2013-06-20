@@ -196,6 +196,8 @@ class Entity( object ):
                 h = hashlib.md5()
             elif algo == 'sha1':
                 h = hashlib.sha1()
+            elif algo == 'sha256':
+                h = hashlib.sha256()
             else:
                 return None
             f = open(path, 'rb')
