@@ -95,7 +95,7 @@
 	
 	<!-- densho:facility -->
      <mods:subject>
-      <mods:geographic xlink:href="http://id.densho.org/cv/facility/27">Tule Lake</mods:topic>
+      <mods:geographic xlink:href="http://id.densho.org/cv/facility/27">Tule Lake</mods:geographic>
      </mods:subject>
 
 	<!-- densho:People/Organizations -->
