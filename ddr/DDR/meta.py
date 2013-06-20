@@ -59,8 +59,8 @@ class EntityJSON():
         for sha1,path in entity.checksums('sha1'):
             relpath = relative_path(entity.path, path)
             size = os.path.getsize(path)
-            fdict[relpath] = {'relpath':relpath,
-                              'filename':os.path.basename(path),
+            fdict[relpath] = {'path':relpath,
+                              'basename':os.path.basename(path),
                               'sha1':sha1,
                               'size':size,}
         for sha256,path in entity.checksums('sha256'):
