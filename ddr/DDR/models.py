@@ -34,14 +34,10 @@ class Collection( object ):
     changelog_path = None
     control_path = None
     gitignore_path = None
-    json_path = None
-    ead_path = None
     annex_path_rel = None
     changelog_path_rel = None
     control_path_rel = None
     gitignore_path_rel = None
-    json_path_rel = None
-    ead_path_rel = None
     git_url = None
     
     def _path_absrel( self, filename, rel=False ):
@@ -60,14 +56,10 @@ class Collection( object ):
         self.control_path       = self._path_absrel('control'    )
         self.files_path         = self._path_absrel('files'      )
         self.gitignore_path     = self._path_absrel('.gitignore' )
-        self.json_path          = self._path_absrel('entity.json')
-        self.ead_path           = self._path_absrel('ead.xml'    )
         self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
         self.control_path_rel   = self._path_absrel('control',    rel=True)
         self.files_path_rel     = self._path_absrel('files',      rel=True)
         self.gitignore_path_rel = self._path_absrel('.gitignore', rel=True)
-        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
-        self.ead_path_rel       = self._path_absrel('ead.xml',    rel=True)
         self.git_url = '{}:{}'.format(GITOLITE, self.uid)
     
     def entity_path( self, entity_uid ):
@@ -80,11 +72,6 @@ class Collection( object ):
         if not os.path.exists(self.control_path):
             CollectionControlFile.create(self.control_path, self.uid)
         return CollectionControlFile(self.control_path)
-    
-    def ead( self ):
-        if not os.path.exists(self.ead_path):
-            EAD.create(self.ead_path)
-        return EAD(self)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -106,6 +93,26 @@ class Collection( object ):
             e = Entity(epath)
             entities.append(e)
         return entities
+
+
+
+class DDRCollection( Collection ):
+    json_path = None
+    ead_path = None
+    json_path_rel = None
+    ead_path_rel = None
+    
+    def __init__(self, *args, **kwargs):
+        super(DDRCollection, self).__init__(*args, **kwargs)
+        self.json_path          = self._path_absrel('entity.json')
+        self.ead_path           = self._path_absrel('ead.xml'    )
+        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
+        self.ead_path_rel       = self._path_absrel('ead.xml',    rel=True)
+    
+    def ead( self ):
+        if not os.path.exists(self.ead_path):
+            EAD.create(self.ead_path)
+        return EAD(self)
     
     #def json( self ):
     #    if not os.path.exists(self.json_path):
@@ -122,13 +129,9 @@ class Entity( object ):
     changelog_path = None
     control_path = None
     files_path = None
-    json_path = None
-    mets_path = None
     changelog_path_rel = None
     control_path_rel = None
     files_path_rel = None
-    json_path_rel = None
-    mets_path_rel = None
     
     def _path_absrel( self, filename, rel=False ):
         """
@@ -149,13 +152,9 @@ class Entity( object ):
         self.changelog_path     = self._path_absrel('changelog'  )
         self.control_path       = self._path_absrel('control'    )
         self.files_path         = self._path_absrel('files'      )
-        self.json_path          = self._path_absrel('entity.json')
-        self.mets_path          = self._path_absrel('mets.xml'   )
         self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
         self.control_path_rel   = self._path_absrel('control',    rel=True)
         self.files_path_rel     = self._path_absrel('files',      rel=True)
-        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
-        self.mets_path_rel      = self._path_absrel('mets.xml',   rel=True)
     
     def changelog( self ):
         return open(self.changelog_path, 'r').read()
@@ -164,16 +163,6 @@ class Entity( object ):
         if not os.path.exists(self.control_path):
             EntityControlFile.create(self.control_path, self.parent_uid, self.uid)
         return EntityControlFile(self.control_path)
-    
-    def json( self ):
-        if not os.path.exists(self.json_path):
-            EntityJSON.create(self.json_path)
-        return EntityJSON(self)
-    
-    def mets( self ):
-        if not os.path.exists(self.mets_path):
-            METS.create(self.mets_path)
-        return METS(self)
     
     def files( self ):
         """Returns relative paths to payload files."""
@@ -216,3 +205,28 @@ class Entity( object ):
             if cs:
                 checksums.append( (cs, fpath) )
         return checksums
+
+
+
+class DDREntity( Entity ):
+    json_path = None
+    mets_path = None
+    json_path_rel = None
+    mets_path_rel = None
+    
+    def __init__(self, *args, **kwargs):
+        super(DDREntity, self).__init__(*args, **kwargs)
+        self.json_path          = self._path_absrel('entity.json')
+        self.mets_path          = self._path_absrel('mets.xml'   )
+        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
+        self.mets_path_rel      = self._path_absrel('mets.xml',   rel=True)
+    
+    def json( self ):
+        if not os.path.exists(self.json_path):
+            EntityJSON.create(self.json_path)
+        return EntityJSON(self)
+    
+    def mets( self ):
+        if not os.path.exists(self.mets_path):
+            METS.create(self.mets_path)
+        return METS(self)

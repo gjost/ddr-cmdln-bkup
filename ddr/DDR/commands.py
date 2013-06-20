@@ -11,7 +11,7 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
-from DDR.models import Collection, Entity
+from DDR.models import DDRCollection, DDREntity
 from DDR.changelog import write_changelog_entry
 
 
@@ -298,7 +298,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     @param alt_collection_path: Absolute path to which repo will be cloned (includes collection UID)
     @return: message ('ok' if successful)
     """
-    collection = Collection(alt_collection_path)
+    collection = DDRCollection(alt_collection_path)
     url = '{}:{}.git'.format(GITOLITE, collection_uid)
     
     repo = git.Repo.clone_from(url, alt_collection_path)
@@ -353,7 +353,7 @@ def create(user_name, user_mail, collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     
     url = '{}:{}.git'.format(GITOLITE, collection.uid)
     
@@ -449,7 +449,7 @@ def status(collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     repo = git.Repo(collection.path)
     status = repo.git.status()
     logging.debug('\n{}'.format(status))
@@ -464,7 +464,7 @@ def annex_status(collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     repo = git.Repo(collection.path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
@@ -483,7 +483,7 @@ def update(user_name, user_mail, collection_path, updated_files):
     @param updated_files: List of relative paths to updated file(s).
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     
     repo = git.Repo(collection.path)
     if repo:
@@ -532,7 +532,7 @@ def sync(user_name, user_mail, collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     
     repo = git.Repo(collection.path)
     repo.git.checkout('master')
@@ -579,8 +579,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     @param entity_uid: A valid DDR entity UID
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
-    entity = Entity(collection.entity_path(entity_uid))
+    collection = DDRCollection(collection_path)
+    entity = DDREntity(collection.entity_path(entity_uid))
     
     repo = git.Repo(collection.path)
     repo.git.checkout('master')
@@ -681,8 +681,8 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     @param updated_files: List of paths to updated file(s), relative to entitys.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
-    entity = Entity(collection.entity_path(entity_uid))
+    collection = DDRCollection(collection_path)
+    entity = DDREntity(collection.entity_path(entity_uid))
     
     repo = git.Repo(collection.path)
     repo.git.checkout('master')
@@ -729,8 +729,8 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     @param file_path: Path to new file relative to entity files dir.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
-    entity = Entity(collection.entity_path(entity_uid))
+    collection = DDRCollection(collection_path)
+    entity = DDREntity(collection.entity_path(entity_uid))
     
     repo = git.Repo(collection.path)
     repo.git.checkout('master')
@@ -866,7 +866,7 @@ def annex_push(collection_path, file_path_rel):
     @param file_path_rel: Path to file relative to collection root
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     file_path_abs = os.path.join(collection.path, file_path_rel)
     logging.debug('    collection.path {}'.format(collection.path))
     logging.debug('    file_path_rel {}'.format(file_path_rel))
@@ -910,7 +910,7 @@ def annex_pull(collection_path, file_path_rel):
     @param file_path_rel: Path to file relative to collection root.
     @return: message ('ok' if successful)
     """
-    collection = Collection(collection_path)
+    collection = DDRCollection(collection_path)
     file_path_abs = os.path.join(collection.path, file_path_rel)
     logging.debug('    collection.path {}'.format(collection.path))
     logging.debug('    file_path_rel {}'.format(file_path_rel))
