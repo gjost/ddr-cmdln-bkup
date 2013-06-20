@@ -112,7 +112,8 @@ class METS( object ):
     path = None
     entity_path = None
     filename = None
-    root = None
+    tree = None
+    xml = None
     
     def __init__( self, entity ):
         self.entity_path = entity.path
@@ -131,8 +132,8 @@ class METS( object ):
     def read( self ):
         logging.debug('    METS.read({})'.format(self.filename))
         with open(self.filename, 'r') as f:
-            xml = f.read()
-            self.tree = etree.fromstring(xml)
+            self.xml = f.read()
+            self.tree = etree.fromstring(self.xml)
     
     def write( self ):
         logging.debug('    METS.write({})'.format(self.filename))
