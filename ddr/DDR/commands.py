@@ -13,9 +13,6 @@ from DDR import CONFIG_FILE
 from DDR import storage
 from DDR.models import Collection, Entity
 from DDR.changelog import write_changelog_entry
-from DDR.control import CollectionControlFile, EntityControlFile
-from DDR.xml import EAD, METS
-from DDR.meta import EntityJSON
 
 
 class NoConfigError(Exception):
@@ -36,9 +33,6 @@ MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
-
-def collection_git_url(collection_uid):
-    return '{}:{}'.format(GITOLITE, collection_uid)
 
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in
@@ -304,6 +298,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     @param alt_collection_path: Absolute path to which repo will be cloned (includes collection UID)
     @return: message ('ok' if successful)
     """
+    collection = Collection(alt_collection_path)
     url = '{}:{}.git'.format(GITOLITE, collection_uid)
     
     repo = git.Repo.clone_from(url, alt_collection_path)
@@ -328,7 +323,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     repo.git.config('user.email', user_mail)
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     return 0,'ok'
 
 
@@ -358,71 +353,66 @@ def create(user_name, user_mail, collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection_uid = os.path.basename(collection_path)
-    url = '{}:{}.git'.format(GITOLITE, collection_uid)
+    collection = Collection(collection_path)
     
-    repo = git.Repo.clone_from(url, collection_path)
+    url = '{}:{}.git'.format(GITOLITE, collection.uid)
+    
+    repo = git.Repo.clone_from(url, collection.path)
     logging.debug('    git clone {}'.format(url))
     if repo:
         logging.debug('    OK')
     else:
         logging.error('    COULD NOT CLONE!')
-    if os.path.exists(os.path.join(collection_path, '.git')):
+    if os.path.exists(os.path.join(collection.path, '.git')):
         logging.debug('    .git/ is present')
     else:
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
-    repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+    repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
     repo.git.config('annex.sshcaching', 'false')
     git_files = []
-
+    
     # add files
-    # control
-    control_path_rel = 'control'
-    control_path_abs = os.path.join(collection_path, control_path_rel)
-    CollectionControlFile.create(control_path_abs, collection_uid)
-    if os.path.exists(control_path_abs):
-        git_files.append(control_path_rel)
+    control   = collection.control()
+    #cjson     = collection.json()
+    ead       = collection.ead()
+    gitignore = collection.gitignore()
+    if os.path.exists(control.path):
+        git_files.append(control.path_rel)
     else:
         logging.error('    COULD NOT CREATE control')
-    # ead.xml
-    ead_path_rel = 'ead.xml'
-    ead_path_abs = os.path.join(collection_path, ead_path_rel)
-    EAD.create(ead_path_abs)
-    if os.path.exists(ead_path_abs):
-        git_files.append(ead_path_rel)
+    #if os.path.exists(cjson.path):
+    #    git_files.append(cjson.path_rel)
+    #else:
+    #    logging.error('    COULD NOT CREATE collection.json')
+    if os.path.exists(ead.path):
+        git_files.append(ead.path_rel)
     else:
-        logging.error('    COULD NOT CREATE ead')
-    # changelog
-    changelog_path_rel = 'changelog'
-    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
-    changelog_messages = ['Initialized collection {}'.format(collection_uid)]
-    write_changelog_entry(changelog_path_abs, changelog_messages, user_name, user_mail)
-    if os.path.exists(changelog_path_abs):
-        git_files.append(changelog_path_rel)
-    else:
-        logging.error('    COULD NOT CREATE changelog')
-    # .gitignore
-    gitignore_path_rel = '.gitignore'
-    gitignore_path_abs = os.path.join(collection_path, gitignore_path_rel)
-    with open(GITIGNORE_TEMPLATE, 'r') as f:
-        gitignore_template = f.read()
-    with open(gitignore_path_abs, 'w') as gitignore:
-        gitignore.write(gitignore_template)
-    if os.path.exists(gitignore_path_abs):
-        git_files.append(gitignore_path_rel)
+        logging.error('    COULD NOT CREATE ead.xml')
+    if os.path.exists(collection.gitignore_path):
+        git_files.append(collection.gitignore_path_rel)
     else:
         logging.error('    COULD NOT CREATE .gitignore')
+    # changelog
+    changelog_messages = ['Initialized collection {}'.format(collection.uid)]
+    write_changelog_entry(collection.changelog_path,
+                          changelog_messages,
+                          user_name, user_mail)
+    if os.path.exists(collection.changelog_path):
+        git_files.append(collection.changelog_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE changelog')
+    
     # add files and commit
     repo = commit_files(repo, changelog_messages[0], git_files, [])
     # master branch should be created by this point
     # git annex init
     logging.debug('    git annex init')
     repo.git.annex('init')
-    if os.path.exists(os.path.join(collection_path, '.git', 'annex')):
+    if os.path.exists(os.path.join(collection.path, '.git', 'annex')):
         logging.debug('    .git/annex/ OK')
     else:
         logging.error('    .git/annex/ IS MISSING!')
@@ -459,7 +449,8 @@ def status(collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
+    collection = Collection(collection_path)
+    repo = git.Repo(collection.path)
     status = repo.git.status()
     logging.debug('\n{}'.format(status))
     return 0,status
@@ -473,7 +464,8 @@ def annex_status(collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
+    collection = Collection(collection_path)
+    repo = git.Repo(collection.path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
     return 0,status
@@ -491,29 +483,27 @@ def update(user_name, user_mail, collection_path, updated_files):
     @param updated_files: List of relative paths to updated file(s).
     @return: message ('ok' if successful)
     """
-    collection_uid = os.path.basename(collection_path)
-    repo = git.Repo(collection_path)
+    collection = Collection(collection_path)
+    
+    repo = git.Repo(collection.path)
     if repo:
-        logging.debug('    git repo {}'.format(collection_path))
+        logging.debug('    git repo {}'.format(collection.path))
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
     # changelog
-    changelog_path_rel = 'changelog'
-    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
     changelog_messages = []
     for f in updated_files:
         changelog_messages.append('Updated collection file(s) {}'.format(f))
-    write_changelog_entry(
-        changelog_path_abs,
-        changelog_messages,
-        user_name, user_mail)
-    if os.path.exists(changelog_path_abs):
-        updated_files.append(changelog_path_abs)
+    write_changelog_entry(collection.changelog_path,
+                          changelog_messages,
+                          user_name, user_mail)
+    if os.path.exists(collection.changelog_path):
+        updated_files.append(collection.changelog_path)
     else:
         logging.error('    COULD NOT UPDATE changelog')
     # add files and commit
@@ -542,13 +532,15 @@ def sync(user_name, user_mail, collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
+    collection = Collection(collection_path)
+    
+    repo = git.Repo(collection.path)
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     # fetch
     repo.git.fetch('origin')
     # pull on master,git-annex branches 
@@ -588,13 +580,15 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     @return: message ('ok' if successful)
     """
     collection = Collection(collection_path)
-    repo = git.Repo(collection_path)
+    entity = Entity(collection.entity_path(entity_uid))
+    
+    repo = git.Repo(collection.path)
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
     # create collection files/ dir if not already present
     # entity.json
@@ -603,72 +597,60 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     # changelog
     # commit
     # control
-    collection_uid = os.path.basename(collection_path)
-
-    entity_path_rel = os.path.join('files', entity_uid)
-    entity_path_abs = os.path.join(collection_path, entity_path_rel)
-        
-    # entity dir
-    if not os.path.exists(entity_path_abs):
-        os.makedirs(entity_path_abs)
     
+    # entity dir
+    if not os.path.exists(entity.path):
+        os.makedirs(entity.path)
     git_files = []
-    # entity control
-    control_path_rel = os.path.join(entity_path_rel, 'control')
-    control_path_abs = os.path.join(collection_path, control_path_rel)
-    EntityControlFile.create(control_path_abs, collection_uid, entity_uid)
-    if os.path.exists(control_path_abs):
-        git_files.append(control_path_rel)
+    
+    econtrol = entity.control()
+    ejson = entity.json()
+    mets = entity.mets()
+    
+    if os.path.exists(econtrol.path):
+        git_files.append(econtrol.path)
     else:
         logging.error('    COULD NOT CREATE control')
-    # entity_json
-    json_path_rel = os.path.join(entity_path_rel, 'entity.json')
-    json_path_abs = os.path.join(collection_path, json_path_rel)
-    EntityJSON.create(json_path_abs)
-    if os.path.exists(json_path_abs):
-        git_files.append(json_path_rel)
+    if os.path.exists(entity.json_path):
+        git_files.append(ejson.path)
     else:
         logging.error('    COULD NOT CREATE entity.json')
-    # entity mets.xml
-    mets_path_rel = os.path.join(entity_path_rel, 'mets.xml')
-    mets_path_abs = os.path.join(collection_path, mets_path_rel)
-    METS.create(mets_path_abs)
-    if os.path.exists(mets_path_abs):
-        git_files.append(mets_path_rel)
+    if os.path.exists(entity.mets_path):
+        git_files.append(mets.path)
     else:
         logging.error('    COULD NOT CREATE mets')
-    # entity changelog
-    entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
-    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
-    entity_changelog_messages = ['Initialized entity {}'.format(entity_uid),]
-    write_changelog_entry(
-        entity_changelog_path_abs,
-        entity_changelog_messages,
-        user=user_name, email=user_mail)
-    if os.path.exists(entity_changelog_path_abs):
-        git_files.append(entity_changelog_path_rel)
+    
+    # update entity changelog
+    entity_changelog_messages = ['Initialized entity {}'.format(entity.uid),]
+    write_changelog_entry(entity.changelog_path,
+                          entity_changelog_messages,
+                          user=user_name, email=user_mail)
+    if os.path.exists(entity.changelog_path):
+        git_files.append(entity.changelog_path)
     else:
         logging.error('    COULD NOT CREATE changelog')
+    
     # update collection ead.xml
-    ead = EAD(collection)
+    ead = collection.ead()
     ead.update_dsc(collection)
     ead.write()
-    git_files.append(ead.filename)
+    git_files.append(ead.path)
+    
     # update collection changelog
-    changelog_path_rel = 'changelog'
-    changelog_path_abs = os.path.join(collection_path, changelog_path_rel)
-    changelog_messages = ['Initialized entity {}'.format(entity_uid),]
-    write_changelog_entry(
-        changelog_path_abs,
-        changelog_messages,
-        user=user_name, email=user_mail)
-    git_files.append(changelog_path_rel)
+    changelog_messages = ['Initialized entity {}'.format(entity.uid),]
+    write_changelog_entry(collection.changelog_path,
+                          changelog_messages,
+                          user=user_name, email=user_mail)
+    git_files.append(collection.changelog_path)
+    
     # update collection control
-    ctl = CollectionControlFile(os.path.join(collection.path,'control'))
-    ctl.update_checksums(collection)
-    ctl.write()
-    git_files.append('control')
+    ccontrol = collection.control()
+    ccontrol.update_checksums(collection)
+    ccontrol.write()
+    git_files.append(ccontrol.path)
+    
     # add files and commit
+    print(git_files)
     repo = commit_files(repo, changelog_messages[0], git_files, [])
     return 0,'ok'
 
@@ -699,33 +681,31 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     @param updated_files: List of paths to updated file(s), relative to entitys.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
+    collection = Collection(collection_path)
+    entity = Entity(collection.entity_path(entity_uid))
+    
+    repo = git.Repo(collection.path)
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
-
-    entity_path_rel = os.path.join('files', entity_uid)
-    entity_path_abs = os.path.join(collection_path, entity_path_rel)
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    
     # entity file paths are relative to collection root
     git_files = []
     for f in updated_files:
-        git_files.append( os.path.join( 'files', entity_uid, f) )
+        git_files.append( os.path.join( 'files', entity.uid, f) )
     
     # entity changelog
-    entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
-    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
     entity_changelog_messages = []
     for f in updated_files:
-        p = os.path.join(entity_uid, f)
+        p = os.path.join(entity.uid, f)
         entity_changelog_messages.append('Updated entity file {}'.format(p))
-    write_changelog_entry(
-        entity_changelog_path_abs,
-        entity_changelog_messages,
-        user=user_name, email=user_mail)
-    git_files.append(entity_changelog_path_rel)
+    write_changelog_entry(entity.changelog_path,
+                          entity_changelog_messages,
+                          user=user_name, email=user_mail)
+    git_files.append(entity.changelog_path_rel)
     # add files and commit
     repo = commit_files(repo, 'Updated entity file(s)', git_files, [])
     return 0,'ok'
@@ -749,75 +729,69 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     @param file_path: Path to new file relative to entity files dir.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
+    collection = Collection(collection_path)
+    entity = Entity(collection.entity_path(entity_uid))
+    
+    repo = git.Repo(collection.path)
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
-    if not os.path.exists(os.path.join(collection_path, '.git', 'annex')):
+    if not os.path.exists(collection.annex_path):
         logging.error('    .git/annex IS MISSING!')
         return 1,'.git/annex IS MISSING!'
-
-    entity_path_rel = os.path.join('files', entity_uid)
-    entity_path_abs = os.path.join(collection_path, entity_path_rel)
-    entity_files_rel = os.path.join(entity_path_rel, 'files')
-    entity_files_abs = os.path.join(entity_path_abs, 'files')
+    
     # absolute path to new file
-    new_file_abs = os.path.join(entity_files_abs, new_file)
+    new_file_abs = os.path.join(entity.files_path, new_file)
     # relative to collection repo
-    new_file_rel = os.path.join(entity_files_rel, new_file)
+    new_file_rel = os.path.join(entity.files_path_rel, new_file)
     # relative to entity_dir
-    new_file_rel_entity = new_file_abs.replace('{}/'.format(entity_path_abs), '')
+    new_file_rel_entity = new_file_abs.replace('{}/'.format(entity.path), '')
     logging.debug('    new_file_abs {}'.format(new_file_abs))
     logging.debug('    new_file_rel {}'.format(new_file_rel))
     logging.debug('    new_file_rel_entity {}'.format(new_file_rel_entity))
-    if not os.path.exists(entity_path_abs):
-        logging.error('    Entity does not exist: {}'.format(entity_uid))
-        return 1,'entity does not exist: {}'.format(entity_uid)
-    if not os.path.exists(entity_files_abs):
-        os.makedirs(entity_files_abs)
+    if not os.path.exists(entity.path):
+        logging.error('    Entity does not exist: {}'.format(entity.uid))
+        return 1,'entity does not exist: {}'.format(entity.uid)
+    if not os.path.exists(entity.files_path):
+        os.makedirs(entity.files_path)
     if not os.path.exists(new_file_abs):
         logging.error('    File does not exist: {}'.format(new_file_abs))
         return 1,'File does not exist: {}'.format(new_file_abs)
     
     git_files = []
+    
     # update entity changelog
-    entity_changelog_path_rel = os.path.join(entity_path_rel, 'changelog')
-    entity_changelog_path_abs = os.path.join(collection_path, entity_changelog_path_rel)
     changelog_messages = []
     for f in [new_file_rel_entity]:
         changelog_messages.append('Added entity file {}'.format(f))
     write_changelog_entry(
-        entity_changelog_path_abs,
+        entity.changelog_path,
         changelog_messages,
         user_name, user_mail)
-    git_files.append(entity_changelog_path_rel)
+    git_files.append(entity.changelog_path_rel)
+    
     # update entity control
-    entity_control_path_rel = os.path.join(entity_path_rel,'control')
-    entity_control_path_abs = os.path.join(entity_path_abs,'control')
-    e = Entity(entity_path_abs)
-    c = EntityControlFile(entity_control_path_abs)
-    c.update_checksums(e)
-    c.write()
-    git_files.append(entity_control_path_rel)
+    econtrol = entity.control()
+    econtrol.update_checksums(entity)
+    econtrol.write()
+    git_files.append(econtrol.path_rel)
+    
     # update entity json
-    entity_json_path_rel = os.path.join(entity_path_rel,'entity.json')
-    entity_json_path_abs = os.path.join(entity_path_abs,'entity.json')
-    ej = EntityJSON(e)
-    ej.update_checksums(e)
+    ej = entity.json()
+    ej.update_checksums(entity)
     ej.write()
-    git_files.append(entity_json_path_rel)
+    git_files.append(entity.json_path_rel)
+    
     # update entity mets
-    entity_mets_path_rel = os.path.join(entity_path_rel,'mets.xml')
-    entity_mets_path_abs = os.path.join(entity_path_abs,'mets.xml')
-    m = METS(e)
-    m.update_filesec(e)
+    m = entity.mets()
+    m.update_filesec(entity)
     m.write()
-    git_files.append(entity_mets_path_rel)
-
+    git_files.append(entity.mets_path_rel)
+    
     # add files and commit
     repo = commit_files(repo, 'Added entity file(s)', git_files, [new_file_rel])
 #    # git annex add
@@ -892,25 +866,25 @@ def annex_push(collection_path, file_path_rel):
     @param file_path_rel: Path to file relative to collection root
     @return: message ('ok' if successful)
     """
-    annex_path = os.path.join(collection_path, '.git', 'annex')
-    file_path_abs = os.path.join(collection_path, file_path_rel)
-    logging.debug('    collection_path {}'.format(collection_path))
+    collection = Collection(collection_path)
+    file_path_abs = os.path.join(collection.path, file_path_rel)
+    logging.debug('    collection.path {}'.format(collection.path))
     logging.debug('    file_path_rel {}'.format(file_path_rel))
     logging.debug('    file_path_abs {}'.format(file_path_abs))
-    if not os.path.exists(collection_path):
-        logging.error('    NO COLLECTION AT {}'.format(collection_path))
+    if not os.path.exists(collection.path):
+        logging.error('    NO COLLECTION AT {}'.format(collection.path))
         return 1,'no collection'
-    if not os.path.exists(annex_path):
-        logging.error('    NO GIT ANNEX AT {}'.format(annex_path))
+    if not os.path.exists(collection.annex_path):
+        logging.error('    NO GIT ANNEX AT {}'.format(collection.annex_path))
         return 1,'no annex'
     if not os.path.exists(file_path_abs):
         logging.error('    NO FILE AT {}'.format(file_path_abs))
         return 1,'no file'
     # let's do this thing
-    repo = git.Repo(collection_path)
+    repo = git.Repo(collection.path)
     repo.git.checkout('master')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     logging.debug('    git annex copy -t {} {}'.format(GIT_REMOTE_NAME, file_path_rel))
     stdout = repo.git.annex('copy', '-t', GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))
@@ -936,22 +910,22 @@ def annex_pull(collection_path, file_path_rel):
     @param file_path_rel: Path to file relative to collection root.
     @return: message ('ok' if successful)
     """
-    annex_path = os.path.join(collection_path, '.git', 'annex')
-    file_path_abs = os.path.join(collection_path, file_path_rel)
-    logging.debug('    collection_path {}'.format(collection_path))
+    collection = Collection(collection_path)
+    file_path_abs = os.path.join(collection.path, file_path_rel)
+    logging.debug('    collection.path {}'.format(collection.path))
     logging.debug('    file_path_rel {}'.format(file_path_rel))
     logging.debug('    file_path_abs {}'.format(file_path_abs))
-    if not os.path.exists(collection_path):
-        logging.error('    NO COLLECTION AT {}'.format(collection_path))
+    if not os.path.exists(collection.path):
+        logging.error('    NO COLLECTION AT {}'.format(collection.path))
         return 1,'no collection'
-    if not os.path.exists(annex_path):
-        logging.error('    NO GIT ANNEX AT {}'.format(annex_path))
+    if not os.path.exists(collection.annex_path):
+        logging.error('    NO GIT ANNEX AT {}'.format(collection.annex_path))
         return 1,'no annex'
     # let's do this thing
-    repo = git.Repo(collection_path)
+    repo = git.Repo(collection.path)
     repo.git.checkout('master')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection_git_url(collection_uid))
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     logging.debug('    git annex copy -t {} {}'.format(GIT_REMOTE_NAME, file_path_rel))
     stdout = repo.git.annex('copy', '-f', GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))

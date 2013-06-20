@@ -14,13 +14,15 @@ def load_template(filename):
     return template
 
 class EntityJSON():
+    path = None
     entity_path = None
     filename = None
     data = None
     
     def __init__( self, entity ):
         self.entity_path = entity.path
-        self.filename = os.path.join(self.entity_path, 'entity.json')
+        self.filename = entity.json_path
+        self.path = entity.json_path
         self.read()
     
     @staticmethod
@@ -37,9 +39,9 @@ class EntityJSON():
      
     def write( self ):
         logging.debug('    EntityJSON.write({})'.format(self.filename))
-        js = json.dumps(self.data)
+        json_pretty = json.dumps(self.data, indent=4, separators=(',', ': '))
         with open(self.filename, 'w') as f:
-            f.write(js)
+            f.write(json_pretty)
     
     CHECKSUMS = ['sha1', 'sha256', 'files']
     def update_checksums( self, entity ):
@@ -57,7 +59,10 @@ class EntityJSON():
         for sha1,path in entity.checksums('sha1'):
             relpath = relative_path(entity.path, path)
             size = os.path.getsize(path)
-            fdict[relpath] = {'sha1':sha1, 'size':size,}
+            fdict[relpath] = {'relpath':relpath,
+                              'filename':os.path.basename(path),
+                              'sha1':sha1,
+                              'size':size,}
         for sha256,path in entity.checksums('sha256'):
             relpath = relative_path(entity.path, path)
             fdict[relpath]['sha256'] = sha256

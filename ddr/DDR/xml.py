@@ -37,13 +37,16 @@ def load_template(filename):
 class EAD( object ):
     """Encoded Archival Description (EAD) file.
     """
+    path = None
     collection_path = None
     filename = None
     tree = None
     
     def __init__( self, collection ):
         self.collection_path = collection.path
-        self.filename = os.path.join(self.collection_path, 'ead.xml')
+        self.filename = collection.ead_path
+        self.path = collection.ead_path
+        self.path_rel = os.path.basename(self.path)
         self.read()
         logging.debug('\n{}'.format(etree.tostring(self.tree, pretty_print=True)))
     
@@ -106,13 +109,15 @@ class EAD( object ):
 class METS( object ):
     """Metadata Encoding and Transmission Standard (METS) file.
     """
+    path = None
     entity_path = None
     filename = None
     root = None
     
     def __init__( self, entity ):
         self.entity_path = entity.path
-        self.filename = os.path.join(self.entity_path, 'mets.xml')
+        self.filename = entity.mets_path
+        self.path = entity.mets_path
         self.read()
         logging.debug('\n{}'.format(etree.tostring(self.tree, pretty_print=True)))
     
@@ -155,7 +160,7 @@ class METS( object ):
         """
         NS = NAMESPACES_TAGPREFIX
         ns = NAMESPACES_XPATH
-        payload_path = entity.payload_path()
+        payload_path = entity.files_path
         
         def relative_path(entity_path, payload_file):
             """return relative path to payload

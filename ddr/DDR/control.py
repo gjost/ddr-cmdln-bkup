@@ -42,6 +42,14 @@ class ControlFile( object ):
 
 
 class CollectionControlFile( ControlFile ):
+    path_rel = None
+    uid = None
+    
+    def __init__(self, *args, **kwargs):
+        super(CollectionControlFile, self).__init__(*args, **kwargs)
+        self.uid = os.path.split(os.path.dirname(self.path))[1]
+        self.path_rel = os.path.basename(self.path)
+    
     @staticmethod
     def create( path, collection_uid ):
         logging.debug('    CollectionControlFile.create({})'.format(path))
@@ -59,6 +67,15 @@ class CollectionControlFile( ControlFile ):
 
 
 class EntityControlFile( ControlFile ):
+    path_rel = None
+    uid = None
+    
+    def __init__(self, *args, **kwargs):
+        super(EntityControlFile, self).__init__(*args, **kwargs)
+        self.uid = os.path.split(os.path.dirname(self.path))[1]
+        sep = os.sep
+        self.path_rel = sep.join(self.path.split(sep)[-3:])
+    
     @staticmethod
     def create( path, collection_uid, entity_uid ):
         logging.debug('    EntityControlFile.create({})'.format(path))
