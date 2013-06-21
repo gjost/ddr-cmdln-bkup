@@ -18,6 +18,7 @@ def load_template(filename):
 
 class CollectionJSON():
     path = None
+    path_rel = None
     collection_path = None
     filename = None
     data = None
@@ -26,6 +27,7 @@ class CollectionJSON():
         self.collection_path = collection.path
         self.filename = collection.json_path
         self.path = collection.json_path
+        self.path_rel = os.path.basename(self.path)
         self.read()
     
     @staticmethod
@@ -82,6 +84,7 @@ class CollectionJSON():
 
 class EntityJSON():
     path = None
+    path_rel = None
     entity_path = None
     filename = None
     data = None
@@ -90,6 +93,7 @@ class EntityJSON():
         self.entity_path = entity.path
         self.filename = entity.json_path
         self.path = entity.json_path
+        self.path_rel = os.path.basename(self.path)
         self.read()
     
     @staticmethod
