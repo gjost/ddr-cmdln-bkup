@@ -88,10 +88,11 @@ class Collection( object ):
         cpath = self.path
         if cpath[-1] != '/':
             cpath = '{}/'.format(cpath)
-        for uid in os.listdir(self.files_path):
-            epath = os.path.join(self.files_path, uid)
-            e = Entity(epath)
-            entities.append(e)
+        if os.path.exists(self.files_path):
+            for uid in os.listdir(self.files_path):
+                epath = os.path.join(self.files_path, uid)
+                e = Entity(epath)
+                entities.append(e)
         return entities
 
 
