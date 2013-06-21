@@ -41,6 +41,7 @@ class EAD( object ):
     collection_path = None
     filename = None
     tree = None
+    xml = None
     
     def __init__( self, collection ):
         self.collection_path = collection.path
@@ -60,8 +61,8 @@ class EAD( object ):
     def read( self ):
         logging.debug('    EAD.read({})'.format(self.filename))
         with open(self.filename, 'r') as f:
-            xml = f.read()
-            self.tree = etree.fromstring(xml)
+            self.xml = f.read()
+            self.tree = etree.fromstring(self.xml)
     
     def write( self ):
         logging.debug('    EAD.write({})'.format(self.filename))
