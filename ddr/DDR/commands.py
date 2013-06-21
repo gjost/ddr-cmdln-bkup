@@ -377,17 +377,17 @@ def create(user_name, user_mail, collection_path):
     
     # add files
     control   = collection.control()
-    #cjson     = collection.json()
+    cjson     = collection.json()
     ead       = collection.ead()
     gitignore = collection.gitignore()
     if os.path.exists(control.path):
         git_files.append(control.path_rel)
     else:
         logging.error('    COULD NOT CREATE control')
-    #if os.path.exists(cjson.path):
-    #    git_files.append(cjson.path_rel)
-    #else:
-    #    logging.error('    COULD NOT CREATE collection.json')
+    if os.path.exists(cjson.path):
+        git_files.append(cjson.path_rel)
+    else:
+        logging.error('    COULD NOT CREATE collection.json')
     if os.path.exists(ead.path):
         git_files.append(ead.path_rel)
     else:
@@ -630,6 +630,18 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     else:
         logging.error('    COULD NOT CREATE changelog')
     
+    # update collection control
+    ccontrol = collection.control()
+    ccontrol.update_checksums(collection)
+    ccontrol.write()
+    git_files.append(ccontrol.path)
+    
+    # update collection json
+    cjson = collection.json()
+    cjson.update_checksums(collection)
+    cjson.write()
+    git_files.append(cjson.path)
+    
     # update collection ead.xml
     ead = collection.ead()
     ead.update_dsc(collection)
@@ -643,14 +655,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
                           user=user_name, email=user_mail)
     git_files.append(collection.changelog_path)
     
-    # update collection control
-    ccontrol = collection.control()
-    ccontrol.update_checksums(collection)
-    ccontrol.write()
-    git_files.append(ccontrol.path)
-    
     # add files and commit
-    print(git_files)
     repo = commit_files(repo, changelog_messages[0], git_files, [])
     return 0,'ok'
 

@@ -5,6 +5,7 @@ import os
 
 MODULE_PATH   = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
+COLLECTION_JSON_TEMPLATE = os.path.join(TEMPLATE_PATH, 'collection.json.tpl' )
 ENTITY_JSON_TEMPLATE = os.path.join(TEMPLATE_PATH, 'entity.json.tpl' )
 
 def load_template(filename):
@@ -12,6 +13,72 @@ def load_template(filename):
     with open(filename, 'r') as f:
         template = f.read()
     return template
+
+
+
+class CollectionJSON():
+    path = None
+    collection_path = None
+    filename = None
+    data = None
+    
+    def __init__( self, collection ):
+        self.collection_path = collection.path
+        self.filename = collection.json_path
+        self.path = collection.json_path
+        self.read()
+    
+    @staticmethod
+    def create( path ):
+        logging.debug('    CollectionJSON.create({})'.format(path))
+        tpl = load_template(COLLECTION_JSON_TEMPLATE)
+        with open(path, 'w') as f:
+            f.write(tpl)
+    
+    def read( self ):
+        logging.debug('    CollectionJSON.read({})'.format(self.filename))
+        with open(self.filename, 'r') as f:
+            self.data = json.loads(f.read())
+     
+    def write( self ):
+        logging.debug('    CollectionJSON.write({})'.format(self.filename))
+        json_pretty = json.dumps(self.data, indent=4, separators=(',', ': '))
+        with open(self.filename, 'w') as f:
+            f.write(json_pretty)
+    
+    def update_checksums( self, collection ):
+        """Returns file info in sorted list.
+        """
+        logging.debug('    CollectionJSON.update_files({})'.format(collection))
+        
+        fdict = {}
+        for entity in collection.entities():
+            fdict[entity.uid] = {'eid':entity.uid,}
+        
+        # has to be sorted list so can meaningfully version
+        files = []
+        fkeys = fdict.keys()
+        fkeys.sort()
+        for key in fkeys:
+            files.append(fdict[key])
+        
+        data = self.data
+        
+        # add files if absent
+        present = False
+        for field in self.data:
+            for key in field.keys():
+                if key == 'files':
+                    present = True
+        if not present:
+            self.data.append( {'files':[]} )
+        
+        for field in self.data:
+            for key in field.keys():
+                if key == 'files':
+                    field[key] = files
+
+
 
 class EntityJSON():
     path = None
