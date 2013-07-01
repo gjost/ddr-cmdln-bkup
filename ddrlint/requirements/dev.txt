@@ -3,7 +3,7 @@
 # include base
 -r _base.txt
 
-bpython
-coverage
-nose
-sphinx
+bpython                         # MIT
+coverage                        # BSD
+nose                            # LGPL
+sphinx                          # BSD
