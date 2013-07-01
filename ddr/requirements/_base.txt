@@ -1,7 +1,7 @@
 # dependencies used in all environments
 
-beautifulsoup4
-envoy
-GitPython
-lxml
-requests
+beautifulsoup4      # MIT
+envoy               # MIT
+GitPython           # BSD
+lxml                # BSD
+requests            # ISCL
