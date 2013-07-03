@@ -71,4 +71,4 @@ https://github.com/densho/ddr-cmdln/issues
 LICENSE
 =======
 
-New BSD License.  See the LICENSE file.
+TBD
