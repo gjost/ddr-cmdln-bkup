@@ -2,13 +2,9 @@
 ddr-cmdln
 =========
 
-Command-line tools for automating the Densho Digital Repository's various processes.
+DDR is a set of tools for constructing a distributed repository suitable for the archival preservation of media files and metadata.  It is built from standard open-source components, uses archival standard metadata formats, and provides for replication of collections under low- or no-bandwidth conditions.
 
-* ddr -- Tools for creating and manipulating repository objects.
-* ddrlint -- Checks repository objects for compliance with the manual.
-
-**ddr-local** provides a pretty front end to these tools, allowing repository contributors to manipulate collections and entities through a web interface.  **ddr-local** also provides tools for editing the contents of collection and entity metadata files, which **ddr** itself does not.
-**ddr-cmdln** is an embodiment of the specifications in **ddr-manual**.
+**ddr-cmdln** is a set of command-line tools which automates various low-level DDR processes.  Processes include the creation and management of collections, entities, and media files, the creation of repository clones, and the synchronization of collection repositories with each other.
 
 
 .. REQUIREMENTS

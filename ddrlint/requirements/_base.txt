@@ -1,5 +1,0 @@
-# dependencies used in all environments
-
-python-dateutil     # BSD
-lxml                # BSD
-PyYAML              # MIT
