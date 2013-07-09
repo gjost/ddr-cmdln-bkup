@@ -14,7 +14,7 @@ def mount( device_file, label ):
     """
     mount_path = None
     cmd = 'pmount -w {} {}'.format(device_file, label)
-    r = envoy.run(cmd, timeout=2)
+    r = envoy.run(cmd, timeout=60)
     for d in removables_mounted():
         if label in d['mountpath']:
             mount_path = d['mountpath']
@@ -30,7 +30,7 @@ def umount( device_file ):
     """
     unmounted = 'error'
     cmd = 'pumount {}'.format(device_file)
-    r = envoy.run(cmd, timeout=2)
+    r = envoy.run(cmd, timeout=60)
     in_removables = False
     for d in removables_mounted():
         if device_file in d['devicefile']:
