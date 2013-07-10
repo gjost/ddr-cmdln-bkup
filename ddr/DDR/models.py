@@ -29,6 +29,8 @@ GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
 class Collection( object ):
     path = None
+    path_rel = None
+    root = None
     uid = None
     annex_path = None
     changelog_path = None
@@ -47,6 +49,8 @@ class Collection( object ):
     
     def __init__( self, path, uid=None ):
         self.path = path
+        self.path_rel = os.path.split(self.path)[1]
+        self.root = os.path.split(self.path)[0]
         if not uid:
             uid = os.path.basename(self.path)
         self.uid  = uid
@@ -124,6 +128,8 @@ class DDRCollection( Collection ):
 
 class Entity( object ):
     path = None
+    path_rel = None
+    root = None
     parent_path = None
     uid = None
     parent_uid = None
@@ -146,6 +152,8 @@ class Entity( object ):
     def __init__( self, path, uid=None ):
         self.path = path
         self.parent_path = os.path.split(os.path.split(self.path)[0])[0]
+        self.root = os.path.split(self.parent_path)[0]
+        self.path_rel = self.path.replace('%s/' % self.root, '')
         if not uid:
             uid = os.path.basename(self.path)
         self.uid = uid
