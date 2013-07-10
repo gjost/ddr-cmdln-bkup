@@ -13,7 +13,7 @@ def mount( device_file, label ):
     @return: Mount path (ex: '/media/mydrive')
     """
     mount_path = None
-    cmd = 'pmount -w {} {}'.format(device_file, label)
+    cmd = 'pmount --read-write --umask 022 {} {}'.format(device_file, label)
     r = envoy.run(cmd, timeout=60)
     for d in removables_mounted():
         if label in d['mountpath']:
