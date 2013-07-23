@@ -87,7 +87,7 @@ def gitolite_connect_ok():
     logging.debug('        {}'.format(r.status_code))
     if r.status_code == 0:
         lines = r.std_out.split('\n')
-        if len(lines) and ('this is {} running gitolite'.format(GITOLITE) in lines[0]):
+        if len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
             logging.debug('        OK ')
             return True
     logging.debug('        NO CONNECTION')
