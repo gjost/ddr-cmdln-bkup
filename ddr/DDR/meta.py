@@ -44,7 +44,7 @@ class CollectionJSON():
      
     def write( self ):
         logging.debug('    CollectionJSON.write({})'.format(self.filename))
-        json_pretty = json.dumps(self.data, indent=4, separators=(',', ': '))
+        json_pretty = json.dumps(self.data, indent=4, separators=(',', ': '), sort_keys=True)
         with open(self.filename, 'w') as f:
             f.write(json_pretty)
     
@@ -110,7 +110,7 @@ class EntityJSON():
      
     def write( self ):
         logging.debug('    EntityJSON.write({})'.format(self.filename))
-        json_pretty = json.dumps(self.data, indent=4, separators=(',', ': '))
+        json_pretty = json.dumps(self.data, indent=4, separators=(',', ': '), sort_keys=True)
         with open(self.filename, 'w') as f:
             f.write(json_pretty)
     
