@@ -785,16 +785,8 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     econtrol.write()
     git_files.append(econtrol.path_rel)
     
-    # update entity json
-    ej = entity.json()
-    ej.update_checksums(entity)
-    ej.write()
+    # update entity json, mets
     git_files.append(entity.json_path_rel)
-    
-    # update entity mets
-    m = entity.mets()
-    m.update_filesec(entity)
-    m.write()
     git_files.append(entity.mets_path_rel)
     
     # add files and commit
