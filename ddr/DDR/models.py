@@ -70,7 +70,9 @@ class Collection( object ):
         return os.path.join(self.files_path, entity_uid)
     
     def changelog( self ):
-        return open(self.changelog_path, 'r').read()
+        if os.path.exists(self.changelog_path):
+            return open(self.changelog_path, 'r').read()
+        return '%s is empty or missing' % self.changelog_path
     
     def control( self ):
         if not os.path.exists(self.control_path):
@@ -166,7 +168,9 @@ class Entity( object ):
         self.files_path_rel     = self._path_absrel('files',      rel=True)
     
     def changelog( self ):
-        return open(self.changelog_path, 'r').read()
+        if os.path.exists(self.changelog_path):
+            return open(self.changelog_path, 'r').read()
+        return '%s is empty or missing' % self.changelog_path
     
     def control( self ):
         if not os.path.exists(self.control_path):
