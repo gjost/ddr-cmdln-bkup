@@ -180,11 +180,11 @@ class Entity( object ):
     def files( self ):
         """Returns relative paths to payload files."""
         files = []
-        entity_path = self.path
-        if entity_path[-1] != '/':
-            entity_path = '{}/'.format(entity_path)
+        prefix_path = self.files_path
+        if prefix_path[-1] != '/':
+            prefix_path = '{}/'.format(prefix_path)
         for f in os.listdir(self.files_path):
-            files.append(f.replace(entity_path, ''))
+            files.append(f.replace(prefix_path, ''))
         return files
     
     @staticmethod

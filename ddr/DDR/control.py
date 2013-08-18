@@ -86,26 +86,26 @@ class EntityControlFile( ControlFile ):
     CHECKSUMS = ['sha1', 'sha256', 'files']
     def update_checksums( self, entity ):
         # return relative path to payload
-        def relative_path(entity_path, payload_file):
-            if entity_path[-1] != '/':
-                entity_path = '{}/'.format(entity_path)
-            return payload_file.replace(entity_path, '')
+        def relative_path(prefix_path, payload_file):
+            if prefix_path[-1] != '/':
+                prefix_path = '{}/'.format(prefix_path)
+            return payload_file.replace(prefix_path, '')
         
         self._config.remove_section('Checksums-SHA1')
         self._config.add_section('Checksums-SHA1')
         for sha1,path in entity.checksums('sha1'):
-            path = relative_path(entity.path, path)
+            path = relative_path(entity.files_path, path)
             self._config.set('Checksums-SHA1', sha1, path)
         #
         self._config.remove_section('Checksums-SHA256')
         self._config.add_section('Checksums-SHA256')
         for sha256,path in entity.checksums('sha256'):
-            path = relative_path(entity.path, path)
+            path = relative_path(entity.files_path, path)
             self._config.set('Checksums-SHA256', sha256, path)
         #
         self._config.remove_section('Files')
         self._config.add_section('Files')
         for md5,path in entity.checksums('md5'):
             size = os.path.getsize(path)
-            path = relative_path(entity.path, path)
+            path = relative_path(entity.files_path, path)
             self._config.set('Files', md5, '{} ; {}'.format(size,path))
