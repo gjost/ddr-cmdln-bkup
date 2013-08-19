@@ -40,10 +40,7 @@
         "description": ""
     },
     {
-        "creation": {
-            "string": "",
-            "precision": ""
-        }
+        "creation": ""
     },
     {
         "location": ""
