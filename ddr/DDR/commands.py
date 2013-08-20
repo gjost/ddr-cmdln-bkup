@@ -58,6 +58,17 @@ def annex_whereis_file(repo, file_path_rel):
         logging.debug('    remotes: {}'.format(remotes))
     return remotes
 
+def gitolite_info():
+    status = None; lines = []
+    cmd = 'ssh {} info'.format(GITOLITE)
+    logging.debug('        {}'.format(cmd))
+    r = envoy.run(cmd, timeout=30)
+    logging.debug('        {}'.format(r.status_code))
+    status = r.status_code
+    if r.status_code == 0:
+        lines = r.std_out.split('\n')
+    return status,lines
+
 def gitolite_connect_ok():
     """See if we can connect to gitolite server.
     
@@ -81,12 +92,8 @@ def gitolite_connect_ok():
     @return: True or False
     """
     logging.debug('    DDR.commands.gitolite_connect_ok()')
-    cmd = 'ssh {} info'.format(GITOLITE)
-    logging.debug('        {}'.format(cmd))
-    r = envoy.run(cmd, timeout=30)
-    logging.debug('        {}'.format(r.status_code))
-    if r.status_code == 0:
-        lines = r.std_out.split('\n')
+    status,lines = gitolite_info()
+    if status == 0 and lines:
         if len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
             logging.debug('        OK ')
             return True
