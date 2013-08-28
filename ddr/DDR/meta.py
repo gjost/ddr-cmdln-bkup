@@ -38,7 +38,7 @@ class CollectionJSON():
             f.write(tpl)
     
     def read( self ):
-        logging.debug('    CollectionJSON.read({})'.format(self.filename))
+        #logging.debug('    CollectionJSON.read({})'.format(self.filename))
         with open(self.filename, 'r') as f:
             self.data = json.loads(f.read())
      
@@ -104,7 +104,7 @@ class EntityJSON():
             f.write(tpl)
     
     def read( self ):
-        logging.debug('    EntityJSON.read({})'.format(self.filename))
+        #logging.debug('    EntityJSON.read({})'.format(self.filename))
         with open(self.filename, 'r') as f:
             self.data = json.loads(f.read())
      
