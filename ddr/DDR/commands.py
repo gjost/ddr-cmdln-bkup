@@ -218,12 +218,12 @@ def commit_files(repo, message, regular_files=[], annex_files=[]):
 
 
 
-@command
+#@command
 @local_only
 def removables():
     return 0,storage.removables()
 
-@command
+#@command
 @local_only
 def removables_mounted():
     return 0,storage.removables_mounted()
@@ -261,7 +261,7 @@ def storage_status( path ):
 
 
 
-@command
+#@command
 @local_only
 def collections_local(collections_root, repository, organization):
     """Command-line function for listing collections on the local system.
@@ -280,7 +280,7 @@ def collections_local(collections_root, repository, organization):
         raise Exception(message)
     collections = []
     regex = '^{}-{}-[0-9]+$'.format(repository, organization)
-    logging.debug('    {}'.format(regex))
+    #logging.debug('    {}'.format(regex))
     uid = re.compile(regex)
     for x in os.listdir(collections_root):
         m = uid.search(x)

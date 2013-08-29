@@ -49,7 +49,7 @@ class EAD( object ):
         self.path = collection.ead_path
         self.path_rel = os.path.basename(self.path)
         self.read()
-        logging.debug('\n{}'.format(etree.tostring(self.tree, pretty_print=True)))
+        #logging.debug('\n{}'.format(etree.tostring(self.tree, pretty_print=True)))
     
     @staticmethod
     def create( path ):
@@ -59,7 +59,7 @@ class EAD( object ):
             f.write(t)
 
     def read( self ):
-        logging.debug('    EAD.read({})'.format(self.filename))
+        #logging.debug('    EAD.read({})'.format(self.filename))
         with open(self.filename, 'r') as f:
             self.xml = f.read()
             self.tree = etree.fromstring(self.xml)
@@ -121,7 +121,7 @@ class METS( object ):
         self.filename = entity.mets_path
         self.path = entity.mets_path
         self.read()
-        logging.debug('\n{}'.format(etree.tostring(self.tree, pretty_print=True)))
+        #logging.debug('\n{}'.format(etree.tostring(self.tree, pretty_print=True)))
     
     @staticmethod
     def create( path ):
@@ -131,7 +131,7 @@ class METS( object ):
             f.write(t)
     
     def read( self ):
-        logging.debug('    METS.read({})'.format(self.filename))
+        #logging.debug('    METS.read({})'.format(self.filename))
         with open(self.filename, 'r') as f:
             self.xml = f.read()
             self.tree = etree.fromstring(self.xml)
