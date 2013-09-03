@@ -450,15 +450,17 @@ def destroy():
 
 @command
 @local_only
-def status(collection_path):
+def status(collection_path, short=False):
     """Command-line function for running git status on collection repository.
     
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection(collection_path)
-    repo = git.Repo(collection.path)
-    status = repo.git.status()
+    repo = git.Repo(collection_path)
+    if short:
+        status = repo.git.status(short=True, branch=True)
+    else:
+        status = repo.git.status()
     logging.debug('\n{}'.format(status))
     return 0,status
 
@@ -471,8 +473,7 @@ def annex_status(collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection(collection_path)
-    repo = git.Repo(collection.path)
+    repo = git.Repo(collection_path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
     return 0,status
