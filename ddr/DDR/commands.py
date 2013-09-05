@@ -360,7 +360,7 @@ def destroy():
     return 1,'not implemented yet'
 
 
-@command
+#@command
 @local_only
 def status(collection_path, short=False):
     """Command-line function for running git status on collection repository.
@@ -373,7 +373,7 @@ def status(collection_path, short=False):
         status = repo.git.status(short=True, branch=True)
     else:
         status = repo.git.status()
-    logging.debug('\n{}'.format(status))
+    #logging.debug('\n{}'.format(status))
     return 0,status
 
 
