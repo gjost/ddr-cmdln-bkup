@@ -3,10 +3,10 @@
         "id": ""
     },
     {
-        "created": ""
+        "record_created": ""
     },
     {
-        "lastmod": ""
+        "record_lastmod": ""
     },
     {
         "parent": {
