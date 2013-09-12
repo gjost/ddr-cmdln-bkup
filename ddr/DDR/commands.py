@@ -181,23 +181,23 @@ OPERATIONS = [
 
 
 
-def commit_files(repo, message, regular_files=[], annex_files=[]):
+def commit_files(repo, message, git_files=[], annex_files=[]):
     """git-add and git-annex-add files and commit them
     
     @param repo: GitPython Repo object
     @param message: String
-    @param regular_files: List of filenames relative to repo root.
+    @param git_files: List of filenames relative to repo root.
     @param annex_files: List of filenames relative to repo root.
     @return: GitPython Repo object
     """
-    added = annex_files + regular_files
+    added = annex_files + git_files
     added.sort()
     logging.debug('    files added:         {}'.format(added))
     
     if annex_files:
         repo.git.annex('add', annex_files)
-    if regular_files:
-        repo.index.add(regular_files)
+    if git_files:
+        repo.index.add(git_files)
     
     staged = list_staged(repo)
     staged.sort()
