@@ -784,49 +784,6 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
 
 
 @command
-@local_only
-def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path):
-    """Wrapper around entity_annex_add() that 
-    
-    @param user_name: Username for use in changelog, git log
-    @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
-    @return: message ('ok' if successful)
-    """
-    return 1,'not implemented yet'
-
-
-@command
-@local_only
-def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path):
-    """
-    @param user_name: Username for use in changelog, git log
-    @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
-    @return: message ('ok' if successful)
-    """
-    return 1,'not implemented yet'
-
-
-@command
-@local_only
-def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path):
-    """
-    @param user_name: Username for use in changelog, git log
-    @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
-    @return: message ('ok' if successful)
-    """
-    return 1,'not implemented yet'
-
-
-@command
 @requires_network
 def annex_push(collection_path, file_path_rel):
     """Push a git-annex file to workbench.
