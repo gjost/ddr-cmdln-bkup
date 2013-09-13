@@ -4,6 +4,7 @@ from functools import wraps
 import logging
 import os
 import re
+import shutil
 import sys
 
 import envoy
@@ -14,7 +15,7 @@ from DDR import storage
 from DDR.dvcs import gitolite_connect_ok
 from DDR.dvcs import annex_whereis_file
 from DDR.dvcs import list_staged, list_committed
-from DDR.models import DDRCollection, DDREntity
+from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
 
 
@@ -93,23 +94,23 @@ OPERATIONS = [
 
 
 
-def commit_files(repo, message, regular_files=[], annex_files=[]):
+def commit_files(repo, message, git_files=[], annex_files=[]):
     """git-add and git-annex-add files and commit them
     
     @param repo: GitPython Repo object
     @param message: String
-    @param regular_files: List of filenames relative to repo root.
+    @param git_files: List of filenames relative to repo root.
     @param annex_files: List of filenames relative to repo root.
     @return: GitPython Repo object
     """
-    added = annex_files + regular_files
+    added = annex_files + git_files
     added.sort()
     logging.debug('    files added:         {}'.format(added))
     
     if annex_files:
         repo.git.annex('add', annex_files)
-    if regular_files:
-        repo.index.add(regular_files)
+    if git_files:
+        repo.index.add(git_files)
     
     staged = list_staged(repo)
     staged.sort()
@@ -248,7 +249,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
 
 @command
 @requires_network
-def create(user_name, user_mail, collection_path):
+def create(user_name, user_mail, collection_path, templates):
     """Command-line function for creating a new collection.
     
     Clones a blank collection object from workbench server, adds files, commits.
@@ -270,6 +271,7 @@ def create(user_name, user_mail, collection_path):
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
+    @param templates: List of metadata templates (absolute paths).
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -294,32 +296,32 @@ def create(user_name, user_mail, collection_path):
     repo.git.config('annex.sshcaching', 'false')
     git_files = []
     
-    # add files
+    # copy template files to collection
+    for src in templates:
+        if os.path.exists(src):
+            dst = os.path.join(collection.path, os.path.basename(src))
+            logging.debug('cp %s, %s' % (src, dst))
+            shutil.copy(src, dst)
+            if os.path.exists(dst):
+                git_files.append(dst)
+            else:
+                logging.error('COULD NOT COPY %s' % src)
+    
+    # add control, .gitignore, changelog
     control   = collection.control()
-    cjson     = collection.json()
-    ead       = collection.ead()
     gitignore = collection.gitignore()
-    if os.path.exists(control.path):
-        git_files.append(control.path_rel)
-    else:
-        logging.error('    COULD NOT CREATE control')
-    if os.path.exists(cjson.path):
-        git_files.append(cjson.path_rel)
-    else:
-        logging.error('    COULD NOT CREATE collection.json')
-    if os.path.exists(ead.path):
-        git_files.append(ead.path_rel)
-    else:
-        logging.error('    COULD NOT CREATE ead.xml')
-    if os.path.exists(collection.gitignore_path):
-        git_files.append(collection.gitignore_path_rel)
-    else:
-        logging.error('    COULD NOT CREATE .gitignore')
-    # changelog
     changelog_messages = ['Initialized collection {}'.format(collection.uid)]
     write_changelog_entry(collection.changelog_path,
                           changelog_messages,
                           user_name, user_mail)
+    if os.path.exists(control.path):
+        git_files.append(control.path_rel)
+    else:
+        logging.error('    COULD NOT CREATE control')
+    if os.path.exists(collection.gitignore_path):
+        git_files.append(collection.gitignore_path_rel)
+    else:
+        logging.error('    COULD NOT CREATE .gitignore')
     if os.path.exists(collection.changelog_path):
         git_files.append(collection.changelog_path_rel)
     else:
@@ -490,13 +492,15 @@ def sync(user_name, user_mail, collection_path):
 
 @command
 @local_only
-def entity_create(user_name, user_mail, collection_path, entity_uid):
+def entity_create(user_name, user_mail, collection_path, entity_uid, updated_files, templates):
     """Command-line function for creating an entity and adding it to the collection.
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
     @param entity_uid: A valid DDR entity UID
+    @param updated_files: List of updated files (relative to collection root).
+    @param templates: List of entity metadata templates (absolute paths).
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -509,70 +513,51 @@ def entity_create(user_name, user_mail, collection_path, entity_uid):
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
-    
-    # create collection files/ dir if not already present
-    # entity.json
-    # mets.xml
-    # control
-    # changelog
-    # commit
-    # control
+    git_files = []
     
     # entity dir
     if not os.path.exists(entity.path):
         os.makedirs(entity.path)
-    git_files = []
     
+    # copy template files to entity
+    for src in templates:
+        if os.path.exists(src):
+            dst = os.path.join(entity.path, os.path.basename(src))
+            logging.debug('cp %s, %s' % (src, dst))
+            shutil.copy(src, dst)
+            if os.path.exists(dst):
+                git_files.append(dst)
+            else:
+                logging.error('COULD NOT COPY %s' % src)
+    
+    # entity control, changelog
     econtrol = entity.control()
-    ejson = entity.json()
-    mets = entity.mets()
-    
-    if os.path.exists(econtrol.path):
-        git_files.append(econtrol.path)
-    else:
-        logging.error('    COULD NOT CREATE control')
-    if os.path.exists(entity.json_path):
-        git_files.append(ejson.path)
-    else:
-        logging.error('    COULD NOT CREATE entity.json')
-    if os.path.exists(entity.mets_path):
-        git_files.append(mets.path)
-    else:
-        logging.error('    COULD NOT CREATE mets')
-    
-    # update entity changelog
     entity_changelog_messages = ['Initialized entity {}'.format(entity.uid),]
     write_changelog_entry(entity.changelog_path,
                           entity_changelog_messages,
                           user=user_name, email=user_mail)
+    if os.path.exists(econtrol.path):
+        git_files.append(econtrol.path)
+    else:
+        logging.error('    COULD NOT CREATE control')
     if os.path.exists(entity.changelog_path):
         git_files.append(entity.changelog_path)
     else:
         logging.error('    COULD NOT CREATE changelog')
     
-    # update collection control
+    # add updated collection files
+    for src in updated_files:
+        git_files.append(src)
+    
+    # update collection control, changelog
     ccontrol = collection.control()
     ccontrol.update_checksums(collection)
     ccontrol.write()
-    git_files.append(ccontrol.path)
-    
-    # update collection json
-    cjson = collection.json()
-    cjson.update_checksums(collection)
-    cjson.write()
-    git_files.append(cjson.path)
-    
-    # update collection ead.xml
-    ead = collection.ead()
-    ead.update_dsc(collection)
-    ead.write()
-    git_files.append(ead.path)
-    
-    # update collection changelog
     changelog_messages = ['Initialized entity {}'.format(entity.uid),]
     write_changelog_entry(collection.changelog_path,
                           changelog_messages,
                           user=user_name, email=user_mail)
+    git_files.append(ccontrol.path)
     git_files.append(collection.changelog_path)
     
     # add files and commit
@@ -638,7 +623,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
 
 @command
 @local_only
-def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file):
+def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_files, new_annex_files):
     """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
@@ -651,7 +636,8 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
     @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
+    @param updated_files: list of paths to updated files (relative to collection repo).
+    @param new_annex_files: List of paths to new files (relative to entity files dir).
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -664,107 +650,49 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, new_file
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    git_files = []
+    annex_files = []
     
     if not os.path.exists(collection.annex_path):
         logging.error('    .git/annex IS MISSING!')
         return 1,'.git/annex IS MISSING!'
-    
-    # absolute path to new file
-    new_file_abs = os.path.join(entity.files_path, new_file)
-    # relative to collection repo
-    new_file_rel = os.path.join(entity.files_path_rel, new_file)
-    # relative to entity_dir
-    new_file_rel_entity = new_file_abs.replace('{}/'.format(entity.path), '')
-    logging.debug('    new_file_abs {}'.format(new_file_abs))
-    logging.debug('    new_file_rel {}'.format(new_file_rel))
-    logging.debug('    new_file_rel_entity {}'.format(new_file_rel_entity))
     if not os.path.exists(entity.path):
         logging.error('    Entity does not exist: {}'.format(entity.uid))
         return 1,'entity does not exist: {}'.format(entity.uid)
     if not os.path.exists(entity.files_path):
-        os.makedirs(entity.files_path)
-    if not os.path.exists(new_file_abs):
-        logging.error('    File does not exist: {}'.format(new_file_abs))
-        return 1,'File does not exist: {}'.format(new_file_abs)
+        logging.error('    Entity files_path does not exist: {}'.format(entity.uid))
+        return 1,'entity files_path does not exist: {}'.format(entity.uid)
     
-    git_files = []
+    # new annex files
+    new_files_rel_entity = []
+    for new_file in new_annex_files:
+        # paths: absolute, relative to collection repo, relative to entity_dir
+        new_file_abs = os.path.join(entity.files_path, new_file)
+        if not os.path.exists(new_file_abs):
+            logging.error('    File does not exist: {}'.format(new_file_abs))
+            return 1,'File does not exist: {}'.format(new_file_abs)
+        new_file_rel = os.path.join(entity.files_path_rel, new_file)
+        new_file_rel_entity = new_file_abs.replace('{}/'.format(entity.path), '')
+        new_files_rel_entity.append(new_file_rel_entity)
+        annex_files.append(new_file_rel)
     
-    # update entity changelog
-    changelog_messages = []
-    for f in [new_file_rel_entity]:
-        changelog_messages.append('Added entity file {}'.format(f))
-    write_changelog_entry(
-        entity.changelog_path,
-        changelog_messages,
-        user_name, user_mail)
-    git_files.append(entity.changelog_path_rel)
+    # updated files
+    [git_files.append(updated_file) for updated_file in updated_files]
     
-    # update entity control
+    # update entity changelog, control
+    changelog_messages = ['Added entity file {}'.format(f) for f in new_files_rel_entity]
+    write_changelog_entry(entity.changelog_path,
+                          changelog_messages,
+                          user_name, user_mail)
     econtrol = entity.control()
     econtrol.update_checksums(entity)
     econtrol.write()
+    git_files.append(entity.changelog_path_rel)
     git_files.append(econtrol.path_rel)
     
-    # update entity json, mets
-    git_files.append(entity.json_path_rel)
-    git_files.append(entity.mets_path_rel)
-    
     # add files and commit
-    repo = commit_files(repo, 'Added entity file(s)', git_files, [new_file_rel])
-#    # git annex add
-#    logging.debug('    git annex add {}'.format(new_file_rel))
-#    repo.git.annex('add', new_file_rel)
-#    # TODO confirm new file actually added to git annex
-#    # git add
-#    for f in git_files:
-#        logging.debug('    git add {}'.format(f))
-#    repo.index.add(git_files)
-#    # commit
-#    commit = repo.index.commit('Added entity file(s)')
+    repo = commit_files(repo, 'Added entity file(s)', git_files, annex_files)
     return 0,'ok'
-
-
-@command
-@local_only
-def entity_add_master(user_name, user_mail, collection_path, entity_uid, file_path):
-    """Wrapper around entity_annex_add() that 
-    
-    @param user_name: Username for use in changelog, git log
-    @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
-    @return: message ('ok' if successful)
-    """
-    return 1,'not implemented yet'
-
-
-@command
-@local_only
-def entity_add_mezzanine(user_name, user_mail, collection_path, entity_uid, file_path):
-    """
-    @param user_name: Username for use in changelog, git log
-    @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
-    @return: message ('ok' if successful)
-    """
-    return 1,'not implemented yet'
-
-
-@command
-@local_only
-def entity_add_access(user_name, user_mail, collection_path, entity_uid, file_path):
-    """
-    @param user_name: Username for use in changelog, git log
-    @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
-    @param file_path: Path to new file relative to entity files dir.
-    @return: message ('ok' if successful)
-    """
-    return 1,'not implemented yet'
 
 
 @command

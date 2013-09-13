@@ -108,6 +108,7 @@ Example:
     parser_ccre.add_argument('-u', '--user',       required=True, help='User name')
     parser_ccre.add_argument('-m', '--mail',       required=True, help='User e-mail address')
     parser_ccre.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
+    parser_ccre.add_argument('-t', '--templates',  required=True, help='List of metadata template files (absolute paths)')
     
     # clone
     clon_descr,clon_epilog = split_docstring(clone)
@@ -145,7 +146,7 @@ Example:
     parser_cupd.add_argument('-u', '--user',       required=True, help='User name')
     parser_cupd.add_argument('-m', '--mail',       required=True, help='User e-mail address')
     parser_cupd.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
-    parser_cupd.add_argument('-f', '--file',       required=True, help='Relative path to updated file.')
+    parser_cupd.add_argument('-f', '--files',      required=True, help='List of updated files (relative to collection)')
     
     # sync
     sync_descr,sync_epilog = split_docstring(sync)
@@ -171,6 +172,8 @@ Example:
     parser_ecre.add_argument('-m', '--mail',       required=True, help='User e-mail address')
     parser_ecre.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_ecre.add_argument('-e', '--entity',     required=True, help='UID of entity to be added to collection.')
+    parser_ecre.add_argument('-f', '--files',      required=True, help='List of updated files (relative to collection)')
+    parser_ecre.add_argument('-t', '--templates',  required=True, help='List of metadata template files (absolute paths)')
     
     # entity_destroy
     edel_descr,edel_epilog = split_docstring(entity_destroy)
@@ -197,7 +200,7 @@ Example:
     parser_eupd.add_argument('-m', '--mail',       required=True, help='User e-mail address')
     parser_eupd.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_eupd.add_argument('-e', '--entity',     required=True, help='UID of entity to be added to collection.')
-    parser_eupd.add_argument('-f', '--file',       required=True, help='Relative path to updated file.')
+    parser_eupd.add_argument('-f', '--files',      required=True, help='List of updated files (relative to collection)')
     
     # entity_annex_add
     eadd_descr,eadd_epilog = split_docstring(entity_annex_add)
@@ -211,7 +214,8 @@ Example:
     parser_eadd.add_argument('-m', '--mail',       required=True, help='User e-mail address')
     parser_eadd.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_eadd.add_argument('-e', '--entity',     required=True, help='UID of entity to be added to collection.')
-    parser_eadd.add_argument('-f', '--file',       required=True, help='Relative path to updated file.')
+    parser_eadd.add_argument('-f', '--files',      required=True, help='List of updated files (relative to collection)')
+    parser_eadd.add_argument('-a', '--annex',      required=True, help='List of annex files (relative to entity files dir)')
     
     # annex_push
     push_descr,push_epilog = split_docstring(annex_push)
@@ -298,17 +302,29 @@ Example:
         if msg:
             print msg
         sys.exit(0)
-    elif args.cmd == 'create':            exit,msg = create(args.user, args.mail, args.collection)
-    elif args.cmd == 'clone':             exit,msg = clone(args.user, args.mail, args.cid, args.dest)
-    elif args.cmd == 'destroy':           exit,msg = destroy(args.user, args.mail, args.collection)
-    elif args.cmd == 'update':            exit,msg = update(args.user, args.mail, args.collection, [args.file])
-    elif args.cmd == 'sync':              exit,msg = sync(args.user, args.mail, args.collection)
-    elif args.cmd == 'ecreate':     exit,msg = entity_create(args.user, args.mail, args.collection, args.entity)
-    elif args.cmd == 'edestroy':    exit,msg = entity_destroy(args.user, args.mail, args.collection, args.entity)
-    elif args.cmd == 'eupdate':     exit,msg = entity_update(args.user, args.mail, args.collection, args.entity, [args.file])
-    elif args.cmd == 'eadd':  exit,msg = entity_annex_add(args.user,args.mail,args.collection, args.entity, args.file)
-    elif args.cmd == 'push':        exit,msg = annex_push(args.collection, args.file)
-    elif args.cmd == 'pull':        exit,msg = annex_pull(args.collection, args.file)
+    elif args.cmd == 'create':
+        templates = args.templates.strip().split(',')
+        exit,msg = create(args.user, args.mail, args.collection, templates)
+    elif args.cmd == 'update':
+        files = args.files.strip().split(',')
+        exit,msg = update(args.user, args.mail, args.collection, files)
+    elif args.cmd == 'ecreate':
+        templates = args.templates.strip().split(',')
+        files = args.files.strip().split(',')
+        exit,msg = entity_create(args.user, args.mail, args.collection, args.entity, templates, files)
+    elif args.cmd == 'eupdate':
+        files = args.files.strip().split(',')
+        exit,msg = entity_update(args.user, args.mail, args.collection, args.entity, files)
+    elif args.cmd == 'eadd':
+        files = args.files.strip().split(',')
+        annex = args.annex.strip().split(',')
+        exit,msg = entity_annex_add(args.user,args.mail,args.collection, args.entity, files, annex)
+    elif args.cmd == 'clone':    exit,msg = clone(args.user, args.mail, args.cid, args.dest)
+    elif args.cmd == 'destroy':  exit,msg = destroy(args.user, args.mail, args.collection)
+    elif args.cmd == 'sync':     exit,msg = sync(args.user, args.mail, args.collection)
+    elif args.cmd == 'edestroy': exit,msg = entity_destroy(args.user, args.mail, args.collection, args.entity)
+    elif args.cmd == 'push':     exit,msg = annex_push(args.collection, args.file)
+    elif args.cmd == 'pull':     exit,msg = annex_pull(args.collection, args.file)
     elif args.cmd == 'removables':
         exit,msg = removables()
         print(msg)
