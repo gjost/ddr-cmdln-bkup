@@ -12,7 +12,7 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
-from DDR.models import DDRCollection, DDREntity
+from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
 
 

@@ -4,8 +4,6 @@ import os
 
 from DDR import CONFIG_FILE
 from DDR.control import CollectionControlFile, EntityControlFile
-from DDR.meta import CollectionJSON, EntityJSON
-from DDR.xml import EAD, METS
 
 
 
@@ -103,31 +101,6 @@ class Collection( object ):
 
 
 
-class DDRCollection( Collection ):
-    ead_path = None
-    json_path = None
-    ead_path_rel = None
-    json_path_rel = None
-    
-    def __init__(self, *args, **kwargs):
-        super(DDRCollection, self).__init__(*args, **kwargs)
-        self.ead_path           = self._path_absrel('ead.xml'        )
-        self.json_path          = self._path_absrel('collection.json')
-        self.ead_path_rel       = self._path_absrel('ead.xml',        rel=True)
-        self.json_path_rel      = self._path_absrel('collection.json',rel=True)
-    
-    def ead( self ):
-        if not os.path.exists(self.ead_path):
-            EAD.create(self.ead_path)
-        return EAD(self)
-    
-    def json( self ):
-        if not os.path.exists(self.json_path):
-            CollectionJSON.create(self.json_path)
-        return CollectionJSON(self)
-
-
-
 class Entity( object ):
     path = None
     path_rel = None
@@ -218,28 +191,3 @@ class Entity( object ):
             if cs:
                 checksums.append( (cs, fpath) )
         return checksums
-
-
-
-class DDREntity( Entity ):
-    json_path = None
-    mets_path = None
-    json_path_rel = None
-    mets_path_rel = None
-    
-    def __init__(self, *args, **kwargs):
-        super(DDREntity, self).__init__(*args, **kwargs)
-        self.json_path          = self._path_absrel('entity.json')
-        self.mets_path          = self._path_absrel('mets.xml'   )
-        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
-        self.mets_path_rel      = self._path_absrel('mets.xml',   rel=True)
-    
-    def json( self ):
-        if not os.path.exists(self.json_path):
-            EntityJSON.create(self.json_path)
-        return EntityJSON(self)
-    
-    def mets( self ):
-        if not os.path.exists(self.mets_path):
-            METS.create(self.mets_path)
-        return METS(self)
