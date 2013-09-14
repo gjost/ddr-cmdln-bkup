@@ -2,6 +2,7 @@
 
 import logging
 logger = logging.getLogger(__name__)
+import os
 
 import envoy
 import git
@@ -30,31 +31,6 @@ def annex_whereis_file(repo, file_path_rel):
         remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
         logging.debug('    remotes: {}'.format(remotes))
     return remotes
-
-def clones(path1, path2, n=5):
-    """Indicates whether two repos at the specified paths are clones of each other.
-    
-    Compares the first N hashes
-    
-    @param path1
-    @param path2
-    @param n
-    @returns 'same', 'different', 'unknown'
-    """
-    def get(path):
-        repo = git.Repo(path)
-        log = repo.git.log('--reverse', '-%s' % n, pretty="format:'%H'").split('\n')
-        if log and (type(log) == type([])):
-            return log
-        return None
-    log1 = get(path1)
-    log2 = get(path2)
-    if log1 and log2:
-        if (log1 == log2):
-            return 'same'
-        else:
-            return 'different'
-    return 'unknown'
 
 def gitolite_connect_ok(server):
     """See if we can connect to gitolite server.
@@ -127,3 +103,106 @@ def list_committed(repo, commit):
     entrylines = [line for line in entry if '|' in line]
     files = [line.split('|')[0].strip() for line in entrylines]
     return files
+
+
+
+
+# backup/sync -----------------------------------------------------
+
+def repos(path):
+    """Lists all the repositories in the path directory.
+    Duplicate of collections list?
+    """
+    repos = []
+    for d in os.listdir(path):
+        dpath = os.path.join(path, d)
+        if '.git' in os.listdir(dpath):
+            repos.append(dpath)
+    return repos
+
+def is_local(url):
+    """Indicates whether or not the git URL is local.
+    Currently very crude: just checks if there's an ampersand and a colon.
+    @returns 1 (is local), 0 (not local), or -1 (unknown)
+    """
+    if url:
+        if ('@' in url) and (':' in url):
+            return 0 # remote
+        return 1     # local
+    return -1        # unknown
+
+def is_clone(path1, path2, n=5):
+    """Indicates whether two repos at the specified paths are clones of each other.
+    
+    Compares the first N hashes
+    
+    @param path1
+    @param path2
+    @param n
+    @returns 1 (is a clone), 0 (not a clone), or -1 (unknown)
+    """
+    if is_local(path2):
+        def get(path):
+            repo = git.Repo(path)
+            log = repo.git.log('--reverse', '-%s' % n, pretty="format:'%H'").split('\n')
+            if log and (type(log) == type([])):
+                return log
+            return None
+        log1 = get(path1)
+        log2 = get(path2)
+        if log1 and log2:
+            if (log1 == log2):
+                return 1
+            else:
+                return 0
+    return -1
+
+def remotes(path, paths=None):
+    """Lists remotes for the repository at path.
+    
+    For each remote lists info you'd find in REPO/.git/config plus a bit more:
+    - name
+    - url
+    - annex-uuid
+    - fetch
+    - push
+    - local or remote
+    - if local, whether the remote is a clone
+    
+    $ git remote -v
+    memex	gjost@memex:~/music (fetch)
+    memex	gjost@memex:~/music (push)
+    origin	/media/WD5000BMV-2/music/ (fetch)
+    origin	/media/WD5000BMV-2/music/ (push)
+    seagate596-2010	gjost@memex:/media/seagate596-2010/Music (fetch)
+    seagate596-2010	gjost@memex:/media/seagate596-2010/Music (push)
+    serenity	gjost@jostwebwerks.com:~/git/music.git (fetch)
+    serenity	gjost@jostwebwerks.com:~/git/music.git (push)
+    wd5000bmv-2	/media/WD5000BMV-2/music/ (fetch)
+    wd5000bmv-2	/media/WD5000BMV-2/music/ (push)
+    
+    >>> import git
+    >>> repo = git.Repo(path)
+    >>> repo.remotes
+    [<git.Remote "origin">, <git.Remote "serenity">, <git.Remote "wd5000bmv-2">, <git.Remote "memex">, <git.Remote "seagate596-2010">]
+    >>> cr = repo.config_reader()
+    >>> cr.items('remote "serenity"')
+[('url', 'gjost@jostwebwerks.com:~/git/music.git'), ('fetch', '+refs/heads/*:refs/remotes/serenity/*'), ('annex-uuid', 'e7e4c020-9335-11
+e2-8184-835f755b29c5')]
+    """
+    remotes = []
+    repo = git.Repo(path)
+    for remote in repo.remotes:
+        r = {'name':remote.name}
+        for key,val in repo.config_reader().items('remote "%s"' % remote.name):
+            r[key] = val
+        r['local'] = is_local(r.get('url', None))
+        r['clone'] = is_clone(path, r['url'])
+        remotes.append(r)
+    return remotes
+
+def repos_remotes(path):
+    """Gets list of remotes for each repo in path.
+    @returns list of dicts {'path':..., 'remotes':[...]}
+    """
+    return [{'path':p, 'remotes':remotes(p),} for p in repos(path)]
