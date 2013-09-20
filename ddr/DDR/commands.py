@@ -203,7 +203,6 @@ def commit_files(repo, message, git_files=[], annex_files=[]):
     staged = list_staged(repo)
     staged.sort()
     logging.debug('    files staged:        {}'.format(staged))
-    logging.debug('    all files staged:    {}'.format(added == staged))
     # TODO cancel commit if list of staged doesn't match list of files added?
     
     commit = repo.index.commit(message)
@@ -212,7 +211,6 @@ def commit_files(repo, message, git_files=[], annex_files=[]):
     committed = list_committed(repo, commit)
     committed.sort()
     logging.debug('    files committed:     {}'.format(committed))
-    logging.debug('    all files committed: {}'.format(added == staged == committed))
     # TODO complain if list of committed files doesn't match lists of added and staged files?
     
     return repo
