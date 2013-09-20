@@ -329,6 +329,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -380,6 +381,7 @@ def create(user_name, user_mail, collection_path, templates):
     repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
     repo.git.config('annex.sshcaching', 'false')
     git_files = []
@@ -501,6 +503,7 @@ def update(user_name, user_mail, collection_path, updated_files):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -548,6 +551,7 @@ def sync(user_name, user_mail, collection_path):
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -598,6 +602,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -686,6 +691,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -735,6 +741,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     repo.git.checkout('master')
     repo.git.config('user.name', user_name)
     repo.git.config('user.email', user_mail)
+    repo.git.config('core.fileMode', 'false')
     repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
