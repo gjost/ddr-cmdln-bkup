@@ -17,7 +17,7 @@ from DDR.dvcs import annex_whereis_file
 from DDR.dvcs import list_staged, list_committed
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
-from DDR.organization import group_repo_level, repo_level, repo_annex_get
+from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
 
 
 class NoConfigError(Exception):
@@ -32,7 +32,8 @@ config = ConfigParser.ConfigParser()
 config.read(CONFIG_FILE)
 GITOLITE = config.get('workbench','gitolite')
 GIT_REMOTE_NAME = config.get('workbench','remote')
-
+ACCESS_FILE_APPEND = config.get('local','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('local','access_file_extension')
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
@@ -801,4 +802,72 @@ def mr_annex_get():
     """mr annex get
     """
     repo_annex_get(os.getcwd())
+    return 0,'ok'
+
+
+@command
+@local_only
+def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
+    """
+    """
+    logging.debug('reading group file: %s' % groupfile)
+    repos = read_group_file(groupfile)
+    ACCESS_SUFFIX = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
+    
+    for r in repos:
+        repo_path = os.path.join(local_base, r['id'])
+        logging.debug(repo_path)
+        
+        # clone/update
+        if os.path.exists(repo_path):
+            logging.debug('updating %s' % repo_path)
+            repo = git.Repo(repo_path)
+            repo.git.fetch('origin')
+            repo.git.checkout('master')
+            repo.git.pull('origin', 'master')
+            repo.git.checkout('git-annex')
+            repo.git.pull('origin', 'git-annex')
+            repo.git.checkout('master')
+            logging.debug('ok')
+        else:
+            url = '%s:%s.git' % (GITOLITE, r['id'])
+            logging.debug('cloning %s' % url)
+            repo = git.Repo.clone_from(url, r['id'])
+            logging.debug('ok')
+        
+        # add/update remotes
+        logging.debug('adding remotes')
+        def add_remote(repo_path, remote_name, remote_path):
+            repo = git.Repo(repo_path)
+            if remote_name in [rem.name for rem in repo.remotes]:
+                logging.debug('remote exists')
+            else:
+                logging.debug(repo_path)
+                logging.debug('remote add %s %s' % (remote_name, remote_path))
+                repo.create_remote(remote_name, remote_path)
+                logging.debug('ok')
+        remote_path = os.path.join(remote_base, r['id'])
+        add_remote(repo_path, remote_name, remote_path) # local -> remote
+        add_remote(remote_path, local_name, repo_path)  # remote -> local
+        
+        # annex sync
+        logging.debug('annex sync')
+        response = repo.git.annex('sync')
+        logging.debug('    %s' % response)
+        
+        # annex get
+        level = r['level']
+        logging.debug('level: %s' % level)
+        if level == 'access':
+            for root, dirs, files in os.walk(repo_path):
+                for f in files:
+                    if f.endswith(ACCESS_SUFFIX):
+                        path_rel = os.path.join(root, f).replace(repo_path, '')[1:]
+                        response = repo.git.annex('get', path_rel)
+                        logging.debug('    %s' % response)
+        elif level == 'all':
+            logging.debug('git annex get .')
+            response = repo.git.annex('get', '.')
+            logging.debug('    %s' % response)
+        logging.debug('DONE')
     return 0,'ok'
