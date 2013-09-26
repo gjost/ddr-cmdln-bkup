@@ -15,6 +15,7 @@ from DDR.commands import collections_local, create, clone, destroy, update, sync
 from DDR.commands import status, annex_status
 from DDR.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from DDR.commands import annex_push, annex_pull
+from DDR.commands import mr_set_level, mr_annex_get
 from DDR.commands import removables, removables_mounted, mount_point, mount, umount, storage_status
 
 
@@ -238,6 +239,25 @@ Example:
     parser_pull.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     parser_pull.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_pull.add_argument('-f', '--file',       required=True, help='Relative path to updated file.')
+    
+    # mr_set_level
+    level_descr,level_epilog = split_docstring(mr_set_level)
+    parser_level = subparsers.add_parser('level',
+                                         description=level_descr, epilog=level_epilog,
+                                         formatter_class=formatter,)
+    parser_level.set_defaults(func=mr_set_level)
+    parser_level.add_argument('-l', '--log', help='Log file..')
+    parser_level.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_level.add_argument('-g', '--groupfile', required=True, help='Absolute path to group file.')
+
+    # mr_annex_get
+    mrget_descr,mrget_epilog = split_docstring(mr_annex_get)
+    parser_mrget = subparsers.add_parser('mrget',
+                                         description=mrget_descr, epilog=mrget_epilog,
+                                         formatter_class=formatter,)
+    parser_mrget.set_defaults(func=mr_annex_get)
+    parser_mrget.add_argument('-l', '--log', help='Log file..')
+    parser_mrget.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
 
     # removables
     parser_remo = subparsers.add_parser('removables', formatter_class=formatter,)
@@ -325,6 +345,8 @@ Example:
     elif args.cmd == 'edestroy': exit,msg = entity_destroy(args.user, args.mail, args.collection, args.entity)
     elif args.cmd == 'push':     exit,msg = annex_push(args.collection, args.file)
     elif args.cmd == 'pull':     exit,msg = annex_pull(args.collection, args.file)
+    elif args.cmd == 'level':    exit,msg = mr_set_level(args.groupfile)
+    elif args.cmd == 'mrget':    exit,msg = mr_annex_get()
     elif args.cmd == 'removables':
         exit,msg = removables()
         print(msg)

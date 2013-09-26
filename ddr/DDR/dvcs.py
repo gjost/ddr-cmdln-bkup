@@ -112,17 +112,24 @@ def list_committed(repo, commit):
 def repos(path):
     """Lists all the repositories in the path directory.
     Duplicate of collections list?
+    
+    >>> from DDR import dvcs
+    >>> p = '/media/WD5000BMV-2/ddr'
+    >>> dvcs.repos(p)
+    ['/media/WD5000BMV-2/ddr/ddr-testing-130', '/media/WD5000BMV-2/ddr/ddr-testing-131', ...]
     """
     repos = []
     for d in os.listdir(path):
         dpath = os.path.join(path, d)
-        if '.git' in os.listdir(dpath):
+        if os.path.isdir(dpath) and ('.git' in os.listdir(dpath)):
             repos.append(dpath)
     return repos
 
 def is_local(url):
     """Indicates whether or not the git URL is local.
+    
     Currently very crude: just checks if there's an ampersand and a colon.
+    
     @returns 1 (is local), 0 (not local), or -1 (unknown)
     """
     if url:
@@ -131,33 +138,48 @@ def is_local(url):
         return 1     # local
     return -1        # unknown
 
+def local_exists(path):
+    """Indicates whether a local remote can be found in the filesystem.
+    """
+    if os.path.exists(path):
+        return 1
+    return 0
+
 def is_clone(path1, path2, n=5):
     """Indicates whether two repos at the specified paths are clones of each other.
     
     Compares the first N hashes
+    TODO What if repo has less than N commits?
     
     @param path1
     @param path2
     @param n
     @returns 1 (is a clone), 0 (not a clone), or -1 (unknown)
     """
+    print('is_clone(%s, %s, %s)' % (path1, path2, n))
     if is_local(path2):
         def get(path):
-            repo = git.Repo(path)
-            log = repo.git.log('--reverse', '-%s' % n, pretty="format:'%H'").split('\n')
-            if log and (type(log) == type([])):
-                return log
+            try:
+                repo = git.Repo(path)
+            except:
+                repo = None
+            if repo:
+                log = repo.git.log('--reverse', '-%s' % n, pretty="format:'%H'").split('\n')
+                if log and (type(log) == type([])):
+                    return log
             return None
         log1 = get(path1)
         log2 = get(path2)
         if log1 and log2:
+            print('len(log1) %s' % len(log1))
+            print('len(log2) %s' % len(log2))
             if (log1 == log2):
                 return 1
             else:
                 return 0
     return -1
 
-def remotes(path, paths=None):
+def remotes(path, paths=None, clone_log_n=1):
     """Lists remotes for the repository at path.
     
     For each remote lists info you'd find in REPO/.git/config plus a bit more:
@@ -197,7 +219,8 @@ e2-8184-835f755b29c5')]
         for key,val in repo.config_reader().items('remote "%s"' % remote.name):
             r[key] = val
         r['local'] = is_local(r.get('url', None))
-        r['clone'] = is_clone(path, r['url'])
+        r['local_exists'] = local_exists(r.get('url', None))
+        r['clone'] = is_clone(path, r['url'], clone_log_n)
         remotes.append(r)
     return remotes
 
