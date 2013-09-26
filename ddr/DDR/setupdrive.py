@@ -68,18 +68,30 @@ for r in repos:
     #organization.repo_annex_get(repo_path, level)
     ACCESS_SUFFIX = '-a.jpg'
     print(level)
+<<<<<<< HEAD
     
+=======
+>>>>>>> 57ed61ee0860f28e48034d9c3952b9fb3d1d0632
     if level == 'access':
         for root, dirs, files in os.walk(repo_path):
             for file in files:
                 if file.endswith(ACCESS_SUFFIX):
+<<<<<<< HEAD
                     path_rel = os.path.join(root, file).replace(repo_path, '')[1:]
                     response = repo.git.annex('get', path_rel)
                     print('    %s' % response)
     
+=======
+                    print('    git annex get %s' % file)
+                    response = repo.git.annex('get', file)
+                    print('    %s' % response)
+>>>>>>> 57ed61ee0860f28e48034d9c3952b9fb3d1d0632
     elif level == 'all':
         print('git annex get .')
         response = repo.git.annex('get', '.')
         print('    %s' % response)
+<<<<<<< HEAD
     
+=======
+>>>>>>> 57ed61ee0860f28e48034d9c3952b9fb3d1d0632
     print('ok')
