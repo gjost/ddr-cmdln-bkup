@@ -787,25 +787,6 @@ def annex_pull(collection_path, file_path_rel):
 
 
 @command
-def mr_set_level(group_file_path):
-    """mr set level
-    """
-    repo_path = os.getcwd()
-    cid = os.path.basename(repo_path)
-    level = group_repo_level(group_file_path, cid)
-    repo_level(repo_path, level)
-    return 0,'ok'
-
-
-@command
-def mr_annex_get():
-    """mr annex get
-    """
-    repo_annex_get(os.getcwd())
-    return 0,'ok'
-
-
-@command
 @local_only
 def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
     """
