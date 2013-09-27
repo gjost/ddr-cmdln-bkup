@@ -809,6 +809,7 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
         if os.path.exists(repo_path):
             logging.debug('updating %s' % repo_path)
             repo = git.Repo(repo_path)
+            repo.git.config('annex.sshcaching', 'false')
             repo.git.fetch('origin')
             repo.git.checkout('master')
             repo.git.pull('origin', 'master')
@@ -820,6 +821,7 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
             url = '%s:%s.git' % (GITOLITE, r['id'])
             logging.debug('cloning %s' % url)
             repo = git.Repo.clone_from(url, r['id'])
+            repo.git.config('annex.sshcaching', 'false')
             logging.debug('ok')
         
         # add/update remotes
