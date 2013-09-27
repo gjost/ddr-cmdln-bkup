@@ -795,9 +795,15 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
     repos = read_group_file(groupfile)
     ACCESS_SUFFIX = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
     
+    def logif(txt):
+        t = txt.strip()
+        if t:
+            logging.debug(t)
+    
     for r in repos:
         repo_path = os.path.join(local_base, r['id'])
-        logging.debug(repo_path)
+        logging.debug('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+        logging.debug('repo_path: %s' % repo_path)
         
         # clone/update
         if os.path.exists(repo_path):
@@ -817,11 +823,10 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
             logging.debug('ok')
         
         # add/update remotes
-        logging.debug('adding remotes')
         def add_remote(repo_path, remote_name, remote_path):
             repo = git.Repo(repo_path)
             if remote_name in [rem.name for rem in repo.remotes]:
-                logging.debug('remote exists')
+                logging.debug('remote exists: %s %s' % (remote_name, remote_path))
             else:
                 logging.debug(repo_path)
                 logging.debug('remote add %s %s' % (remote_name, remote_path))
@@ -834,7 +839,7 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
         # annex sync
         logging.debug('annex sync')
         response = repo.git.annex('sync')
-        logging.debug('    %s' % response)
+        logif(response)
         
         # annex get
         level = r['level']
@@ -845,10 +850,11 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
                     if f.endswith(ACCESS_SUFFIX):
                         path_rel = os.path.join(root, f).replace(repo_path, '')[1:]
                         response = repo.git.annex('get', path_rel)
-                        logging.debug('    %s' % response)
+                        logif(response)
         elif level == 'all':
             logging.debug('git annex get .')
             response = repo.git.annex('get', '.')
-            logging.debug('    %s' % response)
+            logif(response)
         logging.debug('DONE')
+        
     return 0,'ok'
