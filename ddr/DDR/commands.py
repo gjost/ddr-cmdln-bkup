@@ -12,8 +12,12 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
+from DDR.dvcs import gitolite_connect_ok
+from DDR.dvcs import annex_whereis_file
+from DDR.dvcs import list_staged, list_committed
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
+from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
 
 
 class NoConfigError(Exception):
@@ -28,85 +32,21 @@ config = ConfigParser.ConfigParser()
 config.read(CONFIG_FILE)
 GITOLITE = config.get('workbench','gitolite')
 GIT_REMOTE_NAME = config.get('workbench','remote')
-
+ACCESS_FILE_APPEND = config.get('local','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('local','access_file_extension')
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
 
-def annex_whereis_file(repo, file_path_rel):
-    """Show remotes that the file appears in
-    
-    $ git annex whereis files/ddr-testing-201303051120-1/files/20121205.jpg
-    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
-            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
-            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
-    ok
-    
-    @param repo: A GitPython Repo object
-    @param collection_uid: A valid DDR collection UID
-    @return: List of names of remote repositories.
-    """
-    remotes = []
-    stdout = repo.git.annex('whereis', file_path_rel)
-    logging.debug('\n{}'.format(stdout))
-    lines = stdout.split('\n')
-    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
-        num_copies = int(lines[0].split(' ')[2].replace('(',''))
-        logging.debug('    {} copies'.format(num_copies))
-        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
-        logging.debug('    remotes: {}'.format(remotes))
-    return remotes
-
-def gitolite_info():
-    status = None; lines = []
-    cmd = 'ssh {} info'.format(GITOLITE)
-    logging.debug('        {}'.format(cmd))
-    r = envoy.run(cmd, timeout=30)
-    logging.debug('        {}'.format(r.status_code))
-    status = r.status_code
-    if r.status_code == 0:
-        lines = r.std_out.split('\n')
-    return status,lines
-
-def gitolite_connect_ok():
-    """See if we can connect to gitolite server.
-    
-    We should do some lightweight operation, just enough to make sure we can connect.
-    But we can't ping.
-    
-    http://gitolite.com/gitolite/user.html#info
-    "The only command that is always available to every user is the info command
-    (run ssh git@host info -h for help), which tells you what version of gitolite
-    and git are on the server, and what repositories you have access to. The list
-    of repos is very useful if you have doubts about the spelling of some new repo
-    that you know was setup."
-    Sample output:
-        hello gjost, this is git@mits running gitolite3 v3.2-19-gb9bbb78 on git 1.7.2.5
-        
-         R W C  ddr-densho-[0-9]+
-         R W C  ddr-densho-[0-9]+-[0-9]+
-         R W C  ddr-dev-[0-9]+
-        ...
-    
-    @return: True or False
-    """
-    logging.debug('    DDR.commands.gitolite_connect_ok()')
-    status,lines = gitolite_info()
-    if status == 0 and lines:
-        if len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
-            logging.debug('        OK ')
-            return True
-    logging.debug('        NO CONNECTION')
-    return False
 
 def requires_network(f):
     """Indicate that function requires network access; check if can connect to gitolite server.
     """
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if not gitolite_connect_ok():
+        if not gitolite_connect_ok(GITOLITE):
             logging.error('Cannot connect to git server {}'.format(GITOLITE))
             return 1,'cannot connect to git server {}'.format(GITOLITE)
         return f(*args, **kwargs)
@@ -129,32 +69,6 @@ def command(f):
         logging.debug('{}.{}({}, {})'.format(f.__module__, f.__name__, args, kwargs))
         return f(*args, **kwargs)
     return wrapper
-
-def list_staged(repo):
-    """Returns list of currently staged files
-    
-    Works for git-annex files just like for regular files.
-    
-    @param repo: A Gitpython Repo object
-    @return: List of filenames
-    """
-    return repo.git.diff('--cached', '--name-only').split('\n')
-
-def list_committed(repo, commit):
-    """Returns list of all files in the commit
-
-    $ git log -1 --stat 0a1b2c3d4e...|grep \|
-
-    @param repo: A Gitpython Repo object
-    @param commit: A Gitpython Commit object
-    @return: list of filenames
-    """
-    # return just the files from the specific commit's log entry
-    entry = repo.git.log('-1', '--stat', commit.hexsha).split('\n')
-    entrylines = [line for line in entry if '|' in line]
-    files = [line.split('|')[0].strip() for line in entrylines]
-    return files
-
 
 
 description="""Various commands for manipulating DDR collections and entities."""
@@ -450,7 +364,7 @@ def destroy():
     return 1,'not implemented yet'
 
 
-@command
+#@command
 @local_only
 def status(collection_path, short=False):
     """Command-line function for running git status on collection repository.
@@ -463,7 +377,7 @@ def status(collection_path, short=False):
         status = repo.git.status(short=True, branch=True)
     else:
         status = repo.git.status()
-    logging.debug('\n{}'.format(status))
+    #logging.debug('\n{}'.format(status))
     return 0,status
 
 
@@ -874,4 +788,80 @@ def annex_pull(collection_path, file_path_rel):
     itworked = (exists and lexists and islink)
     logging.debug('    it worked: {}'.format(itworked))
     logging.debug('    DONE')
+    return 0,'ok'
+
+
+@command
+@local_only
+def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
+    """
+    """
+    logging.debug('reading group file: %s' % groupfile)
+    repos = read_group_file(groupfile)
+    ACCESS_SUFFIX = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
+    
+    def logif(txt):
+        t = txt.strip()
+        if t:
+            logging.debug(t)
+    
+    for r in repos:
+        repo_path = os.path.join(local_base, r['id'])
+        logging.debug('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+        logging.debug('repo_path: %s' % repo_path)
+        
+        # clone/update
+        if os.path.exists(repo_path):
+            logging.debug('updating %s' % repo_path)
+            repo = git.Repo(repo_path)
+            repo.git.config('annex.sshcaching', 'false')
+            repo.git.fetch('origin')
+            repo.git.checkout('master')
+            repo.git.pull('origin', 'master')
+            repo.git.checkout('git-annex')
+            repo.git.pull('origin', 'git-annex')
+            repo.git.checkout('master')
+            logging.debug('ok')
+        else:
+            url = '%s:%s.git' % (GITOLITE, r['id'])
+            logging.debug('cloning %s' % url)
+            repo = git.Repo.clone_from(url, r['id'])
+            repo.git.config('annex.sshcaching', 'false')
+            logging.debug('ok')
+        
+        # add/update remotes
+        def add_remote(repo_path, remote_name, remote_path):
+            repo = git.Repo(repo_path)
+            if remote_name in [rem.name for rem in repo.remotes]:
+                logging.debug('remote exists: %s %s' % (remote_name, remote_path))
+            else:
+                logging.debug(repo_path)
+                logging.debug('remote add %s %s' % (remote_name, remote_path))
+                repo.create_remote(remote_name, remote_path)
+                logging.debug('ok')
+        remote_path = os.path.join(remote_base, r['id'])
+        add_remote(repo_path, remote_name, remote_path) # local -> remote
+        add_remote(remote_path, local_name, repo_path)  # remote -> local
+        
+        # annex sync
+        logging.debug('annex sync')
+        response = repo.git.annex('sync')
+        logif(response)
+        
+        # annex get
+        level = r['level']
+        logging.debug('level: %s' % level)
+        if level == 'access':
+            for root, dirs, files in os.walk(repo_path):
+                for f in files:
+                    if f.endswith(ACCESS_SUFFIX):
+                        path_rel = os.path.join(root, f).replace(repo_path, '')[1:]
+                        response = repo.git.annex('get', path_rel)
+                        logif(response)
+        elif level == 'all':
+            logging.debug('git annex get .')
+            response = repo.git.annex('get', '.')
+            logif(response)
+        logging.debug('DONE')
+        
     return 0,'ok'

@@ -15,6 +15,7 @@ from DDR.commands import collections_local, create, clone, destroy, update, sync
 from DDR.commands import status, annex_status
 from DDR.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from DDR.commands import annex_push, annex_pull
+from DDR.commands import sync_group
 from DDR.commands import removables, removables_mounted, mount_point, mount, umount, storage_status
 
 
@@ -239,6 +240,20 @@ Example:
     parser_pull.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_pull.add_argument('-f', '--file',       required=True, help='Relative path to updated file.')
 
+    # sync_group
+    syncgrp_descr,syncgrp_epilog = split_docstring(sync_group)
+    parser_syncgrp = subparsers.add_parser('syncgrp',
+                                           description=syncgrp_descr, epilog=syncgrp_epilog,
+                                           formatter_class=formatter,)
+    parser_syncgrp.set_defaults(func=sync_group)
+    parser_syncgrp.add_argument('-l', '--log', help='Log file..')
+    parser_syncgrp.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    parser_syncgrp.add_argument('-g', '--groupfile', required=True, help='Absolute path to group file.')
+    parser_syncgrp.add_argument('-b', '--locbase', required=True, help='Absolute path to local base dir, in which repos will be stored.')
+    parser_syncgrp.add_argument('-n', '--locname', required=True, help='Local name.')
+    parser_syncgrp.add_argument('-B', '--rembase', required=True, help='Absolute path to dir containing remote repos from POV of local base dir.')
+    parser_syncgrp.add_argument('-N', '--remname', required=True, help='Remote name.')
+
     # removables
     parser_remo = subparsers.add_parser('removables', formatter_class=formatter,)
     parser_remo.set_defaults(func=removables)
@@ -325,6 +340,8 @@ Example:
     elif args.cmd == 'edestroy': exit,msg = entity_destroy(args.user, args.mail, args.collection, args.entity)
     elif args.cmd == 'push':     exit,msg = annex_push(args.collection, args.file)
     elif args.cmd == 'pull':     exit,msg = annex_pull(args.collection, args.file)
+    elif args.cmd == 'syncgrp':
+        exit,msg = sync_group(args.groupfile, args.locbase, args.locname, args.rembase, args.remname)
     elif args.cmd == 'removables':
         exit,msg = removables()
         print(msg)
