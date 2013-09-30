@@ -10,23 +10,6 @@ import git
 
 
 
-"""
-Conventions:
-- Local remotes are named after the drive label
-- Network remotes are named: 
-- Drive files are named 'LABEL.csv'
-- 
-
-When add/rm local collection, add/rm repo to local drive file.
-
-New drive:
-
-"""
-
-
-
-
-
 DRIVE_FILE_FIELDS = 'id,level'
 
 CSV_DELIMITER = ','
@@ -34,9 +17,6 @@ CSV_QUOTECHAR = '"'
 CSV_QUOTING = csv.QUOTE_MINIMAL
 
 LEVELS = ['meta', 'access', 'all']
-
-
-
 
 
 
@@ -214,92 +194,3 @@ def repo_annex_get(repo_path, level):
         logger.debug('git annex get .')
         repo.git.annex('get', '.')
     logger.debug('DONE')
-
-
-
-
-"""
-labelA = 'WD5000BMV-2'
-labelB = 'TS11TB2013'
-pathA = '/media/%s/ddr' % labelA
-pathB = '/media/%s/ddr' % labelB
-mpathA = '%s/.mrconfig' % pathA
-mpathB = '%s/.mrconfig' % pathB
-rpathA = '%s/ddr-testing/WD5000BMV-2.csv' % pathA
-rpathB = '%s/ddr-testing/TS11TB2013.csv'  % pathB
-
-reposA = read_group_file(rpathA)
-reposB = read_group_file(rpathB)
-
-m = make_mrconfig(defaults={}, reposB, server='git@mits.densho.org', base_path='')
-write_mrconfig( m, mpathB )
-
-import mr
-
-mr.update(pathB)
-mr.add_remotes(pathA, labelB, pathB)
-mr.sync_repos(pathA)
-"""
-
-
-
-"""
-#!/bin/bash
-
-echo -n "Path to group file (ex: /media/WD5000BMV-2/ddr/ddr-testing/TS11TB2013.csv): "
-read GROUPFILE
-echo -n "Path to directory containing remotes (ex: /media/WD5000BMV-2/ddr): "
-read RPATH
-echo -n "Remote name (ex: WD5000BMV-2): "
-read LABEL
-echo -n "Origin server (ex: git@mits.densho.org): "
-read SERVER
-
-echo ""
-echo "Are these correct?"
-echo "- group file:  $GROUPFILE"
-echo "- remote path: $RPATH"
-echo "- label:       $LABEL"
-echo "- server:      $SERVER"
-
-echo -n "Proceed? [ENTER] "
-read PROCEED
-
-echo ""
-echo "------------------------------------------------------------------------"
-echo "[mr clone/update]"
-echo ""
-mr update
-
-echo ""
-echo "------------------------------------------------------------------------"
-echo "[level]"
-echo ""
-mr run ddr level -g $GROUPFILE
-
-echo ""
-echo "------------------------------------------------------------------------"
-echo "[add/update remotes]"
-echo ""
-for DIR in ddr-testing-*
-do
-  cd $DIR
-  echo "git remote add $LABEL $RPATH/$DIR"
-  git remote add $LABEL $RPATH/$DIR
-  cd ..
-done
-#mr run ddr addremote -n $LABEL -p $RPATH
-
-echo ""
-echo "------------------------------------------------------------------------"
-echo "[annex sync]"
-echo ""
-mr run git annex sync
-
-echo ""
-echo "------------------------------------------------------------------------"
-echo "[level]"
-echo ""
-mr run ddr mrget
-
-"""
