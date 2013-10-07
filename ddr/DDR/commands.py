@@ -372,13 +372,7 @@ def status(collection_path, short=False):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
-    if short:
-        status = repo.git.status(short=True, branch=True)
-    else:
-        status = repo.git.status()
-    #logging.debug('\n{}'.format(status))
-    return 0,status
+    return dvcs.repo_status(collection_path)
 
 
 @command
@@ -389,10 +383,7 @@ def annex_status(collection_path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
-    status = repo.git.annex('status')
-    logging.debug('\n{}'.format(status))
-    return 0,status
+    return dvcs.annex_status(collection_path)
 
 
 @command

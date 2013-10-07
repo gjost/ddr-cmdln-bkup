@@ -3,10 +3,37 @@
 import logging
 logger = logging.getLogger(__name__)
 import os
+import re
 
 import envoy
 import git
 
+
+def repo_status(path, short=False):
+    """Retrieve git status on repository.
+    
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
+    """
+    status = 'unknown'
+    repo = git.Repo(path)
+    if short:
+        status = repo.git.status(short=True, branch=True)
+    else:
+        status = repo.git.status()
+    #logging.debug('\n{}'.format(status))
+    return status
+
+def annex_status(path):
+    """Retrieve git annex status on repository.
+    
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
+    """
+    repo = git.Repo(collection_path)
+    status = repo.git.annex('status')
+    logging.debug('\n{}'.format(status))
+    return status
 
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in
