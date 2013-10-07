@@ -131,7 +131,109 @@ def list_committed(repo, commit):
     files = [line.split('|')[0].strip() for line in entrylines]
     return files
 
+def list_conflicted(repo):
+    """Returns list of unmerged files in path; presence of files indicates merge conflict.
+    
+    @param repo: A Gitpython Repo object
+    @return: List of filenames
+    """
+    lines = repo.git.ls_files('--unmerged').split('\n')
+    files = []
+    for line in lines:
+        f = line.split('\t')[1]
+        if f not in files:
+            files.append(f)
+    return files
 
+def _status_analyzer(text, progs):
+    """Helper function for running lists of compiled regexes on texts.
+    
+    @param text: The text to be analyzed.
+    @param progs: List of compiled regex patterns.
+    """
+    stat = -1
+    for prog in progs:
+        if prog.search(text):
+            stat = 1
+        else:
+            stat = 0
+    return stat
+    
+"""
+CONFLICTED
+    $ git st
+    # On branch master
+>>> # Your branch and 'origin/master' have diverged,
+>>> # and have 3 and 5 different commits each, respectively.
+    #
+    # Changes to be committed:
+    #
+    #	modified:   files/ddr-testing-160-1/changelog
+    #	modified:   files/ddr-testing-160-1/entity.json
+    #	modified:   files/ddr-testing-160-1/files/ddr-testing-160-1-master-c703e5ece1.json
+    #
+>>> # Unmerged paths:
+    #   (use "git add/rm <file>..." as appropriate to mark resolution)
+    #
+    #	both modified:      ead.xml
+    #
+    # Untracked files:
+    #   (use "git add <file>..." to include in what will be committed)
+    #
+    #	collection.json.conflict
+    #	files/ddr-testing-160-1/addfile.log
+    #	lock
+
+AHEAD
+    $ git st
+    # On branch master
+>>> # Your branch is ahead of 'origin/master' by 1 commit, and can be fast-forwarded.
+    #
+    nothing to commit (working directory clean)
+
+BEHIND
+    $ git st
+    # On branch master
+>>> # Your branch is behind 'origin/master' by 125 commits, and can be fast-forwarded.
+    #
+    nothing to commit (working directory clean)
+"""
+CONFLICTED = ["Your branch and ([a-zA-z0-9/']+) have diverged",
+              "[0-9]+ and [0-9]+ different commits each",
+              "Unmerged paths:",]
+
+AHEAD = ["Your branch is behind ([a-zA-z0-9/']+) by ([0-9]+) commit",]
+
+BEHIND = ["Your branch is behind ([a-zA-z0-9/']+) by ([0-9]+) commit",]
+
+CONFLICTED_PROGS = [re.compile(pattern) for pattern in CONFLICTED]
+AHEAD_PROGS = [re.compile(pattern) for pattern in AHEAD]
+BEHIND_PROGS = [re.compile(pattern) for pattern in BEHIND]
+
+def conflicted(status):
+    """Indicates whether repo has a merge conflict.
+    
+    NOTE: Use list_conflicted if you have a repo object.
+    @param status: A Git status message string.
+    @returns 1 (conflicted), 0 (not conflicted), -1 (error)
+    """
+    return _status_analyzer(status, CONFLICTED_PROGS)
+
+def ahead(status):
+    """Indicates whether repo is ahead of remote repos.
+    
+    @param status: A Git status message string.
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    return _status_analyzer(status, AHEAD_PROGS)
+
+def behind(status):
+    """Indicates whether repo is behind remote repos.
+
+    @param status: A Git status message string.
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    return _status_analyzer(status, BEHIND_PROGS)
 
 
 # backup/sync -----------------------------------------------------
