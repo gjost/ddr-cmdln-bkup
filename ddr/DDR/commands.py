@@ -12,9 +12,7 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
-from DDR.dvcs import gitolite_connect_ok
-from DDR.dvcs import annex_whereis_file
-from DDR.dvcs import list_staged, list_committed
+from DDR import dvcs
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
 from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
@@ -46,7 +44,7 @@ def requires_network(f):
     """
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if not gitolite_connect_ok(GITOLITE):
+        if not dvcs.gitolite_connect_ok(GITOLITE):
             logging.error('Cannot connect to git server {}'.format(GITOLITE))
             return 1,'cannot connect to git server {}'.format(GITOLITE)
         return f(*args, **kwargs)
@@ -114,7 +112,7 @@ def commit_files(repo, message, git_files=[], annex_files=[]):
     if git_files:
         repo.index.add(git_files)
     
-    staged = list_staged(repo)
+    staged = dvcs.list_staged(repo)
     staged.sort()
     logging.debug('    files staged:        {}'.format(staged))
     # TODO cancel commit if list of staged doesn't match list of files added?
@@ -122,7 +120,7 @@ def commit_files(repo, message, git_files=[], annex_files=[]):
     commit = repo.index.commit(message)
     logging.debug('    commit: {}'.format(commit.hexsha))
     
-    committed = list_committed(repo, commit)
+    committed = dvcs.list_committed(repo, commit)
     committed.sort()
     logging.debug('    files committed:     {}'.format(committed))
     # TODO complain if list of committed files doesn't match lists of added and staged files?
@@ -732,7 +730,7 @@ def annex_push(collection_path, file_path_rel):
     stdout = repo.git.annex('copy', '-t', GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))
     # confirm that it worked
-    remotes = annex_whereis_file(repo, file_path_rel)
+    remotes = dvcs.annex_whereis_file(repo, file_path_rel)
     logging.debug('    present in remotes {}'.format(remotes))
     logging.debug('    it worked: {}'.format(GIT_REMOTE_NAME in remotes))
     logging.debug('    DONE')
