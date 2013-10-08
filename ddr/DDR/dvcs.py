@@ -9,6 +9,15 @@ import envoy
 import git
 
 
+def fetch(path):
+    """run git fetch; fetches from origin.
+    
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
+    """
+    repo = git.Repo(path)
+    return repo.git.fetch()
+
 def repo_status(path, short=False):
     """Retrieve git status on repository.
     

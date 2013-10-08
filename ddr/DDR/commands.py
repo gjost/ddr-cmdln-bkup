@@ -385,6 +385,17 @@ def annex_status(collection_path):
 
 
 @command
+@requires_network
+def fetch(collection_path):
+    """Command-line function for fetching latest changes to git repo from origin/master.
+    
+    @param collection_path: Absolute path to collection repo.
+    @return: message ('ok' if successful)
+    """
+    return dvcs.fetch(collection_path)
+
+
+@command
 @local_only
 def update(user_name, user_mail, collection_path, updated_files):
     """Command-line function for commiting changes to the specified file.
