@@ -39,7 +39,7 @@ def annex_status(path):
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(collection_path)
+    repo = git.Repo(path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
     return status
