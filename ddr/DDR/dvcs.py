@@ -160,13 +160,10 @@ def _status_analyzer(text, progs):
     @param text: The text to be analyzed.
     @param progs: List of compiled regex patterns.
     """
-    stat = -1
-    for prog in progs:
-        if prog.search(text):
-            stat = 1
-        else:
-            stat = 0
-    return stat
+    matches = [1 for prog in progs if prog.search(text)]
+    if len(matches):
+        return 1
+    return 0
     
 """
 CONFLICTED
