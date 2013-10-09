@@ -208,7 +208,7 @@ CONFLICTED = ["Your branch and ([a-zA-z0-9/']+) have diverged",
               "[0-9]+ and [0-9]+ different commits each",
               "Unmerged paths:",]
 
-AHEAD = ["Your branch is behind ([a-zA-z0-9/']+) by ([0-9]+) commit",]
+AHEAD = ["Your branch is ahead of ([a-zA-z0-9/']+) by ([0-9]+) commit",]
 
 BEHIND = ["Your branch is behind ([a-zA-z0-9/']+) by ([0-9]+) commit",]
 
