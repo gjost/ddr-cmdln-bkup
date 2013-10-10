@@ -374,7 +374,7 @@ def status(collection_path, short=False):
 
 
 @command
-@requires_network
+#@requires_network
 def annex_status(collection_path):
     """Command-line function for running git annex status on collection repository.
     
@@ -385,7 +385,7 @@ def annex_status(collection_path):
 
 
 @command
-@requires_network
+#@requires_network
 def fetch(collection_path):
     """Command-line function for fetching latest changes to git repo from origin/master.
     
