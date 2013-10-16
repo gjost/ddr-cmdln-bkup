@@ -164,93 +164,124 @@ def list_conflicted(repo):
         if f not in files:
             files.append(f)
     return files
-
-def _status_analyzer(text, progs):
-    """Helper function for running lists of compiled regexes on texts.
-    
-    @param text: The text to be analyzed.
-    @param progs: List of compiled regex patterns.
-    """
-    matches = [1 for prog in progs if prog.search(text)]
-    if len(matches):
-        return 1
-    return 0
     
 """
-CONFLICTED
-    $ git st
-    # On branch master
->>> # Your branch and 'origin/master' have diverged,
->>> # and have 3 and 5 different commits each, respectively.
-    #
-    # Changes to be committed:
-    #
-    #	modified:   files/ddr-testing-160-1/changelog
-    #	modified:   files/ddr-testing-160-1/entity.json
-    #	modified:   files/ddr-testing-160-1/files/ddr-testing-160-1-master-c703e5ece1.json
-    #
->>> # Unmerged paths:
-    #   (use "git add/rm <file>..." as appropriate to mark resolution)
-    #
-    #	both modified:      ead.xml
-    #
-    # Untracked files:
-    #   (use "git add <file>..." to include in what will be committed)
-    #
-    #	collection.json.conflict
-    #	files/ddr-testing-160-1/addfile.log
-    #	lock
+IMPORTANT:
+Indicators for SYNCED,AHEAD,BEHIND,DIVERGED
+are found in the FIRST LINE
+of "git status --short --branch".
+
+SYNCED
+$ git status --short --branch
+## master
 
 AHEAD
-    $ git st
-    # On branch master
->>> # Your branch is ahead of 'origin/master' by 1 commit, and can be fast-forwarded.
-    #
-    nothing to commit (working directory clean)
+$ git status --short --branch
+## master...origin/master [ahead 1]
+---
+$ git status --short --branch
+## master...origin/master [ahead 2]
 
 BEHIND
-    $ git st
-    # On branch master
->>> # Your branch is behind 'origin/master' by 125 commits, and can be fast-forwarded.
-    #
-    nothing to commit (working directory clean)
+$ git status --short --branch
+## master...origin/master [behind 1]
+
+DIVERGED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
 """
-CONFLICTED = ["Your branch and ([a-zA-z0-9/']+) have diverged",
-              "[0-9]+ and [0-9]+ different commits each",
-              "Unmerged paths:",]
 
-AHEAD = ["Your branch is ahead of ([a-zA-z0-9/']+) by ([0-9]+) commit",]
+def synced(repo):
+    """Indicates whether repo is synced with remote repo.
+    
+    @param repo: A GitPython Repo object.
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
+    if status == '## master':
+        return 1
+    return 0
 
-BEHIND = ["Your branch is behind ([a-zA-z0-9/']+) by ([0-9]+) commit",]
+AHEAD = "(ahead [0-9]+)"
+AHEAD_PROG = re.compile(AHEAD)
+BEHIND = "(behind [0-9]+)"
+BEHIND_PROG = re.compile(BEHIND)
 
-CONFLICTED_PROGS = [re.compile(pattern) for pattern in CONFLICTED]
-AHEAD_PROGS = [re.compile(pattern) for pattern in AHEAD]
-BEHIND_PROGS = [re.compile(pattern) for pattern in BEHIND]
+def ahead(repo):
+    """Indicates whether repo is ahead of remote repos.
+    
+    @param repo: A GitPython Repo object.
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
+    if AHEAD_PROG.search(status) and not BEHIND_PROG.search(status):
+        return 1
+    return 0
 
-def conflicted(status):
+def behind(repo):
+    """Indicates whether repo is behind remote repos.
+
+    @param repo: A GitPython Repo object.
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
+    if BEHIND_PROG.search(status) and not AHEAD_PROG.search(status):
+        return 1
+    return 0
+
+DIVERGED = [AHEAD, BEHIND]
+DIVERGED_PROGS = [re.compile(pattern) for pattern in DIVERGED]
+
+def diverged(repo):
+    """
+    @param repo: A GitPython Repo object.
+    @returns 1 (diverged), 0 (not conflicted), -1 (error)
+    """
+    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
+    matches = [1 for prog in DIVERGED_PROGS if prog.search(status)]
+    if len(matches) == 2: # both ahead and behind
+        return 1
+    return 0
+
+"""
+IMPORTANT:
+Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED
+are found AFTER the first line
+of "git status --short --branch".
+
+CONFLICTED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+UU changelog
+UU collection.json
+
+PARTIAL_RESOLVED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+M  changelog
+UU collection.json
+
+RESOLVED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+M  changelog
+M  collection.json
+"""
+
+CONFLICTED_PROG = re.compile("(UU )")
+
+def conflicted(repo):
     """Indicates whether repo has a merge conflict.
     
     NOTE: Use list_conflicted if you have a repo object.
-    @param status: A Git status message string.
+    @param repo: A GitPython Repo object.
     @returns 1 (conflicted), 0 (not conflicted), -1 (error)
     """
-    return _status_analyzer(status, CONFLICTED_PROGS)
-
-def ahead(status):
-    """Indicates whether repo is ahead of remote repos.
-    
-    @param status: A Git status message string.
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    return _status_analyzer(status, AHEAD_PROGS)
-
-def behind(status):
-    """Indicates whether repo is behind remote repos.
-
-    @param status: A Git status message string.
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    return _status_analyzer(status, BEHIND_PROGS)
+    status = repo.git.status(short=True, branch=False).strip().split('\n')
+    matches = [1 for line in status if CONFLICTED_PROG.match(line)]
+    if matches:
+        return 1
+    return 0
 
 
 # backup/sync -----------------------------------------------------
