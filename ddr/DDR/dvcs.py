@@ -9,6 +9,13 @@ import envoy
 import git
 
 
+def repository(path):
+    """
+    @param collection_path: Absolute path to collection repo.
+    @return: GitPython repo object
+    """
+    return git.Repo(path)
+
 def fetch(path):
     """run git fetch; fetches from origin.
     
