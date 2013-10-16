@@ -130,7 +130,11 @@ def list_staged(repo):
     @param repo: A Gitpython Repo object
     @return: List of filenames
     """
-    return repo.git.diff('--cached', '--name-only').split('\n')
+    staged = []
+    diff = repo.git.diff('--cached', '--name-only').strip()
+    if diff:
+        staged = diff.split('\n')
+    return staged
 
 def list_committed(repo, commit):
     """Returns list of all files in the commit
