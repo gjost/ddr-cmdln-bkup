@@ -8,6 +8,26 @@ import envoy
 import git
 
 
+def repository(path, user_name=None, user_mail=None):
+    """
+    @param collection_path: Absolute path to collection repo.
+    @return: GitPython repo object
+    """
+    repo = git.Repo(path)
+    return set_git_configs(repo, user_name, user_mail)
+
+def set_git_configs(repo, user_name=None, user_mail=None):
+    if user_name and user_mail:
+        repo.git.config('user.name', user_name)
+        repo.git.config('user.email', user_mail)
+        # we're not actually using gitweb any more...
+        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    # ignore file permissions
+    repo.git.config('core.fileMode', 'false')
+    # earlier versions of git-annex have problems with ssh caching on NTFS
+    repo.git.config('annex.sshcaching', 'false')
+    return repo
+
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in
     

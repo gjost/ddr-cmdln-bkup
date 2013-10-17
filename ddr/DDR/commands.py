@@ -12,8 +12,8 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
-from DDR.dvcs import gitolite_connect_ok
-from DDR.dvcs import annex_whereis_file
+from DDR.dvcs import repository, set_git_configs
+from DDR.dvcs import gitolite_connect_ok, annex_whereis_file
 from DDR.dvcs import list_staged, list_committed
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
@@ -239,10 +239,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
         repo.git.annex('init')
     #
     repo.git.checkout('master')
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('annex.sshcaching', 'false')
+    repo = set_git_configs(repo, user_name, user_mail)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     return 0,'ok'
@@ -291,11 +288,7 @@ def create(user_name, user_mail, collection_path, templates):
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
     repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
-    repo.git.config('annex.sshcaching', 'false')
+    repo = set_git_configs(repo, user_name, user_mail)
     git_files = []
     
     # copy template files to collection
@@ -409,14 +402,10 @@ def update(user_name, user_mail, collection_path, updated_files):
     """
     collection = DDRCollection(collection_path)
     
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     if repo:
         logging.debug('    git repo {}'.format(collection.path))
     repo.git.checkout('master')
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
@@ -459,12 +448,8 @@ def sync(user_name, user_mail, collection_path):
     """
     collection = DDRCollection(collection_path)
     
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     # fetch
@@ -510,12 +495,8 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
     collection = DDRCollection(collection_path)
     entity = DDREntity(collection.entity_path(entity_uid))
     
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     git_files = []
@@ -599,12 +580,8 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     collection = DDRCollection(collection_path)
     entity = DDREntity(collection.entity_path(entity_uid))
     
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
@@ -649,12 +626,8 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     collection = DDRCollection(collection_path)
     entity = DDREntity(collection.entity_path(entity_uid))
     
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    repo.git.config('user.name', user_name)
-    repo.git.config('user.email', user_mail)
-    repo.git.config('core.fileMode', 'false')
-    repo.git.config('annex.sshcaching', 'false')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     git_files = []
@@ -733,7 +706,7 @@ def annex_push(collection_path, file_path_rel):
         logging.error('    NO FILE AT {}'.format(file_path_abs))
         return 1,'no file'
     # let's do this thing
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -774,7 +747,7 @@ def annex_pull(collection_path, file_path_rel):
         logging.error('    NO GIT ANNEX AT {}'.format(collection.annex_path))
         return 1,'no annex'
     # let's do this thing
-    repo = git.Repo(collection.path)
+    repo = repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
@@ -813,8 +786,7 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
         # clone/update
         if os.path.exists(repo_path):
             logging.debug('updating %s' % repo_path)
-            repo = git.Repo(repo_path)
-            repo.git.config('annex.sshcaching', 'false')
+            repo = repository(repo_path)
             repo.git.fetch('origin')
             repo.git.checkout('master')
             repo.git.pull('origin', 'master')
