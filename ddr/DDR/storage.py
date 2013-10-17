@@ -102,6 +102,20 @@ def removables_mounted():
                 d.append(attrs)
     return d
 
+def drive_label( path ):
+    """Returns drive label for path, if path points to a removable device.
+    
+    @param path: Absolute path
+    @return: String drive_label or None
+    """
+    p = os.path.realpath(path)
+    if storage_type(p) == 'removable':
+        mp = mount_path(p)
+        label = mp.replace('/media/', '')
+        if label:
+            return label
+    return None
+    
 def is_writable(path):
     """Indicates whether user has write permissions; does not check presence.
     

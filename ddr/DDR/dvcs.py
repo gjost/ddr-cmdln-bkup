@@ -3,9 +3,13 @@
 import logging
 logger = logging.getLogger(__name__)
 import os
+import re
+import socket
 
 import envoy
 import git
+
+from DDR import storage
 
 
 def repository(path, user_name=None, user_mail=None):
@@ -27,6 +31,102 @@ def set_git_configs(repo, user_name=None, user_mail=None):
     # earlier versions of git-annex have problems with ssh caching on NTFS
     repo.git.config('annex.sshcaching', 'false')
     return repo
+
+def get_annex_description( repo, annex_status=None ):
+    """Get description of the current repo, if any.
+    
+    Parses the output of "git annex status" and extracts the current repos description.
+    If annex_status is provided, it will search that.
+    This is a timesaver, as git-annex-status takes time to run if a repo has any remotes
+    that are accessible only via a network.
+    
+    Sample status (repo has description):
+        $ git annex status
+        ...
+        semitrusted repositories: 8
+                00000000-0000-0000-0000-000000000001 -- web
+         	371931a0-34f6-11e3-bdb4-93c90d5c4311
+         	5ee6f3c0-2ae2-11e3-91a3-938a9cc1e3e5 -- TS1TB2013
+         	6367a2b4-34f6-11e3-b0c7-675d7fe6384c
+         	86fd75d0-32c8-11e3-af91-1bdd76d780f0
+         	9bcda696-2ae0-11e3-8c55-eb0b7dddd863 -- here (WD5000BMV-2)
+         	a1a0923a-2ae6-11e3-89ec-d3f4e727eeaf -- int_var-ddr
+         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
+        untrusted repositories: 0
+        dead repositories: 0
+        ...
+    
+    Sample status (no description):
+        $ git annex status
+        ...
+        semitrusted repositories: 8
+                00000000-0000-0000-0000-000000000001 -- web
+                8792a1aa-2a08-11e3-9f20-3331e21c94e3 -- here
+         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
+        untrusted repositories: 0
+        dead repositories: 0
+        ...
+
+    @param repo: A GitPython Repo object
+    @param annex_status: (optional) Output of "git annex status" (saves some time).
+    @return String description or None
+    """
+    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
+    description = None
+    uuid = repo.git.config('annex.uuid')
+    if not annex_status:
+        annex_status = repo.git.annex('status')
+    for line in annex_status.split('\n'):
+        if (uuid in line) and ('here' in line):
+            match = re.search(DESCR_REGEX, line)
+            if match and match.groupdict():
+                description = match.groupdict().get('description', None)
+    return description
+
+def set_annex_description( repo, annex_status=None, description=None, force=False ):
+    """Sets repo's git annex description if not already set.
+
+    NOTE: This needs to run git annex status, which takes some time.
+     
+    New repo: git annex init "REPONAME"
+    Existing repo: git annex describe here "REPONAME"
+     
+    Descriptions should be chosen/generated base on the following heuristic:
+    - Input to description argument of function.
+    - If on USB device, the drive label of the device.
+    - Hostname of machine, unless it is pnr (used by partner VMs).
+    - If hostname is pnr, pnr:DOMAIN where DOMAIN is the domain portion of the git config user.email
+    
+    @param repo: A GitPython Repo object
+    @param annex_status: (optional) Output of "git annex status" (saves some time).
+    @param description: Manually supply a new description.
+    @param force: Boolean Apply a new description even if one already exists.
+    @return String description if new one was created/applied or None
+    """
+    desc = None
+    PARTNER_HOSTNAME = 'pnr'
+    annex_description = get_annex_description(repo, annex_status)
+    # keep existing description unless forced
+    if (not annex_description) or (force == True):
+        if description:
+            desc = description
+        else:
+            # gather information
+            drive_label = storage.drive_label(repo.working_dir)
+            hostname = socket.gethostname()
+            user_mail = repo.git.config('user.email')
+            # generate description
+            if drive_label:
+                desc = drive_label
+            elif hostname and (hostname == PARTNER_HOSTNAME) and user_mail:
+                desc = ':'.join([ hostname, user_mail.split('@')[1] ])
+            elif hostname and (hostname != PARTNER_HOSTNAME):
+                desc = hostname
+        if desc:
+            # apply description
+            logging.debug('git annex describe here %s' % desc)
+            repo.git.annex('describe', 'here', desc)
+    return desc
 
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in

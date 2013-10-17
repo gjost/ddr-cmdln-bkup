@@ -12,7 +12,7 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
-from DDR.dvcs import repository, set_git_configs
+from DDR.dvcs import repository, set_git_configs, set_annex_description
 from DDR.dvcs import gitolite_connect_ok, annex_whereis_file
 from DDR.dvcs import list_staged, list_committed
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
@@ -240,6 +240,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     #
     repo.git.checkout('master')
     repo = set_git_configs(repo, user_name, user_mail)
+    set_annex_description(repo, user_mail=user_mail)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     return 0,'ok'
@@ -289,6 +290,7 @@ def create(user_name, user_mail, collection_path, templates):
     # there is no master branch at this point
     repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     repo = set_git_configs(repo, user_name, user_mail)
+    set_annex_description(repo, user_mail=user_mail)
     git_files = []
     
     # copy template files to collection
@@ -385,6 +387,8 @@ def annex_status(collection_path):
     repo = git.Repo(collection_path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
+    # set description if not set already
+    set_annex_description(repo, annex_status=status)
     return 0,status
 
 
@@ -449,6 +453,7 @@ def sync(user_name, user_mail, collection_path):
     collection = DDRCollection(collection_path)
     
     repo = repository(collection.path, user_name, user_mail)
+    set_annex_description(repo)
     repo.git.checkout('master')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
