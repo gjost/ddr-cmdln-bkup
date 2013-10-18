@@ -240,7 +240,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
     #
     repo.git.checkout('master')
     repo = set_git_configs(repo, user_name, user_mail)
-    set_annex_description(repo, user_mail=user_mail)
+    set_annex_description(repo)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     return 0,'ok'
@@ -290,7 +290,6 @@ def create(user_name, user_mail, collection_path, templates):
     # there is no master branch at this point
     repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     repo = set_git_configs(repo, user_name, user_mail)
-    set_annex_description(repo, user_mail=user_mail)
     git_files = []
     
     # copy template files to collection
@@ -344,6 +343,7 @@ def create(user_name, user_mail, collection_path, templates):
     repo.git.push('origin', 'git-annex')
     logging.debug('    OK')
     repo.git.checkout('master')
+    set_annex_description(repo)
     return 0,'ok'
 
 
@@ -453,8 +453,8 @@ def sync(user_name, user_mail, collection_path):
     collection = DDRCollection(collection_path)
     
     repo = repository(collection.path, user_name, user_mail)
-    set_annex_description(repo)
     repo.git.checkout('master')
+    set_annex_description(repo)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     # fetch
