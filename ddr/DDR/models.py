@@ -4,6 +4,7 @@ import os
 import re
 
 from DDR import CONFIG_FILE
+from DDR import natural_order_string
 from DDR.control import CollectionControlFile, EntityControlFile
 
 
@@ -99,7 +100,7 @@ class Collection( object ):
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
                     collections.append(colldir)
-        collections.sort()
+        collections = sorted(collections, key=lambda c: natural_order_string(c))
         return collections
     
     def entities( self ):
@@ -113,6 +114,7 @@ class Collection( object ):
                 epath = os.path.join(self.files_path, uid)
                 e = Entity(epath)
                 entities.append(e)
+        entities = sorted(entities, key=lambda e: natural_order_string(e.uid))
         return entities
 
 
@@ -174,6 +176,7 @@ class Entity( object ):
             prefix_path = '{}/'.format(prefix_path)
         for f in os.listdir(self.files_path):
             files.append(f.replace(prefix_path, ''))
+        files = sorted(files, key=lambda f: natural_order_string(f))
         return files
     
     @staticmethod
