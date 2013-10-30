@@ -1,6 +1,7 @@
 import ConfigParser
 import hashlib
 import os
+import re
 
 from DDR import CONFIG_FILE
 from DDR.control import CollectionControlFile, EntityControlFile
@@ -23,6 +24,7 @@ GITOLITE = config.get('workbench','gitolite')
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
+
 
 
 class Collection( object ):
@@ -85,6 +87,20 @@ class Collection( object ):
                 fw.write(gt)
         with open(self.gitignore_path, 'r') as f:
             return f.read()
+    
+    @staticmethod
+    def collections( collections_root, repository, organization ):
+        collections = []
+        regex = '^{}-{}-[0-9]+$'.format(repository, organization)
+        uid = re.compile(regex)
+        for x in os.listdir(collections_root):
+            m = uid.search(x)
+            if m:
+                colldir = os.path.join(collections_root,x)
+                if 'collection.json' in os.listdir(colldir):
+                    collections.append(colldir)
+        collections.sort()
+        return collections
     
     def entities( self ):
         """Returns relative paths to entities."""
