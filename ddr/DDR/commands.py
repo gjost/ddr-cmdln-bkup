@@ -189,18 +189,7 @@ def collections_local(collections_root, repository, organization):
     if not (os.path.exists(collections_root) and os.path.isdir(collections_root)):
         message = '{} does not exist or is not a directory'.format(collections_root)
         raise Exception(message)
-    collections = []
-    regex = '^{}-{}-[0-9]+$'.format(repository, organization)
-    #logging.debug('    {}'.format(regex))
-    uid = re.compile(regex)
-    for x in os.listdir(collections_root):
-        m = uid.search(x)
-        if m:
-            colldir = os.path.join(collections_root,x)
-            if 'ead.xml' in os.listdir(colldir):
-                collections.append(colldir)
-    collections.sort()
-    return collections
+    return DDRCollection.collections(collections_root, repository, organization)
 
 
 @command
