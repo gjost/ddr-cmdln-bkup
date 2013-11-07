@@ -303,13 +303,12 @@ $ git status --short --branch
 ## master...origin/master [ahead 1, behind 2]
 """
 
-def synced(repo):
+def synced(status):
     """Indicates whether repo is synced with remote repo.
     
-    @param repo: A GitPython Repo object.
+    @param status: Output of "git status --short --branch"
     @returns 1 (behind), 0 (not behind), -1 (error)
     """
-    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
     if status == '## master':
         return 1
     return 0
@@ -319,24 +318,22 @@ AHEAD_PROG = re.compile(AHEAD)
 BEHIND = "(behind [0-9]+)"
 BEHIND_PROG = re.compile(BEHIND)
 
-def ahead(repo):
+def ahead(status):
     """Indicates whether repo is ahead of remote repos.
     
-    @param repo: A GitPython Repo object.
+    @param status: Output of "git status --short --branch"
     @returns 1 (behind), 0 (not behind), -1 (error)
     """
-    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
     if AHEAD_PROG.search(status) and not BEHIND_PROG.search(status):
         return 1
     return 0
 
-def behind(repo):
+def behind(status):
     """Indicates whether repo is behind remote repos.
 
-    @param repo: A GitPython Repo object.
+    @param status: Output of "git status --short --branch"
     @returns 1 (behind), 0 (not behind), -1 (error)
     """
-    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
     if BEHIND_PROG.search(status) and not AHEAD_PROG.search(status):
         return 1
     return 0
@@ -344,12 +341,11 @@ def behind(repo):
 DIVERGED = [AHEAD, BEHIND]
 DIVERGED_PROGS = [re.compile(pattern) for pattern in DIVERGED]
 
-def diverged(repo):
+def diverged(status):
     """
-    @param repo: A GitPython Repo object.
+    @param status: Output of "git status --short --branch"
     @returns 1 (diverged), 0 (not conflicted), -1 (error)
     """
-    status = repo.git.status(short=True, branch=True).strip().split('\n')[0]
     matches = [1 for prog in DIVERGED_PROGS if prog.search(status)]
     if len(matches) == 2: # both ahead and behind
         return 1
@@ -382,14 +378,13 @@ M  collection.json
 
 CONFLICTED_PROG = re.compile("(UU )")
 
-def conflicted(repo):
+def conflicted(status):
     """Indicates whether repo has a merge conflict.
     
     NOTE: Use list_conflicted if you have a repo object.
-    @param repo: A GitPython Repo object.
+    @param status: Output of "git status --short --branch"
     @returns 1 (conflicted), 0 (not conflicted), -1 (error)
     """
-    status = repo.git.status(short=True, branch=False).strip().split('\n')
     matches = [1 for line in status if CONFLICTED_PROG.match(line)]
     if matches:
         return 1
