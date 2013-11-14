@@ -817,6 +817,8 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
         logging.debug('level: %s' % level)
         if level == 'access':
             for root, dirs, files in os.walk(repo_path):
+                if '.git' in dirs: # exclude .git dir
+                    dirs.remove('.git')
                 for f in files:
                     if f.endswith(ACCESS_SUFFIX):
                         path_rel = os.path.join(root, f).replace(repo_path, '')[1:]
