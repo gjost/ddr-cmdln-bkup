@@ -1,5 +1,5 @@
 import ConfigParser
-import csv
+import json
 import logging
 logger = logging.getLogger(__name__)
 import os
@@ -12,13 +12,75 @@ import git
 
 DRIVE_FILE_FIELDS = 'id,level'
 
-CSV_DELIMITER = ','
-CSV_QUOTECHAR = '"'
-CSV_QUOTING = csv.QUOTE_MINIMAL
-
 LEVELS = ['meta', 'access', 'all']
 
 
+
+"""
+organization.json
+{ 
+  "repo": "ddr",
+  "org": "testing",    
+  "title": "Testing Repository",
+  "description": "Any of these collections may be deleted at any time. Don't keep anything important here!"
+}
+
+
+WD5000BMV-2.json
+{
+  "drive info": {
+    "label": "WD5000BMV-2",
+    "purchase_date": "2013-01-01",
+  },
+  "repositories": [
+    ...
+    { "id":"ddr-testing-127", "level":"access" },
+    { "id":"ddr-testing-128", "level":"access" },
+    { "id":"ddr-testing-129", "level":"access" },
+    { "id":"ddr-testing-130", "level":"all" },
+    { "id":"ddr-testing-131", "level":"all" },
+    { "id":"ddr-testing-132", "level":"all" },
+    ...
+  ]
+}
+"""
+
+
+
+def write_json(data, path):
+    """Write JSON using consistent formatting and sorting.
+    
+    For versioning and history to be useful we need data fields to be written
+    in a format that is easy to edit by hand and in which values can be compared
+    from one commit to the next.  This function prints JSON with nice spacing
+    and indentation and with sorted keys, so fields will be in the same relative
+    position across commits.
+    
+    >>> data = {'a':1, 'b':2}
+    >>> path = '/tmp/ddrlocal.models.write_json.json'
+    >>> write_json(data, path)
+    >>> with open(path, 'r') as f:
+    ...     print(f.readlines())
+    ...
+    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    """
+    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
+    with open(path, 'w') as f:
+        f.write(json_pretty)
+
+def group_files( path ):
+    """Gets list of paths to group files in the repo.
+    
+    >>> from DDR import organization
+    >>> p = '/var/www/media/base/ddr-testing'
+    >>> organization.group_files(p)
+    ['/var/www/media/base/ddr-testing/TS11TB2013.json', '/var/www/media/base/ddr-testing/WD5000BMV-2.json']
+    
+    @param path: Abs path to org repo
+    """
+    excludes = ['.git', 'organization.json']
+    pattern = re.compile('.json$')
+    return [f for f in os.listdir(path) if (f not in excludes) and pattern.search(f)]
 
 def groups( path ):
     """Gets list of groups for which there are CSV files.
@@ -31,71 +93,55 @@ def groups( path ):
     @param path: Abs path to org repo
     @returns drives: List of group labels
     """
-    pattern = re.compile('.csv$')
-    return [os.path.splitext(f)[0] for f in os.listdir(path) if pattern.search(f)]
-
-def group_files( path ):
-    """Gets list of paths to group files in the repo.
-    
-    >>> from DDR import organization
-    >>> p = '/var/www/media/base/ddr-testing'
-    >>> organization.group_files(p)
-    ['/var/www/media/base/ddr-testing/TS11TB2013.csv', '/var/www/media/base/ddr-testing/WD5000BMV-2.csv']
-    
-    @param path: Abs path to org repo
-    """
-    pattern = re.compile('.csv$')
-    return [f for f in os.listdir(path) if pattern.search(f)]
+    return [os.path.splitext(f)[0] for f in group_files(path)]
  
 def group_file_path( path ):
-    """Gets path to CSV file for the specified group based on orgrepo's location.
+    """Gets path to JSON file for the specified group based on orgrepo's location.
     
+    DANGER! This function makes assumptions about file paths!
     This is a holdover from when group files were called "drive files"
     and when the group label was always assumed to match a drive label.
     The label is assumed to be the block of \w following '/media'.
     
     >>> from DDR import organization
-    >>> r = '/media/DRIVELABEL/ddr/ORGREPO'
+    >>> r = '/media/DRIVELABEL/ddr/REPOORGID'
     >>> organization.group_file_path(r)
-    '/media/DRIVELABEL/ddr/ORGREPO/DRIVELABEL.csv'
+    '/media/DRIVELABEL/ddr/REPOORG/DRIVELABEL.json'
     
     @param path: Abs path to org repo (drive label extracted from this)
     """
-    label = orgrepo_path.split(os.sep)[2]
-    filename = '%s.csv' % label
-    path = os.path.join(orgrepo_path, filename)
-    return path
+    path = os.path.realpath(path)
+    parts = path.split(os.sep)
+    drivelabel = parts[2]
+    repo,org,id = parts[4].split('-')
+    repoorg = '-'.join([repo,org])
+    jfile = '%s.json' % drivelabel
+    return '/%s' % os.path.join(parts[1], drivelabel, parts[3], repoorg, jfile)
 
 def read_group_file( path ):
     """Reads group file, returns list of repos and their levels
     
-    Group file is a CSV file containing a list of DDR collection repo IDs and
+    Group file is a JSON file containing a list of DDR collection repo IDs and
     and indicator of which binaries should be present (see LEVELS).
     
     >>> from DDR import organization
-    >>> p = '/var/www/media/base/ddr-testing/WD5000BMV-2.csv'
+    >>> p = '/var/www/media/base/ddr-testing/WD5000BMV-2.json'
     >>> organization.read_group_file(p)
     [{'id': 'ddr-testing-100', 'level': 'full'}, {'id': 'ddr-testing-101', 'level': 'access'}, ...]
     
     @param path: Absolute path to group file.
     @returns: List of dicts (id, level)
     """
-    repos = []
     with open(path, 'rb') as f:
-        reader = csv.reader(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR)
-        for id,level in reader:
-            repos.append({'id':id, 'level':level})
-    return repos
+        return json.loads(f.read())
 
-def write_group_file( repos, path=None ):
+def write_group_file( repos, path ):
     """
     @param repos: List of dicts (id, level)
     @param path: (optional) Absolute path to group file.
     """
-    with open(path, 'wb') as f:
-        writer = csv.writer(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING)
-        for r in repos:
-            writer.writerow(r['id'], r['level'])
+    data = {'repositories':repos}
+    write_json(data, path)
 
 def group_repo_level( path, repo_basename ):
     """Get level for the specified repo from group file.
@@ -194,3 +240,32 @@ def repo_annex_get(repo_path, level):
         logger.debug('git annex get .')
         repo.git.annex('get', '.')
     logger.debug('DONE')
+
+def load_inventory_data(path):
+    """Loads inventory data into single data structure.
+    """
+    inventory = {}
+    for f in group_files(inventory_path):
+        fn = os.path.join(inventory_path, f)
+        print(fn)
+        data = read_group_file(fn)
+        print(data)
+        try:
+            inventory[data['drive info']['label']] = data
+        except:
+            inventory[f] = {}
+    return inventory
+
+"""
+UUID	Label	Location	Level	Trust
+faf5b548-4285-11e3-877e-33872002bf67	WD5000BMV-2	Pasadena, here	master	semitrusted
+2c5e9652-4283-11e3-ba24-6f28c7ec0c50	workbench	Seattle, mits.densho.org	metadata	semitrusted
+affb5584-2485-1e13-87e7-33827020b6f7	TS1TB201301	Seattle, Densho HQ	master	semitrusted
+62a9c710-4718-11e3-ac94-87227a8b2c2c	pub	Seattle, Densho Colo	access	
+
+from DDR import dvcs, organization
+repo = dvcs.repository('/var/www/media/base/ddr-testing-196')
+stat = dvcs.annex_status(repo)
+path = '/var/www/media/base/ddr-testing'
+organization.repo_inventory_remotes(repo, stat, path)
+"""
