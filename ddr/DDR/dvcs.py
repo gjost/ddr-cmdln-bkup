@@ -163,6 +163,64 @@ def annex_status(path):
     logging.debug('\n{}'.format(status))
     return status
 
+def annex_whereis(repo):
+    """Show remotes that the file appears in
+    
+    $ git annex whereis
+    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
+            b0b5f683-58c9-1e12-aecf-f309ea320159
+            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
+            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
+            1cb14087-58c9-1e1b-2a2d-71e6351f489d
+    ok
+    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
+            b0b5f683-58c9-1e12-aecf-f309ea320159
+            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
+            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
+            1cb14087-58c9-1e1b-2a2d-71e6351f489d
+    ok
+    ...
+    
+    >>> annex_whereis(repo)
+    [
+      {
+    'path': 'files/ddr-testing-201303051120-1/files/20121205.jpg',
+        'copies': '2',
+        'status': 'ok',
+        'remotes': [
+          { 'uuid':'b0b5f683-58c9-1e12-aecf-f309ea320159', 'description':''},
+          { 'uuid':'0bbf5638-85c9-11e2-aefc-3f0e9a230915', 'description':'workbench'},
+          { 'uuid':'c1b41078-85c9-11e2-bad2-17e365f14d89', 'description':'here'},
+          { 'uuid':'1cb14087-58c9-1e1b-2a2d-71e6351f489d', 'description':''}
+        ]
+      },
+    ...
+    ]
+
+    @param repo: A GitPython Repo object
+    @return: List of names of remote repositories.
+    """
+    files = []
+    stdout = repo.git.annex('whereis')
+    for x in stdout.strip().split('whereis '):
+        if x:
+            f = {}
+            lines = x.strip().split('\n')
+            f['path'] = lines[0].split('(')[0].strip()
+            f['copies'] = lines[0].split('(')[1].split(' ')[0]
+            f['status'] = lines.pop()
+            f['remotes'] = []
+            for l in lines[1:]:
+                if ' -- ' in l:
+                    uuid = l.strip().split(' -- ')[0]
+                    label = l.strip().split(' -- ')[1]
+                else:
+                    uuid = l.strip()
+                    label = ''
+                f['remotes'].append( {'uuid':uuid, 'label':label} )
+            files.append(f)
+    return files
+
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in
     
