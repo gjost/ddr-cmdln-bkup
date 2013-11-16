@@ -245,6 +245,29 @@ def annex_whereis_file(repo, file_path_rel):
         logging.debug('    remotes: {}'.format(remotes))
     return remotes
 
+def annex_map(repo):
+    """Generates nifty Graphviz map of repo and the remotes it knows about.
+    
+    @param repo: A GitPython Repo object.
+    @return: Absolute path to map image file, or None.
+    """
+    filename = None
+    map_type = 'png'
+    map_file = 'remotes-map.%s' % map_type
+    dot_file = 'map.dot'
+    # generate dotfile
+    stdout = repo.git.annex('map', '--fast')
+    if dot_file in os.listdir(repo.working_dir):
+        # generate img
+        os.chdir(repo.working_dir)
+        cmd = 'dot -T%s -o %s %s' % (map_type, map_file, dot_file)
+        r = envoy.run(cmd)
+        if map_file in os.listdir(repo.working_dir):
+            filename = os.path.join(repo.working_dir, map_file)
+        # clean up
+        os.remove(dot_file)
+    return filename
+
 def gitolite_connect_ok(server):
     """See if we can connect to gitolite server.
     
