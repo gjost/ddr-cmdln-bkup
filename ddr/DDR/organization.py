@@ -16,38 +16,7 @@ LEVELS = ['meta', 'access', 'all']
 
 
 
-"""
-organization.json
-{ 
-  "repo": "ddr",
-  "org": "testing",    
-  "title": "Testing Repository",
-  "description": "Any of these collections may be deleted at any time. Don't keep anything important here!"
-}
-
-
-WD5000BMV-2.json
-{
-  "drive info": {
-    "label": "WD5000BMV-2",
-    "purchase_date": "2013-01-01",
-  },
-  "repositories": [
-    ...
-    { "id":"ddr-testing-127", "level":"access" },
-    { "id":"ddr-testing-128", "level":"access" },
-    { "id":"ddr-testing-129", "level":"access" },
-    { "id":"ddr-testing-130", "level":"all" },
-    { "id":"ddr-testing-131", "level":"all" },
-    { "id":"ddr-testing-132", "level":"all" },
-    ...
-  ]
-}
-"""
-
-
-
-def write_json(data, path):
+def _write_json(data, path):
     """Write JSON using consistent formatting and sorting.
     
     For versioning and history to be useful we need data fields to be written
@@ -58,7 +27,7 @@ def write_json(data, path):
     
     >>> data = {'a':1, 'b':2}
     >>> path = '/tmp/ddrlocal.models.write_json.json'
-    >>> write_json(data, path)
+    >>> _write_json(data, path)
     >>> with open(path, 'r') as f:
     ...     print(f.readlines())
     ...
@@ -67,6 +36,134 @@ def write_json(data, path):
     json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
     with open(path, 'w') as f:
         f.write(json_pretty)
+
+
+
+class Repository( object ):
+    id = None
+    keyword = None
+    title = None
+    description = None
+    organizations = {}
+    
+    def __init__( self, path=None ):
+        if path:
+            self.read(path)
+    
+    def read( self, path ):
+        with open(path, 'r') as f:
+            data = json.loads(f.read())
+        self.id = data['id']
+        self.keyword = data['keyword']
+        self.title = data['title']
+        self.description = data['description']
+    
+    def json( self ):
+        return {'id': self.id,
+                'keyword': self.keyword,
+                'title': self.title,
+                'description': self.description,}
+        
+    def write( self, path ):
+        _write_json(self.json(), path)
+
+
+class Organization( object ):
+    path = None
+    id = None
+    keyword = None
+    title = None
+    description = None
+    stores = []
+    
+    def __init__( self, path=None ):
+        if path:
+            self.path = path
+            self.read(os.path.join(path, 'organization.json'))
+            self.stores = self._stores()
+    
+    def json( self ):
+        return {'id': self.id,
+                'keyword': self.keyword,
+                'title': self.title,
+                'description': self.description,}
+    
+    def read( self, path ):
+        with open(path, 'r') as f:
+            data = json.loads(f.read())
+        self.id = data['id']
+        self.keyword = data['keyword']
+        self.title = data['title']
+        self.description = data['description']
+    
+    def write( self, path ):
+        _write_json(self.json(), path)
+    
+    def store_files( self ):
+        """Gets list of paths to store files in the repo.
+        """
+        excludes = ['.git', 'organization.json']
+        pattern = re.compile('.json$')
+        return [f for f in os.listdir(self.path) if (f not in excludes) and pattern.search(f)]
+    
+    def _stores( self ):
+        return [os.path.splitext(f)[0] for f in self.store_files()]
+    
+    def store( self, label ):
+        filename = '%s.json' % label
+        path = os.path.join(self.path, filename)
+        store = Store(path)
+        return store
+    
+    def collection( self, cid ):
+        """Lists the stores that contain collection and level
+        """
+        instances = []
+        for label in self.store_files():
+            store = Store(os.path.join(self.path, label))
+            for c in store.collections:
+                if c['id'] == cid:
+                    c['store'] = sf
+                    instances.append(c)
+        return instances
+
+
+class Store( object ):
+    path = None
+    label = None
+    org = None
+    repo = None
+    location = None
+    purchase_date = None
+    collections = {}
+    
+    def __init__( self, path=None ):
+        if path:
+            self.path = path
+            self.read(path)
+    
+    def read( self, path ):
+        with open(path, 'r') as f:
+            data = json.loads(f.read())
+        self.label = data['label']
+        self.org = data['org']
+        self.repo = data['repo']
+        self.location = data['location']
+        self.purchase_date = data['purchase_date']
+        self.collections = data['collections']
+    
+    def json( self ):
+        return {'label': self.label,
+                'org': self.org,
+                'repo': self.repo,
+                'location': self.location,
+                'purchase_date': self.purchase_date,
+        }
+    
+    def write( self, path ):
+        _write_json(self.json(), path)
+
+
 
 def group_files( path ):
     """Gets list of paths to group files in the repo.
@@ -141,7 +238,7 @@ def write_group_file( repos, path ):
     @param path: (optional) Absolute path to group file.
     """
     data = {'repositories':repos}
-    write_json(data, path)
+    _write_json(data, path)
 
 def group_repo_level( path, repo_basename ):
     """Get level for the specified repo from group file.
