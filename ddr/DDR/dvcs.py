@@ -241,7 +241,19 @@ def annex_whereis_file(repo, file_path_rel):
     if ('whereis' in lines[0]) and ('ok' in lines[-1]):
         num_copies = int(lines[0].split(' ')[2].replace('(',''))
         logging.debug('    {} copies'.format(num_copies))
-        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
+        remotes = []
+        for line in lines[1:-1]:
+            parts = line.strip().split('--')
+            if len(parts) == 2:
+                uuid = parts[0].strip()
+                label = parts[1].strip()
+            else:
+                uuid = parts[0].strip()
+                label = None
+            if label and ('(' in label):
+                label = label.split('(')[1].replace(')','')
+            if label:
+                remotes.append( {'uuid':uuid, 'label':label} )
         logging.debug('    remotes: {}'.format(remotes))
     return remotes
 
