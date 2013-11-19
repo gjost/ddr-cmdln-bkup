@@ -232,7 +232,7 @@ def annex_whereis_file(repo, file_path_rel):
     
     @param repo: A GitPython Repo object
     @param collection_uid: A valid DDR collection UID
-    @return: List of names of remote repositories.
+    @return: List of dicts for remote repositories.
     """
     remotes = []
     stdout = repo.git.annex('whereis', file_path_rel)
