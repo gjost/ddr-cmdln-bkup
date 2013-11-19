@@ -8,6 +8,7 @@ import re
 import envoy
 import git
 
+from DDR import dvcs
 
 
 DRIVE_FILE_FIELDS = 'id,level'
@@ -162,6 +163,89 @@ class Store( object ):
     
     def write( self, path ):
         _write_json(self.json(), path)
+
+
+
+
+
+
+
+def repos_by_uuid(organization, collection=None):
+    """Builds a data structure of all the repo remotes keyed to their UUIDs
+    
+{
+  '43935ea6-cbe1-1e31-fba5-fb5a8f2a9337': {'id':'ddr-testing-141', 'label':'HMWF1TB2013', 'location':'Heart Mountain, WY'},
+  '643935ea-1cbe-11e3-afb5-3fb5a8f2a973': {'id':'ddr-testing-141', 'label':'pnr_tmp-ddr', 'location':'Pasadena, CA'},
+  '364935ea-1cbe-11e3-afb5-38f2a937fb5a': {'id':'ddr-testing-141', 'label':'WD5000BMV-2', 'location':'Pasadena, CA'},
+  '35ea6439-1cbe-11e3-afb5-3fb592a37a8f': {'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'}
+}
+
+
+from DDR import dvcs, organization
+org = organization.Organization('/var/www/media/base/ddr-testing')
+uuid_repos = organization.repos_by_uuid(org)
+
+r = dvcs.repository('/tmp/ddr/ddr-testing-141')
+file_remotes = dvcs.annex_whereis(r)
+for f in file_remotes:
+   for fr in f['remotes']:
+       print(fr)
+       uuid = fr.get('uuid',None)
+       print(uuid)
+       remote = uuid_repos.get(uuid,None)
+       print(remote)
+       if remote and (remote.get('location',None)):
+           fr['location'] = remote['location']
+
+for f in file_remotes:
+   for fr in f['remotes']:
+       print(fr)
+
+
+    """
+    repos = {}
+    for s in organization.stores:
+        store = organization.store(s)
+        for c in store.collections:
+            uuid = c.get('uuid',None)
+            if uuid:
+                c['location'] = store.location
+                repos[uuid] = c
+    return repos
+
+
+
+def file_locations(repo, file_path_rel, organization):
+    """
+>>> dvcs.annex_whereis_file(r, 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf')
+[{'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}, {'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pn
+r_tmp-ddr'}]
+
+from DDR import dvcs, organization
+repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
+org = organization.Organization('/var/www/media/base/ddr-testing')
+path = 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf'
+stores = organization.file_locations(repo, path, org)
+for s in stores:
+    print(s.location)
+
+[{'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}, {'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pn
+r_tmp-ddr'}]
+['HMWF1TB2013', 'pnr_tmp-ddr', 'WD5000BMV-2']
+
+    """
+    stores = []
+    instances = dvcs.annex_whereis_file(repo, file_path_rel)
+    for i in instances:
+        if i.get('label',None):
+            store = organization.store(i['label'])
+            stores.append(store)
+    return stores
+
+
+
+
+
 
 
 
@@ -338,20 +422,22 @@ def repo_annex_get(repo_path, level):
         repo.git.annex('get', '.')
     logger.debug('DONE')
 
-def load_inventory_data(path):
+def load_organization_data(path):
     """Loads inventory data into single data structure.
     """
-    inventory = {}
-    for f in group_files(inventory_path):
-        fn = os.path.join(inventory_path, f)
-        print(fn)
+    orgfile = os.path.join(path, 'organization.json')
+    with open(orgfile, 'rb') as f:
+        org = json.loads(f.read())
+    org['drives'] = {}
+    for f in group_files(path):
+        fn = os.path.join(path, f)
         data = read_group_file(fn)
-        print(data)
+        label = data['drive info']['label']
         try:
-            inventory[data['drive info']['label']] = data
+            org['drives'][label] = data
         except:
-            inventory[f] = {}
-    return inventory
+            org['drives'][f] = {}
+    return org
 
 """
 UUID	Label	Location	Level	Trust
