@@ -3,7 +3,8 @@
 git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
 o = Organization.create(path='/tmp/repo/ddr-testing', id='ddr-testing', repo='ddr', org='testing')
-o.save(git_name, git_mail, 'Set up organization: %s' % o.id)
+o.save()
+o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
 
 # Load an existing Organization
 from DDR.inventory import Organization, Store
@@ -15,11 +16,20 @@ import datetime
 from DDR.inventory import Organization, Store
 o = Organization.load('/tmp/repo/ddr-testing')
 today = datetime.date.today().strftime('%Y-%m-%d')
-s = Store(repo=o.repo, org=o.keyword,
+s = Store(repo=o.repo, org=o.org,
           label='WHATEVER', location='HMWF',
           purchase_date=today)
 o.stores.append(s)
-o.save(git_name, git_mail, 'Added new store: %s' % s.label)
+o.save()
+o.commit(git_name, git_mail, 'Added store: %s' % s.label)
+
+# Add another Store
+s = Store(repo=o.repo, org=o.org,
+          label='BLAHBLAH', location='JANM',
+          purchase_date=today)
+o.stores.append(s)
+o.save()
+o.commit(git_name, git_mail, 'Added a store: %s' % s.label)
 
 # Update a Store
 git_name = 'gjost'; git_mail = 'gjost@densho.org'
@@ -27,47 +37,58 @@ from DDR.inventory import Organization, Store
 o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
 s.location = 'Densho HQ'
-o.save(git_name, git_mail, 'Updated store: %s' % s.label)
+o.save()
+o.commit(git_name, git_mail, 'Updated store: %s' % s.label)
 
 # Remove a Store
 git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
 o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('WHATEVER')
-o.stores.remove(s)
-o.save(git_name, git_mail, 'Removed store: %s' % s.label)
+s = o.store('BLAHBLAH')
+o.remove_store(s)
+o.save()
+o.commit(git_name, git_mail, 'Removed store: %s' % s.label)
 
 # Add a collection
 git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
 o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
-c = StoreCollection('ddr-testing-123', '2ca8e0aa-1cc1-11e3-8867-3fd4c84eb655', 'full')
+c = {'uuid':'2ca8e0aa-1cc1-11e3-8867-3fd4c84eb655', 'cid':'ddr-testing-123', 'level':'full'}
 s.collections.append(c)
-o.save(git_name, git_mail, 'Added collection: %s' % c.id)
+o.save()
+o.commit(git_name, git_mail, 'Added collection %s %s' % (s.label, c['cid']))
+
+# Add more collections
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
+from DDR.inventory import Organization, Store
+o = Organization.load('/tmp/repo/ddr-testing')
+s = o.store('WHATEVER')
+s.collections.append({'uuid':'a8e0aa2c-c1c1-e311-6788-d4c84eb6553f', 'cid':'ddr-testing-124', 'level':'full'})
+s.collections.append({'uuid':'c8e0aaa2-1c1c-1e31-8678-fd4c84eb6553', 'cid':'ddr-testing-125', 'level':'full'})
+s.collections.append({'uuid':'8e0aaa2c-cc11-1e31-8678-fd4c84eb6553', 'cid':'ddr-testing-126', 'level':'full'})
+o.save()
+o.commit(git_name, git_mail, 'Added multiple collections')
 
 # Update a collection
 git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
 o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
-c = s.collection('ddr-testing-123')
-c.level = 'metadata'
-o.save(git_name, git_mail, 'Updated collection: %s' % c.id)
+c = s.collection(uuid='c8e0aaa2-1c1c-1e31-8678-fd4c84eb6553')
+c['level'] = 'metadata'
+o.save()
+o.commit(git_name, git_mail, 'Updated collection %s %s' % (s.label, c['cid']))
 
 # Remove a collection
 git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
 o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
-c = s.collection('ddr-testing-123')
+c = s.collection(uuid='8e0aaa2c-cc11-1e31-8678-fd4c84eb6553')
 s.collections.remove(c)
-o.save(git_name, git_mail, 'Removed collection: %s' % c.id)
-
-# Write changes to disk
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-o.save(git_name, git_%s) % c.id
+o.save()
+o.commit(git_name, git_mail, 'Removed collection %s %s' % (s.label, c['cid']))
 
 # Sync
 from DDR.inventory import Organization, Store
@@ -117,10 +138,6 @@ def _write_json(data, path):
 
 
 
-
-
-
-
 class Repository( object ):
     id = None
     keyword = None
@@ -150,6 +167,9 @@ class Repository( object ):
         _write_json(self.json(), path)
 
 
+
+ORGANIZATION_FIELDS = ['id', 'repo', 'org',]
+
 class Organization( object ):
     path = None
     id = None
@@ -157,34 +177,19 @@ class Organization( object ):
     stores = []
     filename = 'organization.json'
     
-    def __init__( self, path=None, id=None, repo=None, org=None):
-        if path: self.path = path
-        if id:   self.id = id
-        if repo: self.repo = repo
-        if org:  self.org = org
+    def __init__(self, **kwargs):
+        self.path = kwargs.get('path', None)
+        for k in kwargs.keys():
+            if k in ORGANIZATION_FIELDS:
+                self.__setattr__(k, kwargs[k])
         if self.path:
             self.stores = self._stores()
     
     def json( self ):
-        return {'id': self.id,
-                'repo': self.repo,
-                'org': self.org,}
-    
-    def read( self, path ):
-        self.path = path
-        opath = os.path.join(path, self.filename)
-        with open(opath, 'r') as f:
-            data = json.loads(f.read())
-        self.id = data['id']
-        self.repo = data['repo']
-        self.org = data['org']
-    
-    def write( self, path ):
-        opath = os.path.join(path, self.filename)
-        _write_json(self.json(), opath)
-        for store in self.stores:
-            spath = os.path.join(path, store.filename())
-            store.write(spath)
+        data = {}
+        for f in ORGANIZATION_FIELDS:
+            data[f] = getattr(self, f)
+        return data
     
     @staticmethod
     def create(path, id, org, repo):
@@ -200,17 +205,29 @@ class Organization( object ):
     
     @staticmethod
     def load(path):
-        o = Organization(path)
-        o.read(path)
+        o = Organization(path=path)
+        opath = os.path.join(path, o.filename)
+        with open(opath, 'r') as f:
+            data = json.loads(f.read())
+        for k in data.keys():
+            if k in ORGANIZATION_FIELDS:
+                o.__setattr__(k, data[k])
         return o
     
     def commit( self, git_name, git_mail, message ):
-        repo = git.Repo.init(self.path)
-        commit = repo.index.commit('-a', '-m', message)
-
-    def save( self, git_name, git_mail, message ):
-        self.write(self.path)
-        self.commit(git_name, git_mail, message)
+        repo = dvcs.repository(self.path)
+        repo.git.add(self.filename)
+        for store in self.stores:
+            spath = os.path.join(self.path, store.filename())
+            repo.git.add(spath)
+        repo.git.commit('--author=%s <%s>' % (git_name, git_mail), '-m', message)
+    
+    def save( self ):
+        opath = os.path.join(self.path, self.filename)
+        _write_json(self.json(), opath)
+        for store in self.stores:
+            spath = os.path.join(self.path, store.filename())
+            store.save(spath)
     
     def _store_files( self ):
         """Gets list of paths to store files in the repo.
@@ -222,13 +239,25 @@ class Organization( object ):
         return []
     
     def _stores( self ):
-        return [Store(os.path.join(self.path, f)) for f in self._store_files()]
+        self.stores = []
+        for f in self._store_files():
+            spath = os.path.join(self.path, f)
+            s = Store.load(spath)
+            self.stores.append(s)
+        return self.stores
     
     def store( self, label ):
         for s in self.stores:
             if s.label == label:
                 return s
         return None
+    
+    def remove_store( self, store ):
+        """NOTE: Does not do the commit!"""
+        repo = dvcs.repository(self.path)
+        spath = os.path.join(self.path, store.filename())
+        repo.git.rm(spath)
+        self.stores.remove(store)
     
     def collection( self, cid ):
         """Lists the stores that contain collection and level
@@ -299,53 +328,58 @@ class Organization( object ):
         return repos
 
 
+
+STORE_FIELDS = ['repo', 'org', 'label', 'location', 'purchase_date', 'collections',]
+
 class Store( object ):
     path = None
-    org = None
     repo = None
+    org = None
     label = None
     location = None
     purchase_date = None
-    collections = {}
+    collections = []
     
-    def __init__( self, path=None, org=None, repo=None, label=None, location=None, purchase_date=None):
-        if path:     self.path = path
-        if org:      self.org = org
-        if repo:     self.repo = repo
-        if label:    self.label = label
-        if location: self.location = location
-        if purchase_date: self.purchase_date = purchase_date
-    
-    def read( self, path ):
-        with open(path, 'r') as f:
-            data = json.loads(f.read())
-        self.label = data['label']
-        self.org = data['org']
-        self.repo = data['repo']
-        self.location = data['location']
-        self.purchase_date = data['purchase_date']
-        self.collections = data['collections']
+    def __init__(self, **kwargs):
+        self.path = kwargs.get('path', None)
+        for k in kwargs.keys():
+            if k in STORE_FIELDS:
+                self.__setattr__(k, kwargs[k])
     
     def json( self ):
-        return {'label': self.label,
-                'org': self.org,
-                'repo': self.repo,
-                'location': self.location,
-                'purchase_date': self.purchase_date,
-                'collections': self.collections,
-        }
+        data = {}
+        for f in STORE_FIELDS:
+            data[f] = getattr(self, str(f))
+        return data
     
-    def write( self, path ):
+    @staticmethod
+    def load(path):
+        """
+        @param path: Path including basename
+        """
+        s = Store(path=path)
+        with open(path, 'r') as f:
+            data = json.loads(f.read())
+        for k in data.keys():
+            if k in STORE_FIELDS:
+                s.__setattr__(k, data[k])
+        return s
+    
+    def save( self, path ):
         _write_json(self.json(), path)
     
     def filename( self ):
         return '%s.json' % self.label
     
-    @staticmethod
-    def load(path):
-        s = Store(path)
-        s.read(path)
-        return s
+    def collection( self, uuid=None, cid=None ):
+        if uuid or cid:
+            for c in self.collections:
+                if uuid and (c['uuid'] == uuid):
+                    return c
+                elif cid and (c['cid'] == cid):
+                    return c
+        return None
+
 
 
 def file_instances(collections_dict, annex_whereis_file):
