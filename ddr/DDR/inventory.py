@@ -1,3 +1,74 @@
+"""
+# Create an Organization
+from DDR.inventory import Organization, Store
+o = Organization.create('/tmp/repo/ddr-testing', 'ddr-testing', 'testing')
+o.commit(git_name, git_mail, 'Created an organization: %s' % o.id)
+
+# Load an existing Organization
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+o.commit(git_name, git_mail, 'Cloned an organization: %s' % o.id)
+
+# Add a new Store
+import datetime
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+s = Store()
+s.label='WHATEVER'
+s.location='HMWF'
+s.purchase_date=datetime.date.today()
+o.stores.append(s)
+o.commit(git_name, git_mail, 'Added new store: %s' % store.label)
+
+# Update a Store
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+s = o.store('WHATEVER')
+s.location = 'Densho HQ'
+o.commit(git_name, git_mail, 'Updated store: %s' % store.label)
+
+# Remove a Store
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+s = o.store('WHATEVER')
+o.stores.remove(s)
+o.commit(git_name, git_mail, 'Removed store: %s' % store.label)
+
+# Add a collection
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+s = o.store('WHATEVER')
+c = StoreCollection('ddr-testing-123', '2ca8e0aa-1cc1-11e3-8867-3fd4c84eb655', 'full')
+s.collections.append(c)
+o.commit(git_name, git_mail, 'Added collection: %s' % c.id)
+
+# Update a collection
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+s = o.store('WHATEVER')
+c = s.collection('ddr-testing-123')
+c.level = 'metadata'
+o.commit(git_name, git_mail, 'Updated collection: %s' % c.id)
+
+# Remove a collection
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+s = o.store('WHATEVER')
+c = s.collection('ddr-testing-123')
+s.collections.remove(c)
+o.commit(git_name, git_mail, 'Removed collection: %s' % c.id)
+
+# Write changes to disk
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+o.commit(git_name, git_%s) % c.id
+
+# Sync
+from DDR.inventory import Organization, Store
+o = Organization('/tmp/repo/ddr-testing')
+o.sync()
+"""
+
 import ConfigParser
 import json
 import logging
@@ -40,6 +111,10 @@ def _write_json(data, path):
 
 
 
+
+
+
+
 class Repository( object ):
     id = None
     keyword = None
@@ -73,34 +148,43 @@ class Organization( object ):
     path = None
     id = None
     keyword = None
-    title = None
-    description = None
     stores = []
     
     def __init__( self, path=None ):
         if path:
             self.path = path
-            self.read(os.path.join(path, 'organization.json'))
             self.stores = self._stores()
     
     def json( self ):
         return {'id': self.id,
-                'keyword': self.keyword,
-                'title': self.title,
-                'description': self.description,}
+                'keyword': self.keyword,}
     
     def read( self, path ):
         with open(path, 'r') as f:
             data = json.loads(f.read())
         self.id = data['id']
         self.keyword = data['keyword']
-        self.title = data['title']
-        self.description = data['description']
     
     def write( self, path ):
         _write_json(self.json(), path)
     
-    def store_files( self ):
+    @staticmethod
+    def create(path, id, keyword):
+        if os.path.exists(path):
+            raise Exception
+        o = Organization()
+        o.path = path
+        o.id = id
+        o.keyword = keyword
+        if not os.path.exists(o.path):
+            os.mkdir(o.path)
+        # initialize Git repo
+        os.chdir(o.path)
+        repo = git.Repo.init(o.path)
+        commit = repo.index.commit('initial commit')
+        return o
+    
+    def _store_files( self ):
         """Gets list of paths to store files in the repo.
         """
         excludes = ['.git', 'organization.json']
@@ -108,25 +192,81 @@ class Organization( object ):
         return [f for f in os.listdir(self.path) if (f not in excludes) and pattern.search(f)]
     
     def _stores( self ):
-        return [os.path.splitext(f)[0] for f in self.store_files()]
+        return [Store(os.path.join(self.path, f)) for f in self._store_files()]
     
     def store( self, label ):
-        filename = '%s.json' % label
-        path = os.path.join(self.path, filename)
-        store = Store(path)
-        return store
+        for s in self.stores:
+            if s.label == label:
+                return s
+        return None
     
     def collection( self, cid ):
         """Lists the stores that contain collection and level
         """
         instances = []
-        for label in self.store_files():
-            store = Store(os.path.join(self.path, label))
+        for store in self.stores:
             for c in store.collections:
                 if c['id'] == cid:
-                    c['store'] = sf
+                    c['label'] = store.label
                     instances.append(c)
         return instances
+    
+    def collections( self ):
+        """Builds a data structure of all the repo remotes keyed to their UUIDs
+        
+        This function loads each of the store records for the organization.
+        For each collection record it adds the location field and store label
+        from the store record.  This is suitable for loading into a search engine.
+        
+        >> from DDR.inventory import Organization
+        >> org = Organization('/var/www/media/base/ddr-testing')
+        >> collections = org.collections()
+        >> for c in collections:
+        >>     print(c)
+        {'uuid':'43935...', 'id':'ddr-testing-141', 'label':'HMWF1TB2013', 'location':'Heart Mountain, WY'},
+        {'uuid':'64393...', 'id':'ddr-testing-141', 'label':'pnr_tmp-ddr', 'location':'Pasadena, CA'},
+        {'uuid':'36493...', 'id':'ddr-testing-141', 'label':'WD5000BMV-2', 'location':'Pasadena, CA'},
+        {'uuid':'35ea6...', 'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'},
+        ...
+        
+        @returns list of dicts.
+        """
+        repos = []
+        for s in self.stores:
+            store = self.store(s)
+            for c in store.collections:
+                c['store'] = store.label
+                c['location'] = store.location
+                repos.append(c)
+        return repos
+    
+    def collections_dict( self, fieldname ):
+        """Similar to Organization.collections except returns collections in dict.
+        
+        >> from DDR.inventory import Organization
+        >> org = Organization('/var/www/media/base/ddr-testing')
+        >> collections = org.collections(key='uuid')
+        >> for c in collections:
+        >>     print(c)
+        {'uuid':'43935...', 'id':'ddr-testing-141', 'label':'HMWF1TB2013', 'location':'Heart Mountain, WY'},
+        {'uuid':'64393...', 'id':'ddr-testing-141', 'label':'pnr_tmp-ddr', 'location':'Pasadena, CA'},
+        {'uuid':'36493...', 'id':'ddr-testing-141', 'label':'WD5000BMV-2', 'location':'Pasadena, CA'},
+        {'uuid':'35ea6...', 'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'},
+        ...
+        
+        @param fieldname: Name of field to use as dictionary key.
+        @returns dict.
+        """
+        repos = {}
+        for s in self.stores:
+            store = self.store(s)
+            for c in store.collections:
+                c['store'] = store.label
+                c['location'] = store.location
+                if c.get(fieldname, None):
+                    key = c.pop(fieldname)
+                    repos[key] = c
+        return repos
 
 
 class Store( object ):
@@ -138,10 +278,13 @@ class Store( object ):
     purchase_date = None
     collections = {}
     
-    def __init__( self, path=None ):
-        if path:
-            self.path = path
-            self.read(path)
+    def json( self ):
+        return {'label': self.label,
+                'org': self.org,
+                'repo': self.repo,
+                'location': self.location,
+                'purchase_date': self.purchase_date,
+        }
     
     def read( self, path ):
         with open(path, 'r') as f:
@@ -153,108 +296,71 @@ class Store( object ):
         self.purchase_date = data['purchase_date']
         self.collections = data['collections']
     
-    def json( self ):
-        return {'label': self.label,
-                'org': self.org,
-                'repo': self.repo,
-                'location': self.location,
-                'purchase_date': self.purchase_date,
-        }
-    
     def write( self, path ):
         _write_json(self.json(), path)
 
 
 
-
-
-
-
-def repos_by_uuid(organization, collection=None):
-    """Builds a data structure of all the repo remotes keyed to their UUIDs
+def file_instances(collections_dict, annex_whereis_file):
+    """Adds location field to file instance metadata.
     
-{
-  '43935ea6-cbe1-1e31-fba5-fb5a8f2a9337': {'id':'ddr-testing-141', 'label':'HMWF1TB2013', 'location':'Heart Mountain, WY'},
-  '643935ea-1cbe-11e3-afb5-3fb5a8f2a973': {'id':'ddr-testing-141', 'label':'pnr_tmp-ddr', 'location':'Pasadena, CA'},
-  '364935ea-1cbe-11e3-afb5-38f2a937fb5a': {'id':'ddr-testing-141', 'label':'WD5000BMV-2', 'location':'Pasadena, CA'},
-  '35ea6439-1cbe-11e3-afb5-3fb592a37a8f': {'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'}
-}
+    Takes location from each collection in the Organization's Store records and adds it to file instance records from git-annex.
 
-
-from DDR import dvcs, organization
-org = organization.Organization('/var/www/media/base/ddr-testing')
-uuid_repos = organization.repos_by_uuid(org)
-
-r = dvcs.repository('/tmp/ddr/ddr-testing-141')
-file_remotes = dvcs.annex_whereis(r)
-for f in file_remotes:
-   for fr in f['remotes']:
-       print(fr)
-       uuid = fr.get('uuid',None)
-       print(uuid)
-       remote = uuid_repos.get(uuid,None)
-       print(remote)
-       if remote and (remote.get('location',None)):
-           fr['location'] = remote['location']
-
-for f in file_remotes:
-   for fr in f['remotes']:
-       print(fr)
-
-
+    >> from DDR import dvcs, inventory
+    >> repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
+    >> org = inventory.Organization('/var/www/media/base/ddr-testing')
+    >> collections_dict = org.collections_dict('uuid')
+    >> path_rel = 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf'
+    >> instances = dvcs.annex_whereis_file(repo, path_rel)
+    >> instances = inventory.file_locations(collections_dict, repo, path)
+    >> for i in instances:
+    >>     print(i)
+    {'location': u'Pasadena', 'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}
+    {'location': u'Pasadena', 'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pnr_tmp-ddr'}
+    
+    @param collections_dict
+    @param annex_whereis_file: Output of dvcs.annex_whereis_file
     """
-    repos = {}
-    for s in organization.stores:
-        store = organization.store(s)
-        for c in store.collections:
-            uuid = c.get('uuid',None)
-            if uuid:
-                c['location'] = store.location
-                repos[uuid] = c
-    return repos
+    for i in annex_whereis_file:
+        c = collections_dict[i['uuid']]
+        i['location'] = c['location']
+    return annex_whereis_file
 
+def files_instances(collections_dict, repo, annex_whereis):
+    """Adds location field to file instance metadata for specified repository.
+    
+    Takes location from each collection in the Organization's Store records and adds it to file instance records from git-annex.
 
-
-def file_locations(repo, file_path_rel, organization):
-    """
->>> dvcs.annex_whereis_file(r, 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf')
-[{'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}, {'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pn
-r_tmp-ddr'}]
-
-from DDR import dvcs, organization
+from DDR import dvcs, inventory
 repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
-org = organization.Organization('/var/www/media/base/ddr-testing')
-path = 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf'
-stores = organization.file_locations(repo, path, org)
-for s in stores:
-    print(s.location)
+org = inventory.Organization('/var/www/media/base/ddr-testing')
+collections_dict = org.collections_dict('uuid')
+instances = dvcs.annex_whereis(repo)
+instances = inventory.files_instances(collections_dict, repo, instances)
+for i in instances:
+    print(i)
 
-[{'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}, {'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pn
-r_tmp-ddr'}]
-['HMWF1TB2013', 'pnr_tmp-ddr', 'WD5000BMV-2']
-
+    {'location': u'Pasadena', 'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}
+    {'location': u'Pasadena', 'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pnr_tmp-ddr'}
+    
+    @param collections_dict
+    @param annex_whereis_file: Output of dvcs.annex_whereis_file
     """
-    stores = []
-    instances = dvcs.annex_whereis_file(repo, file_path_rel)
-    for i in instances:
-        if i.get('label',None):
-            store = organization.store(i['label'])
-            stores.append(store)
-    return stores
-
-
-
-
-
+    for f in annex_whereis:
+        for r in f['remotes']:
+            rem = collections_dict.get(r['uuid'], None)
+            if rem:
+                r['location'] = rem['location']
+    return annex_whereis
 
 
 
 def group_files( path ):
     """Gets list of paths to group files in the repo.
     
-    >>> from DDR import organization
+    >>> from DDR import inventory
     >>> p = '/var/www/media/base/ddr-testing'
-    >>> organization.group_files(p)
+    >>> inventory.group_files(p)
     ['/var/www/media/base/ddr-testing/TS11TB2013.json', '/var/www/media/base/ddr-testing/WD5000BMV-2.json']
     
     @param path: Abs path to org repo
@@ -266,9 +372,9 @@ def group_files( path ):
 def groups( path ):
     """Gets list of groups for which there are CSV files.
     
-    >>> from DDR import organization
+    >>> from DDR import inventory
     >>> p = '/var/www/media/base/ddr-testing'
-    >>> organization.groups(p)
+    >>> inventory.groups(p)
     ['TS11TB2013', 'WD5000BMV-2']
     
     @param path: Abs path to org repo
@@ -284,9 +390,9 @@ def group_file_path( path ):
     and when the group label was always assumed to match a drive label.
     The label is assumed to be the block of \w following '/media'.
     
-    >>> from DDR import organization
+    >>> from DDR import inventory
     >>> r = '/media/DRIVELABEL/ddr/REPOORGID'
-    >>> organization.group_file_path(r)
+    >>> inventory.group_file_path(r)
     '/media/DRIVELABEL/ddr/REPOORG/DRIVELABEL.json'
     
     @param path: Abs path to org repo (drive label extracted from this)
@@ -305,9 +411,9 @@ def read_group_file( path ):
     Group file is a JSON file containing a list of DDR collection repo IDs and
     and indicator of which binaries should be present (see LEVELS).
     
-    >>> from DDR import organization
+    >>> from DDR import inventory
     >>> p = '/var/www/media/base/ddr-testing/WD5000BMV-2.json'
-    >>> organization.read_group_file(p)
+    >>> inventory.read_group_file(p)
     [{'id': 'ddr-testing-100', 'level': 'full'}, {'id': 'ddr-testing-101', 'level': 'access'}, ...]
     
     @param path: Absolute path to group file.
@@ -369,14 +475,14 @@ def read_mrconfig( path ):
 def make_mrconfig( defaults, repos, server, base_path='' ):
     """Makes an .mrconfig file.
     
-    import organization
+    import inventory
     p = '/media/WD5000BMV-2/ddr/ddr-testing/WD5000BMV-2.csv'
-    repos = organization.read_drive_file(p)
+    repos = inventory.read_drive_file(p)
     defaults = {'ddrstatus': 'ddr status "$@"', 'ddrsync': 'ddr sync "$@"'}
     base_path = '/media/WD5000BMV-2/ddr'
     server = 'git@mits.densho.org'
-    mrconfig = organization.mrconfig(defaults, base_path, server, repos)
-    organization.write_mrconfig(mrconfig, '/tmp/mrconfig')
+    mrconfig = inventory.mrconfig(defaults, base_path, server, repos)
+    inventory.write_mrconfig(mrconfig, '/tmp/mrconfig')
  
     @param defaults: dict of settings.
     @param repos: List of dicts (id, level)
@@ -446,9 +552,9 @@ faf5b548-4285-11e3-877e-33872002bf67	WD5000BMV-2	Pasadena, here	master	semitrust
 affb5584-2485-1e13-87e7-33827020b6f7	TS1TB201301	Seattle, Densho HQ	master	semitrusted
 62a9c710-4718-11e3-ac94-87227a8b2c2c	pub	Seattle, Densho Colo	access	
 
-from DDR import dvcs, organization
+from DDR import dvcs, inventory
 repo = dvcs.repository('/var/www/media/base/ddr-testing-196')
 stat = dvcs.annex_status(repo)
 path = '/var/www/media/base/ddr-testing'
-organization.repo_inventory_remotes(repo, stat, path)
+inventory.repo_inventory_remotes(repo, stat, path)
 """
