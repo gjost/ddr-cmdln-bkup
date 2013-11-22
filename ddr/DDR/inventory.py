@@ -1,71 +1,77 @@
 """
 # Create an Organization
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
-o = Organization.create('/tmp/repo/ddr-testing', 'ddr-testing', 'testing')
-o.commit(git_name, git_mail, 'Created an organization: %s' % o.id)
+o = Organization.create(path='/tmp/repo/ddr-testing', id='ddr-testing', repo='ddr', org='testing')
+o.save(git_name, git_mail, 'Set up organization: %s' % o.id)
 
 # Load an existing Organization
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
-o.commit(git_name, git_mail, 'Cloned an organization: %s' % o.id)
+o = Organization.load('/tmp/repo/ddr-testing')
 
 # Add a new Store
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 import datetime
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
-s = Store()
-s.label='WHATEVER'
-s.location='HMWF'
-s.purchase_date=datetime.date.today()
+o = Organization.load('/tmp/repo/ddr-testing')
+today = datetime.date.today().strftime('%Y-%m-%d')
+s = Store(repo=o.repo, org=o.keyword,
+          label='WHATEVER', location='HMWF',
+          purchase_date=today)
 o.stores.append(s)
-o.commit(git_name, git_mail, 'Added new store: %s' % store.label)
+o.save(git_name, git_mail, 'Added new store: %s' % s.label)
 
 # Update a Store
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
+o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
 s.location = 'Densho HQ'
-o.commit(git_name, git_mail, 'Updated store: %s' % store.label)
+o.save(git_name, git_mail, 'Updated store: %s' % s.label)
 
 # Remove a Store
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
+o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
 o.stores.remove(s)
-o.commit(git_name, git_mail, 'Removed store: %s' % store.label)
+o.save(git_name, git_mail, 'Removed store: %s' % s.label)
 
 # Add a collection
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
+o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
 c = StoreCollection('ddr-testing-123', '2ca8e0aa-1cc1-11e3-8867-3fd4c84eb655', 'full')
 s.collections.append(c)
-o.commit(git_name, git_mail, 'Added collection: %s' % c.id)
+o.save(git_name, git_mail, 'Added collection: %s' % c.id)
 
 # Update a collection
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
+o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
 c = s.collection('ddr-testing-123')
 c.level = 'metadata'
-o.commit(git_name, git_mail, 'Updated collection: %s' % c.id)
+o.save(git_name, git_mail, 'Updated collection: %s' % c.id)
 
 # Remove a collection
+git_name = 'gjost'; git_mail = 'gjost@densho.org'
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
+o = Organization.load('/tmp/repo/ddr-testing')
 s = o.store('WHATEVER')
 c = s.collection('ddr-testing-123')
 s.collections.remove(c)
-o.commit(git_name, git_mail, 'Removed collection: %s' % c.id)
+o.save(git_name, git_mail, 'Removed collection: %s' % c.id)
 
 # Write changes to disk
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
-o.commit(git_name, git_%s) % c.id
+o = Organization.load('/tmp/repo/ddr-testing')
+o.save(git_name, git_%s) % c.id
 
 # Sync
 from DDR.inventory import Organization, Store
-o = Organization('/tmp/repo/ddr-testing')
+o = Organization.load('/tmp/repo/ddr-testing')
 o.sync()
 """
 
@@ -149,47 +155,71 @@ class Organization( object ):
     id = None
     keyword = None
     stores = []
+    filename = 'organization.json'
     
-    def __init__( self, path=None ):
-        if path:
-            self.path = path
+    def __init__( self, path=None, id=None, repo=None, org=None):
+        if path: self.path = path
+        if id:   self.id = id
+        if repo: self.repo = repo
+        if org:  self.org = org
+        if self.path:
             self.stores = self._stores()
     
     def json( self ):
         return {'id': self.id,
-                'keyword': self.keyword,}
+                'repo': self.repo,
+                'org': self.org,}
     
     def read( self, path ):
-        with open(path, 'r') as f:
+        self.path = path
+        opath = os.path.join(path, self.filename)
+        with open(opath, 'r') as f:
             data = json.loads(f.read())
         self.id = data['id']
-        self.keyword = data['keyword']
+        self.repo = data['repo']
+        self.org = data['org']
     
     def write( self, path ):
-        _write_json(self.json(), path)
+        opath = os.path.join(path, self.filename)
+        _write_json(self.json(), opath)
+        for store in self.stores:
+            spath = os.path.join(path, store.filename())
+            store.write(spath)
     
     @staticmethod
-    def create(path, id, keyword):
+    def create(path, id, org, repo):
         if os.path.exists(path):
             raise Exception
-        o = Organization()
-        o.path = path
-        o.id = id
-        o.keyword = keyword
-        if not os.path.exists(o.path):
-            os.mkdir(o.path)
+        o = Organization(path=path, id=id, org=org, repo=repo)
+        os.mkdir(o.path)
         # initialize Git repo
         os.chdir(o.path)
         repo = git.Repo.init(o.path)
         commit = repo.index.commit('initial commit')
         return o
     
+    @staticmethod
+    def load(path):
+        o = Organization(path)
+        o.read(path)
+        return o
+    
+    def commit( self, git_name, git_mail, message ):
+        repo = git.Repo.init(self.path)
+        commit = repo.index.commit('-a', '-m', message)
+
+    def save( self, git_name, git_mail, message ):
+        self.write(self.path)
+        self.commit(git_name, git_mail, message)
+    
     def _store_files( self ):
         """Gets list of paths to store files in the repo.
         """
-        excludes = ['.git', 'organization.json']
-        pattern = re.compile('.json$')
-        return [f for f in os.listdir(self.path) if (f not in excludes) and pattern.search(f)]
+        if self.path and os.path.exists(self.path):
+            excludes = ['.git', 'organization.json']
+            pattern = re.compile('.json$')
+            return [f for f in os.listdir(self.path) if (f not in excludes) and pattern.search(f)]
+        return []
     
     def _stores( self ):
         return [Store(os.path.join(self.path, f)) for f in self._store_files()]
@@ -271,20 +301,20 @@ class Organization( object ):
 
 class Store( object ):
     path = None
-    label = None
     org = None
     repo = None
+    label = None
     location = None
     purchase_date = None
     collections = {}
     
-    def json( self ):
-        return {'label': self.label,
-                'org': self.org,
-                'repo': self.repo,
-                'location': self.location,
-                'purchase_date': self.purchase_date,
-        }
+    def __init__( self, path=None, org=None, repo=None, label=None, location=None, purchase_date=None):
+        if path:     self.path = path
+        if org:      self.org = org
+        if repo:     self.repo = repo
+        if label:    self.label = label
+        if location: self.location = location
+        if purchase_date: self.purchase_date = purchase_date
     
     def read( self, path ):
         with open(path, 'r') as f:
@@ -296,9 +326,26 @@ class Store( object ):
         self.purchase_date = data['purchase_date']
         self.collections = data['collections']
     
+    def json( self ):
+        return {'label': self.label,
+                'org': self.org,
+                'repo': self.repo,
+                'location': self.location,
+                'purchase_date': self.purchase_date,
+                'collections': self.collections,
+        }
+    
     def write( self, path ):
         _write_json(self.json(), path)
-
+    
+    def filename( self ):
+        return '%s.json' % self.label
+    
+    @staticmethod
+    def load(path):
+        s = Store(path)
+        s.read(path)
+        return s
 
 
 def file_instances(collections_dict, annex_whereis_file):
