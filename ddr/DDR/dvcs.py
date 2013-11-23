@@ -163,6 +163,14 @@ def annex_status(path):
     logging.debug('\n{}'.format(status))
     return status
 
+def annex_find(path):
+    """Get list of annex files present in repository.
+    
+    @param path: Absolute path to collection repo.
+    @return: list of files
+    """
+    return git.Repo(path).git.annex('find').split('\n')
+
 def annex_whereis(repo):
     """Show remotes that the file appears in
     

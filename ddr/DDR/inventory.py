@@ -106,7 +106,7 @@ import re
 import envoy
 import git
 
-from DDR import dvcs
+from DDR import dvcs, storage
 
 
 DRIVE_FILE_FIELDS = 'id,level'
@@ -135,6 +135,31 @@ def _write_json(data, path):
     json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
     with open(path, 'w') as f:
         f.write(json_pretty)
+
+def guess_collection_level(cpath):
+    """Try to guess a collection's level by looking at git-annex-find
+    
+    If git-annex-find lists no files it's probably a metadata-only repo.
+    If there are only files ending with the access suffix, probably access.
+    If mixture of access and others, probably master.
+    """
+    annex_files = dvcs.annex_find(cpath)
+    if len(annex_files) == 0:
+        return 'metadata'
+    # tally up the access and master copies
+    access = 0
+    master = 0
+    for f in annex_files:
+        # access files end in '-a'
+        if os.path.splitext(f)[0][-2:] == '-a':
+            access = access + 1
+        else:
+            master = master + 1
+    if access and not master:
+        return 'access'
+    elif access and master:
+        return 'master'
+    return None
 
 
 
@@ -326,7 +351,44 @@ class Organization( object ):
                     key = c.pop(fieldname)
                     repos[key] = c
         return repos
-
+    
+    @staticmethod
+    def analyze_collections( path ):
+        label = storage.drive_label(path)
+        
+        def looks_like_a_collection(path):
+            git_dir = os.path.join(path, '.git')
+            cjson = os.path.join(path, 'collection.json')
+            if os.path.exists(git_dir) and os.path.exists(cjson):
+                return True
+            return False
+        def get_cid(cpath):
+            cjson = os.path.join(cpath, 'collection.json')
+            with open(cjson, 'r') as f:
+                data = json.loads(f.read())
+            for field in data:
+                cid = field.get('id', None)
+                if cid:
+                    return cid
+            return None
+        def get_uuid(cpath):
+            repo = dvcs.repository(cpath)
+            if repo:
+                return repo.git.config('annex.uuid')
+            return None
+        
+        # collections:
+        dirs = os.listdir(path)
+        dirs.sort()
+        for d in dirs:
+            cpath = os.path.join(path, d)
+            print(cpath)
+            if looks_like_a_collection(cpath):
+                cid = get_cid(cpath)
+                uuid = get_uuid(cpath)
+                level = guess_collection_level(cpath)
+                print('    %s %s %s' % (uuid, cid, level))
+        pass
 
 
 STORE_FIELDS = ['repo', 'org', 'label', 'location', 'purchase_date', 'collections',]
