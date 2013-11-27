@@ -38,17 +38,34 @@ o = Organization.load('/tmp/repo/ddr-testing')
 o.sync()
 """
 
+from datetime import datetime, date
 import ConfigParser
 import json
 import logging
 logger = logging.getLogger(__name__)
 import os
 import re
+import sys
 
 import envoy
 import git
 
+from DDR import CONFIG_FILE
 from DDR import dvcs, storage
+
+
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+GITOLITE = config.get('workbench','gitolite')
 
 
 
@@ -423,7 +440,7 @@ def create_organization( git_name, git_mail, path, id, repo, org ):
     o.save()
     o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
 
-def clone_organization( gitolite, id, dest_dir ):
+def clone_organization( url, dest_dir ):
     """Clone a copy of Organization repo.
     
 from DDR.inventory import clone_organization
@@ -433,7 +450,7 @@ clone_organization('git@mits.densho.org', 'ddr-testing', '/tmp/repo/')
     @param id: Organization ID ('ddr-testing').
     @param path: Absolute path to destination directory.
     """
-    url = '{}:{}.git'.format(GITOLITE, id)
+    #url = '{}:{}.git'.format(GITOLITE, id)
     repo = git.Repo.clone_from(url, dest_dir)
 
 def sync_organization( path, remote='origin' ):
@@ -563,6 +580,65 @@ def remove_collection( git_name, git_mail, path, label, uuid ):
     o.commit(git_name, git_mail, 'Removed collection %s %s' % (s.label, c['cid']))
 
 
+
+
+
+
+def init_store():
+    """Initialize a new (blank) Store
+    """
+    print('')
+    
+    git_name = raw_input('Your name: ')
+    git_mail = raw_input('Email address: ')
+    
+    path = raw_input("Path to Store's ddr/ dir (e.g. '/media/USBDRIVE/ddr'): ")
+    if not os.path.exists(path):
+        print('Nonexistant path: %s' % path)
+        sys.exit(1)
+    label = guess_drive_label(path)
+    confirm = raw_input('Drive label: "%s" [y/n] ' % label)
+    if confirm != 'y':
+        label = raw_input('Drive label: ')
+    
+    location = raw_input("Location: ")
+    level = raw_input("Annex level %s: " % LEVELS)
+    if level not in LEVELS:
+        print('Enter a valid level')
+        sys.exit(1)
+    raw_purchased = raw_input('Purchase date (YYYY-MM-DD): ')
+    try:
+        purchased = datetime.strptime(raw_purchased, '%Y-%m-%d').date()
+    except:
+        print('Enter a valid date')
+        sys.exit(1)
+    
+    repo = raw_input('Repository (e.g. "ddr"): ')
+    org = raw_input('Organization (e.g. "densho"): ')
+    oid = '%s-%s' % (repo, org)
+    gitolite = raw_input('Server (e.g. "%s"): ' % GITOLITE)
+    url = '%s:%s-%s.git' % (gitolite, repo, org)
+    url_confirm = raw_input('Organization repo URL: "%s" [y/n] ' % url)
+    if url_confirm != 'y':
+        sys.exit(1)
+    
+    print('')
+    print('User name:  %s' % git_name)
+    print('User mail:  %s' % git_mail)
+    print('Path:       %s' % path)
+    print('Label:      %s' % label)
+    print('Purchased:  %s' % purchased)
+    print('Location:   %s' % location)
+    print('Level:      %s' % level)
+    print('URL:        %s' % url)
+    confirm = raw_input('Are the above values correct? [y/n] ')
+    print('')
+    if confirm != 'y':
+        sys.exit(1)
+    
+    clone_organization( url, os.path.join(path, oid) )
+    add_store( git_name, git_mail, path, label, location, purchased )
+    #sync_organization( path, remote='origin' )
 
 
 
@@ -824,3 +900,10 @@ stat = dvcs.annex_status(repo)
 path = '/var/www/media/base/ddr-testing'
 inventory.repo_inventory_remotes(repo, stat, path)
 """
+
+
+
+
+
+if __name__ == '__main__':
+    init_store()
