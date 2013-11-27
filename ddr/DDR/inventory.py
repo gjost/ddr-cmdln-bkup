@@ -1,94 +1,36 @@
 """
-# Create an Organization
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.create(path='/tmp/repo/ddr-testing', id='ddr-testing', repo='ddr', org='testing')
-o.save()
-o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
+Create a new Organization
 
-# Load an existing Organization
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
+Set up new USB drive or store
+- add_store
 
-# Add a new Store
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-import datetime
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-today = datetime.date.today().strftime('%Y-%m-%d')
-s = Store(repo=o.repo, org=o.org,
-          label='WHATEVER', location='HMWF',
-          purchase_date=today)
-o.stores.append(s)
-o.save()
-o.commit(git_name, git_mail, 'Added store: %s' % s.label)
+Update store location
+- update_store
 
-# Add another Store
-s = Store(repo=o.repo, org=o.org,
-          label='BLAHBLAH', location='JANM',
-          purchase_date=today)
-o.stores.append(s)
-o.save()
-o.commit(git_name, git_mail, 'Added a store: %s' % s.label)
+Change a store's level
+- update_store
 
-# Update a Store
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('WHATEVER')
-s.location = 'Densho HQ'
-o.save()
-o.commit(git_name, git_mail, 'Updated store: %s' % s.label)
+Retire a USB drive or store
+- remove_store
 
-# Remove a Store
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('BLAHBLAH')
-o.remove_store(s)
-o.save()
-o.commit(git_name, git_mail, 'Removed store: %s' % s.label)
+Create new collection
+- add_collection
 
-# Add a collection
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('WHATEVER')
-c = {'uuid':'2ca8e0aa-1cc1-11e3-8867-3fd4c84eb655', 'cid':'ddr-testing-123', 'level':'full'}
-s.collections.append(c)
-o.save()
-o.commit(git_name, git_mail, 'Added collection %s %s' % (s.label, c['cid']))
+Delete collection
+- remove_collection
 
-# Add more collections
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('WHATEVER')
-s.collections.append({'uuid':'a8e0aa2c-c1c1-e311-6788-d4c84eb6553f', 'cid':'ddr-testing-124', 'level':'full'})
-s.collections.append({'uuid':'c8e0aaa2-1c1c-1e31-8678-fd4c84eb6553', 'cid':'ddr-testing-125', 'level':'full'})
-s.collections.append({'uuid':'8e0aaa2c-cc11-1e31-8678-fd4c84eb6553', 'cid':'ddr-testing-126', 'level':'full'})
-o.save()
-o.commit(git_name, git_mail, 'Added multiple collections')
+Sync Store with another store
 
-# Update a collection
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('WHATEVER')
-c = s.collection(uuid='c8e0aaa2-1c1c-1e31-8678-fd4c84eb6553')
-c['level'] = 'metadata'
-o.save()
-o.commit(git_name, git_mail, 'Updated collection %s %s' % (s.label, c['cid']))
 
-# Remove a collection
-git_name = 'gjost'; git_mail = 'gjost@densho.org'
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-s = o.store('WHATEVER')
-c = s.collection(uuid='8e0aaa2c-cc11-1e31-8678-fd4c84eb6553')
-s.collections.remove(c)
-o.save()
-o.commit(git_name, git_mail, 'Removed collection %s %s' % (s.label, c['cid']))
+- create_organization
+- clone_organization
+- add_store
+- update_store
+- remove_store
+- add_collection
+- update_collection
+- remove_collection
+
 
 # Sync
 from DDR.inventory import Organization, Store
@@ -107,6 +49,7 @@ import envoy
 import git
 
 from DDR import dvcs, storage
+
 
 
 DRIVE_FILE_FIELDS = 'id,level'
@@ -135,6 +78,14 @@ def _write_json(data, path):
     json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
     with open(path, 'w') as f:
         f.write(json_pretty)
+
+def guess_drive_label(path):
+    label = storage.drive_label(path)
+    if not label:
+        hostname = envoy.run('hostname').std_out.strip()
+        ppath = path.replace(os.sep, '-')[1:]
+        label = '%s_%s' % (hostname, ppath)
+    return label
 
 def guess_collection_level(cpath):
     """Try to guess a collection's level by looking at git-annex-find
@@ -218,6 +169,8 @@ class Organization( object ):
     
     @staticmethod
     def create(path, id, org, repo):
+        """
+        """
         if os.path.exists(path):
             raise Exception
         o = Organization(path=path, id=id, org=org, repo=repo)
@@ -353,8 +306,15 @@ class Organization( object ):
         return repos
     
     @staticmethod
-    def analyze_collections( path ):
-        label = storage.drive_label(path)
+    def analyze_store( path ):
+        """
+from DDR.inventory import Organization
+Organization.analyze_store('/var/www/media/base')
+        
+        @param path
+        @return label,collections
+        """
+        label = guess_drive_label(path)
         
         def looks_like_a_collection(path):
             git_dir = os.path.join(path, '.git')
@@ -378,20 +338,23 @@ class Organization( object ):
             return None
         
         # collections:
+        collections = []
         dirs = os.listdir(path)
         dirs.sort()
         for d in dirs:
             cpath = os.path.join(path, d)
-            print(cpath)
             if looks_like_a_collection(cpath):
-                cid = get_cid(cpath)
                 uuid = get_uuid(cpath)
+                cid = get_cid(cpath)
                 level = guess_collection_level(cpath)
-                print('    %s %s %s' % (uuid, cid, level))
-        pass
+                if uuid and cid:
+                    c = { 'uuid':uuid, 'cid':cid, 'level':level }
+                    collections.append(c)
+        return label,collections
 
 
 STORE_FIELDS = ['repo', 'org', 'label', 'location', 'purchase_date', 'collections',]
+COLLECTION_FIELDS = ['uuid', 'cid', 'level',]
 
 class Store( object ):
     path = None
@@ -441,6 +404,165 @@ class Store( object ):
                 elif cid and (c['cid'] == cid):
                     return c
         return None
+
+
+
+
+def create_organization( git_name, git_mail, path, id, repo, org ):
+    """Create a new Organization repo.
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param id
+    @param repo
+    @param org
+    """
+    o = Organization.create(path=path, id=id, repo=repo, org=org)
+    o.save()
+    o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
+
+def clone_organization( gitolite, id, dest_dir ):
+    """Clone a copy of Organization repo.
+    
+from DDR.inventory import clone_organization
+clone_organization('git@mits.densho.org', 'ddr-testing', '/tmp/repo/')
+    
+    @param git_remote: Address of Git server ('git@mits.densho.org').
+    @param id: Organization ID ('ddr-testing').
+    @param path: Absolute path to destination directory.
+    """
+    url = '{}:{}.git'.format(GITOLITE, id)
+    repo = git.Repo.clone_from(url, dest_dir)
+
+def sync_organization( path, remote='origin' ):
+    """Sync Organization with the specified remote.
+    
+from DDR.inventory import sync_organization
+sync_organization('/tmp/repo/ddr-testing', 'origin')
+    
+    @param path: Absolute path to destination directory.
+    @param remote: Name of remote to sync to
+    """
+    repo = dvcs.repository(path)
+    repo.git.pull()
+    repo.git.push()
+
+def add_store( git_name, git_mail, path, label, location, purchase_date ):
+    """Create a new Store and add it to an existing Organization.
+    
+from DDR.inventory import add_store
+add_store('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-2', 'Pasadena', '2013-11-23')
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param label: Drive label for drive on which the Store resides.
+    @param location: 
+    @param purchase_date: String in the form 'YYYY-MM-DD'.
+    """
+    o = Organization.load(path)
+    s = Store(repo=o.repo, org=o.org,
+              label=label, location=location,
+              purchase_date=purchase_date)
+    o.stores.append(s)
+    o.save()
+    o.commit(git_name, git_mail, 'Added store: %s' % label)
+
+def update_store( git_name, git_mail, path, label, kwargs ):
+    """Update an existing Store record.
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param label
+    @param kwargs
+    """
+    o = Organization.load(path)
+    s = o.store(label)
+    # update values
+    for key in kwargs.keys():
+        if key in ORGANIZATION_FIELDS:
+            setattr(s, key, kwargs[key])
+    o.save()
+    o.commit(git_name, git_mail, 'Updated store: %s' % label)
+
+def remove_store( git_name, git_mail, path, label ):
+    """Remove Store from an Organization.
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param label
+    """
+    o = Organization.load(path)
+    s = o.store(label)
+    o.remove_store(s)
+    o.save()
+    o.commit(git_name, git_mail, 'Removed store: %s' % label)
+
+def add_collection( git_name, git_mail, path, label, collections ):
+    """Add a collection to the specified Store.
+    
+from DDR.inventory import add_collection
+collections = [{}]
+add_collection('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-2', collections)
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param label
+    @param collections: List of dicts ({uuid, cid, level})
+    """
+    o = Organization.load(path)
+    s = o.store(label)
+    for c in collections:
+        ok = 0
+        for key in c.keys():
+            if key in COLLECTION_FIELDS:
+                ok = ok + 1
+        if (len(ok) == len(c.keys())) and (c not in s.collections):
+            s.collections.append(c)
+    o.save()
+    o.commit(git_name, git_mail, 'Added collection(s)')
+
+def update_collection( git_name, git_mail, path, label, uuid, kwargs ):
+    """Update a collection.
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param label
+    @param uuid
+    @param kwargs
+    """
+    o = Organization.load(path)
+    s = o.store(label)
+    c = s.collection(uuid=uuid)
+    for key in kwargs:
+        if key in COLLECTION_FIELDS:
+            c[key] = kwargs[key]
+    o.save()
+    o.commit(git_name, git_mail, 'Updated collection %s %s' % (s.label, c['cid']))
+
+def remove_collection( git_name, git_mail, path, label, uuid ):
+    """Remove a collection from the specified Store.
+    
+    @param git_name
+    @param git_mail
+    @param path
+    @param label
+    @param uuid
+    """
+    o = Organization.load(path)
+    s = o.store(label)
+    c = s.collection(uuid=uuid)
+    s.collections.remove(c)
+    o.save()
+    o.commit(git_name, git_mail, 'Removed collection %s %s' % (s.label, c['cid']))
+
+
+
 
 
 
