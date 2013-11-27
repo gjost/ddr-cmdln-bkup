@@ -112,6 +112,13 @@ def guess_collection_level(cpath):
         return 'master'
     return None
 
+def looks_like_a_collection(path):
+    git_dir = os.path.join(path, '.git')
+    cjson = os.path.join(path, 'collection.json')
+    if os.path.exists(git_dir) and os.path.exists(cjson):
+        return True
+    return False
+
 
 
 class Repository( object ):
@@ -316,12 +323,6 @@ Organization.analyze_store('/var/www/media/base')
         """
         label = guess_drive_label(path)
         
-        def looks_like_a_collection(path):
-            git_dir = os.path.join(path, '.git')
-            cjson = os.path.join(path, 'collection.json')
-            if os.path.exists(git_dir) and os.path.exists(cjson):
-                return True
-            return False
         def get_cid(cpath):
             cjson = os.path.join(cpath, 'collection.json')
             with open(cjson, 'r') as f:
