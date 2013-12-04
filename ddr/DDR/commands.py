@@ -758,17 +758,42 @@ def annex_pull(collection_path, file_path_rel):
 
 @command
 @local_only
-def sync_group(groupfile, src_base, src_name, dest_base, dest_name):
+def sync_group(inventory_path, src_base, dest_base, level, src_name=None, dest_name=None):
+    """clone all the repos from Store A onto Store B.
+    
+    sync_group
+    - loads inventory (org) repo.
+    - gets label of source dir
+    - loads corresponding Store.
+    - gets list of collection repos (id, level)
+    - for each source repo:
+      - clones or pulls
+      - adds source,remote repos to each others' remotes
+      - load remote repo
+        - annex sync with source repo
+        - annex get from source repo
+    
+    @param inventory_path: Absolute path to inventory repo.
+    @param src_base: Absolute path to dir containing source repos.
+    @param dest_base: Absolute path to dir to which repos will be cloned.
+    @param level: Default level for destination repos.
+    @param src_name: (optional) Git remote name for repos on source store.
+    @param dest_name: (optional) Git remote name for repos on destination store.
     """
-    @param groupfile: Absolute path to group file.
-    @param src_base: Absolute path to dir containing remote repos from POV of local base dir.
-    @param src_name: Remote name.
-    @param dest_base: Absolute path to local base dir, in which repos will be stored.
-    @param dest_name: Local name.
-    """
-    logging.debug('reading group file: %s' % groupfile)
-    repos = inventory.read_group_file(groupfile)
-    logging.debug(repos)
+    src_organization_path = os.path.join(src_base, repo_org)
+    logging.debug('Loading inventory: %s' % src_organization_path)
+    organization = inventory.Organization.load(src_organization_path)
+    logging.debug(organization)
+    src_label = inventory.guess_drive_label(src_base)
+    dest_label = inventory.guess_drive_label(dest_base)
+    if not src_name:
+        src_name = src_label
+    if not dest_name:
+        dest_name = dest_label
+    src_store = organization.store(src_label)
+    src_repos = src_store.collections
+    logging.debug(src_store)
+    logging.debug(src_repos)
     ACCESS_SUFFIX = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
     
     def logif(txt):
@@ -776,8 +801,8 @@ def sync_group(groupfile, src_base, src_name, dest_base, dest_name):
         if t:
             logging.debug(t)
     
-    for r in repos:
-        os.chdir(dest_base)
+    os.chdir(dest_base)
+    for r in src_repos:
         repo_path = os.path.join(dest_base, r['id'])
         logging.debug('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         logging.debug('repo_path: %s' % repo_path)

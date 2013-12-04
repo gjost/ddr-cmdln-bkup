@@ -248,11 +248,12 @@ Example:
     parser_syncgrp.set_defaults(func=sync_group)
     parser_syncgrp.add_argument('-l', '--log', help='Log file..')
     parser_syncgrp.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
-    parser_syncgrp.add_argument('-g', '--groupfile', required=True, help='Absolute path to group file.')
+    parser_syncgrp.add_argument('-i', '--inventory', required=True, help='Absolute path to inventory repo.')
     parser_syncgrp.add_argument('-B', '--srcbase', required=True, help='Absolute path to dir containing source repos.')
     parser_syncgrp.add_argument('-b', '--destbase', required=True, help='Absolute path to dir to which repos will be cloned.')
-    parser_syncgrp.add_argument('-N', '--srcname', required=True, help='Source repo name.')
-    parser_syncgrp.add_argument('-n', '--destname', required=True, help='Destination repo name.')
+    parser_syncgrp.add_argument('-v', '--level', required=True, help='Default level for destination repos.')
+    parser_syncgrp.add_argument('-N', '--srcname', required=False, help='Source repo name.')
+    parser_syncgrp.add_argument('-n', '--destname', required=False, help='Destination repo name.')
 
     # removables
     parser_remo = subparsers.add_parser('removables', formatter_class=formatter,)
@@ -341,7 +342,7 @@ Example:
     elif args.cmd == 'push':     exit,msg = annex_push(args.collection, args.file)
     elif args.cmd == 'pull':     exit,msg = annex_pull(args.collection, args.file)
     elif args.cmd == 'syncgrp':
-        exit,msg = sync_group(args.groupfile, args.srcbase, args.srcname, args.destbase, args.destname)
+        exit,msg = sync_group(args.inventory, args.srcbase, args.destbase, args.level, args.srcname, args.destname)
     elif args.cmd == 'removables':
         exit,msg = removables()
         print(msg)
