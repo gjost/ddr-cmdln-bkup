@@ -761,8 +761,10 @@ def read_group_file( path ):
     @param path: Absolute path to group file.
     @returns: List of dicts (id, level)
     """
+    repos = []
     with open(path, 'rb') as f:
-        return json.loads(f.read())
+        data = json.loads(f.read())
+    return data['collections']
 
 def write_group_file( repos, path ):
     """

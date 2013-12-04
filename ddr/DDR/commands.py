@@ -12,10 +12,10 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import storage
+from DDR import inventory
 from DDR import dvcs
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
-from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
 
 
 class NoConfigError(Exception):
@@ -758,11 +758,17 @@ def annex_pull(collection_path, file_path_rel):
 
 @command
 @local_only
-def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
+def sync_group(groupfile, src_base, src_name, dest_base, dest_name):
     """
+    @param groupfile: Absolute path to group file.
+    @param src_base: Absolute path to dir containing remote repos from POV of local base dir.
+    @param src_name: Remote name.
+    @param dest_base: Absolute path to local base dir, in which repos will be stored.
+    @param dest_name: Local name.
     """
     logging.debug('reading group file: %s' % groupfile)
-    repos = read_group_file(groupfile)
+    repos = inventory.read_group_file(groupfile)
+    logging.debug(repos)
     ACCESS_SUFFIX = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
     
     def logif(txt):
@@ -771,7 +777,8 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
             logging.debug(t)
     
     for r in repos:
-        repo_path = os.path.join(local_base, r['id'])
+        os.chdir(dest_base)
+        repo_path = os.path.join(dest_base, r['id'])
         logging.debug('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         logging.debug('repo_path: %s' % repo_path)
         
@@ -803,9 +810,9 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
                 logging.debug('remote add %s %s' % (remote_name, remote_path))
                 repo.create_remote(remote_name, remote_path)
                 logging.debug('ok')
-        remote_path = os.path.join(remote_base, r['id'])
-        add_remote(repo_path, remote_name, remote_path) # local -> remote
-        add_remote(remote_path, local_name, repo_path)  # remote -> local
+        src_path = os.path.join(src_base, r['id'])
+        add_remote(repo_path, src_name, src_path) # dest -> src
+        add_remote(src_path, dest_name, repo_path)  # src -> dest
         
         # annex sync
         logging.debug('annex sync')
