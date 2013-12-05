@@ -485,25 +485,25 @@ def sync_organization( path, remote='origin' ):
 from DDR.inventory import sync_organization
 sync_organization('/tmp/repo/ddr-testing', 'origin')
     
-    @param path: Absolute path to destination directory.
+    @param path: Absolute path to Organization directory.
     @param remote: Name of remote to sync to
     """
     repo = dvcs.repository(path)
     repo.git.pull()
     repo.git.push()
 
-def add_store( git_name, git_mail, path, label, location, purchase_date ):
+def add_store( path, label, location, purchase_date, git_name, git_mail ):
     """Create a new Store and add it to an existing Organization.
     
 from DDR.inventory import add_store
-add_store('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-2', 'Pasadena', '2013-11-23')
+add_store('/tmp/repo/ddr-testing', 'WD5000BMV-2', 'Pasadena', '2013-11-23', 'gjost', 'gjost@densho.org')
     
-    @param git_name
-    @param git_mail
-    @param path
+    @param path: Absolute path to Organization directory.
     @param label: Drive label for drive on which the Store resides.
     @param location: 
     @param purchase_date: String in the form 'YYYY-MM-DD'.
+    @param git_name
+    @param git_mail
     """
     o = Organization.load(path)
     s = Store(repo=o.repo, org=o.org,
@@ -513,14 +513,14 @@ add_store('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-2', '
     o.save()
     o.commit(git_name, git_mail, 'Added store: %s' % label)
 
-def update_store( git_name, git_mail, path, label, kwargs ):
+def update_store( path, label, kwargs, git_name, git_mail ):
     """Update an existing Store record.
     
+    @param path: Absolute path to Organization directory.
+    @param label: Drive label for drive on which the Store resides.
+    @param kwargs
     @param git_name
     @param git_mail
-    @param path
-    @param label
-    @param kwargs
     """
     o = Organization.load(path)
     s = o.store(label)
@@ -531,13 +531,13 @@ def update_store( git_name, git_mail, path, label, kwargs ):
     o.save()
     o.commit(git_name, git_mail, 'Updated store: %s' % label)
 
-def remove_store( git_name, git_mail, path, label ):
+def remove_store( path, label, git_name, git_mail ):
     """Remove Store from an Organization.
     
+    @param path: Absolute path to Organization directory.
+    @param label: Drive label for drive on which the Store resides.
     @param git_name
     @param git_mail
-    @param path
-    @param label
     """
     o = Organization.load(path)
     s = o.store(label)
@@ -545,18 +545,18 @@ def remove_store( git_name, git_mail, path, label ):
     o.save()
     o.commit(git_name, git_mail, 'Removed store: %s' % label)
 
-def add_collection( git_name, git_mail, path, label, collections ):
+def add_collection( path, label, collections, git_name, git_mail ):
     """Add a collection to the specified Store.
     
 from DDR.inventory import add_collection
 collections = [{}]
 add_collection('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-2', collections)
     
+    @param path: Absolute path to Organization directory.
+    @param label: Drive label for drive on which the Store resides.
+    @param collections: List of dicts ({uuid, cid, level})
     @param git_name
     @param git_mail
-    @param path
-    @param label
-    @param collections: List of dicts ({uuid, cid, level})
     """
     o = Organization.load(path)
     s = o.store(label)
@@ -571,15 +571,15 @@ add_collection('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-
     o.commit(git_name, git_mail, 'Added collection(s)')
     return 0
 
-def update_collection( git_name, git_mail, path, label, uuid, kwargs ):
+def update_collection( path, label, uuid, kwargs, git_name, git_mail ):
     """Update a collection.
     
+    @param path: Absolute path to Organization directory.
+    @param label: Drive label for drive on which the Store resides.
+    @param uuid: UUID of collection to remove.
+    @param kwargs: Dict of kwargs.
     @param git_name
     @param git_mail
-    @param path
-    @param label
-    @param uuid
-    @param kwargs
     """
     o = Organization.load(path)
     s = o.store(label)
@@ -590,14 +590,14 @@ def update_collection( git_name, git_mail, path, label, uuid, kwargs ):
     o.save()
     o.commit(git_name, git_mail, 'Updated collection %s %s' % (s.label, c['cid']))
 
-def remove_collection( git_name, git_mail, path, label, uuid ):
+def remove_collection( path, label, uuid, git_name, git_mail ):
     """Remove a collection from the specified Store.
     
+    @param path: Absolute path to Organization directory.
+    @param label: Drive label for drive on which the Store resides.
+    @param uuid: UUID of collection to remove.
     @param git_name
     @param git_mail
-    @param path
-    @param label
-    @param uuid
     """
     o = Organization.load(path)
     s = o.store(label)
@@ -612,7 +612,9 @@ def remove_collection( git_name, git_mail, path, label, uuid ):
 
 
 def init_store():
-    """Initialize a new (blank) Store
+    """Interactive command for initializing a new (blank) Store.
+    
+    Asks user for values of the various fields.
     """
     print('')
     
@@ -664,7 +666,7 @@ def init_store():
         sys.exit(1)
     
     clone_organization( url, os.path.join(path, oid) )
-    add_store( git_name, git_mail, path, label, location, purchased )
+    add_store( path, label, location, purchased, git_name, git_mail )
     #sync_organization( path, remote='origin' )
 
 
