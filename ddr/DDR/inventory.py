@@ -345,7 +345,7 @@ class Organization( object ):
         return False
     
     @staticmethod
-    def analyze_store( path ):
+    def analyze_store( path, force_level=None ):
         """
 from DDR.inventory import Organization
 Organization.analyze_store('/var/www/media/base')
@@ -379,7 +379,10 @@ Organization.analyze_store('/var/www/media/base')
             if looks_like_a_collection(cpath):
                 uuid = get_uuid(cpath)
                 cid = get_cid(cpath)
-                level = guess_collection_level(cpath)
+                if force_level:
+                    level = force_level
+                else:
+                    level = guess_collection_level(cpath)
                 if uuid and cid:
                     c = { 'uuid':uuid, 'cid':cid, 'level':level }
                     collections.append(c)
