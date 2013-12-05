@@ -518,7 +518,7 @@ def update_store( git_name, git_mail, path, label, kwargs ):
     s = o.store(label)
     # update values
     for key in kwargs.keys():
-        if key in ORGANIZATION_FIELDS:
+        if key in STORE_FIELDS:
             setattr(s, key, kwargs[key])
     o.save()
     o.commit(git_name, git_mail, 'Updated store: %s' % label)
