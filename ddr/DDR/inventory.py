@@ -557,10 +557,11 @@ add_collection('gjost', 'gjost@densho.org', '/tmp/repo/ddr-testing', 'WD5000BMV-
         for key in c.keys():
             if key in COLLECTION_FIELDS:
                 ok = ok + 1
-        if (len(ok) == len(c.keys())) and (c not in s.collections):
+        if (ok == len(c.keys())) and (c not in s.collections):
             s.collections.append(c)
     o.save()
     o.commit(git_name, git_mail, 'Added collection(s)')
+    return 0
 
 def update_collection( git_name, git_mail, path, label, uuid, kwargs ):
     """Update a collection.
