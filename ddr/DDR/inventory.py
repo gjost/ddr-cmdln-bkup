@@ -330,6 +330,21 @@ class Organization( object ):
         return repos
     
     @staticmethod
+    def is_valid( path ):
+        """Indicates whether the path represents a valid Organization.
+        
+        @param path
+        @returns True/False
+        """
+        git_dir = os.path.join(path, '.git')
+        orgjson = os.path.join(path, Organization.filename)
+        if os.path.exists(git_dir) and os.path.exists(orgjson):
+            o = Organization.load(path)
+            if o and isinstance(o, Organization):
+                return True
+        return False
+    
+    @staticmethod
     def analyze_store( path ):
         """
 from DDR.inventory import Organization
