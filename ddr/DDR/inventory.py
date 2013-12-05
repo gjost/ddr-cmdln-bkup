@@ -173,6 +173,8 @@ ORGANIZATION_FIELDS = ['id', 'repo', 'org',]
 class Organization( object ):
     path = None
     id = None
+    repo = None
+    org = None
     keyword = None
     stores = []
     filename = 'organization.json'
@@ -190,20 +192,6 @@ class Organization( object ):
         for f in ORGANIZATION_FIELDS:
             data[f] = getattr(self, f)
         return data
-    
-    @staticmethod
-    def create(path, id, org, repo):
-        """
-        """
-        if os.path.exists(path):
-            raise Exception
-        o = Organization(path=path, id=id, org=org, repo=repo)
-        os.mkdir(o.path)
-        # initialize Git repo
-        os.chdir(o.path)
-        repo = git.Repo.init(o.path)
-        commit = repo.index.commit('initial commit')
-        return o
     
     @staticmethod
     def load(path):
@@ -458,18 +446,38 @@ def create_organization( git_name, git_mail, path, id, repo, org ):
     o.save()
     o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
 
-def clone_organization( url, dest_dir ):
+def clone_organization( git_remote, repo, org, dest_dir ):
     """Clone a copy of Organization repo.
     
 from DDR.inventory import clone_organization
-clone_organization('git@mits.densho.org', 'ddr-testing', '/tmp/repo/')
+clone_organization('git@mits.densho.org', 'ddr', 'testing', '/tmp/repo')
     
     @param git_remote: Address of Git server ('git@mits.densho.org').
-    @param id: Organization ID ('ddr-testing').
-    @param path: Absolute path to destination directory.
+    @param repo: Keyword of the Repository.
+    @param org: keyword of the Organization.
+    @param dest_dir: Absolute path to destination directory.
     """
-    #url = '{}:{}.git'.format(GITOLITE, id)
-    repo = git.Repo.clone_from(url, dest_dir)
+    org_id = '%s-%s' % (repo, org)
+    url = '{}:{}.git'.format(GITOLITE, org_id)
+    path = os.path.join(dest_dir, org_id)
+    repo = git.Repo.clone_from(url, path)
+
+def init_organization( path, repo, org, git_name, git_mail ):
+    """Write initial files to new Organization repo.
+    
+from DDR.inventory import init_organization
+init_organization('/tmp/repo/ddr-testing', 'ddr', 'testing', 'gjost', 'gjost@densho.org')
+    
+    @param path: Absolute path to Organization directory.
+    @param repo: Keyword of the Repository.
+    @param org: keyword of the Organization.
+    @param git_name: Name of Git user.
+    @param git_mail: Email of Git user.
+    """
+    org_id = '%s-%s' % (repo, org)
+    o = Organization(path=path, id=org_id, repo=repo, org=org, keyword=org,)
+    o.save()
+    o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
 
 def sync_organization( path, remote='origin' ):
     """Sync Organization with the specified remote.
