@@ -52,7 +52,9 @@ import git
 
 from DDR import CONFIG_FILE
 from DDR import dvcs, storage
-
+from DDR.models import Repository, Organization, Store
+from DDR.models import INVENTORY_LEVELS, ORGANIZATION_FIELDS, COLLECTION_FIELDS, STORE_FIELDS
+from DDR.models import _write_json
 
 
 class NoConfigError(Exception):
@@ -66,385 +68,35 @@ if not os.path.exists(CONFIG_FILE):
 config = ConfigParser.ConfigParser()
 config.read(CONFIG_FILE)
 GITOLITE = config.get('workbench','gitolite')
+GIT_REMOTE_NAME = config.get('workbench','remote')
 
 
 
 DRIVE_FILE_FIELDS = 'id,level'
 
-LEVELS = ['meta', 'access', 'all']
 
 
-
-def _write_json(data, path):
-    """Write JSON using consistent formatting and sorting.
+def create_organization( git_remote, repo, org, dest_dir, git_name, git_mail ):
+    """Create a copy of Organization repo.
     
-    For versioning and history to be useful we need data fields to be written
-    in a format that is easy to edit by hand and in which values can be compared
-    from one commit to the next.  This function prints JSON with nice spacing
-    and indentation and with sorted keys, so fields will be in the same relative
-    position across commits.
+from DDR.inventory import clone_organization
+clone_organization('git@mits.densho.org', 'ddr', 'testing', '/tmp/repo')
     
-    >>> data = {'a':1, 'b':2}
-    >>> path = '/tmp/ddrlocal.models.write_json.json'
-    >>> _write_json(data, path)
-    >>> with open(path, 'r') as f:
-    ...     print(f.readlines())
-    ...
-    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
-    """
-    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
-    with open(path, 'w') as f:
-        f.write(json_pretty)
-
-def guess_drive_label(path):
-    label = storage.drive_label(path)
-    if not label:
-        hostname = envoy.run('hostname').std_out.strip()
-        ppath = path.replace(os.sep, '-')[1:]
-        label = '%s_%s' % (hostname, ppath)
-    return label
-
-def guess_collection_level(cpath):
-    """Try to guess a collection's level by looking at git-annex-find
-    
-    If git-annex-find lists no files it's probably a metadata-only repo.
-    If there are only files ending with the access suffix, probably access.
-    If mixture of access and others, probably master.
-    """
-    annex_files = dvcs.annex_find(cpath)
-    if len(annex_files) == 0:
-        return 'metadata'
-    # tally up the access and master copies
-    access = 0
-    master = 0
-    for f in annex_files:
-        # access files end in '-a'
-        if os.path.splitext(f)[0][-2:] == '-a':
-            access = access + 1
-        else:
-            master = master + 1
-    if access and not master:
-        return 'access'
-    elif access and master:
-        return 'master'
-    return None
-
-def looks_like_a_collection(path):
-    git_dir = os.path.join(path, '.git')
-    cjson = os.path.join(path, 'collection.json')
-    if os.path.exists(git_dir) and os.path.exists(cjson):
-        return True
-    return False
-
-
-
-class Repository( object ):
-    id = None
-    keyword = None
-    title = None
-    description = None
-    organizations = {}
-    
-    def __init__( self, path=None ):
-        if path:
-            self.read(path)
-    
-    def read( self, path ):
-        with open(path, 'r') as f:
-            data = json.loads(f.read())
-        self.id = data['id']
-        self.keyword = data['keyword']
-        self.title = data['title']
-        self.description = data['description']
-    
-    def json( self ):
-        return {'id': self.id,
-                'keyword': self.keyword,
-                'title': self.title,
-                'description': self.description,}
-        
-    def write( self, path ):
-        _write_json(self.json(), path)
-
-
-
-ORGANIZATION_FIELDS = ['id', 'repo', 'org',]
-
-class Organization( object ):
-    path = None
-    id = None
-    repo = None
-    org = None
-    keyword = None
-    stores = []
-    filename = 'organization.json'
-    
-    def __init__(self, **kwargs):
-        self.path = kwargs.get('path', None)
-        for k in kwargs.keys():
-            if k in ORGANIZATION_FIELDS:
-                self.__setattr__(k, kwargs[k])
-        if self.path:
-            self.stores = self._stores()
-    
-    def json( self ):
-        data = {}
-        for f in ORGANIZATION_FIELDS:
-            data[f] = getattr(self, f)
-        return data
-    
-    @staticmethod
-    def load(path):
-        o = Organization(path=path)
-        opath = os.path.join(path, o.filename)
-        with open(opath, 'r') as f:
-            data = json.loads(f.read())
-        for k in data.keys():
-            if k in ORGANIZATION_FIELDS:
-                o.__setattr__(k, data[k])
-        return o
-    
-    def commit( self, git_name, git_mail, message ):
-        repo = dvcs.repository(self.path)
-        repo.git.add(self.filename)
-        for store in self.stores:
-            spath = os.path.join(self.path, store.filename())
-            repo.git.add(spath)
-        repo.git.commit('--author=%s <%s>' % (git_name, git_mail), '-m', message)
-    
-    def save( self ):
-        opath = os.path.join(self.path, self.filename)
-        _write_json(self.json(), opath)
-        for store in self.stores:
-            spath = os.path.join(self.path, store.filename())
-            store.save(spath)
-    
-    def _store_files( self ):
-        """Gets list of paths to store files in the repo.
-        """
-        if self.path and os.path.exists(self.path):
-            excludes = ['.git', 'organization.json']
-            pattern = re.compile('.json$')
-            return [f for f in os.listdir(self.path) if (f not in excludes) and pattern.search(f)]
-        return []
-    
-    def _stores( self ):
-        self.stores = []
-        for f in self._store_files():
-            spath = os.path.join(self.path, f)
-            s = Store.load(spath)
-            self.stores.append(s)
-        return self.stores
-    
-    def store( self, label ):
-        for s in self.stores:
-            if s.label == label:
-                return s
-        return None
-    
-    def remove_store( self, store ):
-        """NOTE: Does not do the commit!"""
-        repo = dvcs.repository(self.path)
-        spath = os.path.join(self.path, store.filename())
-        repo.git.rm(spath)
-        self.stores.remove(store)
-    
-    def collection( self, cid ):
-        """Lists the stores that contain collection and level
-        """
-        instances = []
-        for store in self.stores:
-            for c in store.collections:
-                if c['id'] == cid:
-                    c['label'] = store.label
-                    instances.append(c)
-        return instances
-    
-    def collections( self ):
-        """Builds a data structure of all the repo remotes keyed to their UUIDs
-        
-        This function loads each of the store records for the organization.
-        For each collection record it adds the location field and store label
-        from the store record.  This is suitable for loading into a search engine.
-        
-        >> from DDR.inventory import Organization
-        >> org = Organization('/var/www/media/base/ddr-testing')
-        >> collections = org.collections()
-        >> for c in collections:
-        >>     print(c)
-        {'uuid':'43935...', 'id':'ddr-testing-141', 'label':'HMWF1TB2013', 'location':'Heart Mountain, WY'},
-        {'uuid':'64393...', 'id':'ddr-testing-141', 'label':'pnr_tmp-ddr', 'location':'Pasadena, CA'},
-        {'uuid':'36493...', 'id':'ddr-testing-141', 'label':'WD5000BMV-2', 'location':'Pasadena, CA'},
-        {'uuid':'35ea6...', 'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'},
-        ...
-        
-        @returns list of dicts.
-        """
-        repos = []
-        for s in self.stores:
-            store = self.store(s)
-            for c in store.collections:
-                c['store'] = store.label
-                c['location'] = store.location
-                repos.append(c)
-        return repos
-    
-    def collections_dict( self, fieldname ):
-        """Similar to Organization.collections except returns collections in dict.
-        
-        >> from DDR.inventory import Organization
-        >> org = Organization('/var/www/media/base/ddr-testing')
-        >> collections = org.collections(key='uuid')
-        >> for c in collections:
-        >>     print(c)
-        {'uuid':'43935...', 'id':'ddr-testing-141', 'label':'HMWF1TB2013', 'location':'Heart Mountain, WY'},
-        {'uuid':'64393...', 'id':'ddr-testing-141', 'label':'pnr_tmp-ddr', 'location':'Pasadena, CA'},
-        {'uuid':'36493...', 'id':'ddr-testing-141', 'label':'WD5000BMV-2', 'location':'Pasadena, CA'},
-        {'uuid':'35ea6...', 'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'},
-        ...
-        
-        @param fieldname: Name of field to use as dictionary key.
-        @returns dict.
-        """
-        repos = {}
-        for s in self.stores:
-            store = self.store(s)
-            for c in store.collections:
-                c['store'] = store.label
-                c['location'] = store.location
-                if c.get(fieldname, None):
-                    key = c.pop(fieldname)
-                    repos[key] = c
-        return repos
-    
-    @staticmethod
-    def is_valid( path ):
-        """Indicates whether the path represents a valid Organization.
-        
-        @param path
-        @returns True/False
-        """
-        git_dir = os.path.join(path, '.git')
-        orgjson = os.path.join(path, Organization.filename)
-        if os.path.exists(git_dir) and os.path.exists(orgjson):
-            o = Organization.load(path)
-            if o and isinstance(o, Organization):
-                return True
-        return False
-    
-    @staticmethod
-    def analyze_store( path, force_level=None ):
-        """
-from DDR.inventory import Organization
-Organization.analyze_store('/var/www/media/base')
-        
-        @param path
-        @return label,collections
-        """
-        label = guess_drive_label(path)
-        
-        def get_cid(cpath):
-            cjson = os.path.join(cpath, 'collection.json')
-            with open(cjson, 'r') as f:
-                data = json.loads(f.read())
-            for field in data:
-                cid = field.get('id', None)
-                if cid:
-                    return cid
-            return None
-        def get_uuid(cpath):
-            repo = dvcs.repository(cpath)
-            if repo:
-                return repo.git.config('annex.uuid')
-            return None
-        
-        # collections:
-        collections = []
-        dirs = os.listdir(path)
-        dirs.sort()
-        for d in dirs:
-            cpath = os.path.join(path, d)
-            if looks_like_a_collection(cpath):
-                uuid = get_uuid(cpath)
-                cid = get_cid(cpath)
-                if force_level:
-                    level = force_level
-                else:
-                    level = guess_collection_level(cpath)
-                if uuid and cid:
-                    c = { 'uuid':uuid, 'cid':cid, 'level':level }
-                    collections.append(c)
-        return label,collections
-
-
-STORE_FIELDS = ['repo', 'org', 'label', 'location', 'purchase_date', 'collections',]
-COLLECTION_FIELDS = ['uuid', 'cid', 'level',]
-
-class Store( object ):
-    path = None
-    repo = None
-    org = None
-    label = None
-    location = None
-    purchase_date = None
-    collections = []
-    
-    def __init__(self, **kwargs):
-        self.path = kwargs.get('path', None)
-        for k in kwargs.keys():
-            if k in STORE_FIELDS:
-                self.__setattr__(k, kwargs[k])
-    
-    def json( self ):
-        data = {}
-        for f in STORE_FIELDS:
-            data[f] = getattr(self, str(f))
-        return data
-    
-    @staticmethod
-    def load(path):
-        """
-        @param path: Path including basename
-        """
-        s = Store(path=path)
-        with open(path, 'r') as f:
-            data = json.loads(f.read())
-        for k in data.keys():
-            if k in STORE_FIELDS:
-                s.__setattr__(k, data[k])
-        return s
-    
-    def save( self, path ):
-        _write_json(self.json(), path)
-    
-    def filename( self ):
-        return '%s.json' % self.label
-    
-    def collection( self, uuid=None, cid=None ):
-        if uuid or cid:
-            for c in self.collections:
-                if uuid and (c['uuid'] == uuid):
-                    return c
-                elif cid and (c['cid'] == cid):
-                    return c
-        return None
-
-
-
-
-def create_organization( git_name, git_mail, path, id, repo, org ):
-    """Create a new Organization repo.
-    
+    @param git_remote: Address of Git server ('git@mits.densho.org').
+    @param repo: Keyword of the Repository.
+    @param org: keyword of the Organization.
+    @param dest_dir: Absolute path to destination directory.
     @param git_name
     @param git_mail
-    @param path
-    @param id
-    @param repo
-    @param org
     """
-    o = Organization.create(path=path, id=id, repo=repo, org=org)
+    org_id = '%s-%s' % (repo, org)
+    git_url = '{}:{}.git'.format(GITOLITE, org_id)
+    path = os.path.join(dest_dir, org_id)
+    repository = git.Repo.clone_from(git_url, path)
+    o = Organization(path=path, id=org_id, repo=repo, org=org, keyword=org,)
     o.save()
     o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
+    repository.git.push('origin', 'master')
 
 def clone_organization( git_remote, repo, org, dest_dir ):
     """Clone a copy of Organization repo.
@@ -458,26 +110,9 @@ clone_organization('git@mits.densho.org', 'ddr', 'testing', '/tmp/repo')
     @param dest_dir: Absolute path to destination directory.
     """
     org_id = '%s-%s' % (repo, org)
-    url = '{}:{}.git'.format(GITOLITE, org_id)
+    git_url = '{}:{}.git'.format(GITOLITE, org_id)
     path = os.path.join(dest_dir, org_id)
-    repo = git.Repo.clone_from(url, path)
-
-def init_organization( path, repo, org, git_name, git_mail ):
-    """Write initial files to new Organization repo.
-    
-from DDR.inventory import init_organization
-init_organization('/tmp/repo/ddr-testing', 'ddr', 'testing', 'gjost', 'gjost@densho.org')
-    
-    @param path: Absolute path to Organization directory.
-    @param repo: Keyword of the Repository.
-    @param org: keyword of the Organization.
-    @param git_name: Name of Git user.
-    @param git_mail: Email of Git user.
-    """
-    org_id = '%s-%s' % (repo, org)
-    o = Organization(path=path, id=org_id, repo=repo, org=org, keyword=org,)
-    o.save()
-    o.commit(git_name, git_mail, 'Set up organization: %s' % o.id)
+    repository = git.Repo.clone_from(git_url, path)
 
 def sync_organization( path, remote='origin' ):
     """Sync Organization with the specified remote.
@@ -489,8 +124,9 @@ sync_organization('/tmp/repo/ddr-testing', 'origin')
     @param remote: Name of remote to sync to
     """
     repo = dvcs.repository(path)
+    repo.git.fetch()
     repo.git.pull()
-    repo.git.push()
+    repo.git.push(remote, 'master')
 
 def add_store( path, label, location, purchase_date, git_name, git_mail ):
     """Create a new Store and add it to an existing Organization.
@@ -610,10 +246,18 @@ def remove_collection( path, label, uuid, git_name, git_mail ):
 
 
 
+def guess_drive_label(path):
+    label = storage.drive_label(path)
+    if not label:
+        hostname = envoy.run('hostname').std_out.strip()
+        ppath = path.replace(os.sep, '-')[1:]
+        label = '%s_%s' % (hostname, ppath)
+    return label
 
 def init_store():
-    """Interactive command for initializing a new (blank) Store.
+    """[DEPRECATED] Interactive command for initializing a new (blank) Store.
     
+    * * * * * DEPRECATED - use inventory.add_store() * * * * *
     Asks user for values of the various fields.
     """
     print('')
@@ -631,8 +275,8 @@ def init_store():
         label = raw_input('Drive label: ')
     
     location = raw_input("Location: ")
-    level = raw_input("Annex level %s: " % LEVELS)
-    if level not in LEVELS:
+    level = raw_input("Annex level %s: " % INVENTORY_LEVELS)
+    if level not in INVENTORY_LEVELS:
         print('Enter a valid level')
         sys.exit(1)
     raw_purchased = raw_input('Purchase date (YYYY-MM-DD): ')
@@ -937,4 +581,5 @@ inventory.repo_inventory_remotes(repo, stat, path)
 
 
 if __name__ == '__main__':
-    init_store()
+    #init_store()
+    pass
