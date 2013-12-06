@@ -1,41 +1,77 @@
 """
-Create a new Organization
 
-Set up new USB drive or store
-- add_store
+Set up a new Organization
+-------------------------
 
-Update store location
-- update_store
+Mount drive
+Make a ddr/ directory.
+$ mkdir /media/LABEL/ddr
 
-Change a store's level
-- update_store
-
-Retire a USB drive or store
-- remove_store
-
-Create new collection
-- add_collection
-
-Delete collection
-- remove_collection
-
-Sync Store with another store
+from DDR.models import Organization, Store
+from DDR import inventory
+inventory.create_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE', 'GITNAME', 'GITMAIL')
+inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
+inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
 
 
-- create_organization
-- clone_organization
-- add_store
-- update_store
-- remove_store
-- add_collection
-- update_collection
-- remove_collection
+Set up Store on existing drive
+------------------------------
+
+This is when you want to set up an inventory on a drive that already contains collection repos.
+
+Mount drive
+
+from DDR.models import Organization, Store
+from DDR import inventory
+inventory.clone_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE')
+inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
+
+Get list of collections and update Store
+
+label,collections = Store.analyze('/PATH/TO/BASE', force_level='access')
+inventory.update_store('/PATH/TO/BASE/ddr-testing', 'LABEL', {'collections': collections}, 'GITNAME', 'GITMAIL')
+
+Confirm list of collections matches...
+
+inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
 
 
-# Sync
-from DDR.inventory import Organization, Store
-o = Organization.load('/tmp/repo/ddr-testing')
-o.sync()
+Set up new Store
+----------------
+
+Mount drive
+Make a ddr/ directory.
+$ mkdir /media/LABEL/ddr
+
+from DDR.models import Organization, Store
+from DDR import inventory
+inventory.clone_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE')
+inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
+inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
+
+
+Sync new Store with existing one
+--------------------------------
+
+NOTE: Organization already set up.
+NOTE: Store already added to Organization.
+
+Sync collection repos.
+
+$ ddr syncgrp -i /PATH/TO/BASE/ddr-testing -B /PATH/TO/SOURCE/BASE -b /PATH/TO/DEST/BASE -v LEVEL
+
+Get list of collections and update Store
+
+from DDR.models import Organization, Store
+from DDR import inventory
+label,collections = Store.analyze('/PATH/TO/BASE', force_level='access')
+inventory.update_store('/PATH/TO/BASE/ddr-testing', 'LABEL', {'collections': collections}, 'GITNAME', 'GITMAIL')
+
+Confirm list of collections matches...
+
+inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
+
+
 """
 
 from datetime import datetime, date
