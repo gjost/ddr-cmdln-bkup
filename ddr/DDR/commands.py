@@ -14,6 +14,7 @@ from DDR import CONFIG_FILE
 from DDR import storage
 from DDR import inventory
 from DDR import dvcs
+from DDR.models import Repository, Organization, Store
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
 
@@ -780,9 +781,8 @@ def sync_group(inventory_path, src_base, dest_base, level, src_name=None, dest_n
     @param src_name: (optional) Git remote name for repos on source store.
     @param dest_name: (optional) Git remote name for repos on destination store.
     """
-    src_organization_path = os.path.join(src_base, repo_org)
-    logging.debug('Loading inventory: %s' % src_organization_path)
-    organization = inventory.Organization.load(src_organization_path)
+    logging.debug('Loading inventory: %s' % inventory_path)
+    organization = Organization.load(inventory_path)
     logging.debug(organization)
     src_label = inventory.guess_drive_label(src_base)
     dest_label = inventory.guess_drive_label(dest_base)
@@ -803,7 +803,7 @@ def sync_group(inventory_path, src_base, dest_base, level, src_name=None, dest_n
     
     os.chdir(dest_base)
     for r in src_repos:
-        repo_path = os.path.join(dest_base, r['id'])
+        repo_path = os.path.join(dest_base, r['cid'])
         logging.debug('- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
         logging.debug('repo_path: %s' % repo_path)
         
@@ -819,9 +819,9 @@ def sync_group(inventory_path, src_base, dest_base, level, src_name=None, dest_n
             repo.git.checkout('master')
             logging.debug('ok')
         else:
-            url = '%s:%s.git' % (GITOLITE, r['id'])
+            url = '%s:%s.git' % (GITOLITE, r['cid'])
             logging.debug('cloning %s' % url)
-            repo = git.Repo.clone_from(url, r['id'])
+            repo = git.Repo.clone_from(url, r['cid'])
             repo.git.config('annex.sshcaching', 'false')
             logging.debug('ok')
         
@@ -835,7 +835,7 @@ def sync_group(inventory_path, src_base, dest_base, level, src_name=None, dest_n
                 logging.debug('remote add %s %s' % (remote_name, remote_path))
                 repo.create_remote(remote_name, remote_path)
                 logging.debug('ok')
-        src_path = os.path.join(src_base, r['id'])
+        src_path = os.path.join(src_base, r['cid'])
         add_remote(repo_path, src_name, src_path) # dest -> src
         add_remote(src_path, dest_name, repo_path)  # src -> dest
         
@@ -845,7 +845,6 @@ def sync_group(inventory_path, src_base, dest_base, level, src_name=None, dest_n
         logif(response)
         
         # annex get
-        level = r['level']
         logging.debug('level: %s' % level)
         if level == 'access':
             for root, dirs, files in os.walk(repo_path):
