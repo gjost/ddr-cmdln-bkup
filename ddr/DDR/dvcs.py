@@ -225,6 +225,7 @@ def annex_whereis(repo):
                 else:
                     uuid = l.strip()
                     label = ''
+                label = label.replace('here (', '').replace(')', '')
                 f['remotes'].append( {'uuid':uuid, 'label':label} )
             files.append(f)
     return files
