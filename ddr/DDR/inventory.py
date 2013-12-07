@@ -282,6 +282,43 @@ def remove_collection( path, label, uuid, git_name, git_mail ):
 
 
 
+def syncable_devices(mounted):
+    """Lists mounted devices that are available to be synced.
+
+    To be eligible, devices must contain a ddr/ directory in their root; the ddr/ directory must contain a valid inventory repo.  Each REPO-ORG combination must appear on at least two devices or there's no point in syncing.
+    
+    >> from DDR import storage
+    >> from DDR import inventory
+    >> inventory.syncable_devices(storage.removables_mounted())
+
+    @param mounted: Output of storage.removables_mounted()
+    @returns Dict of organization IDs and lists of device dicts for drives they appear on.
+    """
+    def ddr_path(path):
+        return os.path.join(path, 'ddr')
+    def looks_like_org_dir(dirname):
+        if len(dirname.split('-')) == 2:
+            return True
+        return False
+    tentative = {}
+    for device in mounted:
+        ddrpath = ddr_path(device['mountpath'])
+        if os.path.exists(ddrpath):
+            for d in os.listdir(ddrpath):
+                orgdir = os.path.join(ddrpath, d)
+                if looks_like_org_dir(d) and Organization.is_valid(orgdir):
+                    orgdevices = tentative.get(d, [])
+                    if device not in orgdevices:
+                        orgdevices.append(device)
+                    tentative[d] = orgdevices
+    # only list inventories if there are at least two devices
+    syncable = {}
+    for key in tentative.keys():
+        orgdevices = tentative.get(key, [])
+        if orgdevices and (len(orgdevices) > 1):
+            syncable[key] = orgdevices
+    return syncable
+
 def guess_drive_label(path):
     label = storage.drive_label(path)
     if not label:
