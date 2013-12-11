@@ -1,76 +1,137 @@
 """
 
+Gitolite setup
+--------------
+
+Before you can do anything else you have to modify `gitolite-admin` to all the local partner VMs to access and modify the inventory repos.::
+
+    $ git clone git@mits:gitolite-admin.git ./gitolite-admin
+    $ cd gitolite-admin
+    $ nano conf/gitolite.conf
+
+Add a record like this::
+
+    + # new {REPO}-{ORGANIZATION} repo 2013-12-05 14:57
+    + repo {REPO}-{ORGANIZATION}
+    +   C     = @admins @densho @{ORGANIZATION}
+    +   RW+   = @admins
+    +   RW    = @{ORGANIZATION} @densho
+    
+    # collections
+    repo ddr-testing-[0-9]+
+    ...
+
+Commit the change and push it to the Gitolite server.::
+
+    $ git add -p conf/gitolite.conf
+    $ git commit
+    $ git push
+
+For testing purposes it may be necessary to remove the organization repo several times.  The only way to remove a repo from a Gitolite server is to log in as the `git` user and `rm -Rf` the repository directory.  However, the Gitolite server process may still think the repo exists, or may not recreate it when you try to clone again.  To get around this, reset the datetime in `gitolite-admin/conf/gitolite.conf` and `git-push` up to the Gitolite server.  The organization repo will be regenerated.
+
+
 Set up a new Organization
 -------------------------
 
-Mount drive
-Make a ddr/ directory.
-$ mkdir /media/LABEL/ddr
+When first adding a new partner you need to create an organzation repo in which to store their metadata.
 
-from DDR.models import Organization, Store
-from DDR import inventory
-inventory.create_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE', 'GITNAME', 'GITMAIL')
-inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
-inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
+Create organization repo, add a store to it, push changes to the Gitolite server.  You can create this initial organization repo in your `/tmp` directory, then clone it to a Store after you've completed this step.::
+
+    $ su ddr
+    $ cd /usr/local/src/ddr-local/ddrlocal
+    $ python
+    >>> from DDR.models import Organization, Store
+    >>> from DDR import inventory
+    >>> inventory.create_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE', 'GITNAME', 'GITMAIL')
+    >>> inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
+    >>> inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
 
 
 Set up Store on existing drive
 ------------------------------
 
-This is when you want to set up an inventory on a drive that already contains collection repos.
+This is a procedure for setting up an inventory on a drive that already contains collection repos.  As part of this procedure you will scan the drive for existing collections and use the list to populate the Store file.
 
-Mount drive
+Mount drive.
 
-from DDR.models import Organization, Store
-from DDR import inventory
-inventory.clone_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE')
-inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
+Clone the organization repo and add a store to it.::
 
-Get list of collections and update Store
+    $ su ddr
+    $ cd /usr/local/src/ddr-local/ddrlocal
+    $ python
+    >>> from DDR.models import Organization, Store
+    >>> from DDR import inventory
+    >>> inventory.clone_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE')
+    >>> inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
 
-label,collections = Store.analyze('/PATH/TO/BASE', force_level='access')
-inventory.update_store('/PATH/TO/BASE/ddr-testing', 'LABEL', {'collections': collections}, 'GITNAME', 'GITMAIL')
+Get a list of collections present on the store and use that list to update Store.::
 
-Confirm list of collections matches...
+    $ python
+    >>> label,collections = Store.analyze('/PATH/TO/BASE', force_level='access')
+    >>> inventory.update_store('/PATH/TO/BASE/ddr-testing', 'LABEL', {'collections': collections}, 'GITNAME', 'GITMAIL')
 
-inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
+Use the editor of your choice to confirm that the list of collections matches the collections in the store.
+
+Push changes to the Gitolite server.::
+
+    $ python
+    >>> inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
 
 
 Set up new Store
 ----------------
 
-Mount drive
-Make a ddr/ directory.
-$ mkdir /media/LABEL/ddr
+This is a procedure for setting up an inventory on a drive does not contain any collection repos.
 
-from DDR.models import Organization, Store
-from DDR import inventory
-inventory.clone_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE')
-inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
-inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
+Mount drive.
+
+Make a ddr/ directory.::
+
+    $ mkdir /media/LABEL/ddr
+
+Clone organization repo, add a store to it, push changes to Gitolite server.::
+
+    $ su ddr
+    $ cd /usr/local/src/ddr-local/ddrlocal
+    $ python
+    >>> from DDR.models import Organization, Store
+    >>> from DDR import inventory
+    >>> inventory.clone_organization('git@mits.densho.org', 'REPO', 'ORG', '/PATH/TO/BASE')
+    >>> inventory.add_store('/PATH/TO/BASE/ddr-testing', 'LABEL', 'LOCATION', 'YYYY-MM-DD', 'GITNAME', 'GITMAIL')
+    >>> inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
 
 
 Sync new Store with existing one
 --------------------------------
 
-NOTE: Organization already set up.
-NOTE: Store already added to Organization.
+This is the procedure for cloning the collection repos in one Store onto another Store.  At the end of this procedure, the destination store should contain all the repos from the source store.  The organization repos for both source and destination stores will have been synchronized with the Gitolite server.  NOTE: The organization repo must already be set up. The Store must have been added to organization repo.
 
-Sync collection repos.
+Sync collection repos.::
 
-$ ddr syncgrp -i /PATH/TO/BASE/ddr-testing -B /PATH/TO/SOURCE/BASE -b /PATH/TO/DEST/BASE -v LEVEL
+    $ su ddr
+    $ ddr syncgrp -i /PATH/TO/SOURCE/BASE/REPO-ORG -B /PATH/TO/SOURCE/BASE -b /PATH/TO/DEST/BASE -v LEVEL
 
-Get list of collections and update Store
+Get list of collections and update the store record on the *destination* store.::
 
-from DDR.models import Organization, Store
-from DDR import inventory
-label,collections = Store.analyze('/PATH/TO/BASE', force_level='access')
-inventory.update_store('/PATH/TO/BASE/ddr-testing', 'LABEL', {'collections': collections}, 'GITNAME', 'GITMAIL')
+    $ su ddr
+    $ cd /usr/local/src/ddr-local/ddrlocal
+    $ python
+    >>> from DDR.models import Organization, Store
+    >>> from DDR import inventory
+    >>> label,collections = Store.analyze('/PATH/TO/DEST/BASE', force_level='LEVEL')
+    >>> inventory.update_store('/PATH/TO/DEST/BASE/REPO-ORG', 'LABEL', {'collections': collections}, 'GITNAME', 'GITMAIL')
 
-Confirm list of collections matches...
+Confirm list of collections matches.::
 
-inventory.sync_organization('/PATH/TO/BASE/ddr-testing')
+Push changes from the *destination* store to the Gitolite server.::
 
+    $ python
+    >>> inventory.sync_organization('/PATH/TO/DEST/BASE/REPO-ORG')
+
+Pull changes to the *source* store.::
+
+    $ python
+    >>> inventory.sync_organization('/PATH/TO/SOURCE/BASE/REPO-ORG')
 
 """
 
