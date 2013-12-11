@@ -96,6 +96,15 @@ class Repository( object ):
 
 
 
+"""
+Sample organization.json file:
+    {
+        "id": "ddr-testing",
+        "org": "testing",
+        "repo": "ddr"
+    }
+"""
+
 ORGANIZATION_FIELDS = ['id', 'repo', 'org',]
 
 class Organization( object ):
@@ -131,6 +140,30 @@ class Organization( object ):
             if k in ORGANIZATION_FIELDS:
                 o.__setattr__(k, data[k])
         return o
+    
+    @staticmethod
+    def file_is_valid( path ):
+        """Indicates whether a organization.json file is valid.
+        
+        @param path: Absolute path to file.
+        @returns True if valid, list of faults if not.
+        """
+        faults = []
+        if not os.path.exists(path):
+            faults.append('File does not exist.')
+        try:
+            with open(path, 'r') as f:
+                data = json.loads(f.read())
+        except:
+            data = None
+            faults.append('Not a valid JSON file.')
+        if data:
+            if not data.get('repo', None): faults.append('missing field: repo')
+            if not data.get('org', None):  faults.append('missing field: org')
+            if not data.get('id', None):   faults.append('missing field: id')
+        if len(faults) == 0:
+            return True
+        return faults
     
     @staticmethod
     def is_valid( path ):
@@ -280,8 +313,28 @@ class Organization( object ):
 
 
 
+"""
+Sample STORE.json:
+
+{
+  "collections": [
+    {
+      "cid": "ddr-testing-135",
+      "level": "all",
+      "path": "/var/www/media/base/ddr-testing-135",
+      "uuid": "92681372-1b1b-11e3-8ff4-1f1cfa6efa5e",
+      "entities": [
+        { "eid": "ddr-testing-135-32", "level": "access" },
+        { "eid": "ddr-testing-135-64", "level": "meta" },
+        ...
+    },
+    ...
+
+NOTE: ['collections']['entities'] is optional; overrides the collection setting.
+"""
+
 STORE_FIELDS = ['repo', 'org', 'label', 'location', 'purchase_date', 'collections',]
-COLLECTION_FIELDS = ['uuid', 'cid', 'level',]
+COLLECTION_FIELDS = ['uuid', 'cid', 'level', 'entities',]
 
 class Store( object ):
     store_base = None
@@ -324,6 +377,49 @@ class Store( object ):
     
     def save( self, path ):
         _write_json(self.json(), path)
+    
+    @staticmethod
+    def file_is_valid( path ):
+        """Indicates whether a STORE.json file is valid.
+        
+        @param path: Absolute path to file.
+        @returns True if valid, list of faults if not.
+        """
+        faults = []
+        data = None
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    data = json.loads(f.read())
+            except:
+                faults.append('Not a valid JSON file.')
+        else:
+            faults.append('File does not exist.')
+        if data:
+            if not data.get('repo', None):          faults.append('missing field: repo')
+            if not data.get('org', None):           faults.append('missing field: org')
+            if not data.get('label', None):         faults.append('missing field: label')
+            if not data.get('location', None):      faults.append('missing field: location')
+            if not data.get('purchase_date', None): faults.append('missing field: purchase_date')
+            if not data.get('collections', None):   faults.append('missing field: collections')
+            cindex = 0
+            if data.get('collections', None):
+                for c in data['collections']:
+                    cindex = cindex + 1
+                    if not c.get('uuid', None):  faults.append('collection %s missing field: uuid'  % cindex)
+                    if not c.get('cid', None):   faults.append('collection %s missing field: cid'   % cindex)
+                    if not c.get('level', None): faults.append('collection %s missing field: level' % cindex)
+                    if c.get('entities', None):
+                        eindex = 0
+                        for e in c['entities']:
+                            eindex = eindex + 1
+                            if not e.get('eid', None):
+                                faults.append('collection %s object %s missing field: eid' % (cindex, eindex))
+                            if not e.get('level', None):
+                                faults.append('collection %s object %s missing field: level' % (cindex, eindex))
+        if len(faults) == 0:
+            return True
+        return faults
     
     def filename( self ):
         return '%s.json' % self.label
