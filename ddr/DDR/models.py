@@ -25,6 +25,8 @@ if not os.path.exists(CONFIG_FILE):
 config = ConfigParser.ConfigParser()
 config.read(CONFIG_FILE)
 GITOLITE = config.get('workbench','gitolite')
+ACCESS_FILE_APPEND = config.get('local','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('local','access_file_extension')
 
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -518,8 +520,112 @@ class Store( object ):
                     c = { 'uuid':uuid, 'cid':cid, 'level':level }
                     collections.append(c)
         return label,collections
+    
+    @staticmethod
+    def _file_level(collection, path):
+        level = collection['level']
+        if collection.get('entities', None):
+            eid = Store._file_eid(path)
+            entity = collection['entities'].get(eid, None)
+            if entity:
+                level = entity['level']
+        return level
+    
+    @staticmethod
+    def _file_eid(path):
+        """
+        TODO This seems like the kind of function that should be present elsewhere.
+        """
+        fn,ext = os.path.splitext(os.path.basename(path))
+        parts = fn.split('-')
+        repo = parts[0]; org = parts[1]; cid = parts[2]; eid = parts[3]
+        return '-'.join([repo,org,cid,eid])
 
-
+    def apply( self, cids=[], force=False ):
+        """Make collection repos on Store reflect the level settings in STORE.json.
+        
+        
+        if level == master:
+            if exceptions:
+                make decisions file-by-file
+            else:
+                "git annex get ."
+        elif level == meta
+        annex get
+        annex drop
+        
+        _____________|_exists_|_does_not_
+        should exist | --     | get
+        should not   | drop   | --
+        
+        0 - meta
+        1 - access
+        2 - master
+        
+        for entity in collection.entities:
+            if s.collections['entities'][entity.eid]:
+                entity.level = s.collections['entities'][entity.eid]['level']
+            else:
+                entity.level = collection.level
+        
+        
+        @param cids: (optional) List of collection IDs; changes will only be applied to these collections.
+        @param force: Actually write changes to disk
+        """
+        subset = []
+        # filter
+        for collection in self.collections:
+            if cids:
+                if (collection['cid'] in cids):
+                    subset.append(collection)
+            else:
+                subset.append(collection)
+        
+        def is_access_file(path):
+            """Indicates whether filename ends with accessfile suffix.
+            """
+            access_suffix = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
+            if (access_suffix in path) and path.endswith(access_suffix):
+                return True
+            return False
+        
+        def file_should_exist(path, level):
+            """
+            @param path
+            @param level
+            @return True,False,None
+            """
+            if   level == 'meta':   return False
+            elif level == 'master': return True
+            elif level == 'access':
+                if is_access_file(path): return True
+                else:                    return False
+            return None
+        
+        actions = []
+        for collection in subset:
+            print(collection)
+            collection_repo = dvcs.repository(collection['path'])
+            collection_annex_files = all_annex_files(collection_repo)
+            #print(collection_annex_files)
+            for f in collection_annex_files:
+                fpath = os.path.join(collection['path'], f['path'])
+                exists = os.path.exists(fpath)
+                feid = Store._file_eid(fpath)
+                flevel = Store._file_level(collection, fpath)
+                should_exist = file_should_exist(fpath, flevel)
+                print('fpath:   %s' % fpath)
+                print('    exists:       %s' % exists)
+                print('    feid:         %s' % feid)
+                print('    flevel:       %s' % flevel)
+                print('    should_exist: %s' % should_exist)
+                if   (should_exist == True)  and      exists:  pass
+                elif (should_exist == True)  and (not exists): actions.append('get %s' % f['path'])
+                elif (should_exist == False) and      exists:  actions.append('drop %s' % f['path'])
+                elif (should_exist == False) and (not exists): pass
+            print
+        for action in actions:
+            print(action)
 
 class Collection( object ):
     path = None
