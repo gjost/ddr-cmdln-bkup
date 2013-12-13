@@ -1,6 +1,9 @@
+from datetime import datetime
 import ConfigParser
 import hashlib
 import json
+import logging
+logger = logging.getLogger(__name__)
 import os
 import re
 
@@ -541,46 +544,18 @@ class Store( object ):
         repo = parts[0]; org = parts[1]; cid = parts[2]; eid = parts[3]
         return '-'.join([repo,org,cid,eid])
 
-    def apply( self, cids=[], force=False ):
-        """Make collection repos on Store reflect the level settings in STORE.json.
+    def apply( self, cids=[], confirmed=False ):
+        """Change collection repos to reflect level settings in STORE.json.
         
-        
-        if level == master:
-            if exceptions:
-                make decisions file-by-file
-            else:
-                "git annex get ."
-        elif level == meta
-        annex get
-        annex drop
-        
-        _____________|_exists_|_does_not_
-        should exist | --     | get
-        should not   | drop   | --
-        
-        0 - meta
-        1 - access
-        2 - master
-        
-        for entity in collection.entities:
-            if s.collections['entities'][entity.eid]:
-                entity.level = s.collections['entities'][entity.eid]['level']
-            else:
-                entity.level = collection.level
-        
+        This function examines each annex file in the specified collections
+        and decides if it should be there.
+        Files that should be present but are not are git-annex-gotten.
+        Files that are present but should not be are git-annex-dropped.
         
         @param cids: (optional) List of collection IDs; changes will only be applied to these collections.
-        @param force: Actually write changes to disk
+        @param confirmed: Confirm that you actually want to write changes to disk
+        @returns list of actions performed along with their results
         """
-        subset = []
-        # filter
-        for collection in self.collections:
-            if cids:
-                if (collection['cid'] in cids):
-                    subset.append(collection)
-            else:
-                subset.append(collection)
-        
         def is_access_file(path):
             """Indicates whether filename ends with accessfile suffix.
             """
@@ -588,44 +563,63 @@ class Store( object ):
             if (access_suffix in path) and path.endswith(access_suffix):
                 return True
             return False
-        
         def file_should_exist(path, level):
             """
             @param path
             @param level
             @return True,False,None
             """
-            if   level == 'meta':   return False
-            elif level == 'master': return True
-            elif level == 'access':
+            if   level in ['meta']:          return False
+            elif level in ['master', 'all']: return True
+            elif level in ['access']:
                 if is_access_file(path): return True
                 else:                    return False
             return None
-        
+        logger.debug('Store.apply( cids=%s, confirmed=%s )' % (cids, confirmed))
+        logger.debug('self.path: %s' % self.path)
+        logger.debug('self.label: %s' % self.label)
+        logger.debug('self.location: %s' % self.location)
+        subset = []
+        for collection in self.collections:
+            if cids:
+                if (collection['cid'] in cids):
+                    subset.append(collection)
+            else:
+                subset.append(collection)
+        logger.debug('selected: %s' % [c['cid'] for c in subset])
         actions = []
         for collection in subset:
-            print(collection)
-            collection_repo = dvcs.repository(collection['path'])
-            collection_annex_files = all_annex_files(collection_repo)
-            #print(collection_annex_files)
-            for f in collection_annex_files:
-                fpath = os.path.join(collection['path'], f['path'])
-                exists = os.path.exists(fpath)
-                feid = Store._file_eid(fpath)
+            logger.debug('COLLECTION %s -- %s -- %s' % (collection['cid'], collection['level'], collection['path']))
+            repo = dvcs.repository(collection['path'])
+            collection_annex_files = [f['path'] for f in dvcs.annex_whereis(repo)]
+            for fpath in collection_annex_files:
+                logger.debug('    %s' % fpath)
+                fpath_abs = os.path.join(collection['path'], fpath)
                 flevel = Store._file_level(collection, fpath)
+                exists = os.path.exists(fpath_abs)
                 should_exist = file_should_exist(fpath, flevel)
-                print('fpath:   %s' % fpath)
-                print('    exists:       %s' % exists)
-                print('    feid:         %s' % feid)
-                print('    flevel:       %s' % flevel)
-                print('    should_exist: %s' % should_exist)
+                logger.debug('        level:%s -- exists:%s -- should_exist:%s' % (flevel, exists, should_exist))
+                # MUST DECIDE!
+                action = ''
                 if   (should_exist == True)  and      exists:  pass
-                elif (should_exist == True)  and (not exists): actions.append('get %s' % f['path'])
-                elif (should_exist == False) and      exists:  actions.append('drop %s' % f['path'])
+                elif (should_exist == True)  and (not exists): action = 'get'
+                elif (should_exist == False) and      exists:  action = 'drop'
                 elif (should_exist == False) and (not exists): pass
-            print
-        for action in actions:
-            print(action)
+                logger.debug('        action: %s' % action)
+                # do or do not there is no try
+                result = 'noop'
+                if confirmed and action:
+                    if   action == 'get':  result = dvcs.annex_get(repo, fpath)
+                    elif action == 'drop': result = dvcs.annex_drop(repo, fpath)
+                if result == 'noop':
+                    logger.debug('        result: noop')
+                else:
+                    logger.debug(result)
+                if action:
+                    actions.append( {'action':action, 'path':fpath, 'result':result} )
+        return actions
+
+
 
 class Collection( object ):
     path = None
