@@ -266,6 +266,24 @@ def annex_whereis_file(repo, file_path_rel):
         logging.debug('    remotes: {}'.format(remotes))
     return remotes
 
+def annex_get(repo, file_path_rel):
+    """
+    @param repo: A GitPython Repo object
+    @param file_path_rel: path to annex file, relative to repo.
+    @return: stdout from git-annex.
+    """
+    logging.debug('annex_get(%s, %s)' % (repo, file_path_rel))
+    return repo.git.annex('get', file_path_rel)
+
+def annex_drop(repo, file_path_rel):
+    """
+    @param repo: A GitPython Repo object
+    @param file_path_rel: path to annex file, relative to repo.
+    @return: stdout from git-annex.
+    """
+    logging.debug('annex_drop(%s, %s)' % (repo, file_path_rel))
+    return repo.git.annex('drop', file_path_rel)
+
 def annex_map(repo):
     """Generates nifty Graphviz map of repo and the remotes it knows about.
     
