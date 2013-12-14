@@ -109,7 +109,7 @@ This is the procedure for cloning the collection repos in one Store onto another
 Sync collection repos.::
 
     $ su ddr
-    $ ddr syncgrp -i /PATH/TO/SOURCE/BASE/REPO-ORG -B /PATH/TO/SOURCE/BASE -b /PATH/TO/DEST/BASE -v LEVEL
+    $ ddr syncgrp -i /PATH/TO/DEST/BASE/REPO-ORG -B /PATH/TO/SOURCE/BASE -b /PATH/TO/DEST/BASE -v LEVEL
 
 Get list of collections and update the store record on the *destination* store.::
 
