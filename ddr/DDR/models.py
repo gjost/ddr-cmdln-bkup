@@ -297,7 +297,7 @@ class Organization( object ):
                     repos[key] = c
         return repos
     
-    def collection_whereis( self, label, uuid=None, cid=None ):
+    def collection_whereis( self, label, repo=None, uuid=None, cid=None ):
         """Adds Store locations to annex whereis information 
         
         for each file in a collection,
@@ -305,10 +305,16 @@ class Organization( object ):
             for each copy,
                 label
                 location
+        @param label: Store label
+        @param repo: (optional) Collection GitPython repo object
+        @param uuid: (optional) UUID
+        @param cid: (optional)
+        @returns whereis info for the collection
         """
         s = self.store(label)
-        c = s.collection(uuid=uuid, cid=cid)
-        repo = dvcs.repository(c['path'])
+        if not repo:
+            c = s.collection(uuid=uuid, cid=cid)
+            repo = dvcs.repository(c['path'])
         whereis = dvcs.annex_whereis(repo)
         for f in whereis:
             f['basename'] = os.path.basename(f['path'])
