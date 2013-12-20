@@ -241,7 +241,7 @@ class Organization( object ):
                     instances.append(c)
         return instances
     
-    def collections( self ):
+    def collections( self, server_url=None, server_label='', server_location='' ):
         """Builds a data structure of all the repo remotes keyed to their UUIDs
         
         This function loads each of the store records for the organization.
@@ -259,14 +259,26 @@ class Organization( object ):
         {'uuid':'35ea6...', 'id':'ddr-testing-141', 'label':'mits.densho.org', 'location':'Seattle, WA'},
         ...
         
+        If server_url is present (and server_label, server_location), a list of CIDs is
+        retrieved from the Gitolite server and integrated.
+        
+        @param server_url: (optional) USER@SERVER for Gitolite server to include in this list
+        @param server_label: (optional) Label string to insert into server records.
+        @param server_location: (optional) Location string to insert into server records.
         @returns list of dicts.
         """
         repos = []
-        for s in self.stores:
-            store = self.store(s)
+        for store in self.stores:
             for c in store.collections:
                 c['store'] = store.label
                 c['location'] = store.location
+                repos.append(c)
+        if server_url:
+            cids = Organization.collections_on_server(server_url)
+            if not server_label:
+                server_label = server_url.split('@')[1]
+            for cid in cids:
+                c = {'cid':cid, 'uuid':'', 'level':'meta', 'location':server_location, 'store': server_label}
                 repos.append(c)
         return repos
     
