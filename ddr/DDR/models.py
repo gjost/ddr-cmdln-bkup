@@ -334,6 +334,24 @@ class Organization( object ):
                 cids.append(line.split('\t')[-1])
         return natural_sort(cids)
     
+    def whereis( self, server_url, server_label=None, server_location=None ):
+        """Lists all repos known to this Organization by collection ID
+
+        This is the output of Organization.collections(), with the server info, in a dict,
+        keys: collection ID
+        values: lists of repos for that collection ID.
+        """
+        collections = {}
+        known_repos = self.collections(server_url=server_url,
+                                       server_label=server_label,
+                                       server_location=server_location )
+        for repo in known_repos:
+            if not collections.get(repo['cid'], None):
+                collections[repo['cid']] = []
+            if repo not in collections[repo['cid']]:
+                collections[repo['cid']].append(repo)
+        return collections
+    
     def collection_whereis( self, label, repo=None, uuid=None, cid=None ):
         """Adds Store locations to annex whereis information 
         
