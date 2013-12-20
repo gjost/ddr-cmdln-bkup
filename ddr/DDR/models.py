@@ -10,7 +10,7 @@ import re
 import envoy
 
 from DDR import CONFIG_FILE
-from DDR import natural_order_string
+from DDR import natural_sort, natural_order_string
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import storage
@@ -296,6 +296,31 @@ class Organization( object ):
                     key = c.pop(fieldname)
                     repos[key] = c
         return repos
+    
+    @staticmethod
+    def collections_on_server( server_url ):
+        """List CIDs for collections on the specified Gitolite server.
+        
+        The equivalent of 'ssh git@SERVER info', without the 'hello' message
+        and the regexes at the beginning.
+        
+        @param server_url
+        @returns cids
+        """
+        cids = []
+        status,lines = dvcs.gitolite_info(server_url)
+        lines.reverse()
+        for line in lines:
+            # skip first 2 lines
+            # skip regexes (contain 'hello', or 'R W C', '[', ']', '+')
+            line = line.strip()
+            hello = False; regex = False
+            if 'hello' in line:
+                hello = True
+            regex_matches = [line for subst in ['R W C', '[', ']', '+'] if subst in line]
+            if line and (not hello) and (not len(regex_matches) == 4):
+                cids.append(line.split('\t')[-1])
+        return natural_sort(cids)
     
     def collection_whereis( self, label, repo=None, uuid=None, cid=None ):
         """Adds Store locations to annex whereis information 
