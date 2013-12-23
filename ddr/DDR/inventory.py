@@ -173,6 +173,16 @@ DRIVE_FILE_FIELDS = 'id,level'
 
 
 
+def guess_drive_label(path):
+    label = storage.drive_label(path)
+    if not label:
+        hostname = envoy.run('hostname').std_out.strip()
+        ppath = os.path.realpath(path).replace(os.sep, '-')[1:]
+        label = '%s_%s' % (hostname, ppath)
+    return label
+
+
+
 def create_organization( git_remote, repo, org, dest_dir, git_name, git_mail ):
     """Create a copy of Organization repo.
     
@@ -343,377 +353,370 @@ def remove_collection( path, label, uuid, git_name, git_mail ):
 
 
 
-def syncable_devices(mounted):
-    """Lists mounted devices that are available to be synced.
-
-    To be eligible, devices must contain a ddr/ directory in their root; the ddr/ directory must contain a valid inventory repo.  Each REPO-ORG combination must appear on at least two devices or there's no point in syncing.
-    
-    >> from DDR import storage
-    >> from DDR import inventory
-    >> inventory.syncable_devices(storage.removables_mounted())
-
-    @param mounted: Output of storage.removables_mounted()
-    @returns Dict of organization IDs and lists of device dicts for drives they appear on.
-    """
-    def ddr_path(path):
-        return os.path.join(path, 'ddr')
-    def looks_like_org_dir(dirname):
-        if len(dirname.split('-')) == 2:
-            return True
-        return False
-    tentative = {}
-    for device in mounted:
-        ddrpath = ddr_path(device['mountpath'])
-        if os.path.exists(ddrpath):
-            for d in os.listdir(ddrpath):
-                orgdir = os.path.join(ddrpath, d)
-                if looks_like_org_dir(d) and Organization.is_valid(orgdir):
-                    orgdevices = tentative.get(d, [])
-                    if device not in orgdevices:
-                        orgdevices.append(device)
-                    tentative[d] = orgdevices
-    # only list inventories if there are at least two devices
-    syncable = {}
-    for key in tentative.keys():
-        orgdevices = tentative.get(key, [])
-        if orgdevices and (len(orgdevices) > 1):
-            syncable[key] = orgdevices
-    return syncable
-
-def guess_drive_label(path):
-    label = storage.drive_label(path)
-    if not label:
-        hostname = envoy.run('hostname').std_out.strip()
-        ppath = path.replace(os.sep, '-')[1:]
-        label = '%s_%s' % (hostname, ppath)
-    return label
-
-def init_store():
-    """[DEPRECATED] Interactive command for initializing a new (blank) Store.
-    
-    * * * * * DEPRECATED - use inventory.add_store() * * * * *
-    Asks user for values of the various fields.
-    """
-    print('')
-    
-    git_name = raw_input('Your name: ')
-    git_mail = raw_input('Email address: ')
-    
-    path = raw_input("Path to Store's ddr/ dir (e.g. '/media/USBDRIVE/ddr'): ")
-    if not os.path.exists(path):
-        print('Nonexistant path: %s' % path)
-        sys.exit(1)
-    label = guess_drive_label(path)
-    confirm = raw_input('Drive label: "%s" [y/n] ' % label)
-    if confirm != 'y':
-        label = raw_input('Drive label: ')
-    
-    location = raw_input("Location: ")
-    level = raw_input("Annex level %s: " % INVENTORY_LEVELS)
-    if level not in INVENTORY_LEVELS:
-        print('Enter a valid level')
-        sys.exit(1)
-    raw_purchased = raw_input('Purchase date (YYYY-MM-DD): ')
-    try:
-        purchased = datetime.strptime(raw_purchased, '%Y-%m-%d').date()
-    except:
-        print('Enter a valid date')
-        sys.exit(1)
-    
-    repo = raw_input('Repository (e.g. "ddr"): ')
-    org = raw_input('Organization (e.g. "densho"): ')
-    oid = '%s-%s' % (repo, org)
-    gitolite = raw_input('Server (e.g. "%s"): ' % GITOLITE)
-    url = '%s:%s-%s.git' % (gitolite, repo, org)
-    url_confirm = raw_input('Organization repo URL: "%s" [y/n] ' % url)
-    if url_confirm != 'y':
-        sys.exit(1)
-    
-    print('')
-    print('User name:  %s' % git_name)
-    print('User mail:  %s' % git_mail)
-    print('Path:       %s' % path)
-    print('Label:      %s' % label)
-    print('Purchased:  %s' % purchased)
-    print('Location:   %s' % location)
-    print('Level:      %s' % level)
-    print('URL:        %s' % url)
-    confirm = raw_input('Are the above values correct? [y/n] ')
-    print('')
-    if confirm != 'y':
-        sys.exit(1)
-    
-    clone_organization( url, os.path.join(path, oid) )
-    add_store( path, label, location, purchased, git_name, git_mail )
-    #sync_organization( path, remote='origin' )
-
-
-
-
-def file_instances(collections_dict, annex_whereis_file):
-    """Adds location field to file instance metadata.
-    
-    Takes location from each collection in the Organization's Store records and adds it to file instance records from git-annex.
-
-    >> from DDR import dvcs, inventory
-    >> repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
-    >> org = inventory.Organization('/var/www/media/base/ddr-testing')
-    >> collections_dict = org.collections_dict('uuid')
-    >> path_rel = 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf'
-    >> instances = dvcs.annex_whereis_file(repo, path_rel)
-    >> instances = inventory.file_locations(collections_dict, repo, path)
-    >> for i in instances:
-    >>     print(i)
-    {'location': u'Pasadena', 'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}
-    {'location': u'Pasadena', 'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pnr_tmp-ddr'}
-    
-    @param collections_dict
-    @param annex_whereis_file: Output of dvcs.annex_whereis_file
-    """
-    for i in annex_whereis_file:
-        c = collections_dict[i['uuid']]
-        i['location'] = c['location']
-    return annex_whereis_file
-
-def files_instances(collections_dict, repo, annex_whereis):
-    """Adds location field to file instance metadata for specified repository.
-    
-    Takes location from each collection in the Organization's Store records and adds it to file instance records from git-annex.
-
-from DDR import dvcs, inventory
-repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
-org = inventory.Organization('/var/www/media/base/ddr-testing')
-collections_dict = org.collections_dict('uuid')
-instances = dvcs.annex_whereis(repo)
-instances = inventory.files_instances(collections_dict, repo, instances)
-for i in instances:
-    print(i)
-
-    {'location': u'Pasadena', 'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}
-    {'location': u'Pasadena', 'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pnr_tmp-ddr'}
-    
-    @param collections_dict
-    @param annex_whereis_file: Output of dvcs.annex_whereis_file
-    """
-    for f in annex_whereis:
-        for r in f['remotes']:
-            rem = collections_dict.get(r['uuid'], None)
-            if rem:
-                r['location'] = rem['location']
-    return annex_whereis
-
-
-
-def group_files( path ):
-    """Gets list of paths to group files in the repo.
-    
-    >>> from DDR import inventory
-    >>> p = '/var/www/media/base/ddr-testing'
-    >>> inventory.group_files(p)
-    ['/var/www/media/base/ddr-testing/TS11TB2013.json', '/var/www/media/base/ddr-testing/WD5000BMV-2.json']
-    
-    @param path: Abs path to org repo
-    """
-    excludes = ['.git', 'organization.json']
-    pattern = re.compile('.json$')
-    return [f for f in os.listdir(path) if (f not in excludes) and pattern.search(f)]
-
-def groups( path ):
-    """Gets list of groups for which there are CSV files.
-    
-    >>> from DDR import inventory
-    >>> p = '/var/www/media/base/ddr-testing'
-    >>> inventory.groups(p)
-    ['TS11TB2013', 'WD5000BMV-2']
-    
-    @param path: Abs path to org repo
-    @returns drives: List of group labels
-    """
-    return [os.path.splitext(f)[0] for f in group_files(path)]
- 
-def group_file_path( path ):
-    """Gets path to JSON file for the specified group based on orgrepo's location.
-    
-    DANGER! This function makes assumptions about file paths!
-    This is a holdover from when group files were called "drive files"
-    and when the group label was always assumed to match a drive label.
-    The label is assumed to be the block of \w following '/media'.
-    
-    >>> from DDR import inventory
-    >>> r = '/media/DRIVELABEL/ddr/REPOORGID'
-    >>> inventory.group_file_path(r)
-    '/media/DRIVELABEL/ddr/REPOORG/DRIVELABEL.json'
-    
-    @param path: Abs path to org repo (drive label extracted from this)
-    """
-    path = os.path.realpath(path)
-    parts = path.split(os.sep)
-    drivelabel = parts[2]
-    repo,org,id = parts[4].split('-')
-    repoorg = '-'.join([repo,org])
-    jfile = '%s.json' % drivelabel
-    return '/%s' % os.path.join(parts[1], drivelabel, parts[3], repoorg, jfile)
-
-def read_group_file( path ):
-    """Reads group file, returns list of repos and their levels
-    
-    Group file is a JSON file containing a list of DDR collection repo IDs and
-    and indicator of which binaries should be present (see LEVELS).
-    
-    >>> from DDR import inventory
-    >>> p = '/var/www/media/base/ddr-testing/WD5000BMV-2.json'
-    >>> inventory.read_group_file(p)
-    [{'id': 'ddr-testing-100', 'level': 'full'}, {'id': 'ddr-testing-101', 'level': 'access'}, ...]
-    
-    @param path: Absolute path to group file.
-    @returns: List of dicts (id, level)
-    """
-    repos = []
-    with open(path, 'rb') as f:
-        data = json.loads(f.read())
-    return data['collections']
-
-def write_group_file( repos, path ):
-    """
-    @param repos: List of dicts (id, level)
-    @param path: (optional) Absolute path to group file.
-    """
-    data = {'repositories':repos}
-    _write_json(data, path)
-
-def group_repo_level( path, repo_basename ):
-    """Get level for the specified repo from group file.
-    
-    @param path: Absolute path to group file.
-    @param repo_basename: Collection repo directory.
-    @return level
-    """
-    level = 'unknown'
-    with open(path,'r') as f:
-        for line in f.readlines():
-            if repo_basename in line:
-                level = line.split(',')[1].strip()
-    return level
-
-def repo_level( repo_path, level=None ):
-    """Gets or sets level for specified repo.
-    
-    @param path: Absolute path to repo.
-    @param level: If present, sets ddr.level to value.
-    @returns level
-    """
-    logging.debug('repo_level(%s, %s)' % (repo_path,level))
-    repo = git.Repo(repo_path)
-    if level:
-        logging.debug('level -> %s' % level)
-        repo.git.config('--local', 'ddr.level', level)
-    try:
-        level = repo.git.config('--get', 'ddr.level')
-    except:
-        pass
-    return level
-
-def read_mrconfig( path ):
-    """Reads .mrconfig file
-    
-    @param path: Absolute path to .mrconfig file.
-    @returns: ConfigParser object
-    """
-    config = ConfigParser.ConfigParser()
-    config.readfp(open(path))
-    return config
-
-def make_mrconfig( defaults, repos, server, base_path='' ):
-    """Makes an .mrconfig file.
-    
-    import inventory
-    p = '/media/WD5000BMV-2/ddr/ddr-testing/WD5000BMV-2.csv'
-    repos = inventory.read_drive_file(p)
-    defaults = {'ddrstatus': 'ddr status "$@"', 'ddrsync': 'ddr sync "$@"'}
-    base_path = '/media/WD5000BMV-2/ddr'
-    server = 'git@mits.densho.org'
-    mrconfig = inventory.mrconfig(defaults, base_path, server, repos)
-    inventory.write_mrconfig(mrconfig, '/tmp/mrconfig')
- 
-    @param defaults: dict of settings.
-    @param repos: List of dicts (id, level)
-    @param server: USERNAME@DOMAIN for Gitolite server.
-    @param base_path: Absolute path to the directory in which the repos are located.
-    @returns mrconfig: A ConfigParser object
-    """
-    mrconfig = ConfigParser.ConfigParser(defaults)
-    for r in repos:
-        section = os.path.join(base_path, r['id'])
-        mrconfig.add_section(section)
-        mrconfig.set(section, 'checkout', "git clone '%s:%s.git' '%s'" % (server, r['id'], r['id']))
-    return mrconfig
-
-def write_mrconfig( mrconfig, path ):
-    """Writes an .mrconfig file to the specified path.
-    
-    @param mrconfig: A ConfigParser object
-    @param path: Absolute path to write.
-    """
-    with open(path, 'wb') as f:
-        mrconfig.write(f)
-
-def repo_annex_get(repo_path, level):
-    """Runs annex-get commands appropriate to this repo's level.
-    
-    metadata: does nothing
-    access: git-annex-gets files ending with ACCESS_SUFFIX
-    all: git annex get .
-    """
-    logger.debug('repo_annex_get(%s)' % repo_path)
-    ACCESS_SUFFIX = '-a.jpg'
-    #level = repo_level(repo_path)
-    logger.debug('level: %s' % level)
-    repo = git.Repo(repo_path)
-    if level == 'access':
-        r = envoy.run('find . -name "*%s" -print' % ACCESS_SUFFIX)
-        for accessfile in r.std_out.strip().split('\n'):
-            logger.debug('git annex get %s' % accessfile)
-            repo.git.annex('get', accessfile)
-    elif level == 'all':
-        logger.debug('git annex get .')
-        repo.git.annex('get', '.')
-    logger.debug('DONE')
-
-def load_organization_data(path):
-    """Loads inventory data into single data structure.
-    """
-    orgfile = os.path.join(path, 'organization.json')
-    with open(orgfile, 'rb') as f:
-        org = json.loads(f.read())
-    org['drives'] = {}
-    for f in group_files(path):
-        fn = os.path.join(path, f)
-        data = read_group_file(fn)
-        label = data['drive info']['label']
-        try:
-            org['drives'][label] = data
-        except:
-            org['drives'][f] = {}
-    return org
-
-"""
-UUID	Label	Location	Level	Trust
-faf5b548-4285-11e3-877e-33872002bf67	WD5000BMV-2	Pasadena, here	master	semitrusted
-2c5e9652-4283-11e3-ba24-6f28c7ec0c50	workbench	Seattle, mits.densho.org	metadata	semitrusted
-affb5584-2485-1e13-87e7-33827020b6f7	TS1TB201301	Seattle, Densho HQ	master	semitrusted
-62a9c710-4718-11e3-ac94-87227a8b2c2c	pub	Seattle, Densho Colo	access	
-
-from DDR import dvcs, inventory
-repo = dvcs.repository('/var/www/media/base/ddr-testing-196')
-stat = dvcs.annex_status(repo)
-path = '/var/www/media/base/ddr-testing'
-inventory.repo_inventory_remotes(repo, stat, path)
-"""
-
-
-
-
-
-if __name__ == '__main__':
-    #init_store()
-    pass
+#def syncable_devices(mounted):
+#    """Lists mounted devices that are available to be synced.
+#
+#    To be eligible, devices must contain a ddr/ directory in their root; the ddr/ directory must contain a valid inventory repo.  Each REPO-ORG combination must appear on at least two devices or there's no point in syncing.
+#    
+#    >> from DDR import storage
+#    >> from DDR import inventory
+#    >> inventory.syncable_devices(storage.removables_mounted())
+#
+#    @param mounted: Output of storage.removables_mounted()
+#    @returns Dict of organization IDs and lists of device dicts for drives they appear on.
+#    """
+#    def ddr_path(path):
+#        return os.path.join(path, 'ddr')
+#    def looks_like_org_dir(dirname):
+#        if len(dirname.split('-')) == 2:
+#            return True
+#        return False
+#    tentative = {}
+#    for device in mounted:
+#        ddrpath = ddr_path(device['mountpath'])
+#        if os.path.exists(ddrpath):
+#            for d in os.listdir(ddrpath):
+#                orgdir = os.path.join(ddrpath, d)
+#                if looks_like_org_dir(d) and Organization.is_valid(orgdir):
+#                    orgdevices = tentative.get(d, [])
+#                    if device not in orgdevices:
+#                        orgdevices.append(device)
+#                    tentative[d] = orgdevices
+#    # only list inventories if there are at least two devices
+#    syncable = {}
+#    for key in tentative.keys():
+#        orgdevices = tentative.get(key, [])
+#        if orgdevices and (len(orgdevices) > 1):
+#            syncable[key] = orgdevices
+#    return syncable
+#
+#def init_store():
+#    """[DEPRECATED] Interactive command for initializing a new (blank) Store.
+#    
+#    * * * * * DEPRECATED - use inventory.add_store() * * * * *
+#    Asks user for values of the various fields.
+#    """
+#    print('')
+#    
+#    git_name = raw_input('Your name: ')
+#    git_mail = raw_input('Email address: ')
+#    
+#    path = raw_input("Path to Store's ddr/ dir (e.g. '/media/USBDRIVE/ddr'): ")
+#    if not os.path.exists(path):
+#        print('Nonexistant path: %s' % path)
+#        sys.exit(1)
+#    label = guess_drive_label(path)
+#    confirm = raw_input('Drive label: "%s" [y/n] ' % label)
+#    if confirm != 'y':
+#        label = raw_input('Drive label: ')
+#    
+#    location = raw_input("Location: ")
+#    level = raw_input("Annex level %s: " % INVENTORY_LEVELS)
+#    if level not in INVENTORY_LEVELS:
+#        print('Enter a valid level')
+#        sys.exit(1)
+#    raw_purchased = raw_input('Purchase date (YYYY-MM-DD): ')
+#    try:
+#        purchased = datetime.strptime(raw_purchased, '%Y-%m-%d').date()
+#    except:
+#        print('Enter a valid date')
+#        sys.exit(1)
+#    
+#    repo = raw_input('Repository (e.g. "ddr"): ')
+#    org = raw_input('Organization (e.g. "densho"): ')
+#    oid = '%s-%s' % (repo, org)
+#    gitolite = raw_input('Server (e.g. "%s"): ' % GITOLITE)
+#    url = '%s:%s-%s.git' % (gitolite, repo, org)
+#    url_confirm = raw_input('Organization repo URL: "%s" [y/n] ' % url)
+#    if url_confirm != 'y':
+#        sys.exit(1)
+#    
+#    print('')
+#    print('User name:  %s' % git_name)
+#    print('User mail:  %s' % git_mail)
+#    print('Path:       %s' % path)
+#    print('Label:      %s' % label)
+#    print('Purchased:  %s' % purchased)
+#    print('Location:   %s' % location)
+#    print('Level:      %s' % level)
+#    print('URL:        %s' % url)
+#    confirm = raw_input('Are the above values correct? [y/n] ')
+#    print('')
+#    if confirm != 'y':
+#        sys.exit(1)
+#    
+#    clone_organization( url, os.path.join(path, oid) )
+#    add_store( path, label, location, purchased, git_name, git_mail )
+#    #sync_organization( path, remote='origin' )
+#
+#
+#
+#
+#def file_instances(collections_dict, annex_whereis_file):
+#    """Adds location field to file instance metadata.
+#    
+#    Takes location from each collection in the Organization's Store records and adds it to file instance records from git-annex.
+#
+#    >> from DDR import dvcs, inventory
+#    >> repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
+#    >> org = inventory.Organization('/var/www/media/base/ddr-testing')
+#    >> collections_dict = org.collections_dict('uuid')
+#    >> path_rel = 'files/ddr-testing-141-1/files/ddr-testing-141-1-master-96c048001e.pdf'
+#    >> instances = dvcs.annex_whereis_file(repo, path_rel)
+#    >> instances = inventory.file_locations(collections_dict, repo, path)
+#    >> for i in instances:
+#    >>     print(i)
+#    {'location': u'Pasadena', 'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}
+#    {'location': u'Pasadena', 'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pnr_tmp-ddr'}
+#    
+#    @param collections_dict
+#    @param annex_whereis_file: Output of dvcs.annex_whereis_file
+#    """
+#    for i in annex_whereis_file:
+#        c = collections_dict[i['uuid']]
+#        i['location'] = c['location']
+#    return annex_whereis_file
+#
+#def files_instances(collections_dict, repo, annex_whereis):
+#    """Adds location field to file instance metadata for specified repository.
+#    
+#    Takes location from each collection in the Organization's Store records and adds it to file instance records from git-annex.
+#
+#from DDR import dvcs, inventory
+#repo = dvcs.repository('/tmp/ddr/ddr-testing-141')
+#org = inventory.Organization('/var/www/media/base/ddr-testing')
+#collections_dict = org.collections_dict('uuid')
+#instances = dvcs.annex_whereis(repo)
+#instances = inventory.files_instances(collections_dict, repo, instances)
+#for i in instances:
+#    print(i)
+#
+#    {'location': u'Pasadena', 'uuid': '643935ea-1cbe-11e3-afb5-3fb5a8f2a937', 'label': 'WD5000BMV-2'}
+#    {'location': u'Pasadena', 'uuid': 'a311a84a-4e48-11e3-ba9f-2fc2ce00326e', 'label': 'pnr_tmp-ddr'}
+#    
+#    @param collections_dict
+#    @param annex_whereis_file: Output of dvcs.annex_whereis_file
+#    """
+#    for f in annex_whereis:
+#        for r in f['remotes']:
+#            rem = collections_dict.get(r['uuid'], None)
+#            if rem:
+#                r['location'] = rem['location']
+#    return annex_whereis
+#
+#
+#
+#def group_files( path ):
+#    """Gets list of paths to group files in the repo.
+#    
+#    >>> from DDR import inventory
+#    >>> p = '/var/www/media/base/ddr-testing'
+#    >>> inventory.group_files(p)
+#    ['/var/www/media/base/ddr-testing/TS11TB2013.json', '/var/www/media/base/ddr-testing/WD5000BMV-2.json']
+#    
+#    @param path: Abs path to org repo
+#    """
+#    excludes = ['.git', 'organization.json']
+#    pattern = re.compile('.json$')
+#    return [f for f in os.listdir(path) if (f not in excludes) and pattern.search(f)]
+#
+#def groups( path ):
+#    """Gets list of groups for which there are CSV files.
+#    
+#    >>> from DDR import inventory
+#    >>> p = '/var/www/media/base/ddr-testing'
+#    >>> inventory.groups(p)
+#    ['TS11TB2013', 'WD5000BMV-2']
+#    
+#    @param path: Abs path to org repo
+#    @returns drives: List of group labels
+#    """
+#    return [os.path.splitext(f)[0] for f in group_files(path)]
+# 
+#def group_file_path( path ):
+#    """Gets path to JSON file for the specified group based on orgrepo's location.
+#    
+#    DANGER! This function makes assumptions about file paths!
+#    This is a holdover from when group files were called "drive files"
+#    and when the group label was always assumed to match a drive label.
+#    The label is assumed to be the block of \w following '/media'.
+#    
+#    >>> from DDR import inventory
+#    >>> r = '/media/DRIVELABEL/ddr/REPOORGID'
+#    >>> inventory.group_file_path(r)
+#    '/media/DRIVELABEL/ddr/REPOORG/DRIVELABEL.json'
+#    
+#    @param path: Abs path to org repo (drive label extracted from this)
+#    """
+#    path = os.path.realpath(path)
+#    parts = path.split(os.sep)
+#    drivelabel = parts[2]
+#    repo,org,id = parts[4].split('-')
+#    repoorg = '-'.join([repo,org])
+#    jfile = '%s.json' % drivelabel
+#    return '/%s' % os.path.join(parts[1], drivelabel, parts[3], repoorg, jfile)
+#
+#def read_group_file( path ):
+#    """Reads group file, returns list of repos and their levels
+#    
+#    Group file is a JSON file containing a list of DDR collection repo IDs and
+#    and indicator of which binaries should be present (see LEVELS).
+#    
+#    >>> from DDR import inventory
+#    >>> p = '/var/www/media/base/ddr-testing/WD5000BMV-2.json'
+#    >>> inventory.read_group_file(p)
+#    [{'id': 'ddr-testing-100', 'level': 'full'}, {'id': 'ddr-testing-101', 'level': 'access'}, ...]
+#    
+#    @param path: Absolute path to group file.
+#    @returns: List of dicts (id, level)
+#    """
+#    repos = []
+#    with open(path, 'rb') as f:
+#        data = json.loads(f.read())
+#    return data['collections']
+#
+#def write_group_file( repos, path ):
+#    """
+#    @param repos: List of dicts (id, level)
+#    @param path: (optional) Absolute path to group file.
+#    """
+#    data = {'repositories':repos}
+#    _write_json(data, path)
+#
+#def group_repo_level( path, repo_basename ):
+#    """Get level for the specified repo from group file.
+#    
+#    @param path: Absolute path to group file.
+#    @param repo_basename: Collection repo directory.
+#    @return level
+#    """
+#    level = 'unknown'
+#    with open(path,'r') as f:
+#        for line in f.readlines():
+#            if repo_basename in line:
+#                level = line.split(',')[1].strip()
+#    return level
+#
+#def repo_level( repo_path, level=None ):
+#    """Gets or sets level for specified repo.
+#    
+#    @param path: Absolute path to repo.
+#    @param level: If present, sets ddr.level to value.
+#    @returns level
+#    """
+#    logging.debug('repo_level(%s, %s)' % (repo_path,level))
+#    repo = git.Repo(repo_path)
+#    if level:
+#        logging.debug('level -> %s' % level)
+#        repo.git.config('--local', 'ddr.level', level)
+#    try:
+#        level = repo.git.config('--get', 'ddr.level')
+#    except:
+#        pass
+#    return level
+#
+#def read_mrconfig( path ):
+#    """Reads .mrconfig file
+#    
+#    @param path: Absolute path to .mrconfig file.
+#    @returns: ConfigParser object
+#    """
+#    config = ConfigParser.ConfigParser()
+#    config.readfp(open(path))
+#    return config
+#
+#def make_mrconfig( defaults, repos, server, base_path='' ):
+#    """Makes an .mrconfig file.
+#    
+#    import inventory
+#    p = '/media/WD5000BMV-2/ddr/ddr-testing/WD5000BMV-2.csv'
+#    repos = inventory.read_drive_file(p)
+#    defaults = {'ddrstatus': 'ddr status "$@"', 'ddrsync': 'ddr sync "$@"'}
+#    base_path = '/media/WD5000BMV-2/ddr'
+#    server = 'git@mits.densho.org'
+#    mrconfig = inventory.mrconfig(defaults, base_path, server, repos)
+#    inventory.write_mrconfig(mrconfig, '/tmp/mrconfig')
+# 
+#    @param defaults: dict of settings.
+#    @param repos: List of dicts (id, level)
+#    @param server: USERNAME@DOMAIN for Gitolite server.
+#    @param base_path: Absolute path to the directory in which the repos are located.
+#    @returns mrconfig: A ConfigParser object
+#    """
+#    mrconfig = ConfigParser.ConfigParser(defaults)
+#    for r in repos:
+#        section = os.path.join(base_path, r['id'])
+#        mrconfig.add_section(section)
+#        mrconfig.set(section, 'checkout', "git clone '%s:%s.git' '%s'" % (server, r['id'], r['id']))
+#    return mrconfig
+#
+#def write_mrconfig( mrconfig, path ):
+#    """Writes an .mrconfig file to the specified path.
+#    
+#    @param mrconfig: A ConfigParser object
+#    @param path: Absolute path to write.
+#    """
+#    with open(path, 'wb') as f:
+#        mrconfig.write(f)
+#
+#def repo_annex_get(repo_path, level):
+#    """Runs annex-get commands appropriate to this repo's level.
+#    
+#    metadata: does nothing
+#    access: git-annex-gets files ending with ACCESS_SUFFIX
+#    all: git annex get .
+#    """
+#    logger.debug('repo_annex_get(%s)' % repo_path)
+#    ACCESS_SUFFIX = '-a.jpg'
+#    #level = repo_level(repo_path)
+#    logger.debug('level: %s' % level)
+#    repo = git.Repo(repo_path)
+#    if level == 'access':
+#        r = envoy.run('find . -name "*%s" -print' % ACCESS_SUFFIX)
+#        for accessfile in r.std_out.strip().split('\n'):
+#            logger.debug('git annex get %s' % accessfile)
+#            repo.git.annex('get', accessfile)
+#    elif level == 'all':
+#        logger.debug('git annex get .')
+#        repo.git.annex('get', '.')
+#    logger.debug('DONE')
+#
+#def load_organization_data(path):
+#    """Loads inventory data into single data structure.
+#    """
+#    orgfile = os.path.join(path, 'organization.json')
+#    with open(orgfile, 'rb') as f:
+#        org = json.loads(f.read())
+#    org['drives'] = {}
+#    for f in group_files(path):
+#        fn = os.path.join(path, f)
+#        data = read_group_file(fn)
+#        label = data['drive info']['label']
+#        try:
+#            org['drives'][label] = data
+#        except:
+#            org['drives'][f] = {}
+#    return org
+#
+#"""
+#UUID	Label	Location	Level	Trust
+#faf5b548-4285-11e3-877e-33872002bf67	WD5000BMV-2	Pasadena, here	master	semitrusted
+#2c5e9652-4283-11e3-ba24-6f28c7ec0c50	workbench	Seattle, mits.densho.org	metadata	semitrusted
+#affb5584-2485-1e13-87e7-33827020b6f7	TS1TB201301	Seattle, Densho HQ	master	semitrusted
+#62a9c710-4718-11e3-ac94-87227a8b2c2c	pub	Seattle, Densho Colo	access	
+#
+#from DDR import dvcs, inventory
+#repo = dvcs.repository('/var/www/media/base/ddr-testing-196')
+#stat = dvcs.annex_status(repo)
+#path = '/var/www/media/base/ddr-testing'
+#inventory.repo_inventory_remotes(repo, stat, path)
+#"""
+#
+#
+#
+#
+#
+#if __name__ == '__main__':
+#    #init_store()
+#    pass
+#
