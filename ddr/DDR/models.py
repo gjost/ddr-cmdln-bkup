@@ -331,7 +331,9 @@ class Organization( object ):
                 hello = True
             regex_matches = [line for subst in ['R W C', '[', ']', '+'] if subst in line]
             if line and (not hello) and (not len(regex_matches) == 4):
-                cids.append(line.split('\t')[-1])
+                cid = line.split('\t')[-1]
+                if Collection.id_is_valid(cid):
+                    cids.append(cid)
         return natural_sort(cids)
     
     def whereis( self, server_url, server_label=None, server_location=None ):
@@ -742,6 +744,42 @@ class Collection( object ):
                 fw.write(gt)
         with open(self.gitignore_path, 'r') as f:
             return f.read()
+    
+    @staticmethod
+    def id_is_valid( cid ):
+        """Indicates whether the string looks like a valid collection ID.
+        """
+        if len(cid.split('-')) == 3:
+            return True
+        return False
+    
+    @staticmethod
+    def is_valid( collection_path ):
+        """Indicates whether the directory represents a valid collection repository.
+        
+        NOTE: This does not validate higher levels of "collection-ness" like JSON files.
+        
+        @param collection_path: Absolute path to collection dir.
+        @returns True or False
+        """
+        changelog_path = os.path.join(collection_path, 'changelog')
+        control_path = os.path.join(collection_path, 'control')
+        score = []
+        if os.path.isdir(collection_path): score.append(1)
+        # looks like collection dirname
+        if len(os.path.basename(collection_path).split('-')) == 3: score.append(1)
+        # changelog
+        if os.path.exists(changelog_path): score.append(1)
+        # control
+        if os.path.exists(control_path):
+            score.append(1)
+            config = ConfigParser.ConfigParser()
+            config.read(control_path)
+            if config.has_section('Entities'):
+                score.append(1)
+        if score == 5:
+            return True
+        return False
     
     @staticmethod
     def collections( collections_root, repository, organization ):
