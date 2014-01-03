@@ -200,6 +200,20 @@ class Organization( object ):
             spath = os.path.join(self.path, store.filename())
             store.save(spath)
     
+    @staticmethod
+    def organizations( path ):
+        odirs = []
+        for x in os.listdir(path):
+            odir = os.path.join(path,x)
+            if Organization.is_valid(odir):
+                odirs.append(odir)
+        odirs = sorted(odirs, key=lambda o: natural_order_string(o))
+        organizations = []
+        for odir in odirs:
+            o = Organization.load(odir)
+            organizations.append(o)
+        return organizations
+    
     def _store_files( self ):
         """Gets list of paths to store files in the repo.
         """
