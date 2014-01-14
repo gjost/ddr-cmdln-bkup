@@ -516,6 +516,39 @@ class Store( object ):
         return None
     
     @staticmethod
+    def guess_collection_level( collection_path ):
+        """Try to guess a collection's level by looking at git-annex-find
+        
+        If git-annex-find lists no files it's probably a metadata-only repo.
+        If there are only files ending with the access suffix, probably access.
+        If mixture of access and others, probably master.
+        
+        @param collection_path: Absolute path to collection
+        @returns 'metadata', 'access', 'master', or 'unknown'
+        """
+        try:
+            annex_files = dvcs.annex_find(collection_path)
+        except:
+            return 'error: annex'
+        if len(annex_files) == 0:
+            return 'metadata'
+        # tally up the access and master copies
+        access = 0
+        master = 0
+        for f in annex_files:
+            # access files end in '-a'
+            # TODO replace with access file string from settings
+            if os.path.splitext(f)[0][-2:] == '-a':
+                access = access + 1
+            else:
+                master = master + 1
+        if access and not master:
+            return 'access'
+        elif access and master:
+            return 'master'
+        return 'unknown'
+    
+    @staticmethod
     def analyze( path, force_level=None ):
         """Reports all the valid* collections in the specified directory.
         
@@ -558,30 +591,6 @@ class Store( object ):
                 if cid:
                     return cid
             return None
-        def guess_collection_level(cpath):
-            """Try to guess a collection's level by looking at git-annex-find
-            
-            If git-annex-find lists no files it's probably a metadata-only repo.
-            If there are only files ending with the access suffix, probably access.
-            If mixture of access and others, probably master.
-            """
-            annex_files = dvcs.annex_find(cpath)
-            if len(annex_files) == 0:
-                return 'metadata'
-            # tally up the access and master copies
-            access = 0
-            master = 0
-            for f in annex_files:
-                # access files end in '-a'
-                if os.path.splitext(f)[0][-2:] == '-a':
-                    access = access + 1
-                else:
-                    master = master + 1
-            if access and not master:
-                return 'access'
-            elif access and master:
-                return 'master'
-            return None
         
         # collections:
         collections = []
@@ -595,7 +604,7 @@ class Store( object ):
                 if force_level:
                     level = force_level
                 else:
-                    level = guess_collection_level(cpath)
+                    level = Store.guess_collection_level(cpath)
                 if uuid and cid:
                     c = { 'uuid':uuid, 'cid':cid, 'level':level }
                     collections.append(c)
