@@ -235,7 +235,7 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
 
 @command
 @requires_network
-def create(user_name, user_mail, collection_path, templates):
+def create(user_name, user_mail, collection_path, templates, agent=''):
     """Command-line function for creating a new collection.
     
     Clones a blank collection object from workbench server, adds files, commits.
@@ -258,6 +258,7 @@ def create(user_name, user_mail, collection_path, templates):
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
     @param templates: List of metadata templates (absolute paths).
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -293,7 +294,13 @@ def create(user_name, user_mail, collection_path, templates):
     # add control, .gitignore, changelog
     control   = collection.control()
     gitignore = collection.gitignore()
+    
+    # prep log entries
     changelog_messages = ['Initialized collection {}'.format(collection.uid)]
+    if agent:
+        changelog_messages.append('@agent: %s' % agent)
+    commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
+    
     write_changelog_entry(collection.changelog_path,
                           changelog_messages,
                           user_name, user_mail)
@@ -311,7 +318,7 @@ def create(user_name, user_mail, collection_path, templates):
         logging.error('    COULD NOT CREATE changelog')
     
     # add files and commit
-    repo = commit_files(repo, changelog_messages[0], git_files, [])
+    repo = commit_files(repo, commit_message, git_files, [])
     # master branch should be created by this point
     # git annex init
     logging.debug('    git annex init')
@@ -336,11 +343,12 @@ def create(user_name, user_mail, collection_path, templates):
 
 @command
 @local_only
-def destroy():
+def destroy(agent=''):
     """Command-line function for removing  an entire collection's files from the local system.
     
     Does not remove files from the server!  That will remain a manual operation.
     
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
@@ -381,7 +389,7 @@ def fetch(collection_path):
 
 @command
 @local_only
-def update(user_name, user_mail, collection_path, updated_files):
+def update(user_name, user_mail, collection_path, updated_files, agent=''):
     """Command-line function for commiting changes to the specified file.
     
     NOTE: Does not push to the workbench server.
@@ -389,6 +397,7 @@ def update(user_name, user_mail, collection_path, updated_files):
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
     @param updated_files: List of relative paths to updated file(s).
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -400,10 +409,15 @@ def update(user_name, user_mail, collection_path, updated_files):
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
-    # changelog
+    # prep log entries
     changelog_messages = []
     for f in updated_files:
         changelog_messages.append('Updated collection file(s) {}'.format(f))
+    if agent:
+        changelog_messages.append('@agent: %s' % agent)
+    commit_message = dvcs.compose_commit_message('Updated metadata file(s)', agent=agent)
+    
+    # write changelog
     write_changelog_entry(collection.changelog_path,
                           changelog_messages,
                           user_name, user_mail)
@@ -411,8 +425,9 @@ def update(user_name, user_mail, collection_path, updated_files):
         updated_files.append(collection.changelog_path)
     else:
         logging.error('    COULD NOT UPDATE changelog')
+    
     # add files and commit
-    repo = commit_files(repo, 'Updated metadata files', updated_files, [])
+    repo = commit_files(repo, commit_message, updated_files, [])
     return 0,'ok'
 
 
@@ -473,7 +488,7 @@ def sync(user_name, user_mail, collection_path):
 
 @command
 @local_only
-def entity_create(user_name, user_mail, collection_path, entity_uid, updated_files, templates):
+def entity_create(user_name, user_mail, collection_path, entity_uid, updated_files, templates, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     @param user_name: Username for use in changelog, git log
@@ -482,6 +497,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
     @param entity_uid: A valid DDR entity UID
     @param updated_files: List of updated files (relative to collection root).
     @param templates: List of entity metadata templates (absolute paths).
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -527,11 +543,18 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
     for src in updated_files:
         git_files.append(src)
     
-    # update collection control, changelog
+    # update collection control
     ccontrol = collection.control()
     ccontrol.update_checksums(collection)
     ccontrol.write()
+    
+    # prep log entries
     changelog_messages = ['Initialized entity {}'.format(entity.uid),]
+    if agent:
+        changelog_messages.append('@agent: %s' % agent)
+    commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
+    
+    # write changelog
     write_changelog_entry(collection.changelog_path,
                           changelog_messages,
                           user=user_name, email=user_mail)
@@ -539,15 +562,16 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
     git_files.append(collection.changelog_path)
     
     # add files and commit
-    repo = commit_files(repo, changelog_messages[0], git_files, [])
+    repo = commit_files(repo, commit_message, git_files, [])
     return 0,'ok'
 
 
 @command
 @local_only
-def entity_destroy():
+def entity_destroy(agent=''):
     """Command-line function for removing the specified entity from the collection.
     
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     return 1,'not implemented yet'
@@ -555,7 +579,7 @@ def entity_destroy():
 
 @command
 @local_only
-def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files):
+def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, agent=''):
     """Command-line function for committing changes to the specified entity file.
     
     NOTE: Does not push to the workbench server.
@@ -567,6 +591,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     @param collection_path: Absolute path to collection repo.
     @param entity_uid: A valid DDR entity UID
     @param updated_files: List of paths to updated file(s), relative to entitys.
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -587,18 +612,24 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     for f in updated_files:
         p = os.path.join(entity.uid, f)
         entity_changelog_messages.append('Updated entity file {}'.format(p))
+
+    # prep log entries
+    if agent:
+        entity_changelog_messages.append('@agent: %s' % agent)
+    commit_message = dvcs.compose_commit_message('Updated entity file(s)', agent=agent)
+    
     write_changelog_entry(entity.changelog_path,
                           entity_changelog_messages,
                           user=user_name, email=user_mail)
     git_files.append(entity.changelog_path_rel)
     # add files and commit
-    repo = commit_files(repo, 'Updated entity file(s)', git_files, [])
+    repo = commit_files(repo, commit_message, git_files, [])
     return 0,'ok'
 
 
 @command
 @local_only
-def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_files, new_annex_files):
+def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_files, new_annex_files, agent=''):
     """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
@@ -613,6 +644,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     @param entity_uid: A valid DDR entity UID
     @param updated_files: list of paths to updated files (relative to collection repo).
     @param new_annex_files: List of paths to new files (relative to entity files dir).
+    @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
@@ -651,19 +683,26 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     # updated files
     [git_files.append(updated_file) for updated_file in updated_files]
     
-    # update entity changelog, control
-    changelog_messages = ['Added entity file {}'.format(f) for f in new_files_rel_entity]
-    write_changelog_entry(entity.changelog_path,
-                          changelog_messages,
-                          user_name, user_mail)
+    # update entity control
     econtrol = entity.control()
     econtrol.update_checksums(entity)
     econtrol.write()
-    git_files.append(entity.changelog_path_rel)
     git_files.append(econtrol.path_rel)
     
+    # prep log entries
+    changelog_messages = ['Added entity file {}'.format(f) for f in new_files_rel_entity]
+    if agent:
+        changelog_messages.append('@agent: %s' % agent)
+    commit_message = dvcs.compose_commit_message('Added entity file(s)', agent=agent)
+    
+    # update entity changelog
+    write_changelog_entry(entity.changelog_path,
+                          changelog_messages,
+                          user_name, user_mail)
+    git_files.append(entity.changelog_path_rel)
+    
     # add files and commit
-    repo = commit_files(repo, 'Added entity file(s)', git_files, annex_files)
+    repo = commit_files(repo, commit_message, git_files, annex_files)
     return 0,'ok'
 
 
