@@ -524,42 +524,45 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
             else:
                 logging.error('COULD NOT COPY %s' % src)
     
-    # entity control, changelog
+    # entity control
     econtrol = entity.control()
-    entity_changelog_messages = ['Initialized entity {}'.format(entity.uid),]
-    write_changelog_entry(entity.changelog_path,
-                          entity_changelog_messages,
-                          user=user_name, email=user_mail)
     if os.path.exists(econtrol.path):
         git_files.append(econtrol.path)
     else:
         logging.error('    COULD NOT CREATE control')
-    if os.path.exists(entity.changelog_path):
-        git_files.append(entity.changelog_path)
-    else:
-        logging.error('    COULD NOT CREATE changelog')
-    
-    # add updated collection files
-    for src in updated_files:
-        git_files.append(src)
-    
     # update collection control
     ccontrol = collection.control()
     ccontrol.update_checksums(collection)
     ccontrol.write()
+    git_files.append(ccontrol.path)
     
-    # prep log entries
+    # prep ENTITY log entries
+    entity_changelog_messages = ['Initialized entity {}'.format(entity.uid),]
+    if agent:
+        entity_changelog_messages.append('@agent: %s' % agent)
+    # prep COLLECTION log entries
     changelog_messages = ['Initialized entity {}'.format(entity.uid),]
     if agent:
         changelog_messages.append('@agent: %s' % agent)
     commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
     
-    # write changelog
+    # ENTITY changelog
+    write_changelog_entry(entity.changelog_path,
+                          entity_changelog_messages,
+                          user=user_name, email=user_mail)
+    if os.path.exists(entity.changelog_path):
+        git_files.append(entity.changelog_path)
+    else:
+        logging.error('    COULD NOT CREATE changelog')
+    # COLLECTION changelog
     write_changelog_entry(collection.changelog_path,
                           changelog_messages,
                           user=user_name, email=user_mail)
-    git_files.append(ccontrol.path)
     git_files.append(collection.changelog_path)
+    
+    # add updated collection files
+    for src in updated_files:
+        git_files.append(src)
     
     # add files and commit
     repo = commit_files(repo, commit_message, git_files, [])
