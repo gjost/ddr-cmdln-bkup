@@ -51,8 +51,20 @@ DEBUG = config.get('local','debug')
 ##logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
 #logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
 
-
 def dtfmt(dt): return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+def logprint_nots(filename, msg):
+    msg = '%s\n' % msg
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def logprint(filename, msg):
+    msg = '%s - %s\n' % (dtfmt(datetime.now()), msg)
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
 def now(): return datetime.now()
 
 def annex_get( path ):
@@ -445,18 +457,19 @@ def main():
     else:
         dest_path = mk_dest_path(args.source, args.destdir, 'FILTER')
         public_repo_path = dest_path.replace('FILTER', 'PUBLIC')
+        LOG = '%s.log' % dest_path
         
         if os.path.exists(dest_path):
             print('ddrfilter: error: Destination path already exists! (%s)' % dest_path)
             sys.exit(1)
         
         started = now()
-        print('%s - Starting filter' % dtfmt(started))
+        logprint(LOG, 'Starting filter')
         
-        print('%s - Cloning %s to %s' % (dtfmt(now()), args.source, dest_path))
+        logprint(LOG, 'Cloning %s to %s' % (args.source, dest_path))
         repo = clone(args.source, dest_path)
         if not repo:
-            print('ddrfilter: error: Could not clone repository!')
+            logprint(LOG, 'ddrfilter: error: Could not clone repository!')
             sys.exit(1)
         
         file_levels = []
@@ -464,37 +477,36 @@ def main():
         if args.mezzanine: file_levels.append('mezzanine')
         if args.master: file_levels.append('master')
         
-        print('%s - Getting files...' % dtfmt(now()))
         for level in file_levels:
-            print('%s - %s' % (dtfmt(now()), level))
+            logprint(LOG, 'Getting %s files...' % (level))
             files = annex_list(dest_path, level)
             fstarted = datetime.now()
             for n,fname in enumerate(files):
                 annex_get(repo, fname)
-                print('%s - %s/%s %s' % (dtfmt(now()), n, len(files), fname))
+                logprint(LOG, '%s/%s %s' % (n+1, len(files), fname))
             ffinished = datetime.now()
             felapsed = ffinished - fstarted
-            print('%s - elapsed %s' % (dtfmt(now()), felapsed))
+            logprint(LOG, '%s elapsed' % (felapsed))
         
-        print('%s - Removing remotes...' % dtfmt(now()))
+        logprint(LOG, 'Removing remotes...')
         rm_remotes_status = rm_remotes(repo)
         if rm_remotes_status:
-            print('ddrfilter: error: Failed to remove one or more remotes: %s' % rm_remotes_status)
+            logprint(LOG, 'ddrfilter: error: Failed to remove one or more remotes: %s' % rm_remotes_status)
             sys.exit(1)
         
-        print('%s - Generating exclusion list...' % dtfmt(now()))
+        logprint(LOG, 'Generating exclusion list...')
         exclusion_list = make_exclusion_list(dest_path)
+        logprint_nots(LOG, '    The following files will be excluded from the public repository:')
         for p in exclusion_list:
-            print(p)
+            logprint_nots(LOG, '    %s' % p)
 
-        print('%s - Writing exclusion list...' % dtfmt(now()))
         exclusion_list_path = write_exclusion_list(dest_path,
                                                    exclusion_list,
                                                    'FILTER_%s_exclusions' % os.path.basename(args.source))
         if os.path.exists(exclusion_list_path):
-            print(exclusion_list_path)
+            logprint(LOG, 'Wrote exclusion list %s' % exclusion_list_path)
         else:
-            print('ddrfilter: error: Failed to write exclusion list.')
+            logprint(LOG, 'ddrfilter: error: Failed to write exclusion list.')
             sys.exit(1)
         
         # print git-filter-branch to a shell script
@@ -502,7 +514,7 @@ def main():
         sh = mk_filterbranch_script(dest_path, exclusion_list_path, public_repo_path, keep_temp_repo=args.keeptmp)
         with open(FILTERBRANCH_SH_PATH, 'w') as f:
             f.write(sh)
-        print('Run this command:\n\n sh %s\n' % FILTERBRANCH_SH_PATH)
+        print('Run this command:\n\n    sh %s | tee -a %s\n' % (FILTERBRANCH_SH_PATH, LOG))
         
         ## run filter-branch in a subprocess
         #run_filterbranch(dest_path, exclusion_list_path)
@@ -513,8 +525,8 @@ def main():
         
         finished = now()
         elapsed = finished - started
-        print('%s done' % dtfmt(finished))
-        print('%s elapsed' % elapsed)
+        logprint(LOG, 'Done with preparations')
+        logprint_nots(LOG, '%s elapsed' % elapsed)
         print('')
 
 if __name__ == '__main__':
