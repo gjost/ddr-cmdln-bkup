@@ -345,6 +345,37 @@ def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path
     cmd = '\n'.join(lines)
     return cmd
 
+def run_filterbranch( repo_path, exclusion_list_path ):
+    """Run git filter-branch in a subprocess.
+    
+    @param repo_path: Absolute path to repository.
+    @param exclusion_list_path: Absolute path to exclusion list file.
+    """
+    print(repo_path)
+    os.chdir(repo_path)
+    cmd = 'cd %s/ ; git filter-branch -d /dev/shm/git --prune-empty --index-filter "sh %s" HEAD' % (repo_path, exclusion_list_path)
+    print(cmd)
+    r = envoy.run(cmd, timeout=60)
+    envoy.run(cmd, timeout=60)
+    #print('r.status_code: %s' % r.status_code)
+    #print('r.std_out: %s' % r.std_out)
+    #print('r.std_err: %s' % r.std_err)
+    assert False
+
+def clone_public( tmp_repo_path, public_repo_path ):
+    """Clones TEMP repository into PUBLIC.
+    
+    @param tmp_repo_path: Absolute path to temporary repo.
+    @param public_repo_path: Absolute path to final public repo.
+    @returns public_repo: The final public repo (GitPython Repository)
+    """
+    public_repo = git.Repo.clone_from(tmp_repo_path, public_repo_path)
+    # git annex init if not already existing
+    if not os.path.exists(os.path.join(dest_path, '.git', 'annex')):
+        public_repo.git.annex('init')
+    public_repo.git.checkout('master')
+    return public_repo
+
 
 # ----------------------------------------------------------------------
 # Filter script excludes dirs/files based on exclusion list.
@@ -461,6 +492,12 @@ def main():
         with open(FILTERBRANCH_SH_PATH, 'w') as f:
             f.write(sh)
         print('Run this command:\n\n sh %s\n' % FILTERBRANCH_SH_PATH)
+        
+        ## run filter-branch in a subprocess
+        #run_filterbranch(dest_path, exclusion_list_path)
+        ## 
+        #public_repo = clone_public(dest_path, public_repo_path)
+        
         # clean up
         
         finished = now()
