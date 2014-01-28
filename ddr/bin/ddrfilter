@@ -301,7 +301,7 @@ def write_exclusion_list( dest_path, exclusion_list, filename ):
 # ----------------------------------------------------------------------
 # Run git-filter-branch on the exclusion list
 
-def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path, filterbranch_ok_path=None, rm_temp_repo=False ):
+def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path, keep_temp_repo=True ):
     """Run the git-filter-branch command.
     
     Reference:
@@ -313,8 +313,11 @@ def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path
     @param exclusion_list_path
     @param public_repo_path
     @param filterbranch_ok_path
+    @param keep_temp_repo
+    @returns: shell script
     """
     tmp_repo_parent_dir = os.path.dirname(tmp_repo_path)
+    filterbranch_ok_path = '%s_ok' % tmp_repo_path
     lines = [
         '# %s' % os.path.basename(tmp_repo_path),
         '# This script clones a new repo after running filter-branch as a way to garbage-collect.',
@@ -322,18 +325,26 @@ def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path
         'cd %s ; ' % tmp_repo_path,
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Running git filter-branch"',
         'git filter-branch -d /dev/shm/git --index-filter "sh %s" --prune-empty HEAD && echo "OK" > %s' % (exclusion_list_path, filterbranch_ok_path),
+        'if [ ! -f %s ]; then' % filterbranch_ok_path,
+        '    echo "`date +%Y-%m-%dT%H:%M:%S:%N` - filter-branch error: quitting."',
+        '    exit 1',
+        'fi',
         'cd %s ; ' % tmp_repo_parent_dir,
-        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Cloning to final: %s"' % public_repo_path,
+        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Cloning %s to final: %s"' % (tmp_repo_path, public_repo_path),
         'git clone --no-hardlinks %s %s' % (tmp_repo_path, public_repo_path),
         'cd %s ; ' % public_repo_path,
-        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Remotes"',
+        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Remotes for %s"' % public_repo_path,
         'git remote -v',
-        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Initializing annex in final"',
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Initializing annex"',
         'git annex init',
-        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Getting files..."',
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Getting public files..."',
         'git annex get .',
     ]
-    if rm_temp_repo:
+    if keep_temp_repo:
+        lines = lines + [
+            'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Keeping temp repo %s"' % tmp_repo_path,
+        ]
+    else:
         lines = lines + [
             'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Removing temp repo %s"' % tmp_repo_path,
             'sudo rm -Rf %s' % tmp_repo_path,
@@ -414,6 +425,7 @@ def main():
     parser.add_argument('-a', '--access', action='store_const', const=1, help='git-annex copy access files.')
     parser.add_argument('-d', '--destdir', help='Absolute path to directory in which new repository will be placed.')
     parser.add_argument('-s', '--source', required=True, help='Absolute path to source repository.')
+    parser.add_argument('-k', '--keeptmp', action='store_const', const=1, help='Keep temporary files.')
     args = parser.parse_args()
     
     # check args
@@ -486,9 +498,8 @@ def main():
             sys.exit(1)
         
         # print git-filter-branch to a shell script
-        FILTERBRANCH_OK_PATH = os.path.join(os.path.dirname(dest_path), 'FILTER_ok')
         FILTERBRANCH_SH_PATH = os.path.join(os.path.dirname(dest_path), '%s.sh' % os.path.basename(dest_path))
-        sh = mk_filterbranch_script(dest_path, exclusion_list_path, public_repo_path, FILTERBRANCH_OK_PATH)
+        sh = mk_filterbranch_script(dest_path, exclusion_list_path, public_repo_path, keep_temp_repo=args.keeptmp)
         with open(FILTERBRANCH_SH_PATH, 'w') as f:
             f.write(sh)
         print('Run this command:\n\n sh %s\n' % FILTERBRANCH_SH_PATH)
