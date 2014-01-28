@@ -301,43 +301,48 @@ def write_exclusion_list( dest_path, exclusion_list, filename ):
 # ----------------------------------------------------------------------
 # Run git-filter-branch on the exclusion list
 
-def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, filterbranch_ok_path=None ):
+def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path, filterbranch_ok_path=None, rm_temp_repo=False ):
     """Run the git-filter-branch command.
     
     Reference:
     https://jonmccune.wordpress.com/2012/06/17/code-release-history-and-aesthetics-with-git-filter-branch-and-friends/
     
+    For some reason, the filter-branch command will work in a shell script but not in a subprocess.
+    
     @param tmp_repo_path
     @param exclusion_list_path
+    @param public_repo_path
     @param filterbranch_ok_path
     """
     tmp_repo_parent_dir = os.path.dirname(tmp_repo_path)
-    final_repo_path = tmp_repo_path.replace('FILTER', 'PUBLIC')
-    
     lines = [
         '# %s' % os.path.basename(tmp_repo_path),
-        '# This sequence clones a new repo after running filter-branch as a way to garbage-collect.',
-        '# IMPORTANT: Must not be run as ddr user -- requires sudo to delete filtering_* annex files.',
+        '# This script clones a new repo after running filter-branch as a way to garbage-collect.',
+        '# IMPORTANT: Run as sudo-capable user -- sudo is required to delete filtering_* annex files.',
         'cd %s ; ' % tmp_repo_path,
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Running git filter-branch"',
         'git filter-branch -d /dev/shm/git --index-filter "sh %s" --prune-empty HEAD && echo "OK" > %s' % (exclusion_list_path, filterbranch_ok_path),
         'cd %s ; ' % tmp_repo_parent_dir,
-        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Cloning to final: %s"' % final_repo_path,
-        'git clone --no-hardlinks %s %s' % (tmp_repo_path, final_repo_path),
-        'cd %s ; ' % final_repo_path,
+        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Cloning to final: %s"' % public_repo_path,
+        'git clone --no-hardlinks %s %s' % (tmp_repo_path, public_repo_path),
+        'cd %s ; ' % public_repo_path,
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Remotes"',
         'git remote -v',
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Initializing annex in final"',
         'git annex init',
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Getting files..."',
         'git annex get .',
-#        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Removing temp repo %s"' % tmp_repo_path,
-#        'sudo rm -Rf %s' % tmp_repo_path,
+    ]
+    if rm_temp_repo:
+        lines = lines + [
+            'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Removing temp repo %s"' % tmp_repo_path,
+            'sudo rm -Rf %s' % tmp_repo_path,
+        ]
+    lines = lines + [
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - DONE"',
         '',
         ]
     cmd = '\n'.join(lines)
-
     return cmd
 
 
@@ -395,8 +400,9 @@ def main():
         sys.exit(1)
     
     else:
-        # check args
         dest_path = mk_dest_path(args.source, args.destdir, 'FILTER')
+        public_repo_path = dest_path.replace('FILTER', 'PUBLIC')
+        
         if os.path.exists(dest_path):
             print('ddrfilter: error: Destination path already exists! (%s)' % dest_path)
             sys.exit(1)
@@ -448,10 +454,10 @@ def main():
             print('ddrfilter: error: Failed to write exclusion list.')
             sys.exit(1)
         
-        # run git-filter-branch
+        # print git-filter-branch to a shell script
         FILTERBRANCH_OK_PATH = os.path.join(os.path.dirname(dest_path), 'FILTER_ok')
         FILTERBRANCH_SH_PATH = os.path.join(os.path.dirname(dest_path), '%s.sh' % os.path.basename(dest_path))
-        sh = mk_filterbranch_script(dest_path, exclusion_list_path, FILTERBRANCH_OK_PATH)
+        sh = mk_filterbranch_script(dest_path, exclusion_list_path, public_repo_path, FILTERBRANCH_OK_PATH)
         with open(FILTERBRANCH_SH_PATH, 'w') as f:
             f.write(sh)
         print('Run this command:\n\n sh %s\n' % FILTERBRANCH_SH_PATH)
