@@ -78,17 +78,17 @@ def annex_get( path ):
 # Clone repository, prepending "filtering" to repo directory name
 # (e.g. "ddr-densho-123" -> "filtering_ddr-densho-123")
 
-def mk_dest_path( source, destdir, status ):
+def mk_filter_repo_path( source, destdir, status ):
     """
     @param source: Absolute path to source collection repository.
-    @param destdir: Absolute path to destination dir.
+    @param destdir: Absolute path to filter_repo dir.
     @param status: Current status in the process
-    @returns: Absolute path to destination repository dir.
+    @returns: Absolute path to filter repository dir.
     """
     srccid = os.path.basename(source)
     destcid = '%s_%s' % (status, srccid)
-    dest_path = os.path.join(destdir, destcid)
-    return dest_path
+    path = os.path.join(destdir, destcid)
+    return path
 
 def clone( source, dest_path ):
     """Clones source repository into destdir.
@@ -275,30 +275,30 @@ def all_nonpublic_files( nonpublic_json_paths ):
         elif is_file_json(p):       paths.append(nonpublic_file(p))
     return paths
 
-def make_exclusion_list( dest_path ):
+def make_exclusion_list( path ):
     """Makes list of paths to be excluded from the repository.
     
-    @param dest_path
+    @param path
     @returns: List of relative paths to private files/dirs.
     """
-    files_json = list_json_files(dest_path)
+    files_json = list_json_files(path)
     nonpublic_json = nonpublic_json_files(files_json)
     exclusion_list = all_nonpublic_files(nonpublic_json)
     exclusion_list.sort()
     # make paths relative
-    for n,path in enumerate(exclusion_list):
-        exclusion_list[n] = path.replace(dest_path, '')[1:]
+    for n,filepath in enumerate(exclusion_list):
+        exclusion_list[n] = filepath.replace(path, '')[1:]
     return exclusion_list
 
-def write_exclusion_list( dest_path, exclusion_list, filename ):
+def write_exclusion_list( path, exclusion_list, filename ):
     """Writes exclusion list to the specified directory.
     
-    @param dest_path
+    @param path
     @param exclusion_list
     @param filename
     @return: filename if ok, 1 if not
     """
-    fname = os.path.join(os.path.dirname(dest_path), filename)
+    fname = os.path.join(os.path.dirname(path), filename)
     #cmd = 'git rm -rf %s\n'
     cmd = 'git rm -qrf --cached --ignore-unmatch %s ;\\\n'
     #cmd = 'git rm -rf --cached --ignore-unmatch %s ;\\\n'
@@ -455,19 +455,22 @@ def main():
         sys.exit(1)
     
     else:
-        dest_path = mk_dest_path(args.source, args.destdir, 'FILTER')
-        public_repo_path = dest_path.replace('FILTER', 'PUBLIC')
-        LOG = '%s.log' % dest_path
+        FILTER_REPO_PATH = mk_filter_repo_path(args.source, args.destdir, 'FILTER')
+        PUBLIC_REPO_PATH = FILTER_REPO_PATH.replace('FILTER', 'PUBLIC')
+        LOG = '%s.log' % FILTER_REPO_PATH
         
-        if os.path.exists(dest_path):
-            print('ddrfilter: error: Destination path already exists! (%s)' % dest_path)
+        if os.path.exists(FILTER_REPO_PATH):
+            print('ddrfilter: error: Destination path already exists! (%s)' % FILTER_REPO_PATH)
+            sys.exit(1)
+        if os.path.exists(PUBLIC_REPO_PATH):
+            print('ddrfilter: error: Destination path already exists! (%s)' % PUBLIC_REPO_PATH)
             sys.exit(1)
         
         started = now()
         logprint(LOG, 'Starting filter')
         
-        logprint(LOG, 'Cloning %s to %s' % (args.source, dest_path))
-        repo = clone(args.source, dest_path)
+        logprint(LOG, 'Cloning %s to %s' % (args.source, FILTER_REPO_PATH))
+        repo = clone(args.source, FILTER_REPO_PATH)
         if not repo:
             logprint(LOG, 'ddrfilter: error: Could not clone repository!')
             sys.exit(1)
@@ -479,7 +482,7 @@ def main():
         
         for level in file_levels:
             logprint(LOG, 'Getting %s files...' % (level))
-            files = annex_list(dest_path, level)
+            files = annex_list(FILTER_REPO_PATH, level)
             fstarted = datetime.now()
             for n,fname in enumerate(files):
                 annex_get(repo, fname)
@@ -495,12 +498,12 @@ def main():
             sys.exit(1)
         
         logprint(LOG, 'Generating exclusion list...')
-        exclusion_list = make_exclusion_list(dest_path)
+        exclusion_list = make_exclusion_list(FILTER_REPO_PATH)
         logprint_nots(LOG, '    The following files will be excluded from the public repository:')
         for p in exclusion_list:
             logprint_nots(LOG, '    %s' % p)
 
-        exclusion_list_path = write_exclusion_list(dest_path,
+        exclusion_list_path = write_exclusion_list(FILTER_REPO_PATH,
                                                    exclusion_list,
                                                    'FILTER_%s_exclusions' % os.path.basename(args.source))
         if os.path.exists(exclusion_list_path):
@@ -510,16 +513,16 @@ def main():
             sys.exit(1)
         
         # print git-filter-branch to a shell script
-        FILTERBRANCH_SH_PATH = os.path.join(os.path.dirname(dest_path), '%s.sh' % os.path.basename(dest_path))
-        sh = mk_filterbranch_script(dest_path, exclusion_list_path, public_repo_path, keep_temp_repo=args.keeptmp)
+        FILTERBRANCH_SH_PATH = os.path.join(os.path.dirname(FILTER_REPO_PATH), '%s.sh' % os.path.basename(FILTER_REPO_PATH))
+        sh = mk_filterbranch_script(FILTER_REPO_PATH, exclusion_list_path, PUBLIC_REPO_PATH, keep_temp_repo=args.keeptmp)
         with open(FILTERBRANCH_SH_PATH, 'w') as f:
             f.write(sh)
         print('Run this command:\n\n    sh %s | tee -a %s\n' % (FILTERBRANCH_SH_PATH, LOG))
         
         ## run filter-branch in a subprocess
-        #run_filterbranch(dest_path, exclusion_list_path)
+        #run_filterbranch(FILTER_REPO_PATH, exclusion_list_path)
         ## 
-        #public_repo = clone_public(dest_path, public_repo_path)
+        #public_repo = clone_public(FILTER_REPO_PATH, PUBLIC_REPO_PATH)
         
         # clean up
         
