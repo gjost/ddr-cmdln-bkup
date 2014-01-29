@@ -254,8 +254,10 @@ def nonpublic_json_files( json_files ):
 
 def nonpublic_collection( path ):
     """Excludes the whole collection directory.
+    @param path: Absolute path to collection.json
+    @returns: directory containing collection
     """
-    assert False
+    return '%s/' % os.path.dirname(path)
 def nonpublic_entity( path ):
     """Excludes the whole entity directory.
     
@@ -290,6 +292,8 @@ def all_nonpublic_files( nonpublic_json_paths ):
 def make_exclusion_list( path ):
     """Makes list of paths to be excluded from the repository.
     
+    Appends 'COLLECTION' to list if collection is marked unpublishable.
+    
     @param path
     @returns: List of relative paths to private files/dirs.
     """
@@ -299,7 +303,11 @@ def make_exclusion_list( path ):
     exclusion_list.sort()
     # make paths relative
     for n,filepath in enumerate(exclusion_list):
-        exclusion_list[n] = filepath.replace(path, '')[1:]
+        if filepath[:-1] == path:
+            # the collection itself is private or incomplete
+            exclusion_list[n] = 'COLLECTION'
+        else:
+            exclusion_list[n] = filepath.replace(path, '')[1:]
     return exclusion_list
 
 def write_exclusion_list( path, exclusion_list, filename ):
@@ -487,6 +495,22 @@ def main():
             logprint(LOG, 'ddrfilter: error: Could not clone repository!')
             sys.exit(1)
         
+        logprint(LOG, 'Generating exclusion list...')
+        exclusion_list = make_exclusion_list(FILTER_REPO_PATH)
+        if 'COLLECTION' in exclusion_list:
+            logprint(LOG, 'Collection is private or incomplete.')
+            sys.exit(1)
+        logprint_nots(LOG, '    The following files will be excluded from the public repository:')
+        for p in exclusion_list:
+            logprint_nots(LOG, '    %s' % p)
+        exclusion_list_path = write_exclusion_list(
+            FILTER_REPO_PATH, exclusion_list, 'FILTER_%s_exclusions' % os.path.basename(args.source))
+        if os.path.exists(exclusion_list_path):
+            logprint(LOG, 'Wrote exclusion list %s' % exclusion_list_path)
+        else:
+            logprint(LOG, 'ddrfilter: error: Failed to write exclusion list.')
+            sys.exit(1)
+        
         file_levels = []
         if args.access: file_levels.append('access')
         if args.mezzanine: file_levels.append('mezzanine')
@@ -507,21 +531,6 @@ def main():
         rm_remotes_status = rm_remotes(repo)
         if rm_remotes_status:
             logprint(LOG, 'ddrfilter: error: Failed to remove one or more remotes: %s' % rm_remotes_status)
-            sys.exit(1)
-        
-        logprint(LOG, 'Generating exclusion list...')
-        exclusion_list = make_exclusion_list(FILTER_REPO_PATH)
-        logprint_nots(LOG, '    The following files will be excluded from the public repository:')
-        for p in exclusion_list:
-            logprint_nots(LOG, '    %s' % p)
-
-        exclusion_list_path = write_exclusion_list(FILTER_REPO_PATH,
-                                                   exclusion_list,
-                                                   'FILTER_%s_exclusions' % os.path.basename(args.source))
-        if os.path.exists(exclusion_list_path):
-            logprint(LOG, 'Wrote exclusion list %s' % exclusion_list_path)
-        else:
-            logprint(LOG, 'ddrfilter: error: Failed to write exclusion list.')
             sys.exit(1)
         
         # print git-filter-branch to a shell script
