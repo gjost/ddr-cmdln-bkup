@@ -371,6 +371,9 @@ def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path
         'git annex init',
         'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Getting public files..."',
         'git annex get .',
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Cleaning up work files"',
+        'rm %s' % exclusion_list_path,
+        'rm %s' % filterbranch_ok_path,
     ]
     if keep_temp_repo:
         lines = lines + [
@@ -378,7 +381,6 @@ def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path
         ]
     else:
         lines = lines + [
-            'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Removing temp repo %s"' % tmp_repo_path,
             'sudo rm -Rf %s' % tmp_repo_path,
         ]
     lines = lines + [
