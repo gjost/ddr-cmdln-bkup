@@ -470,12 +470,18 @@ def main():
         print('ddrfilter: error: Source and destdir are the same!')
         sys.exit(1)
     
-    if args.list:
-        # Just generate exclusion list
-        print('%s Generating exclusion list from %s' % (dtfmt(now()), args.source))
-        exclusion_list = make_exclusion_list(args.source)
-        sys.exit(1)
+    exclusion_list = make_exclusion_list(args.source)
     
+    if args.list:
+        # print list info to console and exit
+        if 'COLLECTION' in exclusion_list:
+            print('Collection is private or incomplete.')
+            sys.exit(1)
+        print('The following files will be excluded from the public repository:')
+        for p in exclusion_list:
+            print('    %s' % p)
+        sys.exit(1)
+        
     else:
         FILTER_REPO_PATH = mk_filter_repo_path(args.source, args.destdir, 'FILTER')
         PUBLIC_REPO_PATH = FILTER_REPO_PATH.replace('FILTER', 'PUBLIC')
@@ -488,17 +494,6 @@ def main():
             print('ddrfilter: error: Destination path already exists! (%s)' % PUBLIC_REPO_PATH)
             sys.exit(1)
         
-        started = now()
-        logprint(LOG, 'Starting filter')
-        
-        logprint(LOG, 'Cloning %s to %s' % (args.source, FILTER_REPO_PATH))
-        repo = clone(args.source, FILTER_REPO_PATH)
-        if not repo:
-            logprint(LOG, 'ddrfilter: error: Could not clone repository!')
-            sys.exit(1)
-        
-        logprint(LOG, 'Generating exclusion list...')
-        exclusion_list = make_exclusion_list(FILTER_REPO_PATH)
         if 'COLLECTION' in exclusion_list:
             logprint(LOG, 'Collection is private or incomplete.')
             sys.exit(1)
@@ -511,6 +506,15 @@ def main():
             logprint(LOG, 'Wrote exclusion list %s' % exclusion_list_path)
         else:
             logprint(LOG, 'ddrfilter: error: Failed to write exclusion list.')
+            sys.exit(1)
+        
+        started = now()
+        logprint(LOG, 'Starting filter')
+        
+        logprint(LOG, 'Cloning %s to %s' % (args.source, FILTER_REPO_PATH))
+        repo = clone(args.source, FILTER_REPO_PATH)
+        if not repo:
+            logprint(LOG, 'ddrfilter: error: Could not clone repository!')
             sys.exit(1)
         
         file_levels = []
