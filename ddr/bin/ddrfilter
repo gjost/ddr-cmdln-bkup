@@ -185,12 +185,12 @@ def is_file_json( path ):
             return True
     return False
 
-def is_public( json_path ):
-    """Indicates whether the Collection or Entity is public.
+def is_publishable( json_path ):
+    """Indicates whether the Collection or Entity is public and complete.
     
-    Specifically, indicates whether metadata file contains public=1 value.
+    Specifically, indicates whether metadata file contains both
+    the public=1 value and the status=completed value.
     DDR metadata .json files consist of a list of dicts.
-    'Public' is indicated by a '1' str.
     
     @param path: Absolute path to *.json file.
     @returns: True or False
@@ -199,16 +199,24 @@ def is_public( json_path ):
     with open(json_path, 'r') as f:
         data = json.loads(f.read())
     if data:
+        public = False
+        completed = False
         for field in data:
             if ((u'public' in field.keys()) or ('public' in field.keys())):
                 if int(field['public']):
-                    return True
+                    public = True
+            if ((u'status' in field.keys()) or ('status' in field.keys())):
+                if field['status'] == 'completed':
+                    completed = True
+        if public and completed:
+            return True
     return False
 
-def is_public_file( json_path ):
+def is_publishable_file( json_path ):
     """Indicates whether the File is public.
     
-    See is_public for details.
+    See is_publishable for details.
+    Note: Files don't have "status" field.
     
     @param path: Absolute path to *.json file.
     @returns: True or False
@@ -217,23 +225,26 @@ def is_public_file( json_path ):
     with open(json_path, 'r') as f:
         data = json.loads(f.read())
     if data:
+        public = False
         for field in data:
             if ((u'public' in field.keys()) or ('public' in field.keys())):
                 if int(field['public']):
-                    return True
+                    public = True
+        if public:
+            return True
     return False
 
 def nonpublic_json_files( json_files ):
     paths = []
     for path in json_files:
         if   is_collection_json(path):
-            if not is_public(path):
+            if not is_publishable(path):
                 paths.append(path)
         elif is_entity_json(path):
-            if not is_public(path):
+            if not is_publishable(path):
                 paths.append(path)
         elif is_file_json(path):
-            if not is_public_file(path):
+            if not is_publishable_file(path):
                 paths.append(path)
         else:
             print('UNKNOWN FILE TYPE')
