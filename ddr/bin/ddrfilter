@@ -12,8 +12,35 @@ http://www.snip2code.com/Snippet/10557/To-remove-files-from-git-history-after-t/
 http://www.bioperl.org/wiki/Using_Git/Advanced#Prepare_list_of_files_to_be_removed
 """
 
-description = """Filters a collection for publication."""
-epilog = """More things to say about filter-branch."""
+description = """Filters a collection repository for publication; it completely removes items that are non-public or incomplete."""
+
+epilog = """ddrfilter is a wrapper around the git filter-branch command, which steps through all the commits in a repository's history, running a filter at each step.  This is a destructive operation.  It results in a new repository that contains only the public items from the original, and is thus technically a separate repository.  This new public repository must be kept separate to avoid deleting private items from the original.
+
+ddrfilter makes a list of items in the original repository that are to be removed, then makes a clone of the repository and its files.  Once it has made the clone it removes the clone's git remotes; this prevents accidental pulls and pushes between the new repository and the original.  The git filter-branch command is then run and non-public items are removed from the repository.
+
+EXAMPLES
+
+    # List files to be excluded and quit.
+    $ ddrfilter -l -s /PATH/TO/REPOSITORY/ddr-testing-123
+
+    # Run the filter, copying master, mezzanine, and access files.
+    $ ddrfilter -Mma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+
+    # Run the filter, copying master, mezzanine, and access files and keeping the temporary repository.
+    $ ddrfilter -k -Mma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+
+    # Run the filter, copying only the mezzanine and access files.
+    $ ddrfilter -ma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+
+Due to peculiarities of git filter-branch and to time pressures, the operation is broken up into two phases.  The first phase is this Python command, which does the initial work and then generates a shell script which finishes the job.  The actual filtering is done in the shell script.  Both scripts write to the log file.
+
+At the end the following files will be present in the destination directory:
+
+    FILTER_ddr-testing-141             # temporary repository (by default this is removed)
+    FILTER_ddr-testing-141.sh          # phase II shell script
+    FILTER_ddr-testing-141.log         # log file for both phases of the operation
+    PUBLIC_ddr-testing-141             # final public repository
+"""
 
 import argparse
 import ConfigParser
@@ -450,7 +477,7 @@ def wrap_up():
 
 def main():
 
-    parser = argparse.ArgumentParser(description=description, epilog=epilog)
+    parser = argparse.ArgumentParser(description=description, epilog=epilog, formatter_class=argparse.RawDescriptionHelpFormatter)
     #parser.add_argument('-n', '--noclone', help='Do not clone.')
     #parser.add_argument('--inner', help="Run inner-loop commands.")
     parser.add_argument('-l', '--list', action='store_const', const=1, help='Generate exclusion list from source repository.')
