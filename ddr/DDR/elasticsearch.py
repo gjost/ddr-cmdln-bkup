@@ -6,6 +6,8 @@ import os
 import envoy
 import requests
 
+MAX_SIZE = 1000000
+
 
 def _clean_dict(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
@@ -44,7 +46,6 @@ def _metadata_files(dirname):
                 if not exclude:
                     paths.append(path)
     return paths
-
 
 
 def settings(host):
@@ -231,7 +232,28 @@ def delete_index(host, index):
     r = requests.delete(url)
     return r.status_code
 
-def query(host, index='ddr', model=None, query='', filters={}, sort=[]):
+def get(host, index, model, id):
+    """GET a single document.
+    
+    GET http://192.168.56.101:9200/ddr/collection/{repo}-{org}-{cid}
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param model: Type of object ('collection', 'entity', 'file')
+    @param id: object ID
+    """
+    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
+    headers = {'content-type': 'application/json'}
+    r = requests.get(url, headers=headers)
+    data = json.loads(r.text)
+    if data.get('exists', False):
+        hits = []
+        if data and data.get('_source', None) and data['_source'].get('d', None):
+            hits = data['_source']['d']
+        return hits
+    return None
+
+def query(host, index='ddr', model=None, query='', filters={}, sort='', fields='', size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.
     
     curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
@@ -242,6 +264,8 @@ def query(host, index='ddr', model=None, query='', filters={}, sort=[]):
     @param query: User's search text
     @param filters: dict
     @param sort: dict
+    @param fields: str
+    @param size: int Number of results to return
     @returns list of hits (dicts)
     """
     _clean_dict(filters)
@@ -252,11 +276,10 @@ def query(host, index='ddr', model=None, query='', filters={}, sort=[]):
     else:
         url = 'http://%s/%s/_search?q=%s&pretty=true' % (host, index, query)
     
-    payload = {}
-    if filters:
-        payload['filter'] = {'term':filters}
-    if sort:
-        payload['sort'] = [sort]
+    payload = {'size':size,}
+    if fields:  payload['fields'] = fields
+    if filters: payload['filter'] = {'term':filters}
+    if sort:    payload['sort'  ] = sort
     logger.debug(str(payload))
     
     headers = {'content-type': 'application/json'}
