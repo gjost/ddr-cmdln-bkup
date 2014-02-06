@@ -297,9 +297,9 @@ def query(host, index='ddr', model=None, query='', filters={}, sort='', fields='
     _clean_dict(sort)
     
     if model and query:
-        url = 'http://%s/%s/%s/_search?q=%s&pretty=true' % (host, index, model, query)
+        url = 'http://%s/%s/%s/_search?q=%s' % (host, index, model, query)
     else:
-        url = 'http://%s/%s/_search?q=%s&pretty=true' % (host, index, query)
+        url = 'http://%s/%s/_search?q=%s' % (host, index, query)
     
     payload = {'size':size,}
     if fields:  payload['fields'] = fields
