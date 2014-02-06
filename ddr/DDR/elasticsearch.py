@@ -8,6 +8,8 @@ import requests
 
 MAX_SIZE = 1000000
 
+HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/es-mappings.json'
+
 
 def _clean_dict(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
@@ -70,6 +72,41 @@ def status(host):
     r = requests.get(url)
     return json.loads(r.text)
 
+def create_index(host, index):
+    """Create the specified index.
+    
+    curl -XPOST 'http://localhost:9200/twitter/' -d @mappings.json
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @return status code
+    """
+    logger.debug('delete_index(%s, %s)' % (host, index))
+    url = 'http://%s/%s/' % (host, index)
+    with open(HARD_CODED_MAPPINGS_PATH, 'r') as f:
+        data = json.loads(f.read())
+    logger.debug('mappings: %s' % data)
+    payload = json.dumps({'d': data})
+    headers = {'content-type': 'application/json'}
+    r = requests.put(url, data=payload, headers=headers)
+    logger.debug('%s %s' % (r.status_code, r.text))
+    return r.status_code
+
+def delete_index(host, index):
+    """Delete the specified index.
+    
+    curl -XDELETE 'http://localhost:9200/twitter/'
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @return status code
+    """
+    logger.debug('delete_index(%s, %s)' % (host, index))
+    url = 'http://%s/%s/' % (host, index)
+    r = requests.delete(url)
+    logger.debug('%s %s' % (r.status_code, r.text))
+    return r.status_code
+
 def index_exists(host, index):
     """Indicates whether the given ElasticSearch index exists.
     
@@ -118,7 +155,7 @@ def document_exists(host, index, model, id):
         return True
     return False
 
-def add_document(path, host, index, model):
+def put_document(path, host, index, model):
     """Add a new document to an index or update an existing one.
     
     curl -XPUT 'http://localhost:9200/ddr/collection/ddr-testing-141' -d '{ ... }'
@@ -129,54 +166,75 @@ def add_document(path, host, index, model):
     @param model: Type of object ('collection', 'entity', 'file')
     @return 0 if successful, status code if not.
     """
-    logger.debug('add_document(%s, %s, %s, %s)' % (path, index, model, path))
+    logger.debug('put_document(%s, %s, %s, %s)' % (path, index, model, path))
     if not os.path.exists(path):
         return 1
     headers = {'content-type': 'application/json'}
     with open(path, 'r') as f:
-        data = json.loads(f.read())
-    _clean_payload(data)
+        filedata = json.loads(f.read())
+    _clean_payload(filedata)
+    
+    # restructure from list-of-fields dict to a straight dict
+    data = {}
+    for field in filedata:
+        for k,v in field.iteritems():
+            data[k] = v
     
     if model in ['collection', 'entity']:
-        if not (data and data[1].get('id', None)):
+        if not (data and data.get('id', None)):
             return 2
-        cid = None
-        for field in data:
-            if field.get('id',None):
-                cid = field['id']
+        cid = data['id']
         url = 'http://%s/%s/%s/%s' % (host, index, model, cid)
         
     elif model in ['file']:
-        if not (data and data[1].get('path_rel', None)):
+        if not (data and data.get('path_rel', None)):
             return 2
         filename = None
-        basename_orig = None
-        label = None
-        for field in data:
-            if field.get('path_rel',None):
-                filename,extension = os.path.splitext(field['path_rel'])
-            if field.get('basename_orig', None):
-                basename_orig = field['basename_orig']
-            if field.get('label', None):
-                label = field['label']
+        extension = None
+        if data.get('path_rel',None):
+            filename,extension = os.path.splitext(data['path_rel'])
+        basename_orig = data.get('basename_orig', None)
+        label = data.get('label', None)
         if basename_orig and not label:
             label = basename_orig
         elif filename and not label:
             label = filename
-        data.append({'id': filename})
-        data.append({'title': label})
+        data['id'] = filename
+        data['title'] = label
         url = 'http://%s/%s/%s/%s' % (host, index, model, filename)
         
     else:
         url = None
-        
+    
     if url:
         payload = json.dumps({'d': data})
         logger.debug(url)
-        logger.debug(payload)
+        #logger.debug(payload)
         r = requests.put(url, data=payload, headers=headers)
+        logger.debug('%s %s' % (r.status_code, r.text))
         return r.status_code
     return 3
+
+def get_document(host, index, model, id):
+    """GET a single document.
+    
+    GET http://192.168.56.101:9200/ddr/collection/{repo}-{org}-{cid}
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param model: Type of object ('collection', 'entity', 'file')
+    @param id: object ID
+    """
+    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
+    headers = {'content-type': 'application/json'}
+    r = requests.get(url, headers=headers)
+    data = json.loads(r.text)
+    if data.get('exists', False):
+        hits = []
+        if data and data.get('_source', None) and data['_source'].get('d', None):
+            hits = data['_source']['d']
+        return hits
+    return None
 
 def delete_document(host, index, model, id):
     """Delete specified document from the index.
@@ -200,8 +258,10 @@ def index(dirname, host, index, paths=None):
     @param index: Name of the target index.
     """
     logger.debug('index(%s, %s)' % (host, index))
+    
     if not paths:
         paths = _metadata_files(dirname)
+    
     for path in paths:
         model = None
         if 'collection.json' in path:
@@ -212,46 +272,11 @@ def index(dirname, host, index, paths=None):
             model = 'file'
         if path and index and model:
             print('adding %s' % path)
-            status = add_document(path, host, index, model)
+            status = put_document(path, host, index, model)
             print(status)
-            logger.debug('%s: %s' % (model, path))
         else:
             logger.error('missing information!: %s' % path)
     logger.debug('INDEXING COMPLETED')
-
-def delete_index(host, index):
-    """Delete the specified index.
-    
-    curl -XDELETE 'http://localhost:9200/twitter/'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @return status code
-    """
-    url = 'http://%s/%s/' % (host, index)
-    r = requests.delete(url)
-    return r.status_code
-
-def get(host, index, model, id):
-    """GET a single document.
-    
-    GET http://192.168.56.101:9200/ddr/collection/{repo}-{org}-{cid}
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param id: object ID
-    """
-    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
-    headers = {'content-type': 'application/json'}
-    r = requests.get(url, headers=headers)
-    data = json.loads(r.text)
-    if data.get('exists', False):
-        hits = []
-        if data and data.get('_source', None) and data['_source'].get('d', None):
-            hits = data['_source']['d']
-        return hits
-    return None
 
 def query(host, index='ddr', model=None, query='', filters={}, sort='', fields='', size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.
@@ -266,7 +291,7 @@ def query(host, index='ddr', model=None, query='', filters={}, sort='', fields='
     @param sort: dict
     @param fields: str
     @param size: int Number of results to return
-    @returns list of hits (dicts)
+    @returns raw ElasticSearch query output
     """
     _clean_dict(filters)
     _clean_dict(sort)
@@ -284,8 +309,4 @@ def query(host, index='ddr', model=None, query='', filters={}, sort='', fields='
     
     headers = {'content-type': 'application/json'}
     r = requests.post(url, data=json.dumps(payload), headers=headers)
-    data = json.loads(r.text)
-    hits = []
-    if data and data.get('hits', None):
-        hits = data['hits']['hits']
-    return hits
+    return json.loads(r.text)
