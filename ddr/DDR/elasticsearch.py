@@ -310,3 +310,67 @@ def query(host, index='ddr', model=None, query='', filters={}, sort='', fields='
     headers = {'content-type': 'application/json'}
     r = requests.post(url, data=json.dumps(payload), headers=headers)
     return json.loads(r.text)
+
+def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
+    """Gets list of terms for the facet.
+    
+    $ curl -XGET 'http://192.168.56.101:9200/ddr/entity/_search?format=yaml' -d '{
+      "fields": ["id"],
+      "query": { "match_all": {} },
+      "facets": {
+        "genre_facet_result": {
+          "terms": {
+            "order": "count",
+            "field": "genre"
+          }
+        }
+      }
+    }'
+    Sample results:
+        {
+          u'_type': u'terms',
+          u'missing': 203,
+          u'total': 49,
+          u'other': 6,
+          u'terms': [
+            {u'term': u'photograph', u'count': 14},
+            {u'term': u'ephemera', u'count': 6},
+            {u'term': u'advertisement', u'count': 6},
+            {u'term': u'book', u'count': 5},
+            {u'term': u'architecture', u'count': 3},
+            {u'term': u'illustration', u'count': 2},
+            {u'term': u'fieldnotes', u'count': 2},
+            {u'term': u'cityscape', u'count': 2},
+            {u'term': u'blank_form', u'count': 2},
+            {u'term': u'portrait, u'count': 1'}
+          ]
+        }
+
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param facet: Name of field
+    @param order: term, count, reverse_term, reverse_count
+    @param model: (optional) Type of object ('collection', 'entity', 'file')
+    @returns raw output of facet query
+    """
+    if model:
+        url = 'http://%s/%s/%s/_search?' % (host, index, model)
+    else:
+        url = 'http://%s/%s/_search?format=pretty' % (host, index)
+    payload = {
+        "fields": ["id"],
+        "query": { "match_all": {} },
+        "facets": {
+            "results": {
+                "terms": {
+                    "order": order,
+                    "all_terms": all_terms,
+                    "field": "genre"
+                }
+            }
+        }
+    }
+    headers = {'content-type': 'application/json'}
+    r = requests.post(url, data=json.dumps(payload), headers=headers)
+    data = json.loads(r.text)
+    return data['facets']['results']
