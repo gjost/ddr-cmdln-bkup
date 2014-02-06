@@ -365,7 +365,7 @@ def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
                 "terms": {
                     "order": order,
                     "all_terms": all_terms,
-                    "field": "genre"
+                    "field": facet
                 }
             }
         }
