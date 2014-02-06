@@ -28,6 +28,39 @@ GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
 
 
+def model_fields( model ):
+    """
+    THIS FUNCTION IS A PLACEHOLDER.
+    It's a step on the way to refactoring (COLLECTION|ENTITY|FILE)_FIELDS.
+    It gives ddr-public a way to know the order of fields until we have a better solution.
+    """
+    models = {
+        'collection': [
+            'id', 'record_created', 'record_lastmod', 'status', 'public', 'title',
+            'unitdateinclusive', 'unitdatebulk', 'creators', 'extent', 'language',
+            'contributor', 'description', 'notes', 'physloc', 'acqinfo', 'custodhist',
+            'accruals', 'processinfo', 'rights', 'accessrestrict', 'userrestrict',
+            'prefercite', 'bioghist', 'scopecontent', 'relatedmaterial', 'separatedmaterial',
+        ],
+        'entity': [
+            'id', 'record_created', 'record_lastmod', 'status', 'public', 'title',
+            'description', 'creation', 'location', 'creators', 'language', 'genre',
+            'format', 'extent', 'contributor', 'alternate_id', 'digitize_person',
+            'digitize_organization', 'digitize_date', 'credit', 'rights',
+            'rights_statement', 'topics', 'persons', 'facility', 'parent', 'notes', 'files',
+        ],
+        'file': [
+            'sha1', 'sha256', 'md5', 'size', 'basename_orig', 'access_rel', 'public',
+            'rights', 'sort', 'thumb', 'label', 'digitize_person', 'tech_notes', 'xmp',
+            'links',
+        ],
+    }
+    if model in models.keys():
+        return models[model]
+    return []
+
+
+
 class Collection( object ):
     path = None
     path_rel = None
