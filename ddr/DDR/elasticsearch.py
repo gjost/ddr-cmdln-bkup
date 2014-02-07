@@ -6,6 +6,8 @@ import os
 import envoy
 import requests
 
+from DDR.models import MODELS_DIR
+
 MAX_SIZE = 1000000
 
 HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/es-mappings.json'
@@ -72,6 +74,35 @@ def status(host):
     r = requests.get(url)
     return json.loads(r.text)
 
+MAPPINGS = {
+    'mappings': {
+        'collection': {
+            '_source': {'enabled': True},
+            'properties': {}
+        },
+        'entity': {
+            '_source': {'enabled': True},
+            'properties': {}
+        },
+        'file': {
+            '_source': {'enabled': True},
+            'properties': {}
+        }
+    }
+}
+
+def _make_mappings():
+    mappings = MAPPINGS
+    for model in ['collection', 'entity', 'file']:
+        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
+        with open(json_path, 'r') as f:
+            data = json.loads(f.read())
+        for field in data:
+            fname = field['name']
+            properties = field['elasticsearch_properties']
+            mappings['mappings'][model]['properties'][fname] = properties
+    return mappings
+
 def create_index(host, index):
     """Create the specified index.
     
@@ -82,11 +113,10 @@ def create_index(host, index):
     @return status code
     """
     logger.debug('delete_index(%s, %s)' % (host, index))
+    mappings = _make_mappings()
+    logger.debug(json.dumps(mappings, indent=4, separators=(',', ': '), sort_keys=True))
     url = 'http://%s/%s/' % (host, index)
-    with open(HARD_CODED_MAPPINGS_PATH, 'r') as f:
-        data = json.loads(f.read())
-    logger.debug('mappings: %s' % data)
-    payload = json.dumps({'d': data})
+    payload = json.dumps({'d': mappings})
     headers = {'content-type': 'application/json'}
     r = requests.put(url, data=payload, headers=headers)
     logger.debug('%s %s' % (r.status_code, r.text))
