@@ -1,5 +1,6 @@
 import ConfigParser
 import hashlib
+import json
 import os
 import re
 
@@ -26,6 +27,7 @@ MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
+MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 
 def model_fields( model ):
@@ -34,29 +36,18 @@ def model_fields( model ):
     It's a step on the way to refactoring (COLLECTION|ENTITY|FILE)_FIELDS.
     It gives ddr-public a way to know the order of fields until we have a better solution.
     """
-    models = {
-        'collection': [
-            'id', 'record_created', 'record_lastmod', 'status', 'public', 'title',
-            'unitdateinclusive', 'unitdatebulk', 'creators', 'extent', 'language',
-            'contributor', 'description', 'notes', 'physloc', 'acqinfo', 'custodhist',
-            'accruals', 'processinfo', 'rights', 'accessrestrict', 'userrestrict',
-            'prefercite', 'bioghist', 'scopecontent', 'relatedmaterial', 'separatedmaterial',
-        ],
-        'entity': [
-            'id', 'record_created', 'record_lastmod', 'status', 'public', 'title',
-            'description', 'creation', 'location', 'creators', 'language', 'genre',
-            'format', 'extent', 'contributor', 'alternate_id', 'digitize_person',
-            'digitize_organization', 'digitize_date', 'credit', 'rights',
-            'rights_statement', 'topics', 'persons', 'facility', 'parent', 'notes', 'files',
-        ],
-        'file': [
-            'sha1', 'sha256', 'md5', 'size', 'basename_orig', 'access_rel', 'public',
-            'rights', 'sort', 'thumb', 'label', 'digitize_person', 'tech_notes', 'xmp',
-            'links',
-        ],
-    }
-    if model in models.keys():
-        return models[model]
+    # TODO model .json files should live in /etc/ddr/models
+    if model in ['collection', 'entity', 'file']:
+        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
+        with open(json_path, 'r') as f:
+            data = json.loads(f.read())
+        fields = []
+        for field in data:
+            f = {'name':field['name'],}
+            if field.get('form',None) and field['form'].get('label',None):
+                f['label'] = field['form']['label']
+            fields.append(f)
+        return fields
     return []
 
 
