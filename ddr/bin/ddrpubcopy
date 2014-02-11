@@ -1,0 +1,155 @@
+#!/usr/bin/env python
+#
+# This file is part of ddr-cmdln/ddr
+#
+#  
+
+description = """Copies binaries from a collection into a destination directory for publication."""
+
+epilog = """This command copies specified types of binaries from a collection to a destination folder.  Destination files are in a very simple hierarchy (just files within a single directory per collection) that is suitable for use by ddr-public.
+
+ddrpubcopy produces a very simple file layout:
+
+    $BASE/$COLLECTION_ID/$FILENAME
+
+IMPORTANT: You are responsible for making sure that the destination base directory is available and writable.
+
+IMPORTANT: This command does not check whether files are published!  Use *after* filtering a collection.
+
+EXAMPLES
+
+     $ ddrpubcopy -amM -c /var/www/media/base/ddr-testing-123 -d /media/USBHARDDRIVE
+
+
+ddr-public - ddrpubcopy"""
+
+import argparse
+import ConfigParser
+from datetime import datetime
+import logging
+import os
+import sys
+
+import envoy
+
+from DDR import CONFIG_FILE
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+
+DEBUG = config.get('local','debug')
+
+#LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+#LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+#LOGGING_FILE = config.get('local','log_file')
+#if config.get('local','log_level') == 'debug':
+#    LOGGING_LEVEL = logging.DEBUG
+#else:
+#    LOGGING_LEVEL = logging.ERROR
+##logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
+#logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
+
+
+def dtfmt(dt):
+    """Consistent date format.
+    """
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+def logprint(filename, msg):
+    """Print to log file and console, with timestamp.
+    """
+    msg = '%s - %s\n' % (dtfmt(datetime.now()), msg)
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def logprint_nots(filename, msg):
+    """Print to log file and console, no timestamp.
+    """
+    msg = '%s\n' % msg
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-c', '--collection', required=True, help='Absolute path to source collection repository.')
+    parser.add_argument('-d', '--destbase', required=True, help='Absolute path to destination base directory.')
+    parser.add_argument('-a', '--access', action='store_const', const=1, help='git-annex copy access files.')
+    parser.add_argument('-m', '--mezzanine', action='store_const', const=1, help='git-annex copy mezzanine files.')
+    parser.add_argument('-M', '--master', action='store_const', const=1, help='git-annex copy master files.')
+    args = parser.parse_args()
+    
+    # check args
+    if args.destbase == args.collection:
+        print('ddrfilter: error: Source and destination are the same!')
+        sys.exit(1)
+    if not (args.access or args.mezzanine or args.master):
+        print('ddrfilter: error: No file type(s) selected!')
+        sys.exit(1)
+    
+    started = datetime.now()
+    LOG = os.path.join(args.destbase, 'ddrpubcopy.log')
+    
+    cid = os.path.basename(args.collection)
+    destdir = os.path.join(args.destbase, cid)
+    logprint(LOG, 'Copying from %s' % args.collection)
+    logprint(LOG, 'Copying to %s' % destdir)
+
+    if args.access:    logprint(LOG, 'Copying access')
+    if args.mezzanine: logprint(LOG, 'Copying mezzanine')
+    if args.master:    logprint(LOG, 'Copying master')
+    
+    
+    # if collection dir doesn't exist in destdir, mkdir
+    if not os.path.exists(destdir):
+        os.makedirs(destdir)
+    
+    os.chdir(args.collection)
+    
+    # git annex find
+    r0 = envoy.run('git annex find')
+    files = r0.std_out.split('\n')
+    
+    for f in files:
+        src = os.path.join(args.collection, f)
+        dest = os.path.join(destdir, f)
+        
+        # guess type
+        ftype = 'UNKNOWN'
+        if   '-a.'    in f: ftype = 'acc'
+        elif 'mezzan' in f: ftype = 'mez'
+        elif 'master' in f: ftype = 'mas'
+        # file type flagged?
+        copy = False
+        if (ftype == 'acc') and args.access   : copy = True
+        if (ftype == 'mez') and args.mezzanine: copy = True
+        if (ftype == 'mas') and args.master:    copy = True
+        
+        if copy:
+            cmd = 'rsync --copy-links %s %s/' % (src, destdir)
+            logprint(LOG, cmd)
+            r1 = envoy.run(cmd)
+            if r1.status_code:
+                logprint(LOG, r1.status_code)
+                logprint(LOG, r1.std_out)
+        
+    finished = datetime.now()
+    elapsed = finished - started
+    logprint(LOG, 'DONE!')
+    logprint_nots(LOG, '%s elapsed' % elapsed)
+    print('')
+
+if __name__ == '__main__':
+    main()
