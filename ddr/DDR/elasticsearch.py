@@ -219,6 +219,19 @@ def index(dirname, host, index, paths=None):
             logger.error('missing information!: %s' % path)
     logger.debug('INDEXING COMPLETED')
 
+def create_index(host, index):
+    """Creates the specified index.
+    
+    curl -XPUT 'http://localhost:9200/twitter/'
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @return status code
+    """
+    url = 'http://%s/%s/' % (host, index)
+    r = requests.put(url)
+    return r.status_code
+
 def delete_index(host, index):
     """Delete the specified index.
     
