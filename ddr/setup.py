@@ -13,6 +13,6 @@ setup(
     packages = ['DDR'],
     package_dir = {'DDR': 'DDR'},
     package_data = {'DDR': ['*.tpl', 'templates/*',]},
-    scripts = ['bin/ddr', 'bin/ddrindex'],
+    scripts = ['bin/ddr', 'bin/ddrfilter', 'bin/ddrindex', 'bin/ddrpubcopy',],
     name = 'ddr'
 )

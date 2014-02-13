@@ -1,0 +1,585 @@
+#!/usr/bin/env python
+#
+# This file is part of ddr-cmdln/ddr
+#
+#  
+
+description = """Filters a collection repository for publication; it completely removes items that are non-public or incomplete."""
+
+epilog = """ddrfilter is a wrapper around the git filter-branch command, which steps through all the commits in a repository's history, running a filter at each step.  This is a destructive operation.  It results in a new repository that contains only the public items from the original, and is thus technically a separate repository.  This new public repository must be kept separate to avoid deleting private items from the original.
+
+ddrfilter makes a list of items in the original repository that are to be removed, then makes a clone of the repository and its files.  Once it has made the clone it removes the clone's git remotes; this prevents accidental pulls and pushes between the new repository and the original.  The git filter-branch command is then run and non-public items are removed from the repository.
+
+EXAMPLES
+
+    # List files to be excluded and quit.
+    $ ddrfilter -l -s /PATH/TO/REPOSITORY/ddr-testing-123
+
+    # Run the filter, copying master, mezzanine, and access files.
+    $ ddrfilter -Mma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+
+    # Run the filter, copying master, mezzanine, and access files and keeping the temporary repository.
+    $ ddrfilter -k -Mma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+
+    # Run the filter, copying only the mezzanine and access files.
+    $ ddrfilter -ma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+
+Due to peculiarities of git filter-branch and to time pressures, the operation is broken up into two phases.  The first phase is this Python command, which does the initial work and then generates a shell script which finishes the job.  The actual filtering is done in the shell script.  Both scripts write to the log file.
+
+At the end the following files will be present in the destination directory:
+
+    FILTER_ddr-testing-141             # temporary repository (by default this is removed)
+    FILTER_ddr-testing-141.sh          # phase II shell script
+    FILTER_ddr-testing-141.log         # log file for both phases of the operation
+    PUBLIC_ddr-testing-141             # final public repository
+"""
+
+# References:
+# https://xrunhprof.wordpress.com/2012/06/14/changing-git-committers-and-authors-with-python/
+# https://jonmccune.wordpress.com/2012/06/17/code-release-history-and-aesthetics-with-git-filter-branch-and-friends/
+# http://www.snip2code.com/Snippet/10557/To-remove-files-from-git-history-after-t/
+# http://www.bioperl.org/wiki/Using_Git/Advanced#Prepare_list_of_files_to_be_removed
+
+
+import argparse
+import ConfigParser
+from datetime import datetime
+import json
+import logging
+import os
+import sys
+
+import envoy
+import git
+
+from DDR import CONFIG_FILE
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+
+DEBUG = config.get('local','debug')
+
+#LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+#LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+#LOGGING_FILE = config.get('local','log_file')
+#if config.get('local','log_level') == 'debug':
+#    LOGGING_LEVEL = logging.DEBUG
+#else:
+#    LOGGING_LEVEL = logging.ERROR
+##logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
+#logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
+
+
+def dtfmt(dt):
+    """Consistent date format.
+    """
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+def logprint(filename, msg):
+    """Print to log file and console, with timestamp.
+    """
+    msg = '%s - %s\n' % (dtfmt(datetime.now()), msg)
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def logprint_nots(filename, msg):
+    """Print to log file and console, no timestamp.
+    """
+    msg = '%s\n' % msg
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+
+# ----------------------------------------------------------------------
+# Clone repository, prepending "filtering" to repo directory name
+# (e.g. "ddr-densho-123" -> "filtering_ddr-densho-123")
+
+def mk_filter_repo_path( source, destdir, status ):
+    """Makes path to filter repository.
+    
+    @param source: Absolute path to source collection repository.
+    @param destdir: Absolute path to filter_repo dir.
+    @param status: Current status in the process
+    @returns: Absolute path to filter repository dir.
+    """
+    srccid = os.path.basename(source)
+    destcid = '%s_%s' % (status, srccid)
+    path = os.path.join(destdir, destcid)
+    return path
+
+def clone( source, dest_path ):
+    """Clones source repository into destdir.
+    
+    @param source: Absolute path to source collection repository.
+    @param dest_path
+    @returns: A GitPython Repository
+    """
+    repo = git.Repo.clone_from(source, dest_path)
+    # git annex init if not already existing
+    if not os.path.exists(os.path.join(dest_path, '.git', 'annex')):
+        repo.git.annex('init')
+    repo.git.checkout('master')
+    return repo
+
+def annex_list( repo_path, level ):
+    """Lists annex files of the specified level.
+    
+    @param repo_path: Absolute path to repository.
+    @param repo: A GitPython Repository
+    @param level: String (access, mezzanine, master)
+    @returns: list of files, relative to repository directory.
+    """
+    if   level == 'access':    match = '*-a.jpg'
+    elif level == 'mezzanine': match = '*-mezzanine-*'
+    elif level == 'master':    match = '*-master-*'
+    os.chdir(repo_path)
+    cmd = 'git annex whereis %s' % match
+    r = envoy.run(cmd, timeout=30)
+    files = []
+    for line in r.std_out.split('\n'):
+        if 'whereis' in line:
+            files.append(line.split(' ')[1])
+    return files
+    
+def annex_get( repo, filename ):
+    """git annex gets the specified file
+    
+    @param repo: A GitPython Repository
+    @param filename: path to file, relative to repository directory
+    """
+    repo.git.annex('get', filename)
+
+# ----------------------------------------------------------------------
+# Remove all git and git-annex remotes.
+
+def rm_remotes( repo ):
+    """Removes all git and git-annex remotes from the repository.
+    
+    @param repo: A GitPython Repository
+    @return: 0 if ok, list of remotes if not
+    """
+    for remote in repo.remotes:
+        repo.delete_remote(remote)
+    if repo.remotes:
+        return repo.remotes
+    return 0
+
+
+# ----------------------------------------------------------------------
+# Walk directory to find all .json files
+# For each .json check public/private status.
+# If private, add file(s) to exclusion list.
+# Exclusion list will be fed to git filter-branch command.
+
+def list_json_files(dirname):
+    """Lists absolute paths to .json files in dirname; skips .git directory.
+    
+    @param path: Absolute path to collection repository directory
+    @returns: list of absolute paths
+    """
+    paths = []
+    exclude_dirs = ['tmp', '.git']
+    for root, dirs, files in os.walk(dirname):
+        # don't walk .git/ or tmp dirs
+        for d in exclude_dirs:
+            if d in dirs:
+                dirs.remove(d)
+        for f in files:
+            if f.endswith('.json'):
+                paths.append(os.path.join(root, f))
+    paths.sort()
+    return paths
+
+def is_collection_json( path ):
+    if 'collection.json' in path:
+        return True
+    return False
+def is_entity_json( path ):
+    if 'entity.json' in path:
+        return True
+    return False
+def is_file_json( path ):
+    for x in ['master', 'mezzanine']:
+        if x in os.path.basename(path):
+            return True
+    return False
+
+def is_publishable( json_path ):
+    """Indicates whether the Collection or Entity is public and complete.
+    
+    Specifically, indicates whether metadata file contains both
+    the public=1 value and the status=completed value.
+    DDR metadata .json files consist of a list of dicts.
+    
+    @param path: Absolute path to *.json file.
+    @returns: True or False
+    """
+    data = None
+    with open(json_path, 'r') as f:
+        data = json.loads(f.read())
+    if data:
+        public = False
+        completed = False
+        for field in data:
+            if ((u'public' in field.keys()) or ('public' in field.keys())):
+                if int(field['public']):
+                    public = True
+            if ((u'status' in field.keys()) or ('status' in field.keys())):
+                if field['status'] == 'completed':
+                    completed = True
+        if public and completed:
+            return True
+    return False
+
+def is_publishable_file( json_path ):
+    """Indicates whether the File is public.
+    
+    See is_publishable for details.
+    Note: Files don't have "status" field.
+    
+    @param path: Absolute path to *.json file.
+    @returns: True or False
+    """
+    data = None
+    with open(json_path, 'r') as f:
+        data = json.loads(f.read())
+    if data:
+        public = False
+        for field in data:
+            if ((u'public' in field.keys()) or ('public' in field.keys())):
+                if int(field['public']):
+                    public = True
+        if public:
+            return True
+    return False
+
+def nonpublic_json_files( json_files ):
+    """Filters list of json files, returning the ones that are non-public.
+    
+    @param json_files: List of absolute paths
+    @returns: list of absolute paths
+    """
+    paths = []
+    for path in json_files:
+        if   is_collection_json(path):
+            if not is_publishable(path):
+                paths.append(path)
+        elif is_entity_json(path):
+            if not is_publishable(path):
+                paths.append(path)
+        elif is_file_json(path):
+            if not is_publishable_file(path):
+                paths.append(path)
+        else:
+            print('UNKNOWN FILE TYPE')
+            assert False
+    return paths
+
+def nonpublic_collection( path ):
+    """Excludes the whole collection directory.
+    
+    @param path: Absolute path to collection.json
+    @returns: directory containing collection
+    """
+    return '%s/' % os.path.dirname(path)
+
+def nonpublic_entity( path ):
+    """Excludes the whole entity directory.
+    
+    >>> nonpublic_entity('.../ddr-testing-123/files/ddr-testing-123-4/entity.json')
+    '.../ddr-testing-123/files/ddr-testing-123-4/'
+    
+    @param path: Absolute path to entity.json
+    @returns: directory containing entity
+    """
+    return '%s/' % os.path.dirname(path)
+
+def nonpublic_file( path ):
+    """Excludes the file's original file, access file, and metadata.
+    
+    >>> nonpublic_file('.../ddr-testing-123/files/ddr-testing-123-3/files/ddr-testing-123-3-master-1a2b3c4d5e.json')
+    '.../ddr-testing-123/files/ddr-testing-123-3/files/ddr-testing-123-3-master-1a2b3c4d5e*'
+    
+    @param path: Absolute path to file json.
+    @returns: path that matches file JSON, original file, access copies.
+    """
+    return '%s*' % os.path.splitext(path)[0]
+
+def all_nonpublic_files( nonpublic_json_paths ):
+    """
+    @param nonpublic_json_paths: 
+    @returns: list of paths
+    """
+    paths = []
+    for p in nonpublic_json_paths:
+        if   is_collection_json(p): paths.append(nonpublic_collection(p))
+        elif is_entity_json(p):     paths.append(nonpublic_entity(p))
+        elif is_file_json(p):       paths.append(nonpublic_file(p))
+    return paths
+
+def make_exclusion_list( path ):
+    """Makes list of paths to be excluded from the repository.
+    
+    Appends 'COLLECTION' to list if collection is marked unpublishable.
+    
+    @param path
+    @returns: List of relative paths to private files/dirs.
+    """
+    files_json = list_json_files(path)
+    nonpublic_json = nonpublic_json_files(files_json)
+    exclusion_list = all_nonpublic_files(nonpublic_json)
+    exclusion_list.sort()
+    # make paths relative
+    for n,filepath in enumerate(exclusion_list):
+        if filepath[:-1] == path:
+            # the collection itself is private or incomplete
+            exclusion_list[n] = 'COLLECTION'
+        else:
+            exclusion_list[n] = filepath.replace(path, '')[1:]
+    return exclusion_list
+
+def write_exclusion_list( path, exclusion_list, filename ):
+    """Writes exclusion list to the specified directory.
+    
+    @param path
+    @param exclusion_list
+    @param filename
+    @return: filename if ok, 1 if not
+    """
+    fname = os.path.join(os.path.dirname(path), filename)
+    #cmd = 'git rm -rf %s\n'
+    cmd = 'git rm -qrf --cached --ignore-unmatch %s ;\\\n'
+    #cmd = 'git rm -rf --cached --ignore-unmatch %s ;\\\n'
+    actions = [cmd % path for path in exclusion_list]
+    with open(fname, 'w') as f:
+        f.writelines(actions)
+    if os.path.exists(fname):
+        return fname
+    return 1
+
+
+# ----------------------------------------------------------------------
+# Run git-filter-branch on the exclusion list
+
+def mk_filterbranch_script( tmp_repo_path, exclusion_list_path, public_repo_path, keep_temp_repo=True ):
+    """Makes a shell script that runs the git-filter-branch command and cleans up.
+    
+    Reference:
+    https://jonmccune.wordpress.com/2012/06/17/code-release-history-and-aesthetics-with-git-filter-branch-and-friends/
+    
+    For some reason, the filter-branch command will work in a shell script but not in a subprocess.
+    I could not figure out how to garbage-collect the temporary filter repository in-place, so we are using the brute-force approach of cloning an entire new public repository.
+    
+    @param tmp_repo_path
+    @param exclusion_list_path
+    @param public_repo_path
+    @param filterbranch_ok_path
+    @param keep_temp_repo
+    @returns: shell script
+    """
+    tmp_repo_parent_dir = os.path.dirname(tmp_repo_path)
+    filterbranch_ok_path = '%s_ok' % tmp_repo_path
+    lines = [
+        '# %s' % os.path.basename(tmp_repo_path),
+        '# This script clones a new repo after running filter-branch as a way to garbage-collect.',
+        '# IMPORTANT: Run as sudo-capable user -- sudo is required to delete filtering_* annex files.',
+        'cd %s ; ' % tmp_repo_path,
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Running git filter-branch"',
+        'git filter-branch -d /dev/shm/git --index-filter "sh %s" --prune-empty HEAD && echo "OK" > %s' % (exclusion_list_path, filterbranch_ok_path),
+        'if [ ! -f %s ]; then' % filterbranch_ok_path,
+        '    echo "`date +%Y-%m-%dT%H:%M:%S:%N` - filter-branch error: quitting."',
+        '    exit 1',
+        'fi',
+        'cd %s ; ' % tmp_repo_parent_dir,
+        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Cloning %s to final: %s"' % (tmp_repo_path, public_repo_path),
+        'git clone --no-hardlinks %s %s' % (tmp_repo_path, public_repo_path),
+        'cd %s ; ' % public_repo_path,
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Initializing annex"',
+        'git annex init',
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Getting public files..."',
+        'git annex get .',
+        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Removing filter remote from %s"' % public_repo_path,
+        'git remote rm origin',
+        'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Remotes for %s"' % public_repo_path,
+        'git remote -v',
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - Cleaning up work files"',
+        'rm %s' % exclusion_list_path,
+        'rm %s' % filterbranch_ok_path,
+    ]
+    if keep_temp_repo:
+        lines = lines + [
+            'echo "`date +%%Y-%%m-%%dT%%H:%%M:%%S:%%N` - Keeping temp repo %s"' % tmp_repo_path,
+        ]
+    else:
+        lines = lines + [
+            'sudo rm -Rf %s' % tmp_repo_path,
+        ]
+    lines = lines + [
+        'echo "`date +%Y-%m-%dT%H:%M:%S:%N` - DONE"',
+        '',
+        ]
+    cmd = '\n'.join(lines)
+    return cmd
+
+def _run_filterbranch( repo_path, exclusion_list_path ):
+    """(DEPRECATED) Run git filter-branch in a subprocess
+    
+    This was part of an attempt to do the filter-branch operation in a Python subprocess.  I kept getting obscure Git errors so I used the shell script instead.  This is kept for historical interest.
+    
+    @param repo_path: Absolute path to repository.
+    @param exclusion_list_path: Absolute path to exclusion list file.
+    """
+    print(repo_path)
+    os.chdir(repo_path)
+    cmd = 'cd %s/ ; git filter-branch -d /dev/shm/git --prune-empty --index-filter "sh %s" HEAD' % (repo_path, exclusion_list_path)
+    print(cmd)
+    r = envoy.run(cmd, timeout=60)
+    envoy.run(cmd, timeout=60)
+    #print('r.status_code: %s' % r.status_code)
+    #print('r.std_out: %s' % r.std_out)
+    #print('r.std_err: %s' % r.std_err)
+    assert False
+
+def _clone_public( tmp_repo_path, public_repo_path ):
+    """(DEPRECATED) Clones TEMP repository into PUBLIC.
+    
+    Part of the attempt to do the filter-branch operation in a Python subprocess.
+    
+    @param tmp_repo_path: Absolute path to temporary repo.
+    @param public_repo_path: Absolute path to final public repo.
+    @returns public_repo: The final public repo (GitPython Repository)
+    """
+    public_repo = git.Repo.clone_from(tmp_repo_path, public_repo_path)
+    # git annex init if not already existing
+    if not os.path.exists(os.path.join(dest_path, '.git', 'annex')):
+        public_repo.git.annex('init')
+    public_repo.git.checkout('master')
+    return public_repo
+
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-l', '--list', action='store_const', const=1, help='Generate exclusion list from source repository.')
+    parser.add_argument('-M', '--master', action='store_const', const=1, help='git-annex copy master files.')
+    parser.add_argument('-m', '--mezzanine', action='store_const', const=1, help='git-annex copy mezzanine files.')
+    parser.add_argument('-a', '--access', action='store_const', const=1, help='git-annex copy access files.')
+    parser.add_argument('-d', '--destdir', help='Absolute path to directory in which new repository will be placed.')
+    parser.add_argument('-s', '--source', required=True, help='Absolute path to source repository.')
+    parser.add_argument('-k', '--keeptmp', action='store_const', const=1, help='Keep temporary files.')
+    args = parser.parse_args()
+    
+    # check args
+    if (not args.destdir) and (not args.list):
+        print('ddrfilter: error: -d/--destdir is required except when using -l/--list.')
+        sys.exit(1)
+    if args.destdir == args.source:
+        print('ddrfilter: error: Source and destdir are the same!')
+        sys.exit(1)
+    
+    # make list of files to exclude
+    exclusion_list = make_exclusion_list(args.source)
+    
+    if args.list:
+        # print list info to console and exit
+        if 'COLLECTION' in exclusion_list:
+            print('Collection is private or incomplete.')
+            sys.exit(1)
+        print('The following files will be excluded from the public repository:')
+        for p in exclusion_list:
+            print('    %s' % p)
+        sys.exit(1)
+        
+    else:
+        FILTER_REPO_PATH = mk_filter_repo_path(args.source, args.destdir, 'FILTER')
+        PUBLIC_REPO_PATH = FILTER_REPO_PATH.replace('FILTER', 'PUBLIC')
+        LOG = '%s.log' % FILTER_REPO_PATH
+        
+        if os.path.exists(FILTER_REPO_PATH):
+            print('ddrfilter: error: Destination path already exists! (%s)' % FILTER_REPO_PATH)
+            sys.exit(1)
+        if os.path.exists(PUBLIC_REPO_PATH):
+            print('ddrfilter: error: Destination path already exists! (%s)' % PUBLIC_REPO_PATH)
+            sys.exit(1)
+        
+        # print exclusion list and write to file
+        if 'COLLECTION' in exclusion_list:
+            logprint(LOG, 'Collection is private or incomplete.')
+            sys.exit(1)
+        logprint_nots(LOG, '    The following files will be excluded from the public repository:')
+        for p in exclusion_list:
+            logprint_nots(LOG, '    %s' % p)
+        exclusion_list_path = write_exclusion_list(
+            FILTER_REPO_PATH, exclusion_list, 'FILTER_%s_exclusions' % os.path.basename(args.source))
+        if os.path.exists(exclusion_list_path):
+            logprint(LOG, 'Wrote exclusion list %s' % exclusion_list_path)
+        else:
+            logprint(LOG, 'ddrfilter: error: Failed to write exclusion list.')
+            sys.exit(1)
+        
+        started = datetime.now()
+        logprint(LOG, 'Starting filter')
+        
+        # clone the temporary filter repo
+        logprint(LOG, 'Cloning %s to %s' % (args.source, FILTER_REPO_PATH))
+        repo = clone(args.source, FILTER_REPO_PATH)
+        if not repo:
+            logprint(LOG, 'ddrfilter: error: Could not clone repository!')
+            sys.exit(1)
+        
+        # git annex get the files
+        file_levels = []
+        if args.access: file_levels.append('access')
+        if args.mezzanine: file_levels.append('mezzanine')
+        if args.master: file_levels.append('master')
+        for level in file_levels:
+            logprint(LOG, 'Getting %s files...' % (level))
+            files = annex_list(FILTER_REPO_PATH, level)
+            fstarted = datetime.now()
+            for n,fname in enumerate(files):
+                annex_get(repo, fname)
+                logprint(LOG, '%s/%s %s' % (n+1, len(files), fname))
+            ffinished = datetime.now()
+            felapsed = ffinished - fstarted
+            logprint(LOG, '%s elapsed' % (felapsed))
+        
+        # remove remotes from temporary filter repo
+        logprint(LOG, 'Removing remotes...')
+        rm_remotes_status = rm_remotes(repo)
+        if rm_remotes_status:
+            logprint(LOG, 'ddrfilter: error: Failed to remove one or more remotes: %s' % rm_remotes_status)
+            sys.exit(1)
+        
+        # print git-filter-branch to shell script
+        FILTERBRANCH_SH_PATH = os.path.join(os.path.dirname(FILTER_REPO_PATH), '%s.sh' % os.path.basename(FILTER_REPO_PATH))
+        sh = mk_filterbranch_script(FILTER_REPO_PATH, exclusion_list_path, PUBLIC_REPO_PATH, keep_temp_repo=args.keeptmp)
+        with open(FILTERBRANCH_SH_PATH, 'w') as f:
+            f.write(sh)
+        print('Run this command:\n\n    sh %s | tee -a %s\n' % (FILTERBRANCH_SH_PATH, LOG))
+        
+        ## run filter-branch in a subprocess
+        #run_filterbranch(FILTER_REPO_PATH, exclusion_list_path)
+        ## 
+        #public_repo = clone_public(FILTER_REPO_PATH, PUBLIC_REPO_PATH)
+        
+        # clean up
+        finished = datetime.now()
+        elapsed = finished - started
+        logprint(LOG, 'Done with preparations')
+        logprint_nots(LOG, '%s elapsed' % elapsed)
+        print('')
+
+if __name__ == '__main__':
+    main()
