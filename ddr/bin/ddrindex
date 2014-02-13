@@ -1,0 +1,167 @@
+#!/usr/bin/env python
+#
+# ddr-search
+#
+#
+
+description = """Commands for managing search engine."""
+
+epilog = """ddr-search is used to manage an ElasticSearch index.
+"""
+
+
+import argparse
+import ConfigParser
+from datetime import datetime
+import json
+import logging
+import os
+import sys
+
+import envoy
+import git
+
+from DDR import CONFIG_FILE
+from DDR import elasticsearch
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+if not os.path.exists(CONFIG_FILE):
+    raise NoConfigError('No config file!')
+config = ConfigParser.ConfigParser()
+config.read(CONFIG_FILE)
+
+DEBUG = config.get('local','debug')
+
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+LOGGING_FILE = config.get('local','log_file')
+if config.get('local','log_level') == 'debug':
+    LOGGING_LEVEL = logging.DEBUG
+else:
+    LOGGING_LEVEL = logging.ERROR
+#logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
+logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
+
+def split_docstring(func):
+    description,epilog = '',''
+    lines = [l.rstrip().replace('    ','',1) for l in func.__doc__.split('\n')]
+    if lines:
+        description = lines[0]
+    if (len(lines) > 2) and (lines[1] == ''):
+        epilog = lines[2:]
+    return description, '\n'.join(epilog)
+
+
+def main():
+
+    formatter = argparse.RawDescriptionHelpFormatter
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=formatter,)
+    
+    subparsers = parser.add_subparsers(
+        dest='cmd',
+        title='Subcommands',
+        description="""Additional help is available for each of the following subcommands.
+Example:
+    $ ddr status --help""",
+        help='additional help')
+    
+    settings_descr,settings_epilog = split_docstring(elasticsearch.settings)
+    status_descr,status_epilog = split_docstring(elasticsearch.status)
+    post_descr,post_epilog = split_docstring(elasticsearch.post)
+    get_descr,get_epilog = split_docstring(elasticsearch.get)
+    delete_descr,delete_epilog = split_docstring(elasticsearch.delete)
+    index_descr,index_epilog = split_docstring(elasticsearch.index)
+    
+    settings_parser = subparsers.add_parser('settings', description=settings_descr, epilog=settings_epilog, formatter_class=formatter,)
+    status_parser = subparsers.add_parser('status', description=status_descr, epilog=status_epilog, formatter_class=formatter,)
+    post_parser = subparsers.add_parser('post', description=post_descr, epilog=post_epilog, formatter_class=formatter,)
+    get_parser = subparsers.add_parser('get', description=get_descr, epilog=get_epilog, formatter_class=formatter,)
+    delete_parser = subparsers.add_parser('delete', description=delete_descr, epilog=delete_epilog, formatter_class=formatter,)
+    index_parser = subparsers.add_parser('index', description=index_descr, epilog=index_epilog, formatter_class=formatter,)
+    
+    settings_parser.set_defaults(func=elasticsearch.settings)
+    status_parser.set_defaults(func=elasticsearch.status)
+    post_parser.set_defaults(func=elasticsearch.post)
+    get_parser.set_defaults(func=elasticsearch.get)
+    delete_parser.set_defaults(func=elasticsearch.delete)
+    index_parser.set_defaults(func=elasticsearch.index)
+    
+    settings_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    settings_parser.add_argument('-l', '--log', help='Log file..')
+    settings_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    
+    status_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    status_parser.add_argument('-l', '--log', help='Log file..')
+    status_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    
+    post_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    post_parser.add_argument('-l', '--log', help='Log file..')
+    post_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    post_parser.add_argument('-i', '--index', required=True, help='index.')
+    post_parser.add_argument('-m', '--model', required=True, help='model.')
+    post_parser.add_argument('-p', '--path', required=True, help='Absolute path to JSON file.')
+    
+    get_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    get_parser.add_argument('-l', '--log', help='Log file..')
+    get_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    get_parser.add_argument('-i', '--index', required=True, help='index.')
+    get_parser.add_argument('-m', '--model', required=True, help='model.')
+    get_parser.add_argument('-I', '--id', required=True, help='ID.')
+    
+    delete_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    delete_parser.add_argument('-l', '--log', help='Log file..')
+    delete_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    delete_parser.add_argument('-i', '--index', required=True, help='index.')
+    delete_parser.add_argument('-m', '--model', required=True, help='model.')
+    delete_parser.add_argument('-I', '--id', required=True, help='ID.')
+    
+    index_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    index_parser.add_argument('-l', '--log', help='Log file..')
+    index_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    index_parser.add_argument('-i', '--index', required=True, help='index.')
+    index_parser.add_argument('-p', '--path', required=True, help='Absolute path to directory containing metadata file(s).')
+    index_parser.add_argument('-r', '--recursive', action='store_true', help='Recurse into subdirectories.')
+    index_parser.add_argument('-n', '--newstyle', action='store_true', help='Use new ddr-public ES index format.')
+    
+    args = parser.parse_args()
+    
+    if args.debug:
+        print(args)
+    
+    if args.log and (os.path.exists(args.log) or os.path.exists(os.path.basename(args.log))):
+        logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=args.log)
+    
+    # call selected function
+    exit = 0
+    if   args.cmd == 'settings':
+        msg = elasticsearch.settings(args.host)
+        print(msg)
+    elif args.cmd == 'status':
+        msg = elasticsearch.status(args.host)
+        print(msg)
+    elif args.cmd == 'post':
+        msg = elasticsearch.post(args.path, args.host, args.index, args.model)
+        print(msg)
+    elif args.cmd == 'get':
+        msg = elasticsearch.get(args.host, args.index, args.model, args.id)
+        print(msg)
+    elif args.cmd == 'delete':
+        msg = elasticsearch.delete(args.host, args.index, args.model, args.id)
+        print(msg)
+    elif args.cmd == 'index':
+        msg = elasticsearch.index(args.path, args.host, args.index, args.recursive, args.newstyle)
+        print(msg)
+    
+    if exit:
+        print(msg)
+    sys.exit(exit)
+
+
+if __name__ == '__main__':
+    main()
