@@ -39,9 +39,7 @@
             "initial": "",
             "label": "Record Created"
         },
-        "elasticsearch_properties": {
-            "type":"date", "store":"yes", "precision_step":"0"
-        },
+        "elasticsearch_properties": {"type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"},
         "default": ""
     },
     {
@@ -60,9 +58,7 @@
             "initial": "",
             "label": "Record Modified"
         },
-        "elasticsearch_properties": {
-            "type":"date", "store":"yes", "precision_step":"0"
-        },
+        "elasticsearch_properties": {"type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"},
         "default": ""
     },
     {
@@ -158,9 +154,7 @@
             "max_length": 255,
             "help_text": "Use the years separated by a dash: YYYY-YYYY. If exact dates are unknown use circa (c.)."
         },
-        "elasticsearch_properties": {
-            "type":"date", "store":"yes", "precision_step":"0"
-        },
+        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
         "default": ""
     },
     {
@@ -180,9 +174,7 @@
             "max_length": 255,
             "help_text": "Use the years separated by a dash: YYYY-YYYY. If exact dates are unknown use circa (c.). Can be the same as the inclusive dates if there are no predominant dates."
         },
-        "elasticsearch_properties": {
-            "type":"date", "store":"yes", "precision_step":"0"
-        },
+        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
         "default": ""
     },
     {

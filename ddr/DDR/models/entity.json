@@ -37,7 +37,7 @@
             "initial": "",
             "label": "Record Created"
         },
-        "elasticsearch_properties": {"type":"date", "store":"yes", "precision_step":"0"},
+        "elasticsearch_properties": {"type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"},
         "default": ""
     },
     {
@@ -56,7 +56,7 @@
             "initial": "",
             "label": "Record Modified"
         },
-        "elasticsearch_properties": {"type":"date", "store":"yes", "precision_step":"0"},
+        "elasticsearch_properties": {"type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"},
         "default": ""
     },
     {
@@ -610,7 +610,7 @@
             "initial": "",
             "label": "Notes"
         },
-        "elasticsearch_properties": {"type":"string", "store":"no", "index":"not_analyzed"},
+        "elasticsearch_properties": {"type":"string", "store":"no", "index":"no"},
         "default": ""
     },
     {

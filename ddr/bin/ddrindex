@@ -72,6 +72,7 @@ Example:
         help='additional help')
     
     settings_descr,settings_epilog = split_docstring(elasticsearch.settings)
+    mappings_descr,mappings_epilog = split_docstring(elasticsearch.mappings)
     status_descr,status_epilog = split_docstring(elasticsearch.status)
     post_descr,post_epilog = split_docstring(elasticsearch.post)
     get_descr,get_epilog = split_docstring(elasticsearch.get)
@@ -79,6 +80,7 @@ Example:
     index_descr,index_epilog = split_docstring(elasticsearch.index)
     
     settings_parser = subparsers.add_parser('settings', description=settings_descr, epilog=settings_epilog, formatter_class=formatter,)
+    mappings_parser = subparsers.add_parser('mappings', description=mappings_descr, epilog=mappings_epilog, formatter_class=formatter,)
     status_parser = subparsers.add_parser('status', description=status_descr, epilog=status_epilog, formatter_class=formatter,)
     post_parser = subparsers.add_parser('post', description=post_descr, epilog=post_epilog, formatter_class=formatter,)
     get_parser = subparsers.add_parser('get', description=get_descr, epilog=get_epilog, formatter_class=formatter,)
@@ -86,6 +88,7 @@ Example:
     index_parser = subparsers.add_parser('index', description=index_descr, epilog=index_epilog, formatter_class=formatter,)
     
     settings_parser.set_defaults(func=elasticsearch.settings)
+    mappings_parser.set_defaults(func=elasticsearch.mappings)
     status_parser.set_defaults(func=elasticsearch.status)
     post_parser.set_defaults(func=elasticsearch.post)
     get_parser.set_defaults(func=elasticsearch.get)
@@ -95,6 +98,11 @@ Example:
     settings_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     settings_parser.add_argument('-l', '--log', help='Log file..')
     settings_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    
+    mappings_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    mappings_parser.add_argument('-l', '--log', help='Log file..')
+    mappings_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    mappings_parser.add_argument('-i', '--index', required=True, help='index.')
     
     status_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     status_parser.add_argument('-l', '--log', help='Log file..')
@@ -142,6 +150,9 @@ Example:
     if   args.cmd == 'settings':
         msg = elasticsearch.settings(args.host)
         print(msg)
+    elif args.cmd == 'mappings':
+        msg = elasticsearch.mappings(args.host, args.index)
+        print(msg)
     elif args.cmd == 'status':
         msg = elasticsearch.status(args.host)
         print(msg)
@@ -155,8 +166,14 @@ Example:
         msg = elasticsearch.delete(args.host, args.index, args.model, args.id)
         print(msg)
     elif args.cmd == 'index':
-        msg = elasticsearch.index(args.path, args.host, args.index, args.recursive, args.newstyle)
-        print(msg)
+        bad_paths = elasticsearch.index(args.path, args.host, args.index, args.recursive, args.newstyle)
+        if bad_paths:
+            print('The following paths had problems:')
+            for path,status,response in bad_paths:
+                print(status)
+                print(path)
+                print(response)
+            print('%s bad paths' % len(bad_paths))
     
     if exit:
         print(msg)

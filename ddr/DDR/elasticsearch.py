@@ -84,33 +84,60 @@ def status(host):
     r = requests.get(url)
     return json.loads(r.text)
 
-MAPPINGS = {
-    'mappings': {
+def mappings(host, index):
+    """Get mappings for index.
+    
+    curl -XGET 'http://localhost:9200/twitter/_mappings?pretty=1'
+    
+    @param host: Hostname and port (HOST:PORT).
+    """
+    url = 'http://%s/_mapping?pretty=1' % (host)
+    r = requests.get(url)
+    return r.text
+    #return json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
+    #return json.loads(r.text)
+
+
+# Each item in this list is a mapping dict in the format ElasticSearch requires.
+# Mappings for each type have to be uploaded individually (I think).
+MAPPINGS = [
+    {
         'collection': {
             '_source': {'enabled': True},
+            'date_detection':0,
             'properties': {}
-        },
+        }
+    },
+    {
         'entity': {
             '_source': {'enabled': True},
+            'date_detection':0,
             'properties': {}
-        },
+        }
+    },
+    {
         'file': {
             '_source': {'enabled': True},
+            'date_detection':0,
             'properties': {}
         }
     }
-}
+]
 
 def _make_mappings():
+    """Takes MAPPINGS and adds field properties from MODEL_FIELDS
+    Returns a nice list of mapping dicts.
+    """
     mappings = MAPPINGS
-    for model in ['collection', 'entity', 'file']:
+    for mapping in mappings:
+        model = mapping.keys()[0]
         json_path = os.path.join(MODELS_DIR, '%s.json' % model)
         with open(json_path, 'r') as f:
             data = json.loads(f.read())
         for field in data:
             fname = field['name']
             properties = field['elasticsearch_properties']
-            mappings['mappings'][model]['properties'][fname] = properties
+            mapping[model]['properties'][fname] = properties
     return mappings
 
 def _create_index(host, index):
@@ -122,14 +149,23 @@ def _create_index(host, index):
     @param index: Name of the target index.
     @return status code
     """
-    logger.debug('delete_index(%s, %s)' % (host, index))
-    mappings = _make_mappings()
-    logger.debug(json.dumps(mappings, indent=4, separators=(',', ': '), sort_keys=True))
+    # create the index
+    logger.debug('_create_index(%s, %s)' % (host, index))
     url = 'http://%s/%s/' % (host, index)
-    payload = json.dumps({'d': mappings})
     headers = {'content-type': 'application/json'}
-    r = requests.put(url, data=payload, headers=headers)
+    r = requests.put(url, headers=headers)
     logger.debug('%s %s' % (r.status_code, r.text))
+    
+    # mappings
+    for mapping in _make_mappings():
+        model = mapping.keys()[0]
+        logger.debug(model)
+        logger.debug(json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
+        payload = json.dumps(mapping)
+        url = 'http://%s/%s/%s/_mapping' % (host, index, model)
+        headers = {'content-type': 'application/json'}
+        r = requests.put(url, data=payload, headers=headers)
+        logger.debug('%s %s' % (r.status_code, r.text))
     return r.status_code
 
 def _delete_index(host, index):
@@ -141,7 +177,7 @@ def _delete_index(host, index):
     @param index: Name of the target index.
     @return status code
     """
-    logger.debug('delete_index(%s, %s)' % (host, index))
+    logger.debug('_delete_index(%s, %s)' % (host, index))
     url = 'http://%s/%s/' % (host, index)
     r = requests.delete(url)
     logger.debug('%s %s' % (r.status_code, r.text))
@@ -170,11 +206,11 @@ def post(path, host, index, model, newstyle=False):
     @param index: Name of the target index.
     @param model: Type of object ('collection', 'entity', 'file')
     @param newstyle: Use new ddr-public ES document format.
-    @return 0 if successful, status code if not.
+    @return (status_code,response)
     """
     logger.debug('post(%s, %s, %s, %s)' % (path, index, model, path))
     if not os.path.exists(path):
-        return 1
+        return 1,'path does not exist'
     headers = {'content-type': 'application/json'}
     with open(path, 'r') as f:
         filedata = json.loads(f.read())
@@ -189,7 +225,7 @@ def post(path, host, index, model, newstyle=False):
         
         if model in ['collection', 'entity']:
             if not (data and data.get('id', None)):
-                return 2
+                return 2,'no id'
             cid = data['id']
             url = 'http://%s/%s/%s/%s' % (host, index, model, cid)
         elif model in ['file']:
@@ -210,6 +246,7 @@ def post(path, host, index, model, newstyle=False):
             url = 'http://%s/%s/%s/%s' % (host, index, model, filename)
         else:
             url = None
+        payload = json.dumps(data)
         
     else:
         # old-style list-of-fields dict used by ddr-local
@@ -245,15 +282,15 @@ def post(path, host, index, model, newstyle=False):
             url = 'http://%s/%s/%s/%s' % (host, index, model, filename)
         else:
             url = None
-    
-    if url:
         payload = json.dumps({'d': data})
+
+    if url:
         logger.debug(url)
         #logger.debug(payload)
         r = requests.put(url, data=payload, headers=headers)
-        logger.debug('%s %s' % (r.status_code, r.text))
-        return r.status_code
-    return 3
+        #logger.debug('%s %s' % (r.status_code, r.text))
+        return r.status_code,r.text
+    return 3, 'unknown problem'
 
 def get(host, index, model, id):
     """GET a single document.
@@ -300,6 +337,7 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
     @param recursive: Whether or not to recurse into subdirectories.
     @param newstyle: Use new ddr-public ES document format.
     @param paths: Absolute paths to directory containing collections.
+    @returns: list of paths that didn't work out
     """
     logger.debug('index(%s, %s)' % (host, index))
     
@@ -310,6 +348,8 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
     if not paths:
         paths = _metadata_files(path, recursive)
     
+    SUCCESS_STATUSES = [200, 201]
+    bad_paths = []
     for path in paths:
         model = None
         if 'collection.json' in path:
@@ -320,11 +360,16 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
             model = 'file'
         if path and index and model:
             print('adding %s' % path)
-            status = post(path, host, index, model, newstyle)
-            print(status)
+            result = post(path, host, index, model, newstyle)
+            status_code = result[0]
+            response = result[1]
+            if status_code not in SUCCESS_STATUSES:
+                bad_paths.append((path,status_code,response))
+            #print(status_code)
         else:
             logger.error('missing information!: %s' % path)
     logger.debug('INDEXING COMPLETED')
+    return bad_paths
 
 def query(host, index, model=None, query='', filters={}, sort='', fields='', size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.
