@@ -147,16 +147,20 @@ def _create_index(host, index):
     
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
-    @return status code
+    @returns: JSON dict with status codes and responses
     """
+    status = {}
+    
     # create the index
     logger.debug('_create_index(%s, %s)' % (host, index))
     url = 'http://%s/%s/' % (host, index)
     headers = {'content-type': 'application/json'}
     r = requests.put(url, headers=headers)
     logger.debug('%s %s' % (r.status_code, r.text))
+    status['create'] = {'status':r.status_code, 'response':r.text}
     
     # mappings
+    status['mappings'] = {}
     for mapping in _make_mappings():
         model = mapping.keys()[0]
         logger.debug(model)
@@ -166,7 +170,8 @@ def _create_index(host, index):
         headers = {'content-type': 'application/json'}
         r = requests.put(url, data=payload, headers=headers)
         logger.debug('%s %s' % (r.status_code, r.text))
-    return r.status_code
+        status['mappings'][model] = {'status':r.status_code, 'response':r.text}
+    return status
 
 def _delete_index(host, index):
     """Delete the specified index.
@@ -175,13 +180,13 @@ def _delete_index(host, index):
     
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
-    @return status code
+    @returns: JSON dict with status code and response
     """
     logger.debug('_delete_index(%s, %s)' % (host, index))
     url = 'http://%s/%s/' % (host, index)
     r = requests.delete(url)
     logger.debug('%s %s' % (r.status_code, r.text))
-    return r.status_code
+    return {'status':r.status_code, 'response':r.text}
 
 
 
@@ -206,11 +211,11 @@ def post(path, host, index, model, newstyle=False):
     @param index: Name of the target index.
     @param model: Type of object ('collection', 'entity', 'file')
     @param newstyle: Use new ddr-public ES document format.
-    @return (status_code,response)
+    @returns: JSON dict with status code and response
     """
     logger.debug('post(%s, %s, %s, %s, newstyle=%s)' % (path, index, model, path, newstyle))
     if not os.path.exists(path):
-        return 1,'path does not exist'
+        return {'status':1, 'response':'path does not exist'}
     with open(path, 'r') as f:
         filedata = json.loads(f.read())
     _clean_payload(filedata)
@@ -224,12 +229,12 @@ def post(path, host, index, model, newstyle=False):
         
         if model in ['collection', 'entity']:
             if not (data and data.get('id', None)):
-                return 2,'no id'
+                return {'status':2, 'response':'no id'}
             cid = data['id']
             url = 'http://%s/%s/%s/%s' % (host, index, model, cid)
         elif model in ['file']:
             if not (data and data.get('path_rel', None)):
-                return 2
+                return {'status':3, 'response':'no path_rel'}
             filename = None
             extension = None
             if data.get('path_rel',None):
@@ -253,7 +258,7 @@ def post(path, host, index, model, newstyle=False):
         
         if model in ['collection', 'entity']:
             if not (data and data[1].get('id', None)):
-                return 2
+                return {'status':2, 'response':'no id'}
             cid = None
             for field in data:
                 if field.get('id',None):
@@ -261,7 +266,7 @@ def post(path, host, index, model, newstyle=False):
             url = 'http://%s/%s/%s/%s' % (host, index, model, cid)
         elif model in ['file']:
             if not (data and data[1].get('path_rel', None)):
-                return 2
+                return {'status':3, 'response':'no path_rel'}
             filename = None
             basename_orig = None
             label = None
@@ -289,8 +294,8 @@ def post(path, host, index, model, newstyle=False):
         headers = {'content-type': 'application/json'}
         r = requests.put(url, data=payload, headers=headers)
         #logger.debug('%s %s' % (r.status_code, r.text))
-        return r.status_code,r.text
-    return 3, 'unknown problem'
+        return {'status':r.status_code, 'response':r.text}
+    return {'status':4, 'response':'unknown problem'}
 
 def get(host, index, model, id):
     """GET a single document.
@@ -301,6 +306,7 @@ def get(host, index, model, id):
     @param index: Name of the target index.
     @param model: Type of object ('collection', 'entity', 'file')
     @param id: object ID
+    @returns: document, or JSON dict with status code and response
     """
     url = 'http://%s/%s/%s/%s' % (host, index, model, id)
     headers = {'content-type': 'application/json'}
@@ -311,7 +317,7 @@ def get(host, index, model, id):
         if data and data.get('_source', None) and data['_source'].get('d', None):
             hits = data['_source']['d']
         return hits
-    return None
+    return {'status':r.status_code, 'response':r.text}
 
 def delete(host, index, model, id):
     """Delete specified document from the index.
@@ -322,10 +328,11 @@ def delete(host, index, model, id):
     @param index: Name of index.
     @param model: Type of object ('collection', 'entity', 'file')
     @param id: object ID
+    @returns: JSON dict with status code and response
     """
     url = 'http://%s/%s/%s/%s' % (host, index, model, id)
     r = requests.delete(url)
-    return r.status_code
+    return {'status':r.status_code, 'response':r.text}
 
 
 def index(path, host, index, recursive=False, newstyle=False, paths=None):
@@ -361,8 +368,8 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
         if path and index and model:
             print('adding %s' % path)
             result = post(path, host, index, model, newstyle)
-            status_code = result[0]
-            response = result[1]
+            status_code = result['status']
+            response = result['response']
             if status_code not in SUCCESS_STATUSES:
                 bad_paths.append((path,status_code,response))
             #print(status_code)
