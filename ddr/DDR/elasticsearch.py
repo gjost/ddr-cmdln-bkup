@@ -211,7 +211,6 @@ def post(path, host, index, model, newstyle=False):
     logger.debug('post(%s, %s, %s, %s, newstyle=%s)' % (path, index, model, path, newstyle))
     if not os.path.exists(path):
         return 1,'path does not exist'
-    headers = {'content-type': 'application/json'}
     with open(path, 'r') as f:
         filedata = json.loads(f.read())
     _clean_payload(filedata)
@@ -287,6 +286,7 @@ def post(path, host, index, model, newstyle=False):
     if url:
         logger.debug(url)
         #logger.debug(payload)
+        headers = {'content-type': 'application/json'}
         r = requests.put(url, data=payload, headers=headers)
         #logger.debug('%s %s' % (r.status_code, r.text))
         return r.status_code,r.text
