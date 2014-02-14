@@ -208,7 +208,7 @@ def post(path, host, index, model, newstyle=False):
     @param newstyle: Use new ddr-public ES document format.
     @return (status_code,response)
     """
-    logger.debug('post(%s, %s, %s, %s)' % (path, index, model, path))
+    logger.debug('post(%s, %s, %s, %s, newstyle=%s)' % (path, index, model, path, newstyle))
     if not os.path.exists(path):
         return 1,'path does not exist'
     headers = {'content-type': 'application/json'}
