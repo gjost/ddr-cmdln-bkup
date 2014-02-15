@@ -393,7 +393,7 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
     @param recursive: Whether or not to recurse into subdirectories.
     @param newstyle: Use new ddr-public ES document format.
     @param paths: Absolute paths to directory containing collections.
-    @returns: list of paths that didn't work out
+    @returns: number successful,list of paths that didn't work out
     """
     logger.debug('index(%s, %s)' % (host, index))
     
@@ -405,6 +405,7 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
         paths = _metadata_files(path, recursive)
     
     SUCCESS_STATUSES = [200, 201]
+    successful = 0
     bad_paths = []
     for path in paths:
         model = None
@@ -419,13 +420,15 @@ def index(path, host, index, recursive=False, newstyle=False, paths=None):
             result = post(path, host, index, model, newstyle)
             status_code = result['status']
             response = result['response']
-            if status_code not in SUCCESS_STATUSES:
+            if status_code in SUCCESS_STATUSES:
+                successful += 1
+            else:
                 bad_paths.append((path,status_code,response))
             #print(status_code)
         else:
             logger.error('missing information!: %s' % path)
     logger.debug('INDEXING COMPLETED')
-    return bad_paths
+    return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
 def query(host, index, model=None, query='', filters={}, sort='', fields='', size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.

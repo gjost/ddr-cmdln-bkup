@@ -166,14 +166,26 @@ Example:
         msg = elasticsearch.delete(args.host, args.index, args.model, args.id)
         print(msg)
     elif args.cmd == 'index':
-        bad_paths = elasticsearch.index(args.path, args.host, args.index, args.recursive, args.newstyle)
-        if bad_paths:
-            print('The following paths had problems:')
-            for path,status,response in bad_paths:
+        start = datetime.now()
+        results = elasticsearch.index(args.path, args.host, args.index, args.recursive, args.newstyle)
+        end = datetime.now()
+        elapsed = end - start
+        print('------------------------------------------------------------------------')
+        if results['bad']:
+            print('The following paths had problems:\n')
+            for path,status,response in results['bad']:
                 print(status)
                 print(path)
                 print(response)
-            print('%s bad paths' % len(bad_paths))
+                print('')
+        print('------------------------------------------------------------------------')
+        print('ES host/index:   %s/%s' % (args.host, args.index))
+        print('Path:            %s' % args.path)
+        print('Recursive:       %s' % args.recursive)
+        print('Files processed: %s' % results['total'])
+        print('Successful:      %s' % results['successful'])
+        print('Errors:          %s' % len(results['bad']))
+        print('Time elapsed:    %s' % elapsed)
     
     if exit:
         print(msg)
