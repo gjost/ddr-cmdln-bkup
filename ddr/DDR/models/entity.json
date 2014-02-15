@@ -628,7 +628,16 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {"type":"string", "store":"no", "index":"not_analyzed"},
+        "elasticsearch_properties": {
+            "type": "object",
+            "properties": {
+                "path_rel": { "type":"string", "store":"no", "index":"not_analyzed" },
+                "public": { "type":"integer", "store":"no", "index":"not_analyzed" },
+                "md5": { "type":"string", "store":"no", "index":"not_analyzed" },
+                "sha1": { "type":"string", "store":"no", "index":"not_analyzed" },
+                "sha256": { "type":"string", "store":"no", "index":"not_analyzed" }
+            }
+        },
         "default": ""
     }
 ]
