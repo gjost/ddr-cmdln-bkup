@@ -21,14 +21,63 @@ def _clean_dict(data):
             if not data[key]:
                 del(data[key])
 
+def _clean_creators(data):
+    """Normalizes contents of 'creators' field.
+    There are lots of weird variations on this field.
+    We want all of them to end up as simple lists of strings.
+    """
+    # turn strings into lists
+    if isinstance(data, basestring):
+        if data == '[]':
+            data = []
+        elif data == '':
+            data = []
+        elif ';' in data:
+            # ex: "Preliminary Hearing Board"; "YMCA";
+            data = [x.strip() for x in data.strip().split(';')]
+        elif '\r\n' in data:
+            data = [x.strip() for x in data.strip().split('\r\n')]
+        elif '\n' in data:
+            data = [x.strip() for x in data.strip().split('\n')]
+        else:
+            # ex: Greenwood, Jonny:composer
+            # ex: Snead, John
+            data = [data]
+    # Get just the name. Don't add a role if none selected.
+    # 'Author' was default role so ignore.
+    # ex: [u'Ninomiya, L.A.']
+    # ex: [u'Mitsuoka, Norio: photographer']
+    # ex: [{u'namepart': u'', u'role': u'author'}]
+    # ex: [{u'namepart': u'Boyle, Rob:editor', u'role': u'author'}, {u'namepart': u'Cross, Brian:editor', u'role': u'author'}]
+    # ex: [{u'namepart': u'"YMCA:publisher"', u'role': u'author'}]
+    # ex: [{u'namepart': u'Heart Mountain YMCA', u'role': u'author'}]
+    names = []
+    for element in data:
+        name = None
+        # make everything into a string
+        if isinstance(element, basestring):
+            name = element
+        elif isinstance(element, dict):
+            # only keep the 'namepart' of a dict
+            if element.get('namepart', None) and element['namepart']:
+                name = element['namepart']
+        if name:
+            names.append(name)
+    return names
+
 def _clean_payload(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
     """
     # remove info about DDR release, git-annex version, etc
     if data and isinstance(data, list):
+        # skip the initial metadata field
         data = data[1:]
         # remove empty fields
         for field in data:
+            for key in field.keys():
+                if key == 'creators':
+                    field[key] = _clean_creators(field[key])
+            # rm null or empty fields
             _clean_dict(field)
 
 def _metadata_files(dirname, recursive=False):
