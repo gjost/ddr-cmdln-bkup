@@ -591,7 +591,14 @@
             "max_length": 255,
             "help_text": "Identifier of the object that contains this object. (I.e., the scrapbook that the photo belongs to)\tMust be an existing DDR Object ID"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch_properties": {
+            "type": "object",
+            "properties": {
+                "href": { "type":"string", "store":"no", "index":"not_analyzed" },
+                "label": { "type":"string", "store":"no", "index":"not_analyzed" },
+                "uid": { "type":"string", "store":"no", "index":"not_analyzed" }
+            }
+        },
         "default": ""
     },
     {
