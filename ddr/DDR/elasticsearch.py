@@ -360,12 +360,6 @@ def get(host, index, model, id):
     url = 'http://%s/%s/%s/%s' % (host, index, model, id)
     headers = {'content-type': 'application/json'}
     r = requests.get(url, headers=headers)
-    data = json.loads(r.text)
-    if data.get('exists', False):
-        hits = []
-        if data and data.get('_source', None) and data['_source'].get('d', None):
-            hits = data['_source']['d']
-        return hits
     return {'status':r.status_code, 'response':r.text}
 
 def delete(host, index, model, id):
