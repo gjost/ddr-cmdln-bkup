@@ -11,7 +11,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"not_analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -27,7 +28,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"not_analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -43,7 +45,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"not_analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -59,7 +62,8 @@
             "public": true,
             "properties": {
                 "type":"integer", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "filesize"
         },
         "default": ""
     },
@@ -75,7 +79,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -91,7 +96,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -119,7 +125,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -149,7 +156,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "facet"
         },
         "default": ""
     },
@@ -173,7 +181,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -197,7 +206,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -222,7 +232,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -247,7 +258,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -271,7 +283,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"no"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -295,7 +308,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"no"
-            }
+            },
+            "display": "string_collapsed"
         },
         "default": ""
     },
@@ -320,7 +334,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": ""
         },
         "default": ""
     }

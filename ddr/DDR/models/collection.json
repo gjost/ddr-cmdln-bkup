@@ -22,7 +22,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -46,7 +47,8 @@
             "public": true,
             "properties": {
                 "type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"
-            }
+            },
+            "display": "datetime"
         },
         "default": ""
     },
@@ -70,7 +72,8 @@
             "public": true,
             "properties": {
                 "type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"
-            }
+            },
+            "display": "datetime"
         },
         "default": ""
     },
@@ -99,7 +102,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -128,7 +132,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -155,7 +160,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -180,7 +186,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -205,7 +212,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -230,7 +238,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "facet"
         },
         "default": ""
     },
@@ -255,7 +264,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -292,7 +302,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "facet"
         },
         "default": ""
     },
@@ -317,7 +328,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -341,7 +353,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -365,7 +378,8 @@
             "public": false,
             "properties": {
                 "type":"string", "store":"no", "index":"analyzed"
-            }
+            },
+            "display": ""
         },
         "default": ""
     },
@@ -390,7 +404,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -414,7 +429,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -438,7 +454,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -462,7 +479,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -486,7 +504,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -517,7 +536,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
-            }
+            },
+            "display": "facet"
         },
         "default": ""
     },
@@ -541,7 +561,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -565,7 +586,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -590,7 +612,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -614,7 +637,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -638,7 +662,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -662,7 +687,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     },
@@ -686,7 +712,8 @@
             "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
-            }
+            },
+            "display": "string"
         },
         "default": ""
     }
