@@ -6,7 +6,7 @@ import os
 import envoy
 import requests
 
-from DDR.models import MODELS_DIR
+from DDR.models import MODELS, MODELS_DIR
 
 MAX_SIZE = 1000000
 
@@ -65,6 +65,35 @@ def status(host):
     url = 'http://%s/_status' % (host)
     r = requests.get(url)
     return json.loads(r.text)
+
+def _model_fields():
+    models = {}
+    for model in MODELS:
+        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
+        with open(json_path, 'r') as f:
+            data = json.loads(f.read())
+        models[model] = data
+    return models
+
+def _public_fields():
+    """Lists public fields for each model
+    
+    IMPORTANT: Adds certain dynamically-created fields
+    
+    @param models: Output of _model_fields()
+    @returns: dict
+    """
+    public_fields = {}
+    models =  _model_fields()
+    for model in MODELS:
+        model_fields = []
+        for field in models[model]:
+            if field['elasticsearch'].get('public',None):
+                model_fields.append(field['name'])
+        public_fields[model] = model_fields
+    # add dynamically created fields
+    public_fields['file'].append('path_rel')
+    return public_fields
 
 def mappings(host, index):
     """Get mappings for index.
@@ -126,7 +155,6 @@ def _make_mappings():
     mappings = MAPPINGS
     for mapping in mappings:
         model = mapping.keys()[0]
-        print(model)
         json_path = os.path.join(MODELS_DIR, '%s.json' % model)
         with open(json_path, 'r') as f:
             data = json.loads(f.read())
@@ -134,6 +162,14 @@ def _make_mappings():
             fname = field['name']
             mapping[model]['properties'][fname] = field['elasticsearch']['properties']
     return mappings
+
+def _mapping(mappings, model):
+    """Get mapping for the specified model
+    """
+    for m in mappings:
+        if m.keys()[0] == model:
+            return m
+    return None
 
 def _create_index(host, index):
     """Create the specified index.
@@ -183,6 +219,19 @@ def _delete_index(host, index):
     logger.debug('%s %s' % (r.status_code, r.text))
     return {'status':r.status_code, 'response':r.text}
 
+
+def _filter_payload(data, public_fields):
+    """If requested, removes non-public fields from document before sending to ElasticSearch.
+    
+    @param data: Standard DDR list-of-dicts data structure.
+    @param public_fields: List of field names; if present, fields not in list will be removed.
+    """
+    if public_fields and data and isinstance(data, list):
+        for field in data[1:]:
+            fieldname = field.keys()[0]
+            if fieldname not in public_fields:
+                data.remove(field)
+                print('removed %s' % fieldname)
 
 def _clean_dict(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
@@ -251,7 +300,7 @@ def _clean_payload(data):
             # rm null or empty fields
             _clean_dict(field)
 
-def post(path, host, index, model, newstyle=False):
+def post(path, host, index, model, newstyle=False, public_fields=[]):
     """Add a new document to an index or update an existing one.
     
     This function can produce ElasticSearch documents in two formats:
@@ -272,13 +321,20 @@ def post(path, host, index, model, newstyle=False):
     @param index: Name of the target index.
     @param model: Type of object ('collection', 'entity', 'file')
     @param newstyle: Use new ddr-public ES document format.
+    @param public_fields: List of field names; if present, fields not in list will be removed.
     @returns: JSON dict with status code and response
     """
-    logger.debug('post(%s, %s, %s, %s, newstyle=%s)' % (path, index, model, path, newstyle))
+    logger.debug('post(%s, %s, %s, %s, newstyle=%s, public=%s)' % (path, index, model, path, newstyle, public_fields))
     if not os.path.exists(path):
         return {'status':1, 'response':'path does not exist'}
     with open(path, 'r') as f:
         filedata = json.loads(f.read())
+    
+    # TODO die if document is public=False or status=incomplete
+    
+    # remove non-public fields
+    _filter_payload(filedata, public_fields)
+    # normalize field contents
     _clean_payload(filedata)
     
     if newstyle:
@@ -390,7 +446,7 @@ def delete(host, index, model, id):
     return {'status':r.status_code, 'response':r.text}
 
 
-def index(host, index, path, recursive=False, newstyle=False, paths=None):
+def index(host, index, path, recursive=False, newstyle=False, public=True, paths=None):
     """(Re)index with data from the specified directory.
     
     @param host: Hostname and port (HOST:PORT).
@@ -398,10 +454,13 @@ def index(host, index, path, recursive=False, newstyle=False, paths=None):
     @param path: Absolute path to metadata file or directory containing metadata files.
     @param recursive: Whether or not to recurse into subdirectories.
     @param newstyle: Use new ddr-public ES document format.
+    @param public: For publication (fields not marked public will be ommitted).
     @param paths: Absolute paths to directory containing collections.
     @returns: number successful,list of paths that didn't work out
     """
     logger.debug('index(%s, %s, %s)' % (host, index, path))
+    
+    public_fields = _public_fields()
     
     # process a single file if requested
     if os.path.isfile(path):
@@ -423,9 +482,12 @@ def index(host, index, path, recursive=False, newstyle=False, paths=None):
             model = 'entity'
         elif ('master' in path) or ('mezzanine' in path):
             model = 'file'
+        publicfields = []
+        if public and model:
+            publicfields = public_fields[model]
         if path and index and model:
             print('adding %s' % path)
-            result = post(path, host, index, model, newstyle)
+            result = post(path, host, index, model, newstyle, publicfields)
             status_code = result['status']
             response = result['response']
             if status_code in SUCCESS_STATUSES:
