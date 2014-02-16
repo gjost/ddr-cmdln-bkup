@@ -8,6 +8,7 @@
             "xpath_dup": []
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"not_analyzed"
             }
@@ -23,6 +24,7 @@
             "xpath_dup": []
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"not_analyzed"
             }
@@ -38,6 +40,7 @@
             "xpath_dup": []
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"not_analyzed"
             }
@@ -53,6 +56,7 @@
             "xpath_dup": []
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"integer", "store":"yes", "index":"not_analyzed"
             }
@@ -68,6 +72,7 @@
             "xpath_dup": []
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes"
             }
@@ -83,6 +88,7 @@
             "xpath_dup": []
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes"
             }
@@ -110,6 +116,7 @@
             "label": "Privacy Level"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
             }
@@ -139,6 +146,7 @@
             "label": "Rights"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
             }
@@ -162,6 +170,7 @@
             "label": "Sort"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes"
             }
@@ -185,6 +194,7 @@
             "label": "Thumbnail"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes"
             }
@@ -209,6 +219,7 @@
             "help_text": "(Optional) Friendly label for file describing partitive role (i.e., \"Page 1\", \"Cover\", \"Envelope\")"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes"
             }
@@ -233,6 +244,7 @@
             "help_text": ""
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
             }
@@ -256,6 +268,7 @@
             "label": "Technical Notes"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"no"
             }
@@ -279,6 +292,7 @@
             "label": "XMP Metadata"
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"no", "index":"no"
             }
@@ -303,6 +317,7 @@
             "help_text": "Semicolon-separated list of file.path_rels that this file points to."
         },
         "elasticsearch": {
+            "public": true,
             "properties": {
                 "type":"string", "store":"yes"
             }
