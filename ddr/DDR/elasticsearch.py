@@ -390,18 +390,18 @@ def delete(host, index, model, id):
     return {'status':r.status_code, 'response':r.text}
 
 
-def index(path, host, index, recursive=False, newstyle=False, paths=None):
+def index(host, index, path, recursive=False, newstyle=False, paths=None):
     """(Re)index with data from the specified directory.
     
-    @param path: Absolute path to metadata file or directory containing metadata files.
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
+    @param path: Absolute path to metadata file or directory containing metadata files.
     @param recursive: Whether or not to recurse into subdirectories.
     @param newstyle: Use new ddr-public ES document format.
     @param paths: Absolute paths to directory containing collections.
     @returns: number successful,list of paths that didn't work out
     """
-    logger.debug('index(%s, %s)' % (host, index))
+    logger.debug('index(%s, %s, %s)' % (host, index, path))
     
     # process a single file if requested
     if os.path.isfile(path):

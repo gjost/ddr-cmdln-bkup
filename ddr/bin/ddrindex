@@ -167,7 +167,7 @@ Example:
         print(msg)
     elif args.cmd == 'index':
         start = datetime.now()
-        results = elasticsearch.index(args.path, args.host, args.index, args.recursive, args.newstyle)
+        results = elasticsearch.index(args.host, args.index, args.path, args.recursive, args.newstyle)
         end = datetime.now()
         elapsed = end - start
         print('------------------------------------------------------------------------')
