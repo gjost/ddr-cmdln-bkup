@@ -7,7 +7,11 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"no", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -18,7 +22,11 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"no", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -29,7 +37,11 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"no", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -40,7 +52,11 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"integer", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -51,7 +67,11 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     },
     {
@@ -62,7 +82,11 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     },
     {
@@ -85,7 +109,11 @@
             "help_text": "Whether this file should be accessible from the public website.",
             "label": "Privacy Level"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -110,7 +138,11 @@
             "help_text": "The use license for this file.",
             "label": "Rights"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -129,7 +161,11 @@
             "initial": 1,
             "label": "Sort"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     },
     {
@@ -148,7 +184,11 @@
             "initial": -1,
             "label": "Thumbnail"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     },
     {
@@ -168,7 +208,11 @@
             "max_length": 255,
             "help_text": "(Optional) Friendly label for file describing partitive role (i.e., \"Page 1\", \"Cover\", \"Envelope\")"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     },
     {
@@ -188,7 +232,11 @@
             "max_length": 255,
             "help_text": ""
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -207,7 +255,11 @@
             "initial": "",
             "label": "Technical Notes"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"no", "index":"no"
+            }
+        },
         "default": ""
     },
     {
@@ -226,7 +278,11 @@
             "initial": "",
             "label": "XMP Metadata"
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"no", "index":"no"
+            }
+        },
         "default": ""
     },
     {
@@ -246,7 +302,11 @@
             "max_length": 255,
             "help_text": "Semicolon-separated list of file.path_rels that this file points to."
         },
-        "elasticsearch_properties": {},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     }
 ]

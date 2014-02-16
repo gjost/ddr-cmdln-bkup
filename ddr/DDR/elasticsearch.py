@@ -176,17 +176,30 @@ MAPPINGS = [
 def _make_mappings():
     """Takes MAPPINGS and adds field properties from MODEL_FIELDS
     Returns a nice list of mapping dicts.
+    
+    Expects MODEL.json to be formatted thusly:
+        [
+            {
+                "name": "FIELD NAME",
+                ...
+                "elasticsearch": {
+                    "properties": {
+                        ...
+                    }
+                }
+            }
+        ]
     """
     mappings = MAPPINGS
     for mapping in mappings:
         model = mapping.keys()[0]
+        print(model)
         json_path = os.path.join(MODELS_DIR, '%s.json' % model)
         with open(json_path, 'r') as f:
             data = json.loads(f.read())
         for field in data:
             fname = field['name']
-            properties = field['elasticsearch_properties']
-            mapping[model]['properties'][fname] = properties
+            mapping[model]['properties'][fname] = field['elasticsearch']['properties']
     return mappings
 
 def _create_index(host, index):

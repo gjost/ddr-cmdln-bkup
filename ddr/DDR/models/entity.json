@@ -18,7 +18,11 @@
             "max_length": 255,
             "help_text": ""
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
+        },
         "default": ""
     },
     {
@@ -37,7 +41,11 @@
             "initial": "",
             "label": "Record Created"
         },
-        "elasticsearch_properties": {"type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"},
+        "elasticsearch": {
+            "properties": {
+                "type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"
+            }
+        },
         "default": ""
     },
     {
@@ -56,7 +64,11 @@
             "initial": "",
             "label": "Record Modified"
         },
-        "elasticsearch_properties": {"type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"},
+        "elasticsearch": {
+            "properties": {
+                "type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"
+            }
+        },
         "default": ""
     },
     {
@@ -80,7 +92,11 @@
             "help_text": "\"In Progress\" = the object is not ready for release on the DDR public website. (The object will not be published even if the collection has a status of \"Complete\".) \"Complete\" = the object is ready for release on the DDR public website. (The object can only be published if the collection has a status of \"Complete\".)",
             "label": "Production Status"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -104,7 +120,11 @@
             "help_text": "\"Public\" = the object is viewable through the DDR public website. (Any files under the object with a status of \"Private\" will not be viewable regardless of the object's privacy level. If the entire collection has a status of \"Private\" no objects or files will be viewable). \"Private\" = the object is restricted and not viewable through the DDR public website. (Any files under the object inherit this privacy level and will not be viewable either. If the entire collection has a status of \"Public\" the object will remain not viewable).",
             "label": "Privacy Level"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -126,7 +146,11 @@
             "max_length": 255,
             "help_text": "Use an original or previously designated title if one exists. If an original does not exist one should be derived. For derived titles, capitalize the first word and proper nouns and there is no period at end of the title. If the subject is completely unidentifiable, then use of \"Unknown\" can be appropriate."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -146,7 +170,11 @@
             "max_length": 4000,
             "help_text": "Use if the title field is not sufficient for the amount of information you have about the object. The description can also include transcriptions of anything handwritten, stamped, or printed on the material. In such cases, specify that is how the information originated. Follow Chicago Manual of Style guidelines for text."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -166,7 +194,11 @@
             "max_length": 255,
             "help_text": "f the exact date is known use MM/DD/YYY for the format. If the exact date is unknown, then use circa (c.1931) or if applicable, a date range (1930-1940)."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -186,7 +218,11 @@
             "max_length": 255,
             "help_text": "When possible use the Getty Thesaurus of Geographic names as an authority. Format the names as follows: City, State (state name spelled out). Include country if outside the United States (i.e., City, State, Country)."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -206,8 +242,10 @@
             "max_length": 255,
             "help_text": "When possible use the Library of Congress Name Authority Headings. For individuals use the following format: \"Last Name, First Name: Creator Role\" (e.g., Adams, Ansel:photographer). For organizations use the following format: \"Organization Name: Creator Role\" (e.g., Associated Press:publisher). Multiple creators are allowed, but must be separated using a semi-colon."
         },
-        "elasticsearch_properties": {
-            "type":"string", "store":"yes"
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes"
+            }
         },
         "default": ""
     },
@@ -240,7 +278,11 @@
             "help_text": "Only needed for objects containing textual content (i.e. caption on a photograph, text of a letter). To select multiple languages hold the Ctrl key down and click on each language.",
             "label": "Language"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -306,7 +348,11 @@
             "help_text": "The genre, form, and/or physical characteristics of the object.\tUse the Library of Congress Basic Genre Terms for Cultural Heritage Materials controlled vocabulary list. See Appendix E: Controlled Vocabularies or the Library of Congress website: http://memory.loc.gov/ammem/techdocs/genre.html",
             "label": "Object Genre"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -332,7 +378,11 @@
             "help_text": "A descriptor for indicating the type of object.\tUse the Densho Object Type Controlled Vocabulary List found in Appendix E: Controlled Vocabularies.",
             "label": "Object Format"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -352,7 +402,11 @@
             "max_length": 255,
             "help_text": "Optional: extent, media-type, and any additional relevant information about the material. (e.g. 1 scrapbook, 1 photograph). Construct the statement using a standard like AACR2, RDA, DACS or DCRM(G). Required: width in inches, followed by height in inches, in the following format: \"5.25W x 3.5H\". For photographs, do not include border, mounts and/or frames. Separate the extent/media-type and the dimensions with a colon. (e.g. 1 scrapbook: 8W x 10H)."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -372,7 +426,11 @@
             "max_length": 255,
             "help_text": "Name of the organization that owns the physical materials. Will probably be the name of the partner, unless materials were borrowed from external institution for scanning."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -392,7 +450,11 @@
             "max_length": 255,
             "help_text": "May be a physical or virtual record identifier. For example, a physical shelf/folder location, a negative number, an accession number, or a URI of an external database record."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -412,7 +474,11 @@
             "max_length": 255,
             "help_text": "Name of person who created the scan. LastName, FirstName"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -432,7 +498,11 @@
             "max_length": 255,
             "help_text": "Name of organization responsible for scanning. Will probably be the name of the partner."
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -451,7 +521,11 @@
             "initial": "",
             "label": "Digitize Date"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -471,7 +545,11 @@
             "max_length": 255,
             "help_text": "Short courtesy text relating to use of object. Could identify either collection contributor and/or donor depending on deed of gift and/or usage agreement for object. Often begins with: \"Courtesy of...\""
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -497,7 +575,11 @@
             "help_text": "Use rights for the object. Setting will determine the initial default for files associated with this object.",
             "label": "Rights"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -516,7 +598,11 @@
             "initial": "",
             "label": "Restrictions on Reproduction and Use"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -535,7 +621,11 @@
             "initial": "",
             "label": "Topic"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -554,7 +644,11 @@
             "initial": "",
             "label": "Person/Organization"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -573,7 +667,11 @@
             "initial": "",
             "label": "Facility"
         },
-        "elasticsearch_properties": {"type":"string", "store":"yes", "index":"not_analyzed"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            }
+        },
         "default": ""
     },
     {
@@ -593,12 +691,14 @@
             "max_length": 255,
             "help_text": "Identifier of the object that contains this object. (I.e., the scrapbook that the photo belongs to)\tMust be an existing DDR Object ID"
         },
-        "elasticsearch_properties": {
-            "type": "object",
+        "elasticsearch": {
             "properties": {
-                "href": { "type":"string", "store":"no", "index":"not_analyzed" },
-                "label": { "type":"string", "store":"no", "index":"not_analyzed" },
-                "uid": { "type":"string", "store":"no", "index":"not_analyzed" }
+                "type": "object",
+                "properties": {
+                    "href": { "type":"string", "store":"no", "index":"not_analyzed" },
+                    "label": { "type":"string", "store":"no", "index":"not_analyzed" },
+                    "uid": { "type":"string", "store":"no", "index":"not_analyzed" }
+                }
             }
         },
         "default": ""
@@ -619,7 +719,11 @@
             "initial": "",
             "label": "Notes"
         },
-        "elasticsearch_properties": {"type":"string", "store":"no", "index":"no"},
+        "elasticsearch": {
+            "properties": {
+                "type":"string", "store":"no", "index":"no"
+            }
+        },
         "default": ""
     },
     {
@@ -630,14 +734,16 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "elasticsearch_properties": {
-            "type": "object",
+        "elasticsearch": {
             "properties": {
-                "path_rel": { "type":"string", "store":"no", "index":"not_analyzed" },
-                "public": { "type":"integer", "store":"no", "index":"not_analyzed" },
-                "md5": { "type":"string", "store":"no", "index":"not_analyzed" },
-                "sha1": { "type":"string", "store":"no", "index":"not_analyzed" },
-                "sha256": { "type":"string", "store":"no", "index":"not_analyzed" }
+                "type": "object",
+                "properties": {
+                    "path_rel": { "type":"string", "store":"no", "index":"not_analyzed" },
+                    "public": { "type":"integer", "store":"no", "index":"not_analyzed" },
+                    "md5": { "type":"string", "store":"no", "index":"not_analyzed" },
+                    "sha1": { "type":"string", "store":"no", "index":"not_analyzed" },
+                    "sha256": { "type":"string", "store":"no", "index":"not_analyzed" }
+                }
             }
         },
         "default": ""
