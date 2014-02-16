@@ -415,7 +415,9 @@ def index(host, index, path, recursive=False, newstyle=False, paths=None):
     bad_paths = []
     for path in paths:
         model = None
-        if 'collection.json' in path:
+        if 'organization.json' in path:
+            pass
+        elif 'collection.json' in path:
             model = 'collection'
         elif 'entity.json' in path:
             model = 'entity'
