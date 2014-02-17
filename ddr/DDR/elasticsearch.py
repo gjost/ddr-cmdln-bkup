@@ -66,7 +66,7 @@ def status(host):
     r = requests.get(url)
     return json.loads(r.text)
 
-def _model_fields():
+def model_fields():
     models = {}
     for model in MODELS:
         json_path = os.path.join(MODELS_DIR, '%s.json' % model)
@@ -80,17 +80,17 @@ def _public_fields():
     
     IMPORTANT: Adds certain dynamically-created fields
     
-    @param models: Output of _model_fields()
+    @param models: Output of model_fields()
     @returns: dict
     """
     public_fields = {}
-    models =  _model_fields()
+    models =  model_fields()
     for model in MODELS:
-        model_fields = []
+        modelfields = []
         for field in models[model]:
             if field['elasticsearch'].get('public',None):
-                model_fields.append(field['name'])
-        public_fields[model] = model_fields
+                modelfields.append(field['name'])
+        public_fields[model] = modelfields
     # add dynamically created fields
     public_fields['file'].append('path_rel')
     return public_fields
