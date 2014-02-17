@@ -171,13 +171,14 @@ def _mapping(mappings, model):
             return m
     return None
 
-def _create_index(host, index):
+def _create_index(host, index, mappings=True):
     """Create the specified index.
     
     curl -XPOST 'http://localhost:9200/twitter/' -d @mappings.json
     
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
+    @param mappings: Boolean Whether to upload model mappings (default True).
     @returns: JSON dict with status codes and responses
     """
     status = {}
@@ -190,18 +191,18 @@ def _create_index(host, index):
     logger.debug('%s %s' % (r.status_code, r.text))
     status['create'] = {'status':r.status_code, 'response':r.text}
     
-    # mappings
     status['mappings'] = {}
-    for mapping in _make_mappings():
-        model = mapping.keys()[0]
-        logger.debug(model)
-        logger.debug(json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
-        payload = json.dumps(mapping)
-        url = 'http://%s/%s/%s/_mapping' % (host, index, model)
-        headers = {'content-type': 'application/json'}
-        r = requests.put(url, data=payload, headers=headers)
-        logger.debug('%s %s' % (r.status_code, r.text))
-        status['mappings'][model] = {'status':r.status_code, 'response':r.text}
+    if mappings:
+        for mapping in _make_mappings():
+            model = mapping.keys()[0]
+            logger.debug(model)
+            logger.debug(json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
+            payload = json.dumps(mapping)
+            url = 'http://%s/%s/%s/_mapping' % (host, index, model)
+            headers = {'content-type': 'application/json'}
+            r = requests.put(url, data=payload, headers=headers)
+            logger.debug('%s %s' % (r.status_code, r.text))
+            status['mappings'][model] = {'status':r.status_code, 'response':r.text}
     return status
 
 def _delete_index(host, index):
