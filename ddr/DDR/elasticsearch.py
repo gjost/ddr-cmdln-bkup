@@ -534,6 +534,37 @@ def query(host, index, model=None, query='', filters={}, sort='', fields='', siz
     r = requests.post(url, data=json.dumps(payload), headers=headers)
     return json.loads(r.text)
 
+
+def load_facets(path):
+    """
+    @param path: Absolute path to facets.json
+    """
+    with open(path, 'r') as f:
+        data = json.loads(f.read().strip())
+    return data
+
+def put_facets(host, index, path):
+    """PUTs facets from file into ES.
+    
+    curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
+    >>> elasticsearch.put_facets('192.168.56.120:9200', 'meta', '/usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json')
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param path: Absolute path to facets.json
+    """
+    logger.debug('index_facets(%s, %s, %s)' % (host, index, path))
+    data = load_facets(path)
+    statuses = []
+    for key,value in data.iteritems():
+        url = 'http://%s/%s/facet/%s/' % (host, index, key)
+        payload = json.dumps(value)
+        headers = {'content-type': 'application/json'}
+        r = requests.put(url, data=payload, headers=headers)
+        #logger.debug('%s %s' % (r.status_code, r.text))
+        statuses.append({'status':r.status_code, 'response':r.text})
+    return statuses
+
 def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
     """Gets list of terms for the facet.
     
