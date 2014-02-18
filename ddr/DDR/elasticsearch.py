@@ -614,10 +614,10 @@ def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
     payload = {
         "fields": ["id"],
         "query": { "match_all": {} },
-        "size": MAX_SIZE,
         "facets": {
             "results": {
                 "terms": {
+                    "size": MAX_SIZE,
                     "order": order,
                     "all_terms": all_terms,
                     "field": facet
