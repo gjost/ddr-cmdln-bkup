@@ -399,5 +399,10 @@
                 "COMPLETED DESCRIPTION" 
             ]
         ]
-    }
+    },
+    "topics": {
+        "title": "Topics",
+        "description": "TOPICS DESCRIPTION",
+        "terms": []
+    },
 }
