@@ -45,22 +45,24 @@ def _metadata_files(dirname, recursive=False):
 
 
 def settings(host):
-    """Get Elasticsearch's current settings.
+    """Gets current ElasticSearch settings.
     
-    curl -XGET 'http://localhost:9200/twitter/_settings'
+    curl -XGET 'http://DOMAINNAME:9200/_settings'
     
     @param host: Hostname and port (HOST:PORT).
+    @returns: settings formatted in JSON
     """
     url = 'http://%s/_settings' % (host)
     r = requests.get(url)
     return json.loads(r.text)
 
 def status(host):
-    """Get Elasticsearch's current settings.
+    """Gets status of the Elasticsearch cluster
     
-    curl -XGET 'http://localhost:9200/_status'
+    curl -XGET 'http://DOMAIN:9200/_status'
 
     @param host: Hostname and port (HOST:PORT).
+    @returns: status formatted in JSON
     """
     url = 'http://%s/_status' % (host)
     r = requests.get(url)
@@ -95,12 +97,21 @@ def _public_fields():
     public_fields['file'].append('path_rel')
     return public_fields
 
-def mappings(host, index):
-    """Get mappings for index.
+def mappings(host, index, local=False):
+    """GET current mappings for the specified index.
     
-    curl -XGET 'http://localhost:9200/twitter/_mappings?pretty=1'
+    curl -XGET 'http://DOMAINNAME:9200/documents/_mappings?pretty=1'
+    
+    Mappings are like the schema for a SQL database.  ElasticSearch
+    is very "smart" and "helpful" and tries to guess wht to do with
+    incoming data.  Mappings tell ElasticSearch exactly how fields
+    should be indexed and stored, whether to use for faceting, etc.
+    
+    DDR mappings for documents are stored in the 'documents' index.
     
     @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @returns: JSON dict with status codes and responses
     """
     url = 'http://%s/_mapping?pretty=1' % (host)
     r = requests.get(url)
@@ -139,18 +150,30 @@ def _make_mappings():
     """Takes MAPPINGS and adds field properties from MODEL_FIELDS
     Returns a nice list of mapping dicts.
     
-    Expects MODEL.json to be formatted thusly:
-        [
-            {
-                "name": "FIELD NAME",
-                ...
-                "elasticsearch": {
-                    "properties": {
-                        ...
-                    }
-                }
-            }
-        ]
+    DDR mappings are constructed from the model files in ddr-cmdln/ddr/DDR/models/*.json.  The mappings function looks at each field in each model file and constructs a mapping using the contents of FIELD['elasticsearch']['properties'].
+    
+    MODEL.json should be formatted thusly:
+        {
+            "group": "",
+            "name": "record_created",
+            ...
+            "elasticsearch": {
+                "public": true,
+                "properties": {
+                    "type":"date", "index":"not_analyzed", "store":"yes", "format":"yyyy-MM-dd'T'HH:mm:ss"
+                },
+                "display": "datetime"
+            },
+            ...
+    
+    ['elasticsearch']['public']
+    Fields marked '"public":true' will be included with documents are POSTed to ElasticSearch.  Fields without this value are not included at all.
+    
+    ['elasticsearch']['display']
+    Fields with a value in "display" will be included with documents are POSTed to ElasticSearch, and will be displayed in the public interface using the function in the value for "display".  If this is left blank the field will be POSTed but will not be shown in the interface.
+    
+    ['elasticsearch']['properties']
+    The contents of this field will be inserted directly into the mappings document.  See ElasticSearch documentation for more information: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping.html
     """
     mappings = MAPPINGS
     for mapping in mappings:
@@ -174,7 +197,9 @@ def _mapping(mappings, model):
 def _create_index(host, index, mappings=True):
     """Create the specified index.
     
-    curl -XPOST 'http://localhost:9200/twitter/' -d @mappings.json
+    curl -XPOST 'http://DOMAINNAME:9200/documents/' -d @mappings.json
+    
+    Creates an index if it does not already exist, then constructs and uploads mappings (see mappings command for more information on mappings).
     
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
@@ -552,6 +577,7 @@ def put_facets(host, index, path):
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
     @param path: Absolute path to facets.json
+    @returns: JSON dict with status code and response
     """
     logger.debug('index_facets(%s, %s, %s)' % (host, index, path))
     data = load_facets(path)

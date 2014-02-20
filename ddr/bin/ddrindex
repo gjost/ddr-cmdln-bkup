@@ -4,11 +4,35 @@
 #
 #
 
-description = """Commands for managing search engine."""
+description = """Tools for managing DDR metadata in ElasticSearch."""
+epilog = """
+Example usage:
 
-epilog = """ddr-search is used to manage an ElasticSearch index.
+    # Recreate indexes and upload mappings (must do this whenever you change mappings).
+    # IMPORTANT: You only need to do this if you have updated your mappings.
+    $ su ddr
+    $ cd /usr/local/src/ddr-local/ddrlocal
+    $ ./manage.py shell
+    >>> from django.conf import settings; from DDR import elasticsearch
+    >>> elasticsearch._delete_index('localhost:9200', 'documents')
+    >>> elasticsearch._delete_index('localhost:9200', 'meta')
+    >>> elasticsearch._create_index('localhost:9200', 'documents')
+    >>> elasticsearch._create_index('localhost:9200', 'meta')
+    >>> [cntl-D]
+    
+    # Index a collection for ddr-local
+    $ ddrindex index -H localhost:9200 --recursive -i documents -p /var/www/media/base/ddr-testing-123
+    
+    # Index a whole directory of collections for ddr-local
+    $ ddrindex index -H localhost:9200 --recursive -i documents -p /var/www/media/base
+    
+    # Index a whole directory of collections for ddr-public
+    $ ddrindex index -H localhost:9200 --recursive --newstyle -i documents -p /var/www/media/base
+    
+    # Update facets for ddr-public
+    $ ddrindex facets -H localhost:9200 -i meta -p /usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json
+
 """
-
 
 import argparse
 import ConfigParser
