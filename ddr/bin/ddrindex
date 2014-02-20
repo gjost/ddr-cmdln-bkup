@@ -78,6 +78,7 @@ Example:
     get_descr,get_epilog = split_docstring(elasticsearch.get)
     delete_descr,delete_epilog = split_docstring(elasticsearch.delete)
     index_descr,index_epilog = split_docstring(elasticsearch.index)
+    facets_descr,facets_epilog = split_docstring(elasticsearch.put_facets)
     
     settings_parser = subparsers.add_parser('settings', description=settings_descr, epilog=settings_epilog, formatter_class=formatter,)
     mappings_parser = subparsers.add_parser('mappings', description=mappings_descr, epilog=mappings_epilog, formatter_class=formatter,)
@@ -86,6 +87,7 @@ Example:
     get_parser = subparsers.add_parser('get', description=get_descr, epilog=get_epilog, formatter_class=formatter,)
     delete_parser = subparsers.add_parser('delete', description=delete_descr, epilog=delete_epilog, formatter_class=formatter,)
     index_parser = subparsers.add_parser('index', description=index_descr, epilog=index_epilog, formatter_class=formatter,)
+    facets_parser = subparsers.add_parser('facets', description=facets_descr, epilog=facets_epilog, formatter_class=formatter,)
     
     settings_parser.set_defaults(func=elasticsearch.settings)
     mappings_parser.set_defaults(func=elasticsearch.mappings)
@@ -94,6 +96,7 @@ Example:
     get_parser.set_defaults(func=elasticsearch.get)
     delete_parser.set_defaults(func=elasticsearch.delete)
     index_parser.set_defaults(func=elasticsearch.index)
+    facets_parser.set_defaults(func=elasticsearch.put_facets)
     
     settings_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     settings_parser.add_argument('-l', '--log', help='Log file..')
@@ -136,6 +139,12 @@ Example:
     index_parser.add_argument('-p', '--path', required=True, help='Absolute path to directory containing metadata file(s).')
     index_parser.add_argument('-r', '--recursive', action='store_true', help='Recurse into subdirectories.')
     index_parser.add_argument('-n', '--newstyle', action='store_true', help='Use new ddr-public ES index format.')
+    
+    facets_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    facets_parser.add_argument('-l', '--log', help='Log file..')
+    facets_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
+    facets_parser.add_argument('-i', '--index', required=True, help='index.')
+    facets_parser.add_argument('-p', '--path', required=True, help='Absolute path to facets.json file.')
     
     args = parser.parse_args()
     
@@ -186,6 +195,9 @@ Example:
         print('Successful:      %s' % results['successful'])
         print('Errors:          %s' % len(results['bad']))
         print('Time elapsed:    %s' % elapsed)
+    elif args.cmd == 'facets':
+        msg = elasticsearch.put_facets(args.host, args.index, args.path)
+        print(msg)
     
     if exit:
         print(msg)
