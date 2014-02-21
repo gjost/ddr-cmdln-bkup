@@ -513,7 +513,7 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
-def query(host, index, model=None, query='', filters={}, sort='', fields='', first=0, size=MAX_SIZE):
+def query(host, index, model=None, query='', term={}, filters={}, sort='', fields='', first=0, size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.
     
     curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
@@ -522,6 +522,7 @@ def query(host, index, model=None, query='', filters={}, sort='', fields='', fir
     @param index: Name of the target index.
     @param model: Type of object ('collection', 'entity', 'file')
     @param query: User's search text
+    @param term: dict
     @param filters: dict
     @param sort: dict
     @param fields: str
@@ -534,17 +535,26 @@ def query(host, index, model=None, query='', filters={}, sort='', fields='', fir
     
     if model and query:
         url = 'http://%s/%s/%s/_search?q=%s' % (host, index, model, query)
-    else:
+    elif query:
         url = 'http://%s/%s/_search?q=%s' % (host, index, query)
+    else:
+        url = 'http://%s/%s/_search' % (host, index)
+    logger.debug(url)
     
     payload = {'size':size, 'from':first,}
+    if term:
+        payload['query'] = {}
+        payload['query']['term'] = term
     if fields:  payload['fields'] = fields
     if filters: payload['filter'] = {'term':filters}
     if sort:    payload['sort'  ] = sort
-    logger.debug(str(payload))
+    payload_json = json.dumps(payload)
+    logger.debug(payload_json)
     
     headers = {'content-type': 'application/json'}
-    r = requests.post(url, data=json.dumps(payload), headers=headers)
+    r = requests.get(url, data=payload_json, headers=headers)
+    logger.debug('status: %s' % r.status_code)
+    #logger.debug(r.text)
     return json.loads(r.text)
 
 
