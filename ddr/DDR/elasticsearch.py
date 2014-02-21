@@ -548,6 +548,9 @@ def query(host, index, model=None, query='', filters={}, sort='', fields='', fir
     return json.loads(r.text)
 
 
+def list_facets(path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
+    return [filename.replace('.json', '') for filename in os.listdir(HARD_CODED_FACETS_PATH)]
+
 def load_facets(path):
     """
     @param path: Absolute path to facets.json
