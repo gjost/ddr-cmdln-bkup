@@ -526,7 +526,7 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
-def query(host, index, model=None, query='', filters={}, sort='', fields='', size=MAX_SIZE):
+def query(host, index, model=None, query='', filters={}, sort='', fields='', from=0, size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.
     
     curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
@@ -538,6 +538,7 @@ def query(host, index, model=None, query='', filters={}, sort='', fields='', siz
     @param filters: dict
     @param sort: dict
     @param fields: str
+    @param from: int Index from which to start results
     @param size: int Number of results to return
     @returns raw ElasticSearch query output
     """
@@ -549,7 +550,7 @@ def query(host, index, model=None, query='', filters={}, sort='', fields='', siz
     else:
         url = 'http://%s/%s/_search?q=%s' % (host, index, query)
     
-    payload = {'size':size,}
+    payload = {'size':size, 'from':from,}
     if fields:  payload['fields'] = fields
     if filters: payload['filter'] = {'term':filters}
     if sort:    payload['sort'  ] = sort
