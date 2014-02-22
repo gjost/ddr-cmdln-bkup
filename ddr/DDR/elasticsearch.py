@@ -11,6 +11,8 @@ from DDR.models import MODELS, MODELS_DIR
 MAX_SIZE = 1000000
 
 HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
+HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
+
 
 def _metadata_files(dirname, recursive=False):
     """Lists absolute paths to .json files in dirname.
@@ -554,7 +556,7 @@ def load_facets(path):
         data = json.loads(f.read().strip())
     return data
 
-def put_facets(host, index, path):
+def put_facets(host, index, path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
@@ -562,19 +564,23 @@ def put_facets(host, index, path):
     
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
-    @param path: Absolute path to facets.json
+    @param path: Absolute path to dir containing facet files.
     @returns: JSON dict with status code and response
     """
     logger.debug('index_facets(%s, %s, %s)' % (host, index, path))
-    data = load_facets(path)
     statuses = []
-    for key,value in data.iteritems():
-        url = 'http://%s/%s/facet/%s/' % (host, index, key)
-        payload = json.dumps(value)
-        headers = {'content-type': 'application/json'}
-        r = requests.put(url, data=payload, headers=headers)
-        #logger.debug('%s %s' % (r.status_code, r.text))
-        statuses.append({'status':r.status_code, 'response':r.text})
+    for facet_json in os.listdir(HARD_CODED_FACETS_PATH):
+        facet = facet_json.split('.')[0]
+        srcpath = os.path.join(path, facet_json)
+        with open(srcpath, 'r') as f:
+            data = json.loads(f.read().strip())
+            url = 'http://%s/%s/facet/%s/' % (host, index, facet)
+            payload = json.dumps(data)
+            headers = {'content-type': 'application/json'}
+            r = requests.put(url, data=payload, headers=headers)
+            #logger.debug('%s %s' % (r.status_code, r.text))
+            status = {'status':r.status_code, 'response':r.text}
+            statuses.append(status)
     return statuses
 
 def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):

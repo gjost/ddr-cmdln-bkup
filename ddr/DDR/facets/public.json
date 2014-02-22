@@ -1,0 +1,17 @@
+{
+    "id": "public",
+    "title": "Public",
+    "description": "PUBLIC DESCRIPTION",
+    "terms": [
+        {
+            "id": "1",
+            "title": "Public",
+            "description": "1 DESCRIPTION"
+        },
+        {
+            "id": "0",
+            "title": "Private",
+            "description": "0 DESCRIPTION" 
+        }
+    ]
+}
