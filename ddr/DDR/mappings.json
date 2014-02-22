@@ -1,0 +1,72 @@
+{
+    "documents": [
+        {
+            "collection": {
+                "_source": {"enabled": true},
+                "date_detection":0,
+                "properties": {}
+            }
+        },
+        {
+            "entity": {
+                "_source": {"enabled": true},
+                "date_detection":0,
+                "properties": {}
+            }
+        },
+        {
+            "file": {
+                "_source": {"enabled": true},
+                "date_detection":0,
+                "properties": {}
+            }
+        }
+    ],
+    "meta": [
+        {
+            "facet": {
+                "properties": {
+                    "id": {"type": "string"},
+                    "title": {"type": "string" },
+                    "description": {"type": "string"},
+                    "terms": {
+                        "properties": {
+                            "id": {"type": "string"},
+                            "parent_id": {"type": "string"},
+                            "created": {"type": "date", "format": "dateOptionalTime"},
+                            "modified": {
+                                "type": "date",
+                                "format": "dateOptionalTime"
+                            },
+                            "type": {"type": "string"},
+                            "title": {"type": "string"},
+                            "title_display": {"type": "string"},
+                            "description": {"type": "string"},
+                            "elinks": {
+                                "properties": {
+                                    "label": {
+                                        "type": "string"
+                                    },
+                                    "url": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "location": {
+                                "properties": {
+                                    "geopoint": {
+                                        "properties": {"lat": {"type": "double"}, "lng": {"type": "double"} }
+                                    },
+                                    "label": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "weight": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

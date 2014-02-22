@@ -10,8 +10,7 @@ from DDR.models import MODELS, MODELS_DIR
 
 MAX_SIZE = 1000000
 
-HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/es-mappings.json'
-
+HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
 
 def _metadata_files(dirname, recursive=False):
     """Lists absolute paths to .json files in dirname.
@@ -122,31 +121,7 @@ def mappings(host, index, local=False):
 
 # Each item in this list is a mapping dict in the format ElasticSearch requires.
 # Mappings for each type have to be uploaded individually (I think).
-MAPPINGS = [
-    {
-        'collection': {
-            '_source': {'enabled': True},
-            'date_detection':0,
-            'properties': {}
-        }
-    },
-    {
-        'entity': {
-            '_source': {'enabled': True},
-            'date_detection':0,
-            'properties': {}
-        }
-    },
-    {
-        'file': {
-            '_source': {'enabled': True},
-            'date_detection':0,
-            'properties': {}
-        }
-    }
-]
-
-def _make_mappings():
+def _make_mappings(index):
     """Takes MAPPINGS and adds field properties from MODEL_FIELDS
     Returns a nice list of mapping dicts.
     
@@ -175,16 +150,21 @@ def _make_mappings():
     ['elasticsearch']['properties']
     The contents of this field will be inserted directly into the mappings document.  See ElasticSearch documentation for more information: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping.html
     """
-    mappings = MAPPINGS
-    for mapping in mappings:
-        model = mapping.keys()[0]
-        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
-        with open(json_path, 'r') as f:
-            data = json.loads(f.read())
-        for field in data:
-            fname = field['name']
-            mapping[model]['properties'][fname] = field['elasticsearch']['properties']
-    return mappings
+    with open(HARD_CODED_MAPPINGS_PATH, 'r') as f:
+        mappings = json.loads(f.read())
+    if index == 'documents':
+        for mapping in mappings[index]:
+            model = mapping.keys()[0]
+            json_path = os.path.join(MODELS_DIR, '%s.json' % model)
+            with open(json_path, 'r') as f:
+                data = json.loads(f.read())
+            for field in data:
+                fname = field['name']
+                mapping[model]['properties'][fname] = field['elasticsearch']['properties']
+        return mappings
+    elif index == 'meta':
+        return mappings['meta']
+    return None
 
 def _mapping(mappings, model):
     """Get mapping for the specified model
@@ -218,7 +198,12 @@ def _create_index(host, index, mappings=True):
     
     status['mappings'] = {}
     if mappings:
-        for mapping in _make_mappings():
+        mappings_list = []
+        if index == 'documents':
+            mappings_list = _make_mappings('documents')['documents']
+        elif index == 'meta':
+            mappings_list = _make_mappings('meta')
+        for mapping in mappings_list:
             model = mapping.keys()[0]
             logger.debug(model)
             logger.debug(json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
