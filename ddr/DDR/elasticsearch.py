@@ -298,6 +298,11 @@ def _clean_creators(data):
             names.append(name)
     return names
 
+def _clean_topics(data):
+    """Extract topics IDs from textual topics.
+    """
+    return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
+
 def _clean_payload(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
     """
@@ -308,8 +313,8 @@ def _clean_payload(data):
         # remove empty fields
         for field in data:
             for key in field.keys():
-                if key == 'creators':
-                    field[key] = _clean_creators(field[key])
+                if key == 'creators': field[key] = _clean_creators(field[key])
+                if key == 'topics':   field[key] = _clean_topics(field[key])
             # rm null or empty fields
             _clean_dict(field)
 
