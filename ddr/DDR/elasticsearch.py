@@ -233,6 +233,34 @@ def _delete_index(host, index):
     return {'status':r.status_code, 'response':r.text}
 
 
+def _is_publishable(data):
+    """Determines if object is publishable
+    
+    TODO Does not inherit status/public of parent(s)!
+    TODO This function has knowledge of model that maybe it should not have!
+    
+    @param data: Standard DDR list-of-dicts data structure.
+    @returns: True/False
+    """
+    publishable = False
+    STATUS_OK = ['completed']
+    PUBLIC_OK = [1,'1']
+    status = None
+    public = None
+    for field in data:
+        fieldname = field.keys()[0]
+        if   fieldname == 'status': status = field['status']
+        elif fieldname == 'public': public = field['public']
+    # collections, entities
+    print('status: %s' % status)
+    print('public: %s' % public)
+    if status and public and (status in STATUS_OK) and (public in PUBLIC_OK):
+        return True
+    # files
+    elif (status == None) and public and (public in PUBLIC_OK):
+        return True
+    return False
+
 def _filter_payload(data, public_fields):
     """If requested, removes non-public fields from document before sending to ElasticSearch.
     
@@ -348,8 +376,9 @@ def post(path, host, index, model, newstyle=False, public_fields=[]):
     with open(path, 'r') as f:
         filedata = json.loads(f.read())
     
-    # TODO die if document is public=False or status=incomplete
-    
+    # die if document is public=False or status=incomplete
+    if not _is_publishable(filedata):
+        return {'status':403, 'response':'object not publishable'}
     # remove non-public fields
     _filter_payload(filedata, public_fields)
     # normalize field contents
