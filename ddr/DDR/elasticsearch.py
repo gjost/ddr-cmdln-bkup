@@ -14,7 +14,7 @@ HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
 HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
 
 
-def _metadata_files(dirname, recursive=False):
+def _metadata_files(dirname, recursive=False, dirsfirst=False):
     """Lists absolute paths to .json files in dirname.
     
     Skips/excludes .git directories.
@@ -23,7 +23,7 @@ def _metadata_files(dirname, recursive=False):
     @param recursive: Whether or not to recurse into subdirectories.
     """
     paths = []
-    excludes = ['.git', 'tmp']
+    excludes = ['.git', 'tmp', '*~']
     if recursive:
         for root, dirs, files in os.walk(dirname):
             # don't go down into .git directory
@@ -35,6 +35,25 @@ def _metadata_files(dirname, recursive=False):
                     exclude = [1 for x in excludes if x in path]
                     if not exclude:
                         paths.append(path)
+    elif dirsfirst:
+        collections = []
+        entities = []
+        files = []
+        for root, dirs, files in os.walk(dirname):
+            # don't go down into .git directory
+            if '.git' in dirs:
+                dirs.remove('.git')
+            for f in files:
+                if f.endswith('collection.json'):
+                    collections.append( os.path.join(root, f) )
+                if f.endswith('entity.json'):
+                    entities.append( os.path.join(root, f) )
+                if f.endswith('.json'):
+                    path = os.path.join(root, f)
+                    exclude = [1 for x in excludes if x in path]
+                    if not exclude:
+                        files.append(path)
+        paths = collections + entities + files
     else:
         for f in os.listdir(dirname):
             if f.endswith('.json'):
@@ -252,8 +271,6 @@ def _is_publishable(data):
         if   fieldname == 'status': status = field['status']
         elif fieldname == 'public': public = field['public']
     # collections, entities
-    print('status: %s' % status)
-    print('public: %s' % public)
     if status and public and (status in STATUS_OK) and (public in PUBLIC_OK):
         return True
     # files
@@ -492,6 +509,22 @@ def delete(host, index, model, id):
     r = requests.delete(url)
     return {'status':r.status_code, 'response':r.text}
 
+def _file_parent_ids(model, path):
+    """Calculate the parent IDs of an entity or file from the filename.
+    """
+    parent_ids = []
+    if model == 'file':
+        fname = os.path.basename(path)
+        file_id = os.path.splitext(fname)[0]
+        repo,org,cid,eid,role,sha1 = file_id.split('-')
+        parent_ids.append( '-'.join([repo,org,cid])     ) # collection
+        parent_ids.append( '-'.join([repo,org,cid,eid]) ) # entity
+    elif model == 'entity':
+        entity_dir = os.path.dirname(path)
+        entity_id = os.path.basename(entity_dir)
+        repo,org,cid,eid = entity_id.split('-')
+        parent_ids.append( '-'.join([repo,org,cid]) )     # collection
+    return parent_ids
 
 def index(host, index, path, recursive=False, newstyle=False, public=True, paths=None):
     """(Re)index with data from the specified directory.
@@ -516,10 +549,34 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
     if not paths:
         paths = _metadata_files(path, recursive)
     
+    # Store value of public,status for each collection,entity.
+    # Values will be used by entities and files to inherit these values from their parent.
+    parents = {}
+    def _make_coll_ent(path):
+        """Store values of id,public,status for a collection or entity.
+        """
+        p = {'id':None,
+             'public':None,
+             'status':None,}
+        with open(path, 'r') as f:
+            data = json.loads(f.read())
+        for field in data:
+            fname = field.keys()[0]
+            if fname in p.keys():
+                p[fname] = field[fname]
+        return p
+    for path in paths:
+        if ('collection.json' in path) or ('entity.json' in path):
+            o = _make_coll_ent(path)
+            parents[o.pop('id')] = o
+    
     SUCCESS_STATUSES = [200, 201]
+    STATUS_OK = ['completed']
+    PUBLIC_OK = ['1', 1]
     successful = 0
     bad_paths = []
     for path in paths:
+        
         model = None
         if 'organization.json' in path:
             pass
@@ -529,21 +586,38 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
             model = 'entity'
         elif ('master' in path) or ('mezzanine' in path):
             model = 'file'
-        publicfields = []
-        if public and model:
-            publicfields = public_fields[model]
-        if path and index and model:
-            print('adding %s' % path)
-            result = post(path, host, index, model, newstyle, publicfields)
-            status_code = result['status']
-            response = result['response']
-            if status_code in SUCCESS_STATUSES:
-                successful += 1
+        
+        # see if item's parents are incomplete or nonpublic
+        # TODO Bad! Bad! Generalize this...
+        UNPUBLISHABLE = []
+        parent_ids = _file_parent_ids(model, path)
+        for parent_id in parent_ids:
+            parent = parents.get(parent_id, None)
+            for x in parent.itervalues():
+                if (x not in STATUS_OK) and (x not in PUBLIC_OK):
+                    if parent_id not in UNPUBLISHABLE:
+                        UNPUBLISHABLE.append(parent_id)
+        if UNPUBLISHABLE:
+            response = 'parent unpublishable: %s' % UNPUBLISHABLE
+            bad_paths.append((path,403,response))
+        
+        if not UNPUBLISHABLE:
+            publicfields = []
+            if public and model:
+                publicfields = public_fields[model]
+             
+            if path and index and model:
+                print('adding %s' % path)
+                result = post(path, host, index, model, newstyle, publicfields)
+                status_code = result['status']
+                response = result['response']
+                if status_code in SUCCESS_STATUSES:
+                    successful += 1
+                else:
+                    bad_paths.append((path,status_code,response))
+                #print(status_code)
             else:
-                bad_paths.append((path,status_code,response))
-            #print(status_code)
-        else:
-            logger.error('missing information!: %s' % path)
+                logger.error('missing information!: %s' % path)
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
