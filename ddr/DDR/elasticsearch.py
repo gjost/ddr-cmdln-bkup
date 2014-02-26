@@ -361,6 +361,8 @@ def _clean_parent(data):
 def _clean_topics(data):
     """Extract topics IDs from textual topics.
     """
+    if isinstance(data, basestring):
+        data = [data]
     return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
 
 def _clean_payload(data):
