@@ -343,6 +343,21 @@ def _clean_creators(data):
             names.append(name)
     return names
 
+def _clean_parent(data):
+    """Normalizes contents of 'creators' field.
+    In the mappings this is an object but the UI saves it as a string.
+    
+    >>> p0 = 'ddr-testing-123'
+    >>> p1 = {'href':'', 'uuid':'', 'label':'ddr-testing-123'}
+    >>> elasticsearch._clean_parent(p0)
+    {'href': '', 'uuid': '', 'label': 'ddr-testing-123'}
+    >>> elasticsearch._clean_parent(p1)
+    {'href': '', 'uuid': '', 'label': 'ddr-testing-123'}
+    """
+    if isinstance(data, basestring):
+        data = {'href':'', 'uuid':'', 'label':data}
+    return data
+
 def _clean_topics(data):
     """Extract topics IDs from textual topics.
     """
@@ -359,6 +374,7 @@ def _clean_payload(data):
         for field in data:
             for key in field.keys():
                 if key == 'creators': field[key] = _clean_creators(field[key])
+                if key == 'parent':   field[key] = _clean_parent(field[key])
                 if key == 'topics':   field[key] = _clean_topics(field[key])
             # rm null or empty fields
             _clean_dict(field)
