@@ -207,10 +207,7 @@ Example:
         if results['bad']:
             print('The following paths had problems:\n')
             for path,status,response in results['bad']:
-                print(status)
-                print(path)
-                print(response)
-                print('')
+                print(' -- '.join([str(status), path, response]))
         print('------------------------------------------------------------------------')
         print('ES host/index:   %s/%s' % (args.host, args.index))
         print('Path:            %s' % args.path)
