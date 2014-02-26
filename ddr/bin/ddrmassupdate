@@ -1,0 +1,132 @@
+#!/usr/bin/env python
+#
+# This file is part of ddr-cmdln/ddr
+#
+#
+
+description = """Updates a single field in multiple JSON files with a specified value."""
+
+epilog = """* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+WARNING! THIS SCRIPT IS AN EXTREMELY STUPID BLUNT INSTRUMENT!
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+It sets all the status fields in all the collection.json and entity.json files of a collection to "completed".  You can specify the collection directory but not much else.
+
+It writes a logfile to the current directory.
+It does not commit the changes!
+
+Example:
+
+    $ ddrmassupdate -c /var/www/media/base/ddr-testing-123
+
+ddr-public - ddrmassupdate"""
+
+import argparse
+from datetime import datetime
+import json
+import logging
+import os
+import sys
+
+import envoy
+
+
+THESE_JSONS = ['collection.json', 'entity.json']
+FIELD_NAME = 'status'
+NEW_VALUE = 'completed'
+
+
+def dtfmt(dt):
+    """Consistent date format.
+    """
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+def logprint(filename, msg):
+    """Print to log file and console, with timestamp.
+    """
+    msg = '%s - %s\n' % (dtfmt(datetime.now()), msg)
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def logprint_nots(filename, msg):
+    """Print to log file and console, no timestamp.
+    """
+    msg = '%s\n' % msg
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def find_files(targetdir, target_files):
+    """Looks for filenames in the list.
+    Just does stupid matching, not real regex or anything.
+    """
+    paths = []
+    cmd = 'find %s -name "*.json" -print' % (targetdir)
+    r = envoy.run(cmd)
+    paths = [path for path in r.std_out.split('\n') if os.path.basename(path) in target_files]
+    return paths
+
+def write_json(data, path):
+    """Write JSON using consistent formatting and sorting.
+    
+    For versioning and history to be useful we need data fields to be written
+    in a format that is easy to edit by hand and in which values can be compared
+    from one commit to the next.  This function prints JSON with nice spacing
+    and indentation and with sorted keys, so fields will be in the same relative
+    position across commits.
+    
+    >>> data = {'a':1, 'b':2}
+    >>> path = '/tmp/ddrlocal.models.write_json.json'
+    >>> write_json(data, path)
+    >>> with open(path, 'r') as f:
+    ...     print(f.readlines())
+    ...
+    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    """
+    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
+    with open(path, 'w') as f:
+        f.write(json_pretty)
+
+def update_file(json_path, field_name, new_value):
+    """Updates specified field in json file with a value and saves.
+    """
+    with open(json_path, 'r') as f:
+        data = json.loads(f.read())
+    
+    for field in data:
+        fname = field.keys()[0]
+        if fname == field_name:
+            field[fname] = new_value
+    
+    write_json(data, json_path)
+
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-c', '--collection', required=True, help='Absolute path to source collection repository.')
+    args = parser.parse_args()
+    collection_path = os.path.realpath(args.collection)
+    
+    collection_id = os.path.basename(collection_path)
+    LOG = os.path.join(os.getcwd(), 'ddrmassupdate-%s.log' % collection_id)
+    
+    started = datetime.now()
+    logprint(LOG, 'Processing %s' % collection_path)
+    paths = find_files(collection_path, THESE_JSONS)
+    logprint(LOG, '%s files.' % len(paths))
+    for path in paths:
+        update_file(path, FIELD_NAME, NEW_VALUE)
+    
+    finished = datetime.now()
+    elapsed = finished - started
+    logprint(LOG, 'DONE!')
+    logprint_nots(LOG, '%s elapsed' % elapsed)
+    print('Wrote log to %s' % LOG)
+    print('')
+
+if __name__ == '__main__':
+    main()
