@@ -483,6 +483,15 @@ def post(path, host, index, model, newstyle=False, public_fields=[]):
             url = 'http://%s/%s/%s/%s' % (host, index, model, filename)
         else:
             url = None
+        # separate fields for pieces of ID
+        id_parts = data['id'].split('-')
+        if model in ['repo','organization','collection','entity','file']: data['repo'] = id_parts[0]
+        if model in ['organization','collection','entity','file']: data['org'] = id_parts[1]
+        if model in ['collection','entity','file']: data['cid'] = int(id_parts[2])
+        if model in ['entity','file']: data['eid'] = int(id_parts[3])
+        if model in ['file']: data['role'] = id_parts[4]
+        if model in ['file']: data['sha1'] = id_parts[5]
+        # pack
         payload = json.dumps(data)
         
     else:
