@@ -377,6 +377,22 @@ def _clean_parent(data):
 
 def _clean_topics(data):
     """Extract topics IDs from textual topics.
+
+    >>> t0 = 'Topics [123]'
+    >>> t1 = ['Topics [123]']
+    >>> t2 = 123
+    >>> t3 = '123'
+    >>> t4 = [123]
+    >>> elasticsearch._clean_topics(t0)
+    ['123']
+    >>> elasticsearch._clean_topics(t1)
+    ['123']
+    >>> elasticsearch._clean_topics(t2)
+    ['123']
+    >>> elasticsearch._clean_topics(t3)
+    ['123']
+    >>> elasticsearch._clean_topics(t4)
+    ['123']
     """
     if isinstance(data, basestring):
         data = [data]
