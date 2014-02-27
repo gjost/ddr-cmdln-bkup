@@ -537,7 +537,7 @@
             "properties": {
                 "type":"string", "store":"yes", "index":"not_analyzed"
             },
-            "display": "facet"
+            "display": "rights"
         },
         "default": ""
     },
