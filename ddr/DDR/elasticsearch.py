@@ -673,7 +673,7 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
-def query(host, index, model=None, query='', term={}, filters={}, sort='', fields='', first=0, size=MAX_SIZE):
+def query(host, index, model=None, query='', term={}, filters={}, sort={}, fields='', first=0, size=MAX_SIZE):
     """Run a query, get a list of zero or more hits.
     
     curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
