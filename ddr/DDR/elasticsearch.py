@@ -343,6 +343,23 @@ def _clean_creators(data):
             names.append(name)
     return names
 
+def _clean_facility(data):
+    """Extract ID from facility text; force ID numbers to strings.
+    
+    >>> f0 = 'Tule Lake [10]'
+    >>> f1 = '10'
+    >>> f2 = 10
+    >>> _clean_facility(f0)
+    ['10']
+    >>> _clean_facility(f1)
+    ['10']
+    >>> _clean_facility(f2)
+    ['10']
+    """
+    if isinstance(data, basestring):
+        data = [data]
+    return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
+
 def _clean_parent(data):
     """Normalizes contents of 'creators' field.
     In the mappings this is an object but the UI saves it as a string.
@@ -376,6 +393,7 @@ def _clean_payload(data):
         for field in data:
             for key in field.keys():
                 if key == 'creators': field[key] = _clean_creators(field[key])
+                if key == 'facility': field[key] = _clean_facility(field[key])
                 if key == 'parent':   field[key] = _clean_parent(field[key])
                 if key == 'topics':   field[key] = _clean_topics(field[key])
             # rm null or empty fields
