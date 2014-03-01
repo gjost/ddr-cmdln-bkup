@@ -637,13 +637,15 @@ def _parent_id( object_id ):
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
 
+SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
+
 def _store_signature_file( signatures, path, model ):
     """
     IMPORTANT: remember to change 'zzzzzz' back to 'master'
     """
     thumbfile = _id_from_path(path)
     # 'mezzanine' is preferred over 'master'
-    thumbfile_mezzfirst = thumbfile.replace('master', 'zzzzzz')
+    thumbfile_mezzfirst = thumbfile.replace('master', SIGNATURE_MASTER_SUBSTITUTE)
     repo,org,cid,eid,role,sha1 = thumbfile.split('-')
     collection_id = '-'.join([repo,org,cid])
     entity_id = '-'.join([repo,org,cid,eid])
@@ -778,9 +780,7 @@ def index(host, index, path, recursive=False, newstyle=False, public=True):
         if model == 'file': additional_fields['entity_id'] = parent_id
         # signature file
         if model in ['collection', 'entity']:
-            signature_file = signature_files.get(object_id, None)
-            if signature_file:
-                signature_file.replace('zzzzzz', 'master')
+            signature_file = signature_files.get(object_id, '').replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
             additional_fields['signature_file'] = signature_file
         
         # HERE WE GO!
