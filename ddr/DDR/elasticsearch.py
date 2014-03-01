@@ -734,7 +734,7 @@ def index(host, index, path, recursive=False, newstyle=False, public=True):
         UNPUBLISHABLE = []
         parent_ids = _file_parent_ids(model, path)
         for parent_id in parent_ids:
-            parent = parents.get(parent_id, None)
+            parent = parents.get(parent_id, {})
             for x in parent.itervalues():
                 if (x not in STATUS_OK) and (x not in PUBLIC_OK):
                     if parent_id not in UNPUBLISHABLE:
