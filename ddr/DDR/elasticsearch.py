@@ -6,6 +6,7 @@ import os
 import envoy
 import requests
 
+from DDR import natural_sort
 from DDR.models import MODELS, MODELS_DIR
 
 MAX_SIZE = 1000000
@@ -14,13 +15,15 @@ HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
 HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
 
 
-def _metadata_files(dirname, recursive=False, dirsfirst=False):
+def _metadata_files(dirname, recursive=False, files_first=False):
     """Lists absolute paths to .json files in dirname.
     
     Skips/excludes .git directories.
     
     @param dirname: Absolute path
     @param recursive: Whether or not to recurse into subdirectories.
+    @parap files_first: Arrange paths first first, then entities, then collections
+    @returns: list of paths
     """
     paths = []
     excludes = ['.git', 'tmp', '*~']
@@ -35,25 +38,6 @@ def _metadata_files(dirname, recursive=False, dirsfirst=False):
                     exclude = [1 for x in excludes if x in path]
                     if not exclude:
                         paths.append(path)
-    elif dirsfirst:
-        collections = []
-        entities = []
-        files = []
-        for root, dirs, files in os.walk(dirname):
-            # don't go down into .git directory
-            if '.git' in dirs:
-                dirs.remove('.git')
-            for f in files:
-                if f.endswith('collection.json'):
-                    collections.append( os.path.join(root, f) )
-                if f.endswith('entity.json'):
-                    entities.append( os.path.join(root, f) )
-                if f.endswith('.json'):
-                    path = os.path.join(root, f)
-                    exclude = [1 for x in excludes if x in path]
-                    if not exclude:
-                        files.append(path)
-        paths = collections + entities + files
     else:
         for f in os.listdir(dirname):
             if f.endswith('.json'):
@@ -61,6 +45,21 @@ def _metadata_files(dirname, recursive=False, dirsfirst=False):
                 exclude = [1 for x in excludes if x in path]
                 if not exclude:
                     paths.append(path)
+    if files_first:
+        collections = []
+        entities = []
+        files = []
+        for f in paths:
+            if f.endswith('collection.json'):
+                collections.append( os.path.join(root, f) )
+            elif f.endswith('entity.json'):
+                entities.append( os.path.join(root, f) )
+            elif f.endswith('.json'):
+                path = os.path.join(root, f)
+                exclude = [1 for x in excludes if x in path]
+                if not exclude:
+                    files.append(path)
+        paths = files + entities + collections
     return paths
 
 
@@ -415,7 +414,7 @@ def _clean_payload(data):
             # rm null or empty fields
             _clean_dict(field)
 
-def post(path, host, index, model, newstyle=False, public_fields=[]):
+def post(path, host, index, model, newstyle=False, public_fields=[], additional_fields={}):
     """Add a new document to an index or update an existing one.
     
     This function can produce ElasticSearch documents in two formats:
@@ -437,6 +436,7 @@ def post(path, host, index, model, newstyle=False, public_fields=[]):
     @param model: Type of object ('collection', 'entity', 'file')
     @param newstyle: Use new ddr-public ES document format.
     @param public_fields: List of field names; if present, fields not in list will be removed.
+    @param additional_fields: dict of fields added during indexing process
     @returns: JSON dict with status code and response
     """
     logger.debug('post(%s, %s, %s, %s, newstyle=%s, public=%s)' % (path, index, model, path, newstyle, public_fields))
@@ -491,6 +491,9 @@ def post(path, host, index, model, newstyle=False, public_fields=[]):
         if model in ['entity','file']: data['eid'] = int(id_parts[3])
         if model in ['file']: data['role'] = id_parts[4]
         if model in ['file']: data['sha1'] = id_parts[5]
+        # additional_fields
+        for key,val in additional_fields.iteritems():
+            data[key] = val
         # pack
         payload = json.dumps(data)
         
@@ -586,10 +589,95 @@ def _file_parent_ids(model, path):
         repo,org,cid,eid = entity_id.split('-')
         parent_ids.append( '-'.join([repo,org,cid]) )     # collection
     return parent_ids
+    
+def _guess_model( path ):
+    """Guess model from the path.
+    
+    >>> _guess_model('/var/www/media/base/ddr-testing-123/collection.json')
+    'collection'
+    >>> _guess_model('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
+    'entity'
+    >>> _guess_model('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
+    'file'
+    """
+    if 'collection.json' in path: return 'collection'
+    elif 'entity.json' in path: return 'entity'
+    elif ('master' in path) or ('mezzanine' in path): return 'file'
+    return None
 
-def index(host, index, path, recursive=False, newstyle=False, public=True, paths=None):
+def _id_from_path( path ):
+    """Extract ID from path.
+    
+    >>> _id_from_path('.../ddr-testing-123/collection.json')
+    'ddr-testing-123'
+    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
+    'ddr-testing-123-1'
+    >>> _id_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
+    'ddr-testing-123-1-master-a1b2c3d4e5.json'
+    """
+    object_id = None
+    model = _guess_model(path)
+    if model == 'collection': return os.path.basename(os.path.dirname(path))
+    elif model == 'entity': return os.path.basename(os.path.dirname(path))
+    elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
+    return None
+
+def _parent_id( object_id ):
+    """
+    >>> _parent_id('ddr-testing-123')
+    'ddr-testing'
+    >>> _parent_id('ddr-testing-123-1')
+    'ddr-testing-123'
+    >>> _parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
+    'ddr-testing-123-1'
+    """
+    parts = object_id.split('-')
+    if   len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
+    elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
+    elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
+    return None
+
+def _store_signature_file( signatures, path, model ):
+    """
+    IMPORTANT: remember to change 'zzzzzz' back to 'master'
+    """
+    thumbfile = _id_from_path(path)
+    # 'mezzanine' is preferred over 'master'
+    thumbfile_mezzfirst = thumbfile.replace('master', 'zzzzzz')
+    repo,org,cid,eid,role,sha1 = thumbfile.split('-')
+    collection_id = '-'.join([repo,org,cid])
+    entity_id = '-'.join([repo,org,cid,eid])
+    # # nifty little bit of code that extracts the sort field from file.json
+    # import re
+    # sort = ''
+    # with open(path, 'r') as f:
+    #     for line in f.readlines():
+    #         if '"sort":' in line:
+    #             sort = re.findall('\d+', line)[0]
+    
+    # if this entity_id is "earlier" than the existing one, add it
+    def _store( signatures, object_id, file_id ):
+        if signatures.get(object_id,None):
+            filenames = [signatures[object_id], file_id]
+            first = natural_sort(filenames)[0]
+            if file_id == first:
+                signatures[object_id] = file_id
+        else:
+            signatures[object_id] = file_id
+    
+    _store(signatures, collection_id, thumbfile_mezzfirst)
+    _store(signatures, entity_id, thumbfile_mezzfirst)
+
+def index(host, index, path, recursive=False, newstyle=False, public=True):
     """(Re)index with data from the specified directory.
     
+    After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
+    
+    The second pass goes through the files and assigns a signature file to each entity or collection ID.
+    There is some logic that tries to pick the first file of the first entity to be the collection signature, and so on.  Mezzanine files are preferred over master files.
+    
+    In the final pass, a list of public/publishable fields is chosen based on the model.  Additional fields not in the model (e.g. parent ID, parent organization/collection/entity ID, the signature file) are packaged.  Then everything is sent off to post().
+
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
     @param path: Absolute path to metadata file or directory containing metadata files.
@@ -606,9 +694,9 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
     # process a single file if requested
     if os.path.isfile(path):
         paths = [path]
-    
-    if not paths:
-        paths = _metadata_files(path, recursive)
+    else:
+        # files listed first, then entities, then collections
+        paths = _metadata_files(path, recursive, files_first=1)
     
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.
@@ -635,19 +723,10 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
     STATUS_OK = ['completed']
     PUBLIC_OK = ['1', 1]
     successful = 0
+    successful_paths = []
     bad_paths = []
     for path in paths:
-        
-        model = None
-        if 'organization.json' in path:
-            pass
-        elif 'collection.json' in path:
-            model = 'collection'
-        elif 'entity.json' in path:
-            model = 'entity'
-        elif ('master' in path) or ('mezzanine' in path):
-            model = 'file'
-        
+        model = _guess_model(path)
         # see if item's parents are incomplete or nonpublic
         # TODO Bad! Bad! Generalize this...
         UNPUBLISHABLE = []
@@ -661,24 +740,59 @@ def index(host, index, path, recursive=False, newstyle=False, public=True, paths
         if UNPUBLISHABLE:
             response = 'parent unpublishable: %s' % UNPUBLISHABLE
             bad_paths.append((path,403,response))
-        
         if not UNPUBLISHABLE:
-            publicfields = []
-            if public and model:
-                publicfields = public_fields[model]
-             
             if path and index and model:
-                print('adding %s' % path)
-                result = post(path, host, index, model, newstyle, publicfields)
-                status_code = result['status']
-                response = result['response']
-                if status_code in SUCCESS_STATUSES:
-                    successful += 1
-                else:
-                    bad_paths.append((path,status_code,response))
-                #print(status_code)
+                successful_paths.append(path)
             else:
                 logger.error('missing information!: %s' % path)
+    
+    # iterate through paths, storing signature_url for each collection, entity
+    # paths listed files first, then entities, then collections
+    signature_files = {}
+    for path in successful_paths:
+        model = _guess_model(path)
+        if model == 'file':
+            # decide whether to store this as a collection/entity signature
+            _store_signature_file(signature_files, path, model)
+        else:
+            # signature_urls will be waiting for collections,entities below
+            pass
+    print('Signature files')
+    keys = signature_files.keys()
+    keys.sort()
+    for key in keys:
+        print(key, signature_files[key])
+    
+    for path in successful_paths:
+        model = _guess_model(path)
+        object_id = _id_from_path(path)
+        parent_id = _parent_id(object_id)
+        
+        publicfields = []
+        if public and model:
+            publicfields = public_fields[model]
+        
+        additional_fields = {'parent_id': parent_id}
+        if model == 'collection': additional_fields['organization_id'] = parent_id
+        if model == 'entity': additional_fields['collection_id'] = parent_id
+        if model == 'file': additional_fields['entity_id'] = parent_id
+        # signature file
+        if model in ['collection', 'entity']:
+            signature_file = signature_files.get(object_id, None)
+            if signature_file:
+                signature_file.replace('zzzzzz', 'master')
+            additional_fields['signature_file'] = signature_file
+        
+        # HERE WE GO!
+        print('adding %s' % path)
+        result = post(path, host, index, model, newstyle, publicfields, additional_fields)
+        status_code = result['status']
+        response = result['response']
+        if status_code in SUCCESS_STATUSES:
+            successful += 1
+        else:
+            bad_paths.append((path,status_code,response))
+            #print(status_code)
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
