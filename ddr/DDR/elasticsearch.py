@@ -88,26 +88,35 @@ def status(host):
     r = requests.get(url)
     return json.loads(r.text)
 
-def model_fields():
+
+
+def _model_fields( basedir, models ):
+    """Loads models *.json files and returns as a dict
+    
+    @param basedir: Absolute path to directory containing model files
+    @param models: List of model names
+    @return: Dict of models
+    """
     models = {}
-    for model in MODELS:
-        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
+    for model in models:
+        json_path = os.path.join(basedir, '%s.json' % model)
         with open(json_path, 'r') as f:
             data = json.loads(f.read())
         models[model] = data
     return models
-
-def _public_fields():
+    
+def _public_fields( basedir, models ):
     """Lists public fields for each model
     
     IMPORTANT: Adds certain dynamically-created fields
     
-    @param models: Output of model_fields()
-    @returns: dict
+    @param basedir: Absolute path to directory containing model files
+    @param models: List of model names
+    @returns: Dict
     """
     public_fields = {}
-    models =  model_fields()
-    for model in MODELS:
+    models =  _model_fields(basedir, models)
+    for model in models:
         modelfields = []
         for field in models[model]:
             if field['elasticsearch'].get('public',None):
@@ -140,10 +149,12 @@ def mappings(host, index, local=False):
     #return json.loads(r.text)
 
 
+
 # Each item in this list is a mapping dict in the format ElasticSearch requires.
 # Mappings for each type have to be uploaded individually (I think).
-def _make_mappings(index):
+def _make_mappings(mappings_path, index, models_dir):
     """Takes MAPPINGS and adds field properties from MODEL_FIELDS
+    
     Returns a nice list of mapping dicts.
     
     DDR mappings are constructed from the model files in ddr-cmdln/ddr/DDR/models/*.json.  The mappings function looks at each field in each model file and constructs a mapping using the contents of FIELD['elasticsearch']['properties'].
@@ -170,13 +181,18 @@ def _make_mappings(index):
     
     ['elasticsearch']['properties']
     The contents of this field will be inserted directly into the mappings document.  See ElasticSearch documentation for more information: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping.html
+    
+    @param mappings_path: Absolute path to JSON mappings file
+    @param index: Name of the target index.
+    @param models_dir: Absolute path to directory containing model files
+    @return: List of mappings dicts.
     """
-    with open(HARD_CODED_MAPPINGS_PATH, 'r') as f:
+    with open(path, 'r') as f:
         mappings = json.loads(f.read())
     if index == 'documents':
         for mapping in mappings[index]:
             model = mapping.keys()[0]
-            json_path = os.path.join(MODELS_DIR, '%s.json' % model)
+            json_path = os.path.join(models_dir, '%s.json' % model)
             with open(json_path, 'r') as f:
                 data = json.loads(f.read())
             for field in data:
@@ -187,7 +203,7 @@ def _make_mappings(index):
         return mappings['meta']
     return []
 
-def _create_index(host, index, mappings=True):
+def _create_index(host, index, mappings_path=None):
     """Create the specified index.
     
     curl -XPOST 'http://DOMAINNAME:9200/documents/' -d @mappings.json
@@ -196,7 +212,7 @@ def _create_index(host, index, mappings=True):
     
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
-    @param mappings: Boolean Whether to upload model mappings (default True).
+    @param mappings: Absolute path to mappings JSON file.
     @returns: JSON dict with status codes and responses
     """
     status = {}
@@ -210,12 +226,12 @@ def _create_index(host, index, mappings=True):
     status['create'] = {'status':r.status_code, 'response':r.text}
     
     status['mappings'] = {}
-    if mappings:
+    if mappings_path:
         mappings_list = []
         if index == 'documents':
-            mappings_list = _make_mappings('documents')['documents']
+            mappings_list = _make_mappings(mappings_path, 'documents', models_dir)['documents']
         elif index == 'meta':
-            mappings_list = _make_mappings('meta')
+            mappings_list = _make_mappings(mappings_path, 'meta', models_dir)
         for mapping in mappings_list:
             model = mapping.keys()[0]
             logger.debug(model)
@@ -673,7 +689,7 @@ def _store_signature_file( signatures, path, model ):
     _store(signatures, collection_id, thumbfile_mezzfirst)
     _store(signatures, entity_id, thumbfile_mezzfirst)
 
-def index(host, index, path, recursive=False, newstyle=False, public=True):
+def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=False, public=True):
     """(Re)index with data from the specified directory.
     
     After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
@@ -685,7 +701,8 @@ def index(host, index, path, recursive=False, newstyle=False, public=True):
 
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
-    @param path: Absolute path to metadata file or directory containing metadata files.
+    @param path: Absolute path to directory containing object metadata files.
+    @param models_dir: Absolute path to directory containing model JSON files.
     @param recursive: Whether or not to recurse into subdirectories.
     @param newstyle: Use new ddr-public ES document format.
     @param public: For publication (fields not marked public will be ommitted).
@@ -694,7 +711,7 @@ def index(host, index, path, recursive=False, newstyle=False, public=True):
     """
     logger.debug('index(%s, %s, %s)' % (host, index, path))
     
-    public_fields = _public_fields()
+    public_fields = _public_fields(models_dir, MODELS)
     
     # process a single file if requested
     if os.path.isfile(path):
