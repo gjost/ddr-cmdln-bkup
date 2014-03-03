@@ -184,15 +184,7 @@ def _make_mappings(index):
         return mappings
     elif index == 'meta':
         return mappings['meta']
-    return None
-
-def _mapping(mappings, model):
-    """Get mapping for the specified model
-    """
-    for m in mappings:
-        if m.keys()[0] == model:
-            return m
-    return None
+    return []
 
 def _create_index(host, index, mappings=True):
     """Create the specified index.
@@ -850,17 +842,6 @@ def query(host, index, model=None, query='', term={}, filters={}, sort={}, field
     #logger.debug(r.text)
     return json.loads(r.text)
 
-
-def list_facets(path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
-    return [filename.replace('.json', '') for filename in os.listdir(HARD_CODED_FACETS_PATH)]
-
-def load_facets(path):
-    """
-    @param path: Absolute path to facets.json
-    """
-    with open(path, 'r') as f:
-        data = json.loads(f.read().strip())
-    return data
 
 def put_facets(host, index, path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
     """PUTs facets from file into ES.
