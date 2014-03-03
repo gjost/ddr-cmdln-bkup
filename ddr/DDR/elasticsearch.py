@@ -138,7 +138,7 @@ def mappings(host, index, local=False):
     
     DDR mappings for documents are stored in the 'documents' index.
     
-    @param host: Hostname and port (HOST:PORT).
+    @param host: Hostname and port (HOST:ORT).
     @param index: Name of the target index.
     @returns: JSON dict with status codes and responses
     """
@@ -266,7 +266,7 @@ def _is_publishable(data):
     TODO not specific to elasticsearch - move this function so other modules can use
     
     TODO Does not inherit status/public of parent(s)!
-    TODO This function has knowledge of model that maybe it should not have!
+    TODO This function assumes model contains 'public' and 'status' fields.
     
     @param data: Standard DDR list-of-dicts data structure.
     @returns: True/False
@@ -303,6 +303,8 @@ def _filter_payload(data, public_fields):
 
 def _clean_dict(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
+    
+    @param data: Standard DDR list-of-dicts data structure.
     """
     if data and isinstance(data, dict):
         for key in data.keys():
@@ -311,8 +313,26 @@ def _clean_dict(data):
 
 def _clean_creators(data):
     """Normalizes contents of 'creators' field.
+    
     There are lots of weird variations on this field.
     We want all of them to end up as simple lists of strings.
+    
+    >>> _clean_creators([u'Ninomiya, L.A.'])
+    [u'Ninomiya, L.A.']
+    >>> _clean_creators([u'Mitsuoka, Norio: photographer'])
+    [u'Mitsuoka, Norio: photographer']
+    >>> _clean_creators([{u'namepart': u'Boyle, Rob:editor', u'role': u'author'}, {u'namepart':
+    u'Cross, Brian:editor', u'role': u'author'}])
+    [u'Boyle, Rob:editor', u'Cross, Brian:editor']
+    >>> _clean_creators([{u'namepart': u'"YMCA:publisher"', u'role': u'author'}])
+    [u'"YMCA:publisher"']
+    >>> _clean_creators([{u'namepart': u'Heart Mountain YMCA', u'role': u'author'}])
+    [u'Heart Mountain YMCA']
+    >>> _clean_creators([{u'namepart': u'', u'role': u'author'}])
+    []
+    
+    @param data: contents of data field
+    @returns: list of normalized names
     """
     # turn strings into lists
     if isinstance(data, basestring):
@@ -332,13 +352,6 @@ def _clean_creators(data):
             # ex: Snead, John
             data = [data]
     # Get just the name. Don't add a role if none selected.
-    # 'Author' was default role so ignore.
-    # ex: [u'Ninomiya, L.A.']
-    # ex: [u'Mitsuoka, Norio: photographer']
-    # ex: [{u'namepart': u'', u'role': u'author'}]
-    # ex: [{u'namepart': u'Boyle, Rob:editor', u'role': u'author'}, {u'namepart': u'Cross, Brian:editor', u'role': u'author'}]
-    # ex: [{u'namepart': u'"YMCA:publisher"', u'role': u'author'}]
-    # ex: [{u'namepart': u'Heart Mountain YMCA', u'role': u'author'}]
     names = []
     for element in data:
         name = None
@@ -365,6 +378,9 @@ def _clean_facility(data):
     ['10']
     >>> _clean_facility(f2)
     ['10']
+    
+    @param data: contents of data field
+    @returns: list of field ID strings
     """
     if isinstance(data, basestring):
         data = [data]
@@ -372,14 +388,18 @@ def _clean_facility(data):
 
 def _clean_parent(data):
     """Normalizes contents of 'creators' field.
+    
     In the mappings this is an object but the UI saves it as a string.
     
     >>> p0 = 'ddr-testing-123'
     >>> p1 = {'href':'', 'uuid':'', 'label':'ddr-testing-123'}
-    >>> elasticsearch._clean_parent(p0)
+    >>> _clean_parent(p0)
     {'href': '', 'uuid': '', 'label': 'ddr-testing-123'}
-    >>> elasticsearch._clean_parent(p1)
+    >>> _clean_parent(p1)
     {'href': '', 'uuid': '', 'label': 'ddr-testing-123'}
+    
+    @param data: contents of data field
+    @returns: dict
     """
     if isinstance(data, basestring):
         data = {'href':'', 'uuid':'', 'label':data}
@@ -388,21 +408,19 @@ def _clean_parent(data):
 def _clean_topics(data):
     """Extract topics IDs from textual topics.
 
-    >>> t0 = 'Topics [123]'
-    >>> t1 = ['Topics [123]']
-    >>> t2 = 123
-    >>> t3 = '123'
-    >>> t4 = [123]
-    >>> elasticsearch._clean_topics(t0)
+    >>> _clean_topics('Topics [123]')
     ['123']
-    >>> elasticsearch._clean_topics(t1)
+    >>> _clean_topics(['Topics [123]'])
     ['123']
-    >>> elasticsearch._clean_topics(t2)
+    >>> _clean_topics(123)
     ['123']
-    >>> elasticsearch._clean_topics(t3)
+    >>> _clean_topics('123')
     ['123']
-    >>> elasticsearch._clean_topics(t4)
+    >>> _clean_topics([123])
     ['123']
+    
+    @param data: contents of data field
+    @returns: list of ID strings
     """
     if isinstance(data, basestring):
         data = [data]
@@ -588,6 +606,9 @@ def _file_parent_ids(model, path):
     """Calculate the parent IDs of an entity or file from the filename.
     
     TODO not specific to elasticsearch - move this function so other modules can use
+    
+    @param model
+    @param path: absolute or relative path to metadata JSON file.
     """
     parent_ids = []
     if model == 'file':
@@ -614,6 +635,9 @@ def _guess_model( path ):
     'entity'
     >>> _guess_model('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
     'file'
+    
+    @param path: absolute or relative path to metadata JSON file.
+    @returns: model
     """
     if 'collection.json' in path: return 'collection'
     elif 'entity.json' in path: return 'entity'
@@ -631,6 +655,13 @@ def _id_from_path( path ):
     'ddr-testing-123-1'
     >>> _id_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
     'ddr-testing-123-1-master-a1b2c3d4e5.json'
+    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
+    None
+    >>> _id_from_path('.../ddr-testing-123/something-else.json')
+    None
+    
+    @param path: absolute or relative path to a DDR metadata file
+    @returns: DDR object ID
     """
     object_id = None
     model = _guess_model(path)
@@ -640,9 +671,14 @@ def _id_from_path( path ):
     return None
 
 def _parent_id( object_id ):
-    """
+    """Given a DDR object ID, returns the parent object ID.
+    
     TODO not specific to elasticsearch - move this function so other modules can use
     
+    >>> _parent_id('ddr')
+    None
+    >>> _parent_id('ddr-testing')
+    'ddr'
     >>> _parent_id('ddr-testing-123')
     'ddr-testing'
     >>> _parent_id('ddr-testing-123-1')
@@ -651,7 +687,8 @@ def _parent_id( object_id ):
     'ddr-testing-123-1'
     """
     parts = object_id.split('-')
-    if   len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
+    if   len(parts) == 2: return '-'.join([ parts[0], parts[1] ])
+    elif len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
     elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
