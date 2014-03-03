@@ -254,6 +254,8 @@ def _delete_index(host, index):
 def _is_publishable(data):
     """Determines if object is publishable
     
+    TODO not specific to elasticsearch - move this function so other modules can use
+    
     TODO Does not inherit status/public of parent(s)!
     TODO This function has knowledge of model that maybe it should not have!
     
@@ -575,6 +577,8 @@ def delete(host, index, model, id):
 
 def _file_parent_ids(model, path):
     """Calculate the parent IDs of an entity or file from the filename.
+    
+    TODO not specific to elasticsearch - move this function so other modules can use
     """
     parent_ids = []
     if model == 'file':
@@ -593,6 +597,8 @@ def _file_parent_ids(model, path):
 def _guess_model( path ):
     """Guess model from the path.
     
+    TODO not specific to elasticsearch - move this function so other modules can use
+    
     >>> _guess_model('/var/www/media/base/ddr-testing-123/collection.json')
     'collection'
     >>> _guess_model('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
@@ -607,6 +613,8 @@ def _guess_model( path ):
 
 def _id_from_path( path ):
     """Extract ID from path.
+    
+    TODO not specific to elasticsearch - move this function so other modules can use
     
     >>> _id_from_path('.../ddr-testing-123/collection.json')
     'ddr-testing-123'
@@ -624,6 +632,8 @@ def _id_from_path( path ):
 
 def _parent_id( object_id ):
     """
+    TODO not specific to elasticsearch - move this function so other modules can use
+    
     >>> _parent_id('ddr-testing-123')
     'ddr-testing'
     >>> _parent_id('ddr-testing-123-1')
