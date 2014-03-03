@@ -15,12 +15,13 @@ HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
 HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
 
 
-def _metadata_files(dirname, recursive=False, files_first=False):
-    """Lists absolute paths to .json files in dirname.
+
+def _metadata_files(basedir, recursive=False, files_first=False):
+    """Lists absolute paths to .json files in basedir.
     
     Skips/excludes .git directories.
     
-    @param dirname: Absolute path
+    @param basedir: Absolute path
     @param recursive: Whether or not to recurse into subdirectories.
     @parap files_first: Arrange paths first first, then entities, then collections
     @returns: list of paths
@@ -28,7 +29,7 @@ def _metadata_files(dirname, recursive=False, files_first=False):
     paths = []
     excludes = ['.git', 'tmp', '*~']
     if recursive:
-        for root, dirs, files in os.walk(dirname):
+        for root, dirs, files in os.walk(basedir):
             # don't go down into .git directory
             if '.git' in dirs:
                 dirs.remove('.git')
@@ -39,9 +40,9 @@ def _metadata_files(dirname, recursive=False, files_first=False):
                     if not exclude:
                         paths.append(path)
     else:
-        for f in os.listdir(dirname):
+        for f in os.listdir(basedir):
             if f.endswith('.json'):
-                path = os.path.join(dirname, f)
+                path = os.path.join(basedir, f)
                 exclude = [1 for x in excludes if x in path]
                 if not exclude:
                     paths.append(path)
