@@ -426,11 +426,11 @@
             "label": "Acquisition Information"
         },
         "elasticsearch": {
-            "public": true,
+            "public": false,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
             },
-            "display": "string"
+            "display": ""
         },
         "default": ""
     },
