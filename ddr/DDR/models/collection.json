@@ -451,11 +451,11 @@
             "label": "Custodial History"
         },
         "elasticsearch": {
-            "public": true,
+            "public": false,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
             },
-            "display": "string"
+            "display": ""
         },
         "default": ""
     },
@@ -476,11 +476,11 @@
             "label": "Accruals"
         },
         "elasticsearch": {
-            "public": true,
+            "public": false,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
             },
-            "display": "string"
+            "display": ""
         },
         "default": ""
     },
@@ -501,17 +501,17 @@
             "label": "Processing Information"
         },
         "elasticsearch": {
-            "public": true,
+            "public": false,
             "properties": {
                 "type":"string", "store":"yes", "index":"analyzed"
             },
-            "display": "string"
+            "display": ""
         },
         "default": ""
     },
     {
         "group": "",
-        "name": "rights",
+        "name": "",
         "model_type": "str",
         "inheritable": true,
         "xml": {
