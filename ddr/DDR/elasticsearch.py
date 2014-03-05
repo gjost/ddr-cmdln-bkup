@@ -925,6 +925,9 @@ def put_facets(host, index, path=HARD_CODED_FACETS_PATH):
             statuses.append(status)
     return statuses
 
+def list_facets(path=HARD_CODED_FACETS_PATH):
+    return [filename.replace('.json', '') for filename in os.listdir(path)]
+
 def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
     """Gets list of terms for the facet.
     
