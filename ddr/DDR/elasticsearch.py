@@ -90,19 +90,19 @@ def status(host):
 
 
 
-def _model_fields( basedir, models ):
+def _model_fields( basedir, model_names ):
     """Loads models *.json files and returns as a dict
     
     @param basedir: Absolute path to directory containing model files
-    @param models: List of model names
+    @param model_names: List of model names
     @return: Dict of models
     """
     models = {}
-    for model in models:
-        json_path = os.path.join(basedir, '%s.json' % model)
+    for model_name in model_names:
+        json_path = os.path.join(basedir, '%s.json' % model_name)
         with open(json_path, 'r') as f:
             data = json.loads(f.read())
-        models[model] = data
+        models[model_name] = data
     return models
     
 def _public_fields( basedir, models ):
