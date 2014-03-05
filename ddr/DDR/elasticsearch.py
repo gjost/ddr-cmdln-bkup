@@ -898,7 +898,7 @@ def query(host, index, model=None, query='', term={}, filters={}, sort={}, field
     return json.loads(r.text)
 
 
-def put_facets(host, index, path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
+def put_facets(host, index, path=HARD_CODED_FACETS_PATH):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
