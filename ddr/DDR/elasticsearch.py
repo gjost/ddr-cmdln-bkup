@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import logging
 logger = logging.getLogger(__name__)
@@ -989,3 +990,56 @@ def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
     r = requests.post(url, data=json.dumps(payload), headers=headers)
     data = json.loads(r.text)
     return data['facets']['results']
+
+
+def register_backup(host, repository, path):
+    """Register an ElasticSearch backup repository
+    
+    Tells ElasticSearch to use specified directory for snapshots.
+    NOTE: Directory must already exist and be writable by the ES user.
+    http://www.elasticsearch.org/blog/introducing-snapshot-restore/
+    
+    # mkdir -p /var/backups/elasticsearch/my_backup
+    # chown -R elasticsearch /var/backups/elasticsearch/
+    $ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+      "type": "fs",
+      "settings": {
+        "location": "/mount/backups/my_backup",
+        "compress": true
+      }
+    }'
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param repository: Name of ElasticSearch backup repository.
+    @param path: Absolute path to repository.
+    @returns: JSON dict with status code and response
+    """
+    url = 'http://%s/_snapshot/%s' % (host, repository)
+    payload = {
+        'type': 'fs',
+        'settings': {
+            'location': path,
+            'compress': True
+        }
+    }
+    headers = {'content-type': 'application/json'}
+    r = requests.put(url, data=json.dumps(payload), headers=headers)
+    return {'status':r.status_code, 'response':r.text}
+
+def snapshot(host, repository, snapshot=datetime.now().strftime('%Y%m%d-%H%M%S')):
+    """Tells ElasticSearch to take a snapshot backup.
+    
+    http://www.elasticsearch.org/blog/introducing-snapshot-restore/
+    
+    $ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true"
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param repository: Name of ElasticSearch backup repository.
+    @param snapshot: Name of snapshot (optional).
+    @returns: JSON dict with status code and response
+    """
+    url = 'http://%s/_snapshot/%s/%s?wait_for_completion=true' % (host, repository, snapshot)
+    payload = {}
+    headers = {'content-type': 'application/json'}
+    r = requests.put(url, data=json.dumps(payload), headers=headers)
+    return {'status':r.status_code, 'response':r.text}
