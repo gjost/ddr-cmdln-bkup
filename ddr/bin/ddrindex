@@ -32,6 +32,14 @@ Example usage:
     # Update facets for ddr-public
     $ ddrindex facets -H localhost:9200 -i meta -p /usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json
 
+Upload the "organization.json" file for each organization you want to list.
+
+    $ curl -XPOST 'http://localhost:9200/documents/organizations/REPO-ORG/' -d @/var/www/media/base/REPO-ORG/organization.json
+
+Upload the "repository.json" file for the repository.
+
+    $ curl -XPOST 'http://localhost:9200/documents/repository/REPO/' -d @/var/www/media/base/REPO/repository.json
+
 """
 
 import argparse
