@@ -33,7 +33,7 @@ import envoy
 
 THESE_JSONS = ['collection.json', 'entity.json']
 FIELD_NAME = 'status'
-NEW_VALUE = 'completed'
+NEW_VALUE = 'inprocess'
 
 
 def dtfmt(dt):
