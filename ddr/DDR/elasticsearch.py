@@ -91,19 +91,19 @@ def status(host):
 
 
 
-def _model_fields( basedir, models ):
+def _model_fields( basedir, model_names ):
     """Loads models *.json files and returns as a dict
     
     @param basedir: Absolute path to directory containing model files
-    @param models: List of model names
+    @param model_names: List of model names
     @return: Dict of models
     """
     models = {}
-    for model in models:
-        json_path = os.path.join(basedir, '%s.json' % model)
+    for model_name in model_names:
+        json_path = os.path.join(basedir, '%s.json' % model_name)
         with open(json_path, 'r') as f:
             data = json.loads(f.read())
-        models[model] = data
+        models[model_name] = data
     return models
     
 def _public_fields( basedir, models ):
@@ -899,7 +899,7 @@ def query(host, index, model=None, query='', term={}, filters={}, sort={}, field
     return json.loads(r.text)
 
 
-def put_facets(host, index, path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
+def put_facets(host, index, path=HARD_CODED_FACETS_PATH):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
@@ -925,6 +925,9 @@ def put_facets(host, index, path='/usr/local/src/ddr-cmdln/ddr/DDR/facets'):
             status = {'status':r.status_code, 'response':r.text}
             statuses.append(status)
     return statuses
+
+def list_facets(path=HARD_CODED_FACETS_PATH):
+    return [filename.replace('.json', '') for filename in os.listdir(path)]
 
 def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
     """Gets list of terms for the facet.
