@@ -24,6 +24,11 @@ PUBLIC_OK = [1,'1']
 def _clean_dict(data):
     """Remove null or empty fields; ElasticSearch chokes on them.
     
+    >>> d = {'a': 'abc', 'b': 'bcd', 'x':'' }
+    >>> _clean_dict(d)
+    >>> d
+    {'a': 'abc', 'b': 'bcd'}
+    
     @param data: Standard DDR list-of-dicts data structure.
     """
     if data and isinstance(data, dict):
@@ -377,6 +382,22 @@ def _is_publishable(data):
     TODO Does not inherit status/public of parent(s)!
     TODO This function assumes model contains 'public' and 'status' fields.
     
+    >>> data = [{'id': 'ddr-testing-123-1'}]
+    >>> _is_publishable(data)
+    False
+    >>> data = [{'id': 'ddr-testing-123-1'}, {'public':0}, {'status':'inprogress'}]
+    >>> _is_publishable(data)
+    False
+    >>> data = [{'id': 'ddr-testing-123-1'}, {'public':0}, {'status':'completed'}]
+    >>> _is_publishable(data)
+    False
+    >>> data = [{'id': 'ddr-testing-123-1'}, {'public':1}, {'status':'inprogress'}]
+    >>> _is_publishable(data)
+    False
+    >>> data = [{'id': 'ddr-testing-123-1'}, {'public':1}, {'status':'completed'}]
+    >>> _is_publishable(data)
+    True
+    
     @param data: Standard DDR list-of-dicts data structure.
     @returns: True/False
     """
@@ -397,6 +418,13 @@ def _is_publishable(data):
 
 def _filter_payload(data, public_fields):
     """If requested, removes non-public fields from document before sending to ElasticSearch.
+    
+    >>> data = [{'id': 'ddr-testing-123-1'}, {'title': 'Title'}, {'secret': 'this is a secret'}]
+    >>> public_fields = ['id', 'title']
+    >>> _filter_payload(data, public_fields)
+    removed secret
+    >>> data
+    [{'id': 'ddr-testing-123-1'}, {'title': 'Title'}]
     
     @param data: Standard DDR list-of-dicts data structure.
     @param public_fields: List of field names; if present, fields not in list will be removed.
@@ -803,6 +831,13 @@ def _file_parent_ids(model, path):
     """Calculate the parent IDs of an entity or file from the filename.
     
     TODO not specific to elasticsearch - move this function so other modules can use
+    
+    >>> _file_parent_ids('collection', '.../ddr-testing-123/collection.json')
+    []
+    >>> _file_parent_ids('entity', '.../ddr-testing-123-1/entity.json')
+    ['ddr-testing-123']
+    >>> _file_parent_ids('file', '.../ddr-testing-123-1-master-a1b2c3d4e5.json')
+    ['ddr-testing-123', 'ddr-testing-123-1']
     
     @param model
     @param path: absolute or relative path to metadata JSON file.
