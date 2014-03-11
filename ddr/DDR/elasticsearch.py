@@ -15,6 +15,9 @@ MAX_SIZE = 1000000
 HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
 HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
 
+SUCCESS_STATUSES = [200, 201]
+STATUS_OK = ['completed']
+PUBLIC_OK = [1,'1']
 
 
 
@@ -378,8 +381,6 @@ def _is_publishable(data):
     @returns: True/False
     """
     publishable = False
-    STATUS_OK = ['completed']
-    PUBLIC_OK = [1,'1']
     status = None
     public = None
     for field in data:
@@ -669,6 +670,21 @@ def post(path, host, index, model, newstyle=False, public_fields=[], additional_
 
 
 
+def _model_fields( basedir, model_names ):
+    """Loads models *.json files and returns as a dict
+    
+    @param basedir: Absolute path to directory containing model files
+    @param model_names: List of model names
+    @return: Dict of models
+    """
+    models = {}
+    for model_name in model_names:
+        json_path = os.path.join(basedir, '%s.json' % model_name)
+        with open(json_path, 'r') as f:
+            data = json.loads(f.read())
+        models[model_name] = data
+    return models
+
 def _public_fields( basedir, models ):
     """Lists public fields for each model
     
@@ -737,42 +753,31 @@ def _metadata_files(basedir, recursive=False, files_first=False):
         paths = files + entities + collections
     return paths
 
-def _model_fields( basedir, model_names ):
-    """Loads models *.json files and returns as a dict
+def _parents_status( paths ):
+    """Stores value of public,status for each collection,entity so entities,files can inherit.
     
-    @param basedir: Absolute path to directory containing model files
-    @param model_names: List of model names
-    @return: Dict of models
+    @param paths
+    @returns: dict
     """
-    models = {}
-    for model_name in model_names:
-        json_path = os.path.join(basedir, '%s.json' % model_name)
-        with open(json_path, 'r') as f:
+    parents = {}
+    def _make_coll_ent(path):
+        """Store values of id,public,status for a collection or entity.
+        """
+        p = {'id':None,
+             'public':None,
+             'status':None,}
+        with open(path, 'r') as f:
             data = json.loads(f.read())
-        models[model_name] = data
-    return models
-
-def _file_parent_ids(model, path):
-    """Calculate the parent IDs of an entity or file from the filename.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    @param model
-    @param path: absolute or relative path to metadata JSON file.
-    """
-    parent_ids = []
-    if model == 'file':
-        fname = os.path.basename(path)
-        file_id = os.path.splitext(fname)[0]
-        repo,org,cid,eid,role,sha1 = file_id.split('-')
-        parent_ids.append( '-'.join([repo,org,cid])     ) # collection
-        parent_ids.append( '-'.join([repo,org,cid,eid]) ) # entity
-    elif model == 'entity':
-        entity_dir = os.path.dirname(path)
-        entity_id = os.path.basename(entity_dir)
-        repo,org,cid,eid = entity_id.split('-')
-        parent_ids.append( '-'.join([repo,org,cid]) )     # collection
-    return parent_ids
+        for field in data:
+            fname = field.keys()[0]
+            if fname in p.keys():
+                p[fname] = field[fname]
+        return p
+    for path in paths:
+        if ('collection.json' in path) or ('entity.json' in path):
+            o = _make_coll_ent(path)
+            parents[o.pop('id')] = o
+    return parents
     
 def _guess_model( path ):
     """Guess model from the path.
@@ -793,6 +798,60 @@ def _guess_model( path ):
     elif 'entity.json' in path: return 'entity'
     elif ('master' in path) or ('mezzanine' in path): return 'file'
     return None
+
+def _file_parent_ids(model, path):
+    """Calculate the parent IDs of an entity or file from the filename.
+    
+    TODO not specific to elasticsearch - move this function so other modules can use
+    
+    @param model
+    @param path: absolute or relative path to metadata JSON file.
+    @returns: parent_ids
+    """
+    parent_ids = []
+    if model == 'file':
+        fname = os.path.basename(path)
+        file_id = os.path.splitext(fname)[0]
+        repo,org,cid,eid,role,sha1 = file_id.split('-')
+        parent_ids.append( '-'.join([repo,org,cid])     ) # collection
+        parent_ids.append( '-'.join([repo,org,cid,eid]) ) # entity
+    elif model == 'entity':
+        entity_dir = os.path.dirname(path)
+        entity_id = os.path.basename(entity_dir)
+        repo,org,cid,eid = entity_id.split('-')
+        parent_ids.append( '-'.join([repo,org,cid]) )     # collection
+    return parent_ids
+
+def _publishable_or_not( paths, parents ):
+    """Determines which paths represent publishable paths and which do not.
+    
+    @param paths
+    @param parents
+    @returns successful_paths,bad_paths
+    """
+    successful_paths = []
+    bad_paths = []
+    for path in paths:
+        model = _guess_model(path)
+        # see if item's parents are incomplete or nonpublic
+        # TODO Bad! Bad! Generalize this...
+        UNPUBLISHABLE = []
+        parent_ids = _file_parent_ids(model, path)
+        for parent_id in parent_ids:
+            parent = parents.get(parent_id, {})
+            for x in parent.itervalues():
+                if (x not in STATUS_OK) and (x not in PUBLIC_OK):
+                    if parent_id not in UNPUBLISHABLE:
+                        UNPUBLISHABLE.append(parent_id)
+        if UNPUBLISHABLE:
+            response = 'parent unpublishable: %s' % UNPUBLISHABLE
+            bad_paths.append((path,403,response))
+        if not UNPUBLISHABLE:
+            if path and index and model:
+                successful_paths.append(path)
+            else:
+                logger.error('missing information!: %s' % path)
+    return successful_paths,bad_paths
 
 def _id_from_path( path ):
     """Extract ID from path.
@@ -843,15 +902,14 @@ def _parent_id( object_id ):
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
 
-SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
-
-def _store_signature_file( signatures, path, model ):
-    """
+def _store_signature_file( signatures, path, model, master_substitute ):
+    """Store signature file for collection,entity if it is "earlier" than current one.
+    
     IMPORTANT: remember to change 'zzzzzz' back to 'master'
     """
     thumbfile = _id_from_path(path)
-    # 'mezzanine' is preferred over 'master'
-    thumbfile_mezzfirst = thumbfile.replace('master', SIGNATURE_MASTER_SUBSTITUTE)
+    # replace 'master' with something so mezzanine wins in sort
+    thumbfile_mezzfirst = thumbfile.replace('master', master_substitute)
     repo,org,cid,eid,role,sha1 = thumbfile.split('-')
     collection_id = '-'.join([repo,org,cid])
     entity_id = '-'.join([repo,org,cid,eid])
@@ -875,6 +933,28 @@ def _store_signature_file( signatures, path, model ):
     
     _store(signatures, collection_id, thumbfile_mezzfirst)
     _store(signatures, entity_id, thumbfile_mezzfirst)
+
+def _choose_signatures( paths ):
+    """Iterate through paths, storing signature_url for each collection, entity.
+    paths listed files first, then entities, then collections
+    
+    @param paths
+    @returns: dict signature_files
+    """
+    SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
+    signature_files = {}
+    for path in paths:
+        model = _guess_model(path)
+        if model == 'file':
+            # decide whether to store this as a collection/entity signature
+            _store_signature_file(signature_files, path, model, SIGNATURE_MASTER_SUBSTITUTE)
+        else:
+            # signature_urls will be waiting for collections,entities below
+            pass
+    # restore substituted roles
+    for key,value in signature_files.iteritems():
+        signature_files[key] = value.replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
+    return signature_files
 
 def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=False, public=True):
     """(Re)index with data from the specified directory.
@@ -909,69 +989,21 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
     
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.
-    parents = {}
-    def _make_coll_ent(path):
-        """Store values of id,public,status for a collection or entity.
-        """
-        p = {'id':None,
-             'public':None,
-             'status':None,}
-        with open(path, 'r') as f:
-            data = json.loads(f.read())
-        for field in data:
-            fname = field.keys()[0]
-            if fname in p.keys():
-                p[fname] = field[fname]
-        return p
-    for path in paths:
-        if ('collection.json' in path) or ('entity.json' in path):
-            o = _make_coll_ent(path)
-            parents[o.pop('id')] = o
+    parents = _parents_status(paths)
     
-    SUCCESS_STATUSES = [200, 201]
-    STATUS_OK = ['completed']
-    PUBLIC_OK = ['1', 1]
-    successful = 0
-    successful_paths = []
-    bad_paths = []
-    for path in paths:
-        model = _guess_model(path)
-        # see if item's parents are incomplete or nonpublic
-        # TODO Bad! Bad! Generalize this...
-        UNPUBLISHABLE = []
-        parent_ids = _file_parent_ids(model, path)
-        for parent_id in parent_ids:
-            parent = parents.get(parent_id, {})
-            for x in parent.itervalues():
-                if (x not in STATUS_OK) and (x not in PUBLIC_OK):
-                    if parent_id not in UNPUBLISHABLE:
-                        UNPUBLISHABLE.append(parent_id)
-        if UNPUBLISHABLE:
-            response = 'parent unpublishable: %s' % UNPUBLISHABLE
-            bad_paths.append((path,403,response))
-        if not UNPUBLISHABLE:
-            if path and index and model:
-                successful_paths.append(path)
-            else:
-                logger.error('missing information!: %s' % path)
+    # Determine if paths are publishable or not
+    successful_paths,bad_paths = _publishable_or_not(paths, parents)
     
     # iterate through paths, storing signature_url for each collection, entity
     # paths listed files first, then entities, then collections
-    signature_files = {}
-    for path in successful_paths:
-        model = _guess_model(path)
-        if model == 'file':
-            # decide whether to store this as a collection/entity signature
-            _store_signature_file(signature_files, path, model)
-        else:
-            # signature_urls will be waiting for collections,entities below
-            pass
+    signature_files = _choose_signatures(successful_paths)
     print('Signature files')
     keys = signature_files.keys()
     keys.sort()
     for key in keys:
         print(key, signature_files[key])
     
+    successful = 0
     for path in successful_paths:
         model = _guess_model(path)
         object_id = _id_from_path(path)
@@ -985,10 +1017,8 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
         if model == 'collection': additional_fields['organization_id'] = parent_id
         if model == 'entity': additional_fields['collection_id'] = parent_id
         if model == 'file': additional_fields['entity_id'] = parent_id
-        # signature file
         if model in ['collection', 'entity']:
-            signature_file = signature_files.get(object_id, '').replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
-            additional_fields['signature_file'] = signature_file
+            additional_fields['signature_file'] = signature_files.get(object_id, '')
         
         # HERE WE GO!
         print('adding %s' % path)
