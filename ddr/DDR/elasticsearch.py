@@ -188,7 +188,7 @@ def _make_mappings(mappings_path, index, models_dir):
     @param models_dir: Absolute path to directory containing model files
     @return: List of mappings dicts.
     """
-    with open(path, 'r') as f:
+    with open(mappings_path, 'r') as f:
         mappings = json.loads(f.read())
     if index == 'documents':
         for mapping in mappings[index]:
