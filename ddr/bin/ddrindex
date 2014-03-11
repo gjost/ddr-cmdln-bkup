@@ -16,7 +16,7 @@ Example usage:
     >>> from django.conf import settings; from DDR import elasticsearch
     >>> elasticsearch._delete_index('localhost:9200', 'documents')
     >>> elasticsearch._delete_index('localhost:9200', 'meta')
-    >>> elasticsearch._create_index('localhost:9200', 'documents')
+    >>> elasticsearch._create_index('localhost:9200', 'documents', '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json', '/usr/local/src/ddr-cmdln/ddr/DDR/models')
     >>> elasticsearch._create_index('localhost:9200', 'meta')
     >>> [cntl-D]
     

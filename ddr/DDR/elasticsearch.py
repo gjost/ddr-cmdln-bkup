@@ -204,7 +204,7 @@ def _make_mappings(mappings_path, index, models_dir):
         return mappings['meta']
     return []
 
-def _create_index(host, index, mappings_path=None):
+def _create_index(host, index, mappings_path=None, models_dir=None):
     """Create the specified index.
     
     curl -XPOST 'http://DOMAINNAME:9200/documents/' -d @mappings.json
@@ -214,6 +214,7 @@ def _create_index(host, index, mappings_path=None):
     @param host: Hostname and port (HOST:PORT).
     @param index: Name of the target index.
     @param mappings: Absolute path to mappings JSON file.
+    @param models_dir: Absolute path to directory containing model files. NOTE: required if mappings.
     @returns: JSON dict with status codes and responses
     """
     status = {}
