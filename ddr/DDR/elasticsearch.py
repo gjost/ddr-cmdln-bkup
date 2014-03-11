@@ -17,52 +17,17 @@ HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
 
 
 
-def _metadata_files(basedir, recursive=False, files_first=False):
-    """Lists absolute paths to .json files in basedir.
+
+def _clean_dict(data):
+    """Remove null or empty fields; ElasticSearch chokes on them.
     
-    Skips/excludes .git directories.
-    
-    @param basedir: Absolute path
-    @param recursive: Whether or not to recurse into subdirectories.
-    @parap files_first: Arrange paths first first, then entities, then collections
-    @returns: list of paths
+    @param data: Standard DDR list-of-dicts data structure.
     """
-    paths = []
-    excludes = ['.git', 'tmp', '*~']
-    if recursive:
-        for root, dirs, files in os.walk(basedir):
-            # don't go down into .git directory
-            if '.git' in dirs:
-                dirs.remove('.git')
-            for f in files:
-                if f.endswith('.json'):
-                    path = os.path.join(root, f)
-                    exclude = [1 for x in excludes if x in path]
-                    if not exclude:
-                        paths.append(path)
-    else:
-        for f in os.listdir(basedir):
-            if f.endswith('.json'):
-                path = os.path.join(basedir, f)
-                exclude = [1 for x in excludes if x in path]
-                if not exclude:
-                    paths.append(path)
-    if files_first:
-        collections = []
-        entities = []
-        files = []
-        for f in paths:
-            if f.endswith('collection.json'):
-                collections.append( os.path.join(root, f) )
-            elif f.endswith('entity.json'):
-                entities.append( os.path.join(root, f) )
-            elif f.endswith('.json'):
-                path = os.path.join(root, f)
-                exclude = [1 for x in excludes if x in path]
-                if not exclude:
-                    files.append(path)
-        paths = files + entities + collections
-    return paths
+    if data and isinstance(data, dict):
+        for key in data.keys():
+            if not data[key]:
+                del(data[key])
+
 
 
 def settings(host):
@@ -89,43 +54,82 @@ def status(host):
     r = requests.get(url)
     return json.loads(r.text)
 
+def get(host, index, model, id):
+    """GET a single document.
+    
+    GET http://192.168.56.101:9200/ddr/collection/{repo}-{org}-{cid}
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param model: Type of object ('collection', 'entity', 'file')
+    @param id: object ID
+    @returns: document, or JSON dict with status code and response
+    """
+    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
+    headers = {'content-type': 'application/json'}
+    r = requests.get(url, headers=headers)
+    return {'status':r.status_code, 'response':r.text}
+
+def query(host, index, model=None, query='', term={}, filters={}, sort={}, fields='', first=0, size=MAX_SIZE):
+    """Run a query, get a list of zero or more hits.
+    
+    curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param model: Type of object ('collection', 'entity', 'file')
+    @param query: User's search text
+    @param term: dict
+    @param filters: dict
+    @param sort: dict
+    @param fields: str
+    @param first: int Index of document from which to start results
+    @param size: int Number of results to return
+    @returns raw ElasticSearch query output
+    """
+    _clean_dict(filters)
+    _clean_dict(sort)
+    
+    if model and query:
+        url = 'http://%s/%s/%s/_search?q=%s' % (host, index, model, query)
+    elif query:
+        url = 'http://%s/%s/_search?q=%s' % (host, index, query)
+    else:
+        url = 'http://%s/%s/_search' % (host, index)
+    logger.debug(url)
+    
+    payload = {'size':size, 'from':first,}
+    if term:
+        payload['query'] = {}
+        payload['query']['term'] = term
+    if fields:  payload['fields'] = fields
+    if filters: payload['filter'] = {'term':filters}
+    if sort:    payload['sort'  ] = sort
+    payload_json = json.dumps(payload)
+    logger.debug(payload_json)
+    
+    headers = {'content-type': 'application/json'}
+    r = requests.get(url, data=payload_json, headers=headers)
+    logger.debug('status: %s' % r.status_code)
+    #logger.debug(r.text)
+    return json.loads(r.text)
+
+def delete(host, index, model, id):
+    """Delete specified document from the index.
+    
+    curl -XDELETE 'http://localhost:9200/twitter/tweet/1'
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of index.
+    @param model: Type of object ('collection', 'entity', 'file')
+    @param id: object ID
+    @returns: JSON dict with status code and response
+    """
+    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
+    r = requests.delete(url)
+    return {'status':r.status_code, 'response':r.text}
 
 
-def _model_fields( basedir, model_names ):
-    """Loads models *.json files and returns as a dict
-    
-    @param basedir: Absolute path to directory containing model files
-    @param model_names: List of model names
-    @return: Dict of models
-    """
-    models = {}
-    for model_name in model_names:
-        json_path = os.path.join(basedir, '%s.json' % model_name)
-        with open(json_path, 'r') as f:
-            data = json.loads(f.read())
-        models[model_name] = data
-    return models
-    
-def _public_fields( basedir, models ):
-    """Lists public fields for each model
-    
-    IMPORTANT: Adds certain dynamically-created fields
-    
-    @param basedir: Absolute path to directory containing model files
-    @param models: List of model names
-    @returns: Dict
-    """
-    public_fields = {}
-    models =  _model_fields(basedir, models)
-    for model in models:
-        modelfields = []
-        for field in models[model]:
-            if field['elasticsearch'].get('public',None):
-                modelfields.append(field['name'])
-        public_fields[model] = modelfields
-    # add dynamically created fields
-    public_fields['file'].append('path_rel')
-    return public_fields
 
 def mappings(host, index, local=False):
     """GET current mappings for the specified index.
@@ -148,8 +152,6 @@ def mappings(host, index, local=False):
     return r.text
     #return json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
     #return json.loads(r.text)
-
-
 
 # Each item in this list is a mapping dict in the format ElasticSearch requires.
 # Mappings for each type have to be uploaded individually (I think).
@@ -204,6 +206,105 @@ def _make_mappings(mappings_path, index, models_dir):
         return mappings['meta']
     return []
 
+
+
+def put_facets(host, index, path=HARD_CODED_FACETS_PATH):
+    """PUTs facets from file into ES.
+    
+    curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
+    >>> elasticsearch.put_facets('192.168.56.120:9200', 'meta', '/usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json')
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param path: Absolute path to dir containing facet files.
+    @returns: JSON dict with status code and response
+    """
+    logger.debug('index_facets(%s, %s, %s)' % (host, index, path))
+    statuses = []
+    for facet_json in os.listdir(HARD_CODED_FACETS_PATH):
+        facet = facet_json.split('.')[0]
+        srcpath = os.path.join(path, facet_json)
+        with open(srcpath, 'r') as f:
+            data = json.loads(f.read().strip())
+            url = 'http://%s/%s/facet/%s/' % (host, index, facet)
+            payload = json.dumps(data)
+            headers = {'content-type': 'application/json'}
+            r = requests.put(url, data=payload, headers=headers)
+            #logger.debug('%s %s' % (r.status_code, r.text))
+            status = {'status':r.status_code, 'response':r.text}
+            statuses.append(status)
+    return statuses
+
+def list_facets(path=HARD_CODED_FACETS_PATH):
+    return [filename.replace('.json', '') for filename in os.listdir(path)]
+
+def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
+    """Gets list of terms for the facet.
+    
+    $ curl -XGET 'http://192.168.56.101:9200/ddr/entity/_search?format=yaml' -d '{
+      "fields": ["id"],
+      "query": { "match_all": {} },
+      "facets": {
+        "genre_facet_result": {
+          "terms": {
+            "order": "count",
+            "field": "genre"
+          }
+        }
+      }
+    }'
+    Sample results:
+        {
+          u'_type': u'terms',
+          u'missing': 203,
+          u'total': 49,
+          u'other': 6,
+          u'terms': [
+            {u'term': u'photograph', u'count': 14},
+            {u'term': u'ephemera', u'count': 6},
+            {u'term': u'advertisement', u'count': 6},
+            {u'term': u'book', u'count': 5},
+            {u'term': u'architecture', u'count': 3},
+            {u'term': u'illustration', u'count': 2},
+            {u'term': u'fieldnotes', u'count': 2},
+            {u'term': u'cityscape', u'count': 2},
+            {u'term': u'blank_form', u'count': 2},
+            {u'term': u'portrait, u'count': 1'}
+          ]
+        }
+
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of the target index.
+    @param facet: Name of field
+    @param order: term, count, reverse_term, reverse_count
+    @param model: (optional) Type of object ('collection', 'entity', 'file')
+    @returns raw output of facet query
+    """
+    if model:
+        url = 'http://%s/%s/%s/_search?' % (host, index, model)
+    else:
+        url = 'http://%s/%s/_search?format=pretty' % (host, index)
+    payload = {
+        "fields": ["id"],
+        "query": { "match_all": {} },
+        "facets": {
+            "results": {
+                "terms": {
+                    "size": MAX_SIZE,
+                    "order": order,
+                    "all_terms": all_terms,
+                    "field": facet
+                }
+            }
+        }
+    }
+    headers = {'content-type': 'application/json'}
+    r = requests.post(url, data=json.dumps(payload), headers=headers)
+    data = json.loads(r.text)
+    return data['facets']['results']
+
+
+
 def _create_index(host, index, mappings_path=None, models_dir=None):
     """Create the specified index.
     
@@ -246,6 +347,8 @@ def _create_index(host, index, mappings_path=None, models_dir=None):
             status['mappings'][model] = {'status':r.status_code, 'response':r.text}
     return status
 
+
+
 def _delete_index(host, index):
     """Delete the specified index.
     
@@ -260,6 +363,7 @@ def _delete_index(host, index):
     r = requests.delete(url)
     logger.debug('%s %s' % (r.status_code, r.text))
     return {'status':r.status_code, 'response':r.text}
+
 
 
 def _is_publishable(data):
@@ -302,16 +406,6 @@ def _filter_payload(data, public_fields):
             if fieldname not in public_fields:
                 data.remove(field)
                 print('removed %s' % fieldname)
-
-def _clean_dict(data):
-    """Remove null or empty fields; ElasticSearch chokes on them.
-    
-    @param data: Standard DDR list-of-dicts data structure.
-    """
-    if data and isinstance(data, dict):
-        for key in data.keys():
-            if not data[key]:
-                del(data[key])
 
 def _clean_creators(data):
     """Normalizes contents of 'creators' field.
@@ -573,36 +667,90 @@ def post(path, host, index, model, newstyle=False, public_fields=[], additional_
         return {'status':r.status_code, 'response':r.text}
     return {'status':4, 'response':'unknown problem'}
 
-def get(host, index, model, id):
-    """GET a single document.
-    
-    GET http://192.168.56.101:9200/ddr/collection/{repo}-{org}-{cid}
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param id: object ID
-    @returns: document, or JSON dict with status code and response
-    """
-    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
-    headers = {'content-type': 'application/json'}
-    r = requests.get(url, headers=headers)
-    return {'status':r.status_code, 'response':r.text}
 
-def delete(host, index, model, id):
-    """Delete specified document from the index.
+
+def _public_fields( basedir, models ):
+    """Lists public fields for each model
     
-    curl -XDELETE 'http://localhost:9200/twitter/tweet/1'
+    IMPORTANT: Adds certain dynamically-created fields
     
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param id: object ID
-    @returns: JSON dict with status code and response
+    @param basedir: Absolute path to directory containing model files
+    @param models: List of model names
+    @returns: Dict
     """
-    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
-    r = requests.delete(url)
-    return {'status':r.status_code, 'response':r.text}
+    public_fields = {}
+    models =  _model_fields(basedir, models)
+    for model in models:
+        modelfields = []
+        for field in models[model]:
+            if field['elasticsearch'].get('public',None):
+                modelfields.append(field['name'])
+        public_fields[model] = modelfields
+    # add dynamically created fields
+    public_fields['file'].append('path_rel')
+    return public_fields
+
+def _metadata_files(basedir, recursive=False, files_first=False):
+    """Lists absolute paths to .json files in basedir.
+    
+    Skips/excludes .git directories.
+    
+    @param basedir: Absolute path
+    @param recursive: Whether or not to recurse into subdirectories.
+    @parap files_first: Arrange paths first first, then entities, then collections
+    @returns: list of paths
+    """
+    paths = []
+    excludes = ['.git', 'tmp', '*~']
+    if recursive:
+        for root, dirs, files in os.walk(basedir):
+            # don't go down into .git directory
+            if '.git' in dirs:
+                dirs.remove('.git')
+            for f in files:
+                if f.endswith('.json'):
+                    path = os.path.join(root, f)
+                    exclude = [1 for x in excludes if x in path]
+                    if not exclude:
+                        paths.append(path)
+    else:
+        for f in os.listdir(basedir):
+            if f.endswith('.json'):
+                path = os.path.join(basedir, f)
+                exclude = [1 for x in excludes if x in path]
+                if not exclude:
+                    paths.append(path)
+    if files_first:
+        collections = []
+        entities = []
+        files = []
+        for f in paths:
+            if f.endswith('collection.json'):
+                collections.append( os.path.join(root, f) )
+            elif f.endswith('entity.json'):
+                entities.append( os.path.join(root, f) )
+            elif f.endswith('.json'):
+                path = os.path.join(root, f)
+                exclude = [1 for x in excludes if x in path]
+                if not exclude:
+                    files.append(path)
+        paths = files + entities + collections
+    return paths
+
+def _model_fields( basedir, model_names ):
+    """Loads models *.json files and returns as a dict
+    
+    @param basedir: Absolute path to directory containing model files
+    @param model_names: List of model names
+    @return: Dict of models
+    """
+    models = {}
+    for model_name in model_names:
+        json_path = os.path.join(basedir, '%s.json' % model_name)
+        with open(json_path, 'r') as f:
+            data = json.loads(f.read())
+        models[model_name] = data
+    return models
 
 def _file_parent_ids(model, path):
     """Calculate the parent IDs of an entity or file from the filename.
@@ -855,145 +1003,6 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
-def query(host, index, model=None, query='', term={}, filters={}, sort={}, fields='', first=0, size=MAX_SIZE):
-    """Run a query, get a list of zero or more hits.
-    
-    curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param query: User's search text
-    @param term: dict
-    @param filters: dict
-    @param sort: dict
-    @param fields: str
-    @param first: int Index of document from which to start results
-    @param size: int Number of results to return
-    @returns raw ElasticSearch query output
-    """
-    _clean_dict(filters)
-    _clean_dict(sort)
-    
-    if model and query:
-        url = 'http://%s/%s/%s/_search?q=%s' % (host, index, model, query)
-    elif query:
-        url = 'http://%s/%s/_search?q=%s' % (host, index, query)
-    else:
-        url = 'http://%s/%s/_search' % (host, index)
-    logger.debug(url)
-    
-    payload = {'size':size, 'from':first,}
-    if term:
-        payload['query'] = {}
-        payload['query']['term'] = term
-    if fields:  payload['fields'] = fields
-    if filters: payload['filter'] = {'term':filters}
-    if sort:    payload['sort'  ] = sort
-    payload_json = json.dumps(payload)
-    logger.debug(payload_json)
-    
-    headers = {'content-type': 'application/json'}
-    r = requests.get(url, data=payload_json, headers=headers)
-    logger.debug('status: %s' % r.status_code)
-    #logger.debug(r.text)
-    return json.loads(r.text)
-
-
-def put_facets(host, index, path=HARD_CODED_FACETS_PATH):
-    """PUTs facets from file into ES.
-    
-    curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
-    >>> elasticsearch.put_facets('192.168.56.120:9200', 'meta', '/usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json')
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param path: Absolute path to dir containing facet files.
-    @returns: JSON dict with status code and response
-    """
-    logger.debug('index_facets(%s, %s, %s)' % (host, index, path))
-    statuses = []
-    for facet_json in os.listdir(HARD_CODED_FACETS_PATH):
-        facet = facet_json.split('.')[0]
-        srcpath = os.path.join(path, facet_json)
-        with open(srcpath, 'r') as f:
-            data = json.loads(f.read().strip())
-            url = 'http://%s/%s/facet/%s/' % (host, index, facet)
-            payload = json.dumps(data)
-            headers = {'content-type': 'application/json'}
-            r = requests.put(url, data=payload, headers=headers)
-            #logger.debug('%s %s' % (r.status_code, r.text))
-            status = {'status':r.status_code, 'response':r.text}
-            statuses.append(status)
-    return statuses
-
-def list_facets(path=HARD_CODED_FACETS_PATH):
-    return [filename.replace('.json', '') for filename in os.listdir(path)]
-
-def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
-    """Gets list of terms for the facet.
-    
-    $ curl -XGET 'http://192.168.56.101:9200/ddr/entity/_search?format=yaml' -d '{
-      "fields": ["id"],
-      "query": { "match_all": {} },
-      "facets": {
-        "genre_facet_result": {
-          "terms": {
-            "order": "count",
-            "field": "genre"
-          }
-        }
-      }
-    }'
-    Sample results:
-        {
-          u'_type': u'terms',
-          u'missing': 203,
-          u'total': 49,
-          u'other': 6,
-          u'terms': [
-            {u'term': u'photograph', u'count': 14},
-            {u'term': u'ephemera', u'count': 6},
-            {u'term': u'advertisement', u'count': 6},
-            {u'term': u'book', u'count': 5},
-            {u'term': u'architecture', u'count': 3},
-            {u'term': u'illustration', u'count': 2},
-            {u'term': u'fieldnotes', u'count': 2},
-            {u'term': u'cityscape', u'count': 2},
-            {u'term': u'blank_form', u'count': 2},
-            {u'term': u'portrait, u'count': 1'}
-          ]
-        }
-
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param facet: Name of field
-    @param order: term, count, reverse_term, reverse_count
-    @param model: (optional) Type of object ('collection', 'entity', 'file')
-    @returns raw output of facet query
-    """
-    if model:
-        url = 'http://%s/%s/%s/_search?' % (host, index, model)
-    else:
-        url = 'http://%s/%s/_search?format=pretty' % (host, index)
-    payload = {
-        "fields": ["id"],
-        "query": { "match_all": {} },
-        "facets": {
-            "results": {
-                "terms": {
-                    "size": MAX_SIZE,
-                    "order": order,
-                    "all_terms": all_terms,
-                    "field": facet
-                }
-            }
-        }
-    }
-    headers = {'content-type': 'application/json'}
-    r = requests.post(url, data=json.dumps(payload), headers=headers)
-    data = json.loads(r.text)
-    return data['facets']['results']
 
 
 def register_backup(host, repository, path):
