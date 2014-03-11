@@ -34,7 +34,7 @@ Example usage:
 
 Upload the "organization.json" file for each organization you want to list.
 
-    $ curl -XPOST 'http://localhost:9200/documents/organizations/REPO-ORG/' -d @/var/www/media/base/REPO-ORG/organization.json
+    $ curl -XPOST 'http://localhost:9200/documents/organization/REPO-ORG/' -d @/var/www/media/base/REPO-ORG/organization.json
 
 Upload the "repository.json" file for the repository.
 
