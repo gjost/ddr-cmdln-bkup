@@ -937,37 +937,52 @@ def _parent_id( object_id ):
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
 
+def _has_access_file( path, suffix='-a.jpg' ):
+    """Determines whether the path has a corresponding access file.
+    
+    @param path: Absolute or relative path to JSON file.
+    @param suffix: Suffix that is applied to File ID to get access file.
+    @returns: True,False
+    """
+    base,ext = os.path.splitext(path)
+    if ext == '.json':
+        access = base + suffix
+        if os.path.exists(access) or os.path.islink(access):
+            return True
+    return False
+
 def _store_signature_file( signatures, path, model, master_substitute ):
     """Store signature file for collection,entity if it is "earlier" than current one.
     
     IMPORTANT: remember to change 'zzzzzz' back to 'master'
     """
-    thumbfile = _id_from_path(path)
-    # replace 'master' with something so mezzanine wins in sort
-    thumbfile_mezzfirst = thumbfile.replace('master', master_substitute)
-    repo,org,cid,eid,role,sha1 = thumbfile.split('-')
-    collection_id = '-'.join([repo,org,cid])
-    entity_id = '-'.join([repo,org,cid,eid])
-    # # nifty little bit of code that extracts the sort field from file.json
-    # import re
-    # sort = ''
-    # with open(path, 'r') as f:
-    #     for line in f.readlines():
-    #         if '"sort":' in line:
-    #             sort = re.findall('\d+', line)[0]
-    
-    # if this entity_id is "earlier" than the existing one, add it
-    def _store( signatures, object_id, file_id ):
-        if signatures.get(object_id,None):
-            filenames = [signatures[object_id], file_id]
-            first = natural_sort(filenames)[0]
-            if file_id == first:
+    if _has_access_file(path):
+        thumbfile = _id_from_path(path)
+        # replace 'master' with something so mezzanine wins in sort
+        thumbfile_mezzfirst = thumbfile.replace('master', master_substitute)
+        repo,org,cid,eid,role,sha1 = thumbfile.split('-')
+        collection_id = '-'.join([repo,org,cid])
+        entity_id = '-'.join([repo,org,cid,eid])
+        # # nifty little bit of code that extracts the sort field from file.json
+        # import re
+        # sort = ''
+        # with open(path, 'r') as f:
+        #     for line in f.readlines():
+        #         if '"sort":' in line:
+        #             sort = re.findall('\d+', line)[0]
+        
+        # if this entity_id is "earlier" than the existing one, add it
+        def _store( signatures, object_id, file_id ):
+            if signatures.get(object_id,None):
+                filenames = [signatures[object_id], file_id]
+                first = natural_sort(filenames)[0]
+                if file_id == first:
+                    signatures[object_id] = file_id
+            else:
                 signatures[object_id] = file_id
-        else:
-            signatures[object_id] = file_id
-    
-    _store(signatures, collection_id, thumbfile_mezzfirst)
-    _store(signatures, entity_id, thumbfile_mezzfirst)
+        
+        _store(signatures, collection_id, thumbfile_mezzfirst)
+        _store(signatures, entity_id, thumbfile_mezzfirst)
 
 def _choose_signatures( paths ):
     """Iterate through paths, storing signature_url for each collection, entity.
