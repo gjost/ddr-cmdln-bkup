@@ -511,7 +511,7 @@
     },
     {
         "group": "",
-        "name": "",
+        "name": "rights",
         "model_type": "str",
         "inheritable": true,
         "xml": {
