@@ -16,7 +16,7 @@ Example usage:
     >>> from django.conf import settings; from DDR import elasticsearch
     >>> elasticsearch._delete_index('localhost:9200', 'documents')
     >>> elasticsearch._delete_index('localhost:9200', 'meta')
-    >>> elasticsearch._create_index('localhost:9200', 'documents')
+    >>> elasticsearch._create_index('localhost:9200', 'documents', '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json', '/usr/local/src/ddr-cmdln/ddr/DDR/models')
     >>> elasticsearch._create_index('localhost:9200', 'meta')
     >>> [cntl-D]
     
@@ -31,6 +31,14 @@ Example usage:
     
     # Update facets for ddr-public
     $ ddrindex facets -H localhost:9200 -i meta -p /usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json
+
+Upload the "organization.json" file for each organization you want to list.
+
+    $ curl -XPOST 'http://localhost:9200/documents/organization/REPO-ORG/' -d @/var/www/media/base/REPO-ORG/organization.json
+
+Upload the "repository.json" file for the repository.
+
+    $ curl -XPOST 'http://localhost:9200/documents/repository/REPO/' -d @/var/www/media/base/REPO/repository.json
 
 """
 
@@ -163,6 +171,7 @@ Example:
     index_parser.add_argument('-p', '--path', required=True, help='Absolute path to directory containing metadata file(s).')
     index_parser.add_argument('-r', '--recursive', action='store_true', help='Recurse into subdirectories.')
     index_parser.add_argument('-n', '--newstyle', action='store_true', help='Use new ddr-public ES index format.')
+    index_parser.add_argument('-P', '--public', action='store_true', help='For publication (fields not marked public will be omitted.')
     
     facets_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     facets_parser.add_argument('-l', '--log', help='Log file..')
@@ -200,7 +209,9 @@ Example:
         print(msg)
     elif args.cmd == 'index':
         start = datetime.now()
-        results = elasticsearch.index(args.host, args.index, args.path, args.recursive, args.newstyle)
+        results = elasticsearch.index(host=args.host, index=args.index,
+                                      path=args.path, recursive=args.recursive,
+                                      newstyle=args.newstyle, public=args.public)
         end = datetime.now()
         elapsed = end - start
         print('------------------------------------------------------------------------')
