@@ -201,6 +201,7 @@ def _make_mappings(mappings_path, index, models_dir):
     with open(mappings_path, 'r') as f:
         mappings = json.loads(f.read())
     if index == 'documents':
+        ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
         for mapping in mappings[index]:
             model = mapping.keys()[0]
             json_path = os.path.join(models_dir, '%s.json' % model)
@@ -209,6 +210,16 @@ def _make_mappings(mappings_path, index, models_dir):
             for field in data:
                 fname = field['name']
                 mapping[model]['properties'][fname] = field['elasticsearch']['properties']
+            # mappings for parent_id, etc
+            if model == 'collection':
+                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+            elif model == 'entity':
+                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+            elif model == 'file':
+                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+                mapping[model]['properties']['entity_id'] = ID_PROPERTIES
         return mappings
     elif index == 'meta':
         return mappings['meta']
