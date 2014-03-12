@@ -1,3 +1,4 @@
+from __future__ import print_function
 from datetime import datetime
 import json
 import logging
@@ -1094,7 +1095,36 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
 
-
+def _delete_recursive(host, index, path):
+    """Gets list of JSON files under specified path, deletes corresponding documents from ES.
+    
+    DEPRECATED: Official ES Python API has delete-by-query built in.
+    
+    @param host: Hostname and port (HOST:PORT).
+    @param index: Name of index.
+    @param path: Absolute path to directory containing object metadata files.
+    @returns: JSON dict with status code and response
+    """
+    ids = []
+    for path in _metadata_files(path, recursive=True):
+        object_id = _id_from_path(path)
+        model = _guess_model(path)
+        ids.append( (model,object_id) )
+    deleted = []
+    err = []
+    for model,object_id in ids:
+        r = delete(host, index, model, object_id)
+        if r['status'] == 200:
+            deleted.append(object_id)
+            print('.', end="")
+        else:
+            err.append(r)
+            print('E', end="")
+    print('')
+    print('%s deleted' % len(deleted))
+    print('%s errors' % len(err))
+    if err:
+        print(err)
 
 def register_backup(host, repository, path):
     """Register an ElasticSearch backup repository
