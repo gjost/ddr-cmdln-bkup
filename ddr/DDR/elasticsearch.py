@@ -201,9 +201,9 @@ def _make_mappings(mappings_path, index, models_dir):
     """
     with open(mappings_path, 'r') as f:
         mappings = json.loads(f.read())
-    if index == 'documents':
+    if 'documents' in index:
         ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
-        for mapping in mappings[index]:
+        for mapping in mappings['documents']:
             model = mapping.keys()[0]
             json_path = os.path.join(models_dir, '%s.json' % model)
             with open(json_path, 'r') as f:
@@ -222,7 +222,7 @@ def _make_mappings(mappings_path, index, models_dir):
                 mapping[model]['properties']['collection_id'] = ID_PROPERTIES
                 mapping[model]['properties']['entity_id'] = ID_PROPERTIES
         return mappings
-    elif index == 'meta':
+    elif 'meta' in index:
         return mappings['meta']
     return []
 
@@ -351,10 +351,10 @@ def _create_index(host, index, mappings_path=None, models_dir=None):
     status['mappings'] = {}
     if mappings_path:
         mappings_list = []
-        if index == 'documents':
-            mappings_list = _make_mappings(mappings_path, 'documents', models_dir)['documents']
-        elif index == 'meta':
-            mappings_list = _make_mappings(mappings_path, 'meta', models_dir)
+        if 'documents' in index:
+            mappings_list = _make_mappings(mappings_path, index, models_dir)['documents']
+        elif 'meta' in index:
+            mappings_list = _make_mappings(mappings_path, index, models_dir)
         for mapping in mappings_list:
             model = mapping.keys()[0]
             logger.debug(model)
