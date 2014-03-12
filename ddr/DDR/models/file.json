@@ -180,7 +180,7 @@
         "elasticsearch": {
             "public": true,
             "properties": {
-                "type":"string", "store":"yes"
+                "type":"integer", "store":"yes", "index":"not_analyzed"
             },
             "display": ""
         },
