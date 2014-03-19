@@ -1,3 +1,28 @@
+"""
+example walkthrough:
+------------------------------------------------------------------------
+from DDR import models
+from DDR import docstore
+
+HOSTS = [{'host':'192.168.56.101', 'port':9200}]
+INDEX = 'documents0'
+PATH = '/var/www/media/base'
+
+HOSTS = [{'host':'192.168.56.120', 'port':9200}]
+INDEX = 'documents1'
+
+PATH = '/var/www/media/base'
+
+docstore.delete_index(HOSTS, INDEX)
+
+docstore.create_index(HOSTS, INDEX)
+
+docstore.put_mappings(HOSTS, INDEX, docstore.HARD_CODED_MAPPINGS_PATH, models.MODELS_DIR)
+docstore.put_facets(HOSTS, INDEX, docstore.HARD_CODED_FACETS_PATH)
+
+docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
+------------------------------------------------------------------------
+"""
 from __future__ import print_function
 from datetime import datetime
 import json
@@ -5,13 +30,13 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 
-import envoy
-import requests
+from elasticsearch import Elasticsearch
 
 from DDR import natural_sort
-from DDR.models import MODELS, MODELS_DIR
+from DDR import models
 
 MAX_SIZE = 1000000
+DEFAULT_PAGE_SIZE = 20
 
 HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
 HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
@@ -22,149 +47,76 @@ PUBLIC_OK = [1,'1']
 
 
 
-def _clean_dict(data):
-    """Remove null or empty fields; ElasticSearch chokes on them.
-    
-    >>> d = {'a': 'abc', 'b': 'bcd', 'x':'' }
-    >>> _clean_dict(d)
-    >>> d
-    {'a': 'abc', 'b': 'bcd'}
-    
-    @param data: Standard DDR list-of-dicts data structure.
+ELASTICSEARCH_HOSTS = [
+    {'host':'192.168.56.120', 'port':9200}
+]
+
+
+"""
+ddr-local
+
+elasticsearch.add_document(settings.ELASTICSEARCH_HOST_PORT, 'ddr', 'collection', os.path.join(collection_path, 'collection.json'))
+elasticsearch.index(settings.MEDIA_BASE, settings.ELASTICSEARCH_HOST_PORT, 'ddr')
+elasticsearch.status(settings.ELASTICSEARCH_HOST_PORT)
+elasticsearch.delete_index(settings.ELASTICSEARCH_HOST_PORT, 'ddr')
+
+ddr-public
+
+modelfields = elasticsearch._model_fields(MODELS_DIR, MODELS)
+cached = elasticsearch.query(host=host, index=index, model=model,
+raw = elasticsearch.get(HOST, index=settings.DOCUMENT_INDEX, model=Repository.model, id=id)
+document = elasticsearch.get(settings.ELASTICSEARCH_HOST_PORT, settings.DOCUMENT_INDEX,
+elasticsearch.list_facets():
+results = elasticsearch.facet_terms(settings.ELASTICSEARCH_HOST_PORT,
+"""
+
+
+def _get_connection( hosts ):
+    es = Elasticsearch(hosts)
+    return es
+
+
+def status( hosts ):
     """
-    if data and isinstance(data, dict):
-        for key in data.keys():
-            if not data[key]:
-                del(data[key])
-
-
-
-def settings(host):
-    """Gets current ElasticSearch settings.
-    
-    curl -XGET 'http://DOMAINNAME:9200/_settings'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @returns: settings formatted in JSON
+    @param hosts: list of dicts containing host information.
     """
-    url = 'http://%s/_settings' % (host)
-    r = requests.get(url)
-    return json.loads(r.text)
-
-def status(host):
-    """Gets status of the Elasticsearch cluster
-    
-    curl -XGET 'http://DOMAIN:9200/_status'
-
-    @param host: Hostname and port (HOST:PORT).
-    @returns: status formatted in JSON
-    """
-    url = 'http://%s/_status' % (host)
-    r = requests.get(url)
-    return json.loads(r.text)
-
-def get(host, index, model, id):
-    """GET a single document.
-    
-    GET http://192.168.56.101:9200/ddr/collection/{repo}-{org}-{cid}
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param id: object ID
-    @returns: document, or JSON dict with status code and response
-    """
-    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
-    headers = {'content-type': 'application/json'}
-    r = requests.get(url, headers=headers)
-    return {'status':r.status_code, 'response':r.text}
-
-def query(host, index, model=None, query='', term={}, filters={}, sort={}, fields='', first=0, size=MAX_SIZE):
-    """Run a query, get a list of zero or more hits.
-    
-    curl -XGET 'http://localhost:9200/twitter/tweet/_search?q=user:kimchy&pretty=true'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param query: User's search text
-    @param term: dict
-    @param filters: dict
-    @param sort: dict
-    @param fields: str
-    @param first: int Index of document from which to start results
-    @param size: int Number of results to return
-    @returns raw ElasticSearch query output
-    """
-    _clean_dict(filters)
-    _clean_dict(sort)
-    
-    if model and query:
-        url = 'http://%s/%s/%s/_search?q=%s' % (host, index, model, query)
-    elif query:
-        url = 'http://%s/%s/_search?q=%s' % (host, index, query)
-    else:
-        url = 'http://%s/%s/_search' % (host, index)
-    logger.debug(url)
-    
-    payload = {'size':size, 'from':first,}
-    if term:
-        payload['query'] = {}
-        payload['query']['term'] = term
-    if fields:  payload['fields'] = fields
-    if filters: payload['filter'] = {'term':filters}
-    if sort:    payload['sort'  ] = sort
-    payload_json = json.dumps(payload)
-    logger.debug(payload_json)
-    
-    headers = {'content-type': 'application/json'}
-    r = requests.get(url, data=payload_json, headers=headers)
-    logger.debug('status: %s' % r.status_code)
-    #logger.debug(r.text)
-    return json.loads(r.text)
-
-def delete(host, index, model, id):
-    """Delete specified document from the index.
-    
-    curl -XDELETE 'http://localhost:9200/twitter/tweet/1'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param id: object ID
-    @returns: JSON dict with status code and response
-    """
-    url = 'http://%s/%s/%s/%s' % (host, index, model, id)
-    r = requests.delete(url)
-    return {'status':r.status_code, 'response':r.text}
+    es = _get_connection(ELASTICSEARCH_HOSTS)
+    return es.indices.status()
 
 
-
-def mappings(host, index, local=False):
-    """GET current mappings for the specified index.
+def create_index( hosts, index ):
+    """Creates the specified index if it does not already exist.
     
-    curl -XGET 'http://DOMAINNAME:9200/documents/_mappings?pretty=1'
-    
-    Mappings are like the schema for a SQL database.  ElasticSearch
-    is very "smart" and "helpful" and tries to guess wht to do with
-    incoming data.  Mappings tell ElasticSearch exactly how fields
-    should be indexed and stored, whether to use for faceting, etc.
-    
-    DDR mappings for documents are stored in the 'documents' index.
-    
-    @param host: Hostname and port (HOST:ORT).
+    @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @returns: JSON dict with status codes and responses
     """
-    url = 'http://%s/_mapping?pretty=1' % (host)
-    r = requests.get(url)
-    return r.text
-    #return json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
-    #return json.loads(r.text)
+    logger.debug('_create_index(%s, %s)' % (hosts, index))
+    body = {
+        'settings': {},
+        'mappings': {}
+        }
+    es = _get_connection(hosts)
+    status = es.indices.create(index=index, body=body)
+    return status
+
+
+def delete_index( hosts, index ):
+    """Delete the specified index.
+    
+    @param hosts: list of dicts containing host information.
+    @param index: Name of the target index.
+    @returns: JSON dict with status code and response
+    """
+    logger.debug('_delete_index(%s, %s)' % (hosts, index))
+    es = _get_connection(hosts)
+    status = es.indices.delete(index=index)
+    return status
+
 
 # Each item in this list is a mapping dict in the format ElasticSearch requires.
 # Mappings for each type have to be uploaded individually (I think).
-def _make_mappings(mappings_path, index, models_dir):
+def _make_mappings( mappings_path, index, models_dir ):
     """Takes MAPPINGS and adds field properties from MODEL_FIELDS
     
     Returns a nice list of mapping dicts.
@@ -226,39 +178,60 @@ def _make_mappings(mappings_path, index, models_dir):
         return mappings['meta']
     return []
 
+def put_mappings( hosts, index, mappings_path, models_dir ):
+    """Puts mappings from file into ES.
+    
+    @param hosts: list of dicts containing host information.
+    @param index: Name of the target index.
+    @param path: Absolute path to dir containing facet files.
+    @param mappings_path: Absolute path to mappings JSON.
+    @param models_dir: Absolute path to dir containing model definitions.
+    @returns: JSON dict with status code and response
+    """
+    logger.debug('put_mappings(%s, %s, %s, %s)' % (hosts, index, mappings_path, models_dir))
+    mappings_list = []
+    if 'documents' in index:
+        mappings_list = _make_mappings(mappings_path, index, models_dir)['documents']
+    elif 'meta' in index:
+        mappings_list = _make_mappings(mappings_path, index, models_dir)
+    statuses = []
+    es = _get_connection(hosts)
+    for mapping in mappings_list:
+        model = mapping.keys()[0]
+        logger.debug(model)
+        logger.debug(json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
+        status = es.indices.put_mapping(index=index, doc_type=model, body=mapping)
+        statuses.append( {'model':model, 'status':status} )
+    return statuses
 
 
-def put_facets(host, index, path=HARD_CODED_FACETS_PATH):
+def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
     >>> elasticsearch.put_facets('192.168.56.120:9200', 'meta', '/usr/local/src/ddr-cmdln/ddr/DDR/models/facets.json')
     
-    @param host: Hostname and port (HOST:PORT).
+    @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param path: Absolute path to dir containing facet files.
     @returns: JSON dict with status code and response
     """
-    logger.debug('index_facets(%s, %s, %s)' % (host, index, path))
+    logger.debug('index_facets(%s, %s, %s)' % (hosts, index, path))
     statuses = []
+    es = _get_connection(hosts)
     for facet_json in os.listdir(HARD_CODED_FACETS_PATH):
         facet = facet_json.split('.')[0]
         srcpath = os.path.join(path, facet_json)
         with open(srcpath, 'r') as f:
             data = json.loads(f.read().strip())
-            url = 'http://%s/%s/facet/%s/' % (host, index, facet)
-            payload = json.dumps(data)
-            headers = {'content-type': 'application/json'}
-            r = requests.put(url, data=payload, headers=headers)
-            #logger.debug('%s %s' % (r.status_code, r.text))
-            status = {'status':r.status_code, 'response':r.text}
+            status = es.index(index=index, doc_type='facet', id=facet, body=data)
             statuses.append(status)
     return statuses
 
-def list_facets(path=HARD_CODED_FACETS_PATH):
+def list_facets( path=HARD_CODED_FACETS_PATH ):
     return [filename.replace('.json', '') for filename in os.listdir(path)]
 
-def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
+def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None ):
     """Gets list of terms for the facet.
     
     $ curl -XGET 'http://192.168.56.101:9200/ddr/entity/_search?format=yaml' -d '{
@@ -293,17 +266,13 @@ def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
           ]
         }
 
-    @param host: Hostname and port (HOST:PORT).
+    @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param facet: Name of field
     @param order: term, count, reverse_term, reverse_count
     @param model: (optional) Type of object ('collection', 'entity', 'file')
     @returns raw output of facet query
     """
-    if model:
-        url = 'http://%s/%s/%s/_search?' % (host, index, model)
-    else:
-        url = 'http://%s/%s/_search?format=pretty' % (host, index)
     payload = {
         "fields": ["id"],
         "query": { "match_all": {} },
@@ -318,75 +287,14 @@ def facet_terms( host, index, facet, order='term', all_terms=True, model=None ):
             }
         }
     }
-    headers = {'content-type': 'application/json'}
-    r = requests.post(url, data=json.dumps(payload), headers=headers)
-    data = json.loads(r.text)
-    return data['facets']['results']
+    es = _get_connection(ELASTICSEARCH_HOSTS)
+    results = es.search(index=index, doc_type=model, body=payload)
+    return results['facets']['results']
 
 
+# post -----------------------------------------------------------------
 
-def _create_index(host, index, mappings_path=None, models_dir=None):
-    """Create the specified index.
-    
-    curl -XPOST 'http://DOMAINNAME:9200/documents/' -d @mappings.json
-    
-    Creates an index if it does not already exist, then constructs and uploads mappings (see mappings command for more information on mappings).
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param mappings: Absolute path to mappings JSON file.
-    @param models_dir: Absolute path to directory containing model files. NOTE: required if mappings.
-    @returns: JSON dict with status codes and responses
-    """
-    status = {}
-    
-    # create the index
-    logger.debug('_create_index(%s, %s)' % (host, index))
-    url = 'http://%s/%s/' % (host, index)
-    headers = {'content-type': 'application/json'}
-    r = requests.put(url, headers=headers)
-    logger.debug('%s %s' % (r.status_code, r.text))
-    status['create'] = {'status':r.status_code, 'response':r.text}
-    
-    status['mappings'] = {}
-    if mappings_path:
-        mappings_list = []
-        if 'documents' in index:
-            mappings_list = _make_mappings(mappings_path, index, models_dir)['documents']
-        elif 'meta' in index:
-            mappings_list = _make_mappings(mappings_path, index, models_dir)
-        for mapping in mappings_list:
-            model = mapping.keys()[0]
-            logger.debug(model)
-            logger.debug(json.dumps(mapping, indent=4, separators=(',', ': '), sort_keys=True))
-            payload = json.dumps(mapping)
-            url = 'http://%s/%s/%s/_mapping' % (host, index, model)
-            headers = {'content-type': 'application/json'}
-            r = requests.put(url, data=payload, headers=headers)
-            logger.debug('%s %s' % (r.status_code, r.text))
-            status['mappings'][model] = {'status':r.status_code, 'response':r.text}
-    return status
-
-
-
-def _delete_index(host, index):
-    """Delete the specified index.
-    
-    curl -XDELETE 'http://localhost:9200/twitter/'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @returns: JSON dict with status code and response
-    """
-    logger.debug('_delete_index(%s, %s)' % (host, index))
-    url = 'http://%s/%s/' % (host, index)
-    r = requests.delete(url)
-    logger.debug('%s %s' % (r.status_code, r.text))
-    return {'status':r.status_code, 'response':r.text}
-
-
-
-def _is_publishable(data):
+def _is_publishable( data ):
     """Determines if object is publishable
     
     TODO not specific to elasticsearch - move this function so other modules can use
@@ -428,7 +336,7 @@ def _is_publishable(data):
         return True
     return False
 
-def _filter_payload(data, public_fields):
+def _filter_payload( data, public_fields ):
     """If requested, removes non-public fields from document before sending to ElasticSearch.
     
     >>> data = [{'id': 'ddr-testing-123-1'}, {'title': 'Title'}, {'secret': 'this is a secret'}]
@@ -448,7 +356,7 @@ def _filter_payload(data, public_fields):
                 data.remove(field)
                 print('removed %s' % fieldname)
 
-def _clean_creators(data):
+def _clean_creators( data ):
     """Normalizes contents of 'creators' field.
     
     There are lots of weird variations on this field.
@@ -503,7 +411,7 @@ def _clean_creators(data):
             names.append(name)
     return names
 
-def _clean_facility(data):
+def _clean_facility( data ):
     """Extract ID from facility text; force ID numbers to strings.
     
     >>> f0 = 'Tule Lake [10]'
@@ -523,7 +431,7 @@ def _clean_facility(data):
         data = [data]
     return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
 
-def _clean_parent(data):
+def _clean_parent( data ):
     """Normalizes contents of 'creators' field.
     
     In the mappings this is an object but the UI saves it as a string.
@@ -542,7 +450,7 @@ def _clean_parent(data):
         data = {'href':'', 'uuid':'', 'label':data}
     return data
 
-def _clean_topics(data):
+def _clean_topics( data ):
     """Extract topics IDs from textual topics.
 
     >>> _clean_topics('Topics [123]')
@@ -563,7 +471,22 @@ def _clean_topics(data):
         data = [data]
     return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
 
-def _clean_payload(data):
+def _clean_dict( data ):
+    """Remove null or empty fields; ElasticSearch chokes on them.
+    
+    >>> d = {'a': 'abc', 'b': 'bcd', 'x':'' }
+    >>> _clean_dict(d)
+    >>> d
+    {'a': 'abc', 'b': 'bcd'}
+    
+    @param data: Standard DDR list-of-dicts data structure.
+    """
+    if data and isinstance(data, dict):
+        for key in data.keys():
+            if not data[key]:
+                del(data[key])
+
+def _clean_payload( data ):
     """Remove null or empty fields; ElasticSearch chokes on them.
     """
     # remove info about DDR release, git-annex version, etc
@@ -580,7 +503,7 @@ def _clean_payload(data):
             # rm null or empty fields
             _clean_dict(field)
 
-def post(path, host, index, model, newstyle=False, public_fields=[], additional_fields={}):
+def post( hosts, index, model, document, public_fields=[], additional_fields={} ):
     """Add a new document to an index or update an existing one.
     
     This function can produce ElasticSearch documents in two formats:
@@ -596,119 +519,276 @@ def post(path, host, index, model, newstyle=False, public_fields=[], additional_
     
     curl -XPUT 'http://localhost:9200/ddr/collection/ddr-testing-141' -d '{ ... }'
     
-    @param path: Absolute path to the JSON file.
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of the target index.
-    @param model: Type of object ('collection', 'entity', 'file')
-    @param newstyle: Use new ddr-public ES document format.
+    @param hosts: list of dicts containing host information.
+    @param index: 
+    @param model: 
+    @param document: The object to post.
     @param public_fields: List of field names; if present, fields not in list will be removed.
     @param additional_fields: dict of fields added during indexing process
     @returns: JSON dict with status code and response
     """
-    logger.debug('post(%s, %s, %s, %s, newstyle=%s, public=%s)' % (path, index, model, path, newstyle, public_fields))
-    if not os.path.exists(path):
-        return {'status':1, 'response':'path does not exist'}
-    with open(path, 'r') as f:
-        filedata = json.loads(f.read())
+    logger.debug('post(%s, %s, %s, %s, %s, %s)' % (hosts, index, model, document, public_fields, additional_fields))
     
     # die if document is public=False or status=incomplete
-    if not _is_publishable(filedata):
+    if not _is_publishable(document):
         return {'status':403, 'response':'object not publishable'}
     # remove non-public fields
-    _filter_payload(filedata, public_fields)
+    _filter_payload(document, public_fields)
     # normalize field contents
-    _clean_payload(filedata)
+    _clean_payload(document)
     
-    if newstyle:
-        # restructure from list-of-fields dict to straight dict used by ddr-public
-        data = {}
-        for field in filedata:
-            for k,v in field.iteritems():
-                data[k] = v
-        
-        if model in ['collection', 'entity']:
-            if not (data and data.get('id', None)):
-                return {'status':2, 'response':'no id'}
-            cid = data['id']
-            url = 'http://%s/%s/%s/%s' % (host, index, model, cid)
-        elif model in ['file']:
-            if not (data and data.get('path_rel', None)):
-                return {'status':3, 'response':'no path_rel'}
-            filename = None
-            extension = None
-            if data.get('path_rel',None):
-                filename,extension = os.path.splitext(data['path_rel'])
-            basename_orig = data.get('basename_orig', None)
-            label = data.get('label', None)
-            if basename_orig and not label:
-                label = basename_orig
-            elif filename and not label:
-                label = filename
-            data['id'] = filename
-            data['title'] = label
-            url = 'http://%s/%s/%s/%s' % (host, index, model, filename)
-        else:
-            url = None
-        # separate fields for pieces of ID
-        id_parts = data['id'].split('-')
-        if model in ['repo','organization','collection','entity','file']: data['repo'] = id_parts[0]
-        if model in ['organization','collection','entity','file']: data['org'] = id_parts[1]
-        if model in ['collection','entity','file']: data['cid'] = int(id_parts[2])
-        if model in ['entity','file']: data['eid'] = int(id_parts[3])
-        if model in ['file']: data['role'] = id_parts[4]
-        if model in ['file']: data['sha1'] = id_parts[5]
-        # additional_fields
-        for key,val in additional_fields.iteritems():
-            data[key] = val
-        # pack
-        payload = json.dumps(data)
-        
-    else:
-        # old-style list-of-fields dict used by ddr-local
-        data = filedata
-        
-        if model in ['collection', 'entity']:
-            if not (data and data[1].get('id', None)):
-                return {'status':2, 'response':'no id'}
-            cid = None
-            for field in data:
-                if field.get('id',None):
-                    cid = field['id']
-            url = 'http://%s/%s/%s/%s' % (host, index, model, cid)
-        elif model in ['file']:
-            if not (data and data[1].get('path_rel', None)):
-                return {'status':3, 'response':'no path_rel'}
-            filename = None
-            basename_orig = None
-            label = None
-            for field in data:
-                if field.get('path_rel',None):
-                    filename,extension = os.path.splitext(field['path_rel'])
-                if field.get('basename_orig', None):
-                    basename_orig = field['basename_orig']
-                if field.get('label', None):
-                    label = field['label']
-            if basename_orig and not label:
-                label = basename_orig
-            elif filename and not label:
-                label = filename
-            data.append({'id': filename})
-            data.append({'title': label})
-            url = 'http://%s/%s/%s/%s' % (host, index, model, filename)
-        else:
-            url = None
-        payload = json.dumps({'d': data})
+    # restructure from list-of-fields dict to straight dict used by ddr-public
+    data = {}
+    for field in document:
+        for k,v in field.iteritems():
+            data[k] = v
+    
+    document_id = None
+    if model in ['collection', 'entity']:
+        if not (data and data.get('id', None)):
+            return {'status':2, 'response':'no id'}
+        document_id = data['id']
+    elif model in ['file']:
+        if not (data and data.get('path_rel', None)):
+            return {'status':3, 'response':'no path_rel'}
+        filename = None
+        extension = None
+        if data.get('path_rel',None):
+            filename,extension = os.path.splitext(data['path_rel'])
+        basename_orig = data.get('basename_orig', None)
+        label = data.get('label', None)
+        if basename_orig and not label:
+            label = basename_orig
+        elif filename and not label:
+            label = filename
+        data['id'] = filename
+        data['title'] = label
+        document_id = data['id']
+    # separate fields for pieces of ID
+    id_parts = data['id'].split('-')
+    if model in ['repo','organization','collection','entity','file']: data['repo'] = id_parts[0]
+    if model in ['organization','collection','entity','file']: data['org'] = id_parts[1]
+    if model in ['collection','entity','file']: data['cid'] = int(id_parts[2])
+    if model in ['entity','file']: data['eid'] = int(id_parts[3])
+    if model in ['file']: data['role'] = id_parts[4]
+    if model in ['file']: data['sha1'] = id_parts[5]
+    # additional_fields
+    for key,val in additional_fields.iteritems():
+        data[key] = val
 
-    if url:
-        logger.debug(url)
-        #logger.debug(payload)
-        headers = {'content-type': 'application/json'}
-        r = requests.put(url, data=payload, headers=headers)
-        #logger.debug('%s %s' % (r.status_code, r.text))
-        return {'status':r.status_code, 'response':r.text}
+    if document_id:
+        es = _get_connection(hosts)
+        status = es.index(index=index, doc_type=model, id=document_id, body=data)
+        return status
     return {'status':4, 'response':'unknown problem'}
 
 
+def exists( hosts, index, model, document_id ):
+    """
+    @param hosts: list of dicts containing host information.
+    @param index:
+    @param model:
+    @param document_id:
+    """
+    es = _get_connection(hosts)
+    return es.exists(index=index, doc_type=model, id=document_id)
+
+
+def get( hosts, index, model, document_id, fields=None ):
+    """
+    @param hosts: list of dicts containing host information.
+    @param index:
+    @param model:
+    @param document_id:
+    """
+    es = _get_connection(hosts)
+    if fields is not None:
+        return es.get(index=index, doc_type=model, id=document_id, fields=fields)
+    return es.get(index=index, doc_type=model, id=document_id)
+
+
+REPOSITORY_LIST_FIELDS = ['id', 'title', 'description', 'url',]
+ORGANIZATION_LIST_FIELDS = ['id', 'title', 'description', 'url',]
+COLLECTION_LIST_FIELDS = ['id', 'title', 'description', 'signature_file',]
+ENTITY_LIST_FIELDS = ['id', 'title', 'description', 'signature_file',]
+FILE_LIST_FIELDS = ['id', 'basename_orig', 'label', 'access_rel','sort',]
+
+REPOSITORY_LIST_SORT = [
+    {'repo':'asc'},
+]
+ORGANIZATION_LIST_SORT = [
+    {'repo':'asc'},
+    {'org':'asc'},
+]
+COLLECTION_LIST_SORT = [
+    {'repo':'asc'},
+    {'org':'asc'},
+    {'cid':'asc'},
+    {'id':'asc'},
+]
+ENTITY_LIST_SORT = [
+    {'repo':'asc'},
+    {'org':'asc'},
+    {'cid':'asc'},
+    {'eid':'asc'},
+    {'id':'asc'},
+]
+FILE_LIST_SORT = [
+    {'repo':'asc'},
+    {'org':'asc'},
+    {'cid':'asc'},
+    {'eid':'asc'},
+    {'sort':'asc'},
+    {'role':'desc'},
+    {'id':'asc'},
+]
+
+def all_list_fields():
+    LIST_FIELDS = []
+    for mf in [REPOSITORY_LIST_FIELDS, ORGANIZATION_LIST_FIELDS,
+               COLLECTION_LIST_FIELDS, ENTITY_LIST_FIELDS, FILE_LIST_FIELDS]:
+        for f in mf:
+            if f not in LIST_FIELDS:
+                LIST_FIELDS.append(f)
+    return LIST_FIELDS
+
+class InvalidPage(Exception):
+    pass
+class PageNotAnInteger(InvalidPage):
+    pass
+class EmptyPage(InvalidPage):
+    pass
+
+def _validate_number(number, num_pages):
+        """Validates the given 1-based page number.
+        see django.core.pagination.Paginator.validate_number
+        """
+        try:
+            number = int(number)
+        except (TypeError, ValueError):
+            raise PageNotAnInteger('That page number is not an integer')
+        if number < 1:
+            raise EmptyPage('That page number is less than 1')
+        if number > num_pages:
+            if number == 1:
+                pass
+            else:
+                raise EmptyPage('That page contains no results')
+        return number
+
+def _page_bottom_top(total, index, page_size):
+        """
+        Returns a Page object for the given 1-based page number.
+        """
+        num_pages = total / page_size
+        if total % page_size:
+            num_pages = num_pages + 1
+        number = _validate_number(index, num_pages)
+        bottom = (number - 1) * page_size
+        top = bottom + page_size
+        return bottom,top,num_pages
+
+def massage_query_results( results, thispage, page_size ):
+    """Takes ES query, makes facsimile of original object; pads results for paginator.
+    
+    Problem: Django Paginator only displays current page but needs entire result set.
+    Actually, it just needs a list that is the same size as the actual result set.
+    
+    GOOD:
+    Do an ElasticSearch search, without ES paging.
+    Loop through ES results, building new list, process only the current page's hits
+    hits outside current page added as placeholders
+    
+    BETTER:
+    Do an ElasticSearch search, *with* ES paging.
+    Loop through ES results, building new list, processing all the hits
+    Pad list with empty objects fore and aft.
+    
+    @param results: ElasticSearch result set (non-empty, no errors)
+    @param thispage: Value of GET['page'] or 1
+    @param page_size: Number of objects per page
+    @returns: list of hit dicts, with empty "hits" fore and aft of current page
+    """
+    def unlistify(o, fieldname):
+        if o.get(fieldname, None):
+            if isinstance(o[fieldname], list):
+                o[fieldname] = o[fieldname][0]
+    
+    objects = []
+    if results and results['hits']:
+        total = results['hits']['total']
+        bottom,top,num_pages = _page_bottom_top(total, thispage, page_size)
+        # only process this page
+        for n,hit in enumerate(results['hits']['hits']):
+            o = {'n':n,
+                 'id': hit['_id'],
+                 'placeholder': True}
+            if (n >= bottom) and (n < top):
+                # if we tell ES to only return certain fields, the object is in 'fields'
+                if hit.get('fields', None):
+                    o = hit['fields']
+                elif hit.get('_source', None):
+                    o = hit['_source']
+                # copy ES results info to individual object source
+                o['index'] = hit['_index']
+                o['type'] = hit['_type']
+                o['model'] = hit['_type']
+                o['id'] = hit['_id']
+                # ElasticSearch wraps field values in lists when you use a 'fields' array in a query
+                for fieldname in all_list_fields():
+                    unlistify(o, fieldname)
+            objects.append(o)
+    return objects
+
+def search( hosts, index, model='collection,entity,file', query='', term={}, filters={}, sort={}, fields=[], first=0, size=MAX_SIZE ):
+    """Run a query, get a list of zero or more hits.
+    
+    @param hosts: list of dicts containing host information.
+    @param index: Name of the target index.
+    @param model: Type of object ('collection', 'entity', 'file')
+    @param query: User's search text
+    @param term: dict
+    @param filters: dict
+    @param sort: dict
+    @param fields: str
+    @param first: int Index of document from which to start results
+    @param size: int Number of results to return
+    @returns raw ElasticSearch query output
+    """
+    _clean_dict(filters)
+    _clean_dict(sort)
+    body = {'size':size, 'from':first,}
+    if term:
+        body['query'] = {}
+        body['query']['term'] = term
+    if fields:  body['fields'] = fields
+    if filters: body['filter'] = {'term':filters}
+    if sort:    body['sort'  ] = sort
+    logger.debug(json.dumps(body))
+    es = _get_connection(hosts)
+    results = es.search(index=index, doc_type=model, body=body)
+    return results
+
+
+def delete( hosts, index, model, document_id, recursive=False ):
+    """
+    @param hosts: list of dicts containing host information.
+    @param index:
+    @param model:
+    @param document_id:
+    @param recursive: True or False
+    """
+    if recursive:
+        fieldname = None
+        if model == 'collection': fieldname = 'collection_id'
+        elif model == 'entity': fieldname = 'entity_id'
+        assert False
+    else:
+        es = _get_connection(hosts)
+        return es.delete(index=index, doc_type=model, id=document_id)
+
+
+# index ----------------------------------------------------------------
 
 def _model_fields( basedir, model_names ):
     """Loads models *.json files and returns as a dict
@@ -746,7 +826,7 @@ def _public_fields( basedir, models ):
     public_fields['file'].append('path_rel')
     return public_fields
 
-def _metadata_files(basedir, recursive=False, files_first=False):
+def _metadata_files( basedir, recursive=False, files_first=False ):
     """Lists absolute paths to .json files in basedir.
     
     Skips/excludes .git directories.
@@ -818,28 +898,8 @@ def _parents_status( paths ):
             o = _make_coll_ent(path)
             parents[o.pop('id')] = o
     return parents
-    
-def _guess_model( path ):
-    """Guess model from the path.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    >>> _guess_model('/var/www/media/base/ddr-testing-123/collection.json')
-    'collection'
-    >>> _guess_model('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'entity'
-    >>> _guess_model('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'file'
-    
-    @param path: absolute or relative path to metadata JSON file.
-    @returns: model
-    """
-    if 'collection.json' in path: return 'collection'
-    elif 'entity.json' in path: return 'entity'
-    elif ('master' in path) or ('mezzanine' in path): return 'file'
-    return None
 
-def _file_parent_ids(model, path):
+def _file_parent_ids( model, path ):
     """Calculate the parent IDs of an entity or file from the filename.
     
     TODO not specific to elasticsearch - move this function so other modules can use
@@ -879,7 +939,7 @@ def _publishable_or_not( paths, parents ):
     successful_paths = []
     bad_paths = []
     for path in paths:
-        model = _guess_model(path)
+        model = models.model_from_path(path)
         # see if item's parents are incomplete or nonpublic
         # TODO Bad! Bad! Generalize this...
         UNPUBLISHABLE = []
@@ -899,55 +959,6 @@ def _publishable_or_not( paths, parents ):
             else:
                 logger.error('missing information!: %s' % path)
     return successful_paths,bad_paths
-
-def _id_from_path( path ):
-    """Extract ID from path.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    >>> _id_from_path('.../ddr-testing-123/collection.json')
-    'ddr-testing-123'
-    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'ddr-testing-123-1'
-    >>> _id_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'ddr-testing-123-1-master-a1b2c3d4e5.json'
-    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
-    None
-    >>> _id_from_path('.../ddr-testing-123/something-else.json')
-    None
-    
-    @param path: absolute or relative path to a DDR metadata file
-    @returns: DDR object ID
-    """
-    object_id = None
-    model = _guess_model(path)
-    if model == 'collection': return os.path.basename(os.path.dirname(path))
-    elif model == 'entity': return os.path.basename(os.path.dirname(path))
-    elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
-    return None
-
-def _parent_id( object_id ):
-    """Given a DDR object ID, returns the parent object ID.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    >>> _parent_id('ddr')
-    None
-    >>> _parent_id('ddr-testing')
-    'ddr'
-    >>> _parent_id('ddr-testing-123')
-    'ddr-testing'
-    >>> _parent_id('ddr-testing-123-1')
-    'ddr-testing-123'
-    >>> _parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
-    'ddr-testing-123-1'
-    """
-    parts = object_id.split('-')
-    if   len(parts) == 2: return '-'.join([ parts[0], parts[1] ])
-    elif len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
-    elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
-    elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-    return None
 
 def _has_access_file( path, suffix='-a.jpg' ):
     """Determines whether the path has a corresponding access file.
@@ -969,7 +980,7 @@ def _store_signature_file( signatures, path, model, master_substitute ):
     IMPORTANT: remember to change 'zzzzzz' back to 'master'
     """
     if _has_access_file(path):
-        thumbfile = _id_from_path(path)
+        thumbfile = models.id_from_path(path)
         # replace 'master' with something so mezzanine wins in sort
         thumbfile_mezzfirst = thumbfile.replace('master', master_substitute)
         repo,org,cid,eid,role,sha1 = thumbfile.split('-')
@@ -1006,7 +1017,7 @@ def _choose_signatures( paths ):
     SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
     signature_files = {}
     for path in paths:
-        model = _guess_model(path)
+        model = models.model_from_path(path)
         if model == 'file':
             # decide whether to store this as a collection/entity signature
             _store_signature_file(signature_files, path, model, SIGNATURE_MASTER_SUBSTITUTE)
@@ -1018,7 +1029,7 @@ def _choose_signatures( paths ):
         signature_files[key] = value.replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
     return signature_files
 
-def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=False, public=True):
+def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, newstyle=False, public=True ):
     """(Re)index with data from the specified directory.
     
     After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
@@ -1028,7 +1039,7 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
     
     In the final pass, a list of public/publishable fields is chosen based on the model.  Additional fields not in the model (e.g. parent ID, parent organization/collection/entity ID, the signature file) are packaged.  Then everything is sent off to post().
 
-    @param host: Hostname and port (HOST:PORT).
+    @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param path: Absolute path to directory containing object metadata files.
     @param models_dir: Absolute path to directory containing model JSON files.
@@ -1038,9 +1049,9 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
     @param paths: Absolute paths to directory containing collections.
     @returns: number successful,list of paths that didn't work out
     """
-    logger.debug('index(%s, %s, %s)' % (host, index, path))
+    logger.debug('index(%s, %s, %s)' % (hosts, index, path))
     
-    public_fields = _public_fields(models_dir, MODELS)
+    public_fields = _public_fields(models_dir, models.MODELS)
     
     # process a single file if requested
     if os.path.isfile(path):
@@ -1067,9 +1078,9 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
     
     successful = 0
     for path in successful_paths:
-        model = _guess_model(path)
-        object_id = _id_from_path(path)
-        parent_id = _parent_id(object_id)
+        model = models.model_from_path(path)
+        object_id = models.id_from_path(path)
+        parent_id = models.parent_id(object_id)
         
         publicfields = []
         if public and model:
@@ -1084,96 +1095,19 @@ def index(host, index, path, models_dir=MODELS_DIR, recursive=False, newstyle=Fa
         
         # HERE WE GO!
         print('adding %s' % path)
-        result = post(path, host, index, model, newstyle, publicfields, additional_fields)
-        status_code = result['status']
-        response = result['response']
-        if status_code in SUCCESS_STATUSES:
-            successful += 1
+        with open(path, 'r') as f:
+            document = json.loads(f.read())
+        try:
+            existing = get(hosts, index, model, object_id, fields=[])
+        except:
+            existing = None
+        result = post(hosts, index, model, document, publicfields, additional_fields)
+        # success: created, or version number incremented
+        if result.get('_id', None):
+            if result['created'] or (existing and (result['version'] > existing['_version'])):
+                successful += 1
         else:
-            bad_paths.append((path,status_code,response))
+            bad_paths.append((path,result))
             #print(status_code)
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
-
-def _delete_recursive(host, index, path):
-    """Gets list of JSON files under specified path, deletes corresponding documents from ES.
-    
-    DEPRECATED: Official ES Python API has delete-by-query built in.
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param index: Name of index.
-    @param path: Absolute path to directory containing object metadata files.
-    @returns: JSON dict with status code and response
-    """
-    ids = []
-    for path in _metadata_files(path, recursive=True):
-        object_id = _id_from_path(path)
-        model = _guess_model(path)
-        ids.append( (model,object_id) )
-    deleted = []
-    err = []
-    for model,object_id in ids:
-        r = delete(host, index, model, object_id)
-        if r['status'] == 200:
-            deleted.append(object_id)
-            print('.', end="")
-        else:
-            err.append(r)
-            print('E', end="")
-    print('')
-    print('%s deleted' % len(deleted))
-    print('%s errors' % len(err))
-    if err:
-        print(err)
-
-def register_backup(host, repository, path):
-    """Register an ElasticSearch backup repository
-    
-    Tells ElasticSearch to use specified directory for snapshots.
-    NOTE: Directory must already exist and be writable by the ES user.
-    http://www.elasticsearch.org/blog/introducing-snapshot-restore/
-    
-    # mkdir -p /var/backups/elasticsearch/my_backup
-    # chown -R elasticsearch /var/backups/elasticsearch/
-    $ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
-      "type": "fs",
-      "settings": {
-        "location": "/mount/backups/my_backup",
-        "compress": true
-      }
-    }'
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param repository: Name of ElasticSearch backup repository.
-    @param path: Absolute path to repository.
-    @returns: JSON dict with status code and response
-    """
-    url = 'http://%s/_snapshot/%s' % (host, repository)
-    payload = {
-        'type': 'fs',
-        'settings': {
-            'location': path,
-            'compress': True
-        }
-    }
-    headers = {'content-type': 'application/json'}
-    r = requests.put(url, data=json.dumps(payload), headers=headers)
-    return {'status':r.status_code, 'response':r.text}
-
-def snapshot(host, repository, snapshot=datetime.now().strftime('%Y%m%d-%H%M%S')):
-    """Tells ElasticSearch to take a snapshot backup.
-    
-    http://www.elasticsearch.org/blog/introducing-snapshot-restore/
-    
-    $ curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true"
-    
-    @param host: Hostname and port (HOST:PORT).
-    @param repository: Name of ElasticSearch backup repository.
-    @param snapshot: Name of snapshot (optional).
-    @returns: JSON dict with status code and response
-    """
-    url = 'http://%s/_snapshot/%s/%s?wait_for_completion=true' % (host, repository, snapshot)
-    payload = {}
-    headers = {'content-type': 'application/json'}
-    r = requests.put(url, data=json.dumps(payload), headers=headers)
-    return {'status':r.status_code, 'response':r.text}

@@ -32,6 +32,122 @@ MODELS = ['collection', 'entity', 'file']
 MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 
+
+def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
+    if   (model == 'file') and repo and org and cid and eid and role and sha1:
+        return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
+    elif (model == 'entity') and repo and org and cid and eid:
+        return '%s-%s-%s-%s' % (repo, org, cid, eid)
+    elif (model == 'collection') and repo and org and cid:
+        return '%s-%s-%s' % (repo, org, cid)
+    elif (model in ['org', 'organization']) and repo and org:
+        return '%s-%s' % (repo, org)
+    elif (model in ['repo', 'repository']) and repo:
+        return repo
+    return None
+
+def split_object_id( object_id=None ):
+    """Very naive function that splits an object ID into its parts
+    TODO make sure it's actually an object ID first!
+    """
+    if object_id and isinstance(object_id, basestring):
+        parts = object_id.strip().split('-')
+        if len(parts) == 6:
+            parts.insert(0, 'file')
+            return parts
+        elif len(parts) == 4:
+            parts.insert(0, 'entity')
+            return parts
+        elif len(parts) == 3:
+            parts.insert(0, 'collection')
+            return parts
+    return None
+
+def id_from_path( path ):
+    """Extract ID from path.
+    
+    >>> _id_from_path('.../ddr-testing-123/collection.json')
+    'ddr-testing-123'
+    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
+    'ddr-testing-123-1'
+    >>> _id_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
+    'ddr-testing-123-1-master-a1b2c3d4e5.json'
+    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
+    None
+    >>> _id_from_path('.../ddr-testing-123/something-else.json')
+    None
+    
+    @param path: absolute or relative path to a DDR metadata file
+    @returns: DDR object ID
+    """
+    object_id = None
+    model = model_from_path(path)
+    if model == 'collection': return os.path.basename(os.path.dirname(path))
+    elif model == 'entity': return os.path.basename(os.path.dirname(path))
+    elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
+    return None
+
+def model_from_id( object_id ):
+    """Guess model by looking at object_id
+    """
+    LEGAL_LENGTHS = [
+        1, # repository   (ddr)
+        2, # organization (ddr-testing)
+        3, # collection   (ddr-testing-123)
+        4, # entity       (ddr-testing-123-1)
+        6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
+    ]
+    parts = object_id.split('-')
+    len_parts = len(parts)
+    if (len_parts in LEGAL_LENGTHS):
+        if   len_parts == 6: return 'file'
+        elif len_parts == 4: return 'entity'
+        elif len_parts == 3: return 'collection'
+        #elif len_parts == 2: return 'organization'
+        #elif len_parts == 1: return 'repository'
+    return None
+
+def model_from_path( path ):
+    """Guess model from the path.
+    
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
+    'collection'
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
+    'entity'
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
+    'file'
+    
+    @param path: absolute or relative path to metadata JSON file.
+    @returns: model
+    """
+    if 'collection.json' in path: return 'collection'
+    elif 'entity.json' in path: return 'entity'
+    elif ('master' in path) or ('mezzanine' in path): return 'file'
+    return None
+
+def parent_id( object_id ):
+    """Given a DDR object ID, returns the parent object ID.
+    
+    TODO not specific to elasticsearch - move this function so other modules can use
+    
+    >>> _parent_id('ddr')
+    None
+    >>> _parent_id('ddr-testing')
+    'ddr'
+    >>> _parent_id('ddr-testing-123')
+    'ddr-testing'
+    >>> _parent_id('ddr-testing-123-1')
+    'ddr-testing-123'
+    >>> _parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
+    'ddr-testing-123-1'
+    """
+    parts = object_id.split('-')
+    if   len(parts) == 2: return '-'.join([ parts[0], parts[1] ])
+    elif len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
+    elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
+    elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
+    return None
+
 def model_fields( model ):
     """
     THIS FUNCTION IS A PLACEHOLDER.
