@@ -1104,7 +1104,16 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, ne
         result = post(hosts, index, model, document, publicfields, additional_fields)
         # success: created, or version number incremented
         if result.get('_id', None):
-            if result['created'] or (existing and (result['version'] > existing['_version'])):
+            if existing:
+                existing_version = existing.get('version', None)
+                if not existing_version:
+                    existing_version = existing.get('_version', None)
+            else:
+                existing_version = None
+            result_version = result.get('version', None)
+            if not result_version:
+                result_version = result.get('_version', None)
+            if result['created'] or (existing_version and (result_version > existing_version)):
                 successful += 1
         else:
             bad_paths.append((path,result))
