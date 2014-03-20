@@ -1,17 +1,19 @@
 """
 example walkthrough:
 ------------------------------------------------------------------------
-from DDR import models
-from DDR import docstore
 
 HOSTS = [{'host':'192.168.56.101', 'port':9200}]
 INDEX = 'documents0'
-PATH = '/var/www/media/base'
+PATH = '/var/www/media/base/ddr-testing-141'
+PATH = '/var/www/media/base/ddr-densho-2'
+PATH = '/var/www/media/base/ddr-densho-10'
 
 HOSTS = [{'host':'192.168.56.120', 'port':9200}]
-INDEX = 'documents1'
-
+INDEX = 'documents0'
 PATH = '/var/www/media/base'
+
+from DDR import models
+from DDR import docstore
 
 docstore.delete_index(HOSTS, INDEX)
 
@@ -21,6 +23,7 @@ docstore.put_mappings(HOSTS, INDEX, docstore.HARD_CODED_MAPPINGS_PATH, models.MO
 docstore.put_facets(HOSTS, INDEX, docstore.HARD_CODED_FACETS_PATH)
 
 docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
+
 ------------------------------------------------------------------------
 """
 from __future__ import print_function
