@@ -740,7 +740,22 @@ def massage_query_results( results, thispage, page_size ):
             objects.append(o)
     return objects
 
-def search( hosts, index, model='collection,entity,file', query='', term={}, filters={}, sort={}, fields=[], first=0, size=MAX_SIZE ):
+def _clean_sort( sort ):
+    """Take list of [a,b] lists, return comma-separated list of a:b pairs
+    
+    >>> _clean_sort( 'whatever' )
+    >>> _clean_sort( [['a', 'asc'], ['b', 'asc'], 'whatever'] )
+    >>> _clean_sort( [['a', 'asc'], ['b', 'asc']] )
+    'a:asc,b:asc'
+    """
+    cleaned = None
+    if sort and isinstance(sort,list):
+        all_lists = [1 if isinstance(x, list) else 0 for x in sort]
+        if not 0 in all_lists:
+            cleaned = ','.join([':'.join(x) for x in sort])
+    return cleaned
+
+def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fields=[], first=0, size=MAX_SIZE ):
     """Run a query, get a list of zero or more hits.
     
     @param hosts: list of dicts containing host information.
@@ -749,7 +764,7 @@ def search( hosts, index, model='collection,entity,file', query='', term={}, fil
     @param query: User's search text
     @param term: dict
     @param filters: dict
-    @param sort: dict
+    @param sort: list of (fieldname,direction) tuples
     @param fields: str
     @param first: int Index of document from which to start results
     @param size: int Number of results to return
@@ -757,16 +772,18 @@ def search( hosts, index, model='collection,entity,file', query='', term={}, fil
     """
     _clean_dict(filters)
     _clean_dict(sort)
-    body = {'size':size, 'from':first,}
+    body = {}
     if term:
         body['query'] = {}
         body['query']['term'] = term
-    if fields:  body['fields'] = fields
-    if filters: body['filter'] = {'term':filters}
-    if sort:    body['sort'  ] = sort
+    if filters:
+        body['filter'] = {'term':filters}
+    sort_cleaned = _clean_sort(sort)
     logger.debug(json.dumps(body))
     es = _get_connection(hosts)
-    results = es.search(index=index, doc_type=model, body=body)
+    results = es.search(index=index, doc_type=model, q=query, body=body,
+                        sort=sort_cleaned, first=first, size=size,
+                        fields=','.join(fields))
     return results
 
 
