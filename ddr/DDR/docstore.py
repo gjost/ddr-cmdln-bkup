@@ -774,8 +774,9 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
     logger.debug(json.dumps(body))
     es = _get_connection(hosts)
     results = es.search(index=index, doc_type=model, q=query, body=body,
-                        sort=sort_cleaned, first=first, size=size,
-                        fields=','.join(fields))
+                        sort=sort_cleaned, #from=first, size=size,
+                        fields=','.join(fields)
+    )
     return results
 
 
