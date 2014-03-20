@@ -834,6 +834,7 @@ def _public_fields( basedir, models ):
         public_fields[model] = modelfields
     # add dynamically created fields
     public_fields['file'].append('path_rel')
+    public_fields['file'].append('id')
     return public_fields
 
 def _metadata_files( basedir, recursive=False, files_first=False ):
