@@ -1039,7 +1039,7 @@ def _choose_signatures( paths ):
         signature_files[key] = value.replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
     return signature_files
 
-def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, newstyle=False, public=True ):
+def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, public=True ):
     """(Re)index with data from the specified directory.
     
     After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
@@ -1054,7 +1054,6 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, ne
     @param path: Absolute path to directory containing object metadata files.
     @param models_dir: Absolute path to directory containing model JSON files.
     @param recursive: Whether or not to recurse into subdirectories.
-    @param newstyle: Use new ddr-public ES document format.
     @param public: For publication (fields not marked public will be ommitted).
     @param paths: Absolute paths to directory containing collections.
     @returns: number successful,list of paths that didn't work out
@@ -1107,11 +1106,14 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, ne
         print('adding %s' % path)
         with open(path, 'r') as f:
             document = json.loads(f.read())
+        # TODO files should just have an ID field...
+        if model == 'file':
+            document.append({'id':object_id})
         try:
             existing = get(hosts, index, model, object_id, fields=[])
         except:
             existing = None
-        result = post(hosts, index, model, document, publicfields, additional_fields)
+        result = post(hosts, index, document, publicfields, additional_fields)
         # success: created, or version number incremented
         if result.get('_id', None):
             if existing:
@@ -1126,7 +1128,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, ne
             if result['created'] or (existing_version and (result_version > existing_version)):
                 successful += 1
         else:
-            bad_paths.append((path,result))
+            bad_paths.append((path, result['status'], result['response']))
             #print(status_code)
     logger.debug('INDEXING COMPLETED')
     return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
