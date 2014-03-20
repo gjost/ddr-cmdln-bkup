@@ -76,14 +76,6 @@ def _get_connection( hosts ):
     return es
 
 
-def status( hosts ):
-    """
-    @param hosts: list of dicts containing host information.
-    """
-    es = _get_connection(ELASTICSEARCH_HOSTS)
-    return es.indices.status()
-
-
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
     
