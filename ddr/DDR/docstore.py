@@ -495,7 +495,7 @@ def _clean_payload( data ):
             # rm null or empty fields
             _clean_dict(field)
 
-def post( hosts, index, model, document, public_fields=[], additional_fields={} ):
+def post( hosts, index, document, public_fields=[], additional_fields={} ):
     """Add a new document to an index or update an existing one.
     
     This function can produce ElasticSearch documents in two formats:
@@ -513,13 +513,12 @@ def post( hosts, index, model, document, public_fields=[], additional_fields={} 
     
     @param hosts: list of dicts containing host information.
     @param index: 
-    @param model: 
     @param document: The object to post.
     @param public_fields: List of field names; if present, fields not in list will be removed.
     @param additional_fields: dict of fields added during indexing process
     @returns: JSON dict with status code and response
     """
-    logger.debug('post(%s, %s, %s, %s, %s, %s)' % (hosts, index, model, document, public_fields, additional_fields))
+    logger.debug('post(%s, %s, %s, %s, %s)' % (hosts, index, document, public_fields, additional_fields))
     
     # die if document is public=False or status=incomplete
     if not _is_publishable(document):
@@ -536,6 +535,7 @@ def post( hosts, index, model, document, public_fields=[], additional_fields={} 
             data[k] = v
     
     document_id = None
+    model = models.model_from_id(data['id'])
     if model in ['collection', 'entity']:
         if not (data and data.get('id', None)):
             return {'status':2, 'response':'no id'}
