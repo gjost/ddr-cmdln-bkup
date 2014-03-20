@@ -740,7 +740,7 @@ def _clean_sort( sort ):
     >>> _clean_sort( [['a', 'asc'], ['b', 'asc']] )
     'a:asc,b:asc'
     """
-    cleaned = None
+    cleaned = ''
     if sort and isinstance(sort,list):
         all_lists = [1 if isinstance(x, list) else 0 for x in sort]
         if not 0 in all_lists:
