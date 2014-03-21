@@ -597,9 +597,11 @@ def get( hosts, index, model, document_id, fields=None ):
     @param document_id:
     """
     es = _get_connection(hosts)
-    if fields is not None:
-        return es.get(index=index, doc_type=model, id=document_id, fields=fields)
-    return es.get(index=index, doc_type=model, id=document_id)
+    if exists(hosts, index, model, document_id):
+        if fields is not None:
+            return es.get(index=index, doc_type=model, id=document_id, fields=fields)
+        return es.get(index=index, doc_type=model, id=document_id)
+    return None
 
 
 REPOSITORY_LIST_FIELDS = ['id', 'title', 'description', 'url',]
