@@ -79,6 +79,17 @@ def _get_connection( hosts ):
     return es
 
 
+def index_exists( hosts, index ):
+    """
+    @param hosts: list of dicts containing host information.
+    @param index:
+    @param model:
+    @param document_id:
+    """
+    es = _get_connection(hosts)
+    return es.indices.exists(index=index)
+
+
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
     
@@ -105,8 +116,10 @@ def delete_index( hosts, index ):
     """
     logger.debug('_delete_index(%s, %s)' % (hosts, index))
     es = _get_connection(hosts)
-    status = es.indices.delete(index=index)
-    return status
+    if index_exists( hosts, index ):
+        status = es.indices.delete(index=index)
+        return status
+    return '{"status":500, "message":"Index does not exist"}'
 
 
 # Each item in this list is a mapping dict in the format ElasticSearch requires.
