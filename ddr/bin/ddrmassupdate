@@ -17,7 +17,14 @@ It does not commit the changes!
 
 Example:
 
-    $ ddrmassupdate -c /var/www/media/base/ddr-testing-123
+    # Update collection and entity metadata in a collection
+    $ ddrmassupdate -ce -C /var/www/media/base/ddr-testing-123
+
+    # Update all metadata files in a collection
+    $ ddrmassupdate -cef -C /var/www/media/base/ddr-testing-123
+
+    # Dry run: show which files would be changed by an operation
+    $ ddrmassupdate -d -cef -C /var/www/media/base/ddr-testing-123
 
 ddr-public - ddrmassupdate"""
 
@@ -26,12 +33,17 @@ from datetime import datetime
 import json
 import logging
 import os
+import re
 import sys
 
 import envoy
 
 
-THESE_JSONS = ['collection.json', 'entity.json']
+METADATA_FILES_REGEX = {
+    'collection': re.compile('collection.json'),
+    'entity': re.compile('entity.json'),
+    'file': re.compile('(\w+)-(\w+)-(\d+)-(master|mezzanine)-([\w\d]+).json'),
+}
 FIELD_NAME = 'status'
 NEW_VALUE = 'inprocess'
 
@@ -57,14 +69,22 @@ def logprint_nots(filename, msg):
         f.writelines([msg])
     print(msg.strip('\n'))
 
-def find_files(targetdir, target_files):
+def find_files(targetdir, file_types):
     """Looks for filenames in the list.
     Just does stupid matching, not real regex or anything.
     """
-    paths = []
+    regexes = []
+    for file_type in file_types:
+        regex = METADATA_FILES_REGEX.get(file_type,None)
+        if regex:
+            regexes.append(regex)
     cmd = 'find %s -name "*.json" -print' % (targetdir)
     r = envoy.run(cmd)
-    paths = [path for path in r.std_out.split('\n') if os.path.basename(path) in target_files]
+    paths = []
+    for path in r.std_out.split('\n'):
+        for regex in regexes:
+            if re.search(regex, path):
+                paths.append(path)
     return paths
 
 def write_json(data, path):
@@ -107,19 +127,44 @@ def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-c', '--collection', required=True, help='Absolute path to source collection repository.')
+    parser.add_argument('-C', '--collection', required=True, help='Absolute path to source collection repository.')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Don't change anything, just list files that would be changed.")
+    parser.add_argument('-c', '--collections', action='store_true', help="Match collection metadata files.")
+    parser.add_argument('-e', '--entities', action='store_true', help="Match entity metadata files.")
+    parser.add_argument('-f', '--files', action='store_true', help="Match file files.")
+    
     args = parser.parse_args()
     collection_path = os.path.realpath(args.collection)
-    
     collection_id = os.path.basename(collection_path)
     LOG = os.path.join(os.getcwd(), 'ddrmassupdate-%s.log' % collection_id)
     
+    selected_file_types = []
+    if args.collections:
+        selected_file_types.append('collection')
+        logprint(LOG, 'Matching collections')
+    if args.entities:
+        selected_file_types.append('entity')
+        logprint(LOG, 'Matching entities')
+    if args.files:
+        selected_file_types.append('file')
+        logprint(LOG, 'Matching files')
+    if not len(selected_file_types):
+        print('Error: Select at least one type of file to match.')
+        sys.exit(1)
+    
     started = datetime.now()
+    if args.dryrun:
+        logprint(LOG, 'DRY RUN (no files will be changed)')
     logprint(LOG, 'Processing %s' % collection_path)
-    paths = find_files(collection_path, THESE_JSONS)
-    logprint(LOG, '%s files.' % len(paths))
-    for path in paths:
-        update_file(path, FIELD_NAME, NEW_VALUE)
+    paths = find_files(collection_path, selected_file_types)
+    if args.dryrun:
+        logprint(LOG, '%s files.' % len(paths))
+        for path in paths:
+            logprint(LOG, path)
+    else:
+        logprint(LOG, '%s files.' % len(paths))
+        for path in paths:
+            update_file(path, FIELD_NAME, NEW_VALUE)
     
     finished = datetime.now()
     elapsed = finished - started
