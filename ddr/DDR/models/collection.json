@@ -526,6 +526,7 @@
             "choices": [
                 ["", ""],
                 ["cc", "DDR Creative Commons"],
+                ["pcc", "Copyright, with special 3rd-party grant permitted"],
                 ["nocc", "Copyright restricted"],
                 ["pdm", "Public domain" ]
             ],
