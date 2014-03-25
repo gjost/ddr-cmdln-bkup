@@ -78,6 +78,27 @@ def _get_connection( hosts ):
     es = Elasticsearch(hosts)
     return es
 
+def make_index_name( text ):
+    """Takes input text and generates a legal Elasticsearch index name.
+    
+    I can't find documentation of what constitutes a legal ES index name,
+    but index names must work in URLs so we'll say alnum plus _, ., and -.
+    
+    @param text
+    @returns name
+    """
+    LEGAL_NONALNUM_CHARS = ['-', '_', '.']
+    SEPARATORS = ['/', '\\',]
+    name = []
+    if text:
+        for n,char in enumerate(text):
+            if char in SEPARATORS:
+                char = '-'
+            if n and (char.isalnum() or (char in LEGAL_NONALNUM_CHARS)):
+                name.append(char.lower())
+            elif char.isalnum():
+                name.append(char.lower())
+    return ''.join(name)
 
 def index_exists( hosts, index ):
     """
