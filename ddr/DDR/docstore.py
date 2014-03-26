@@ -110,6 +110,16 @@ def index_exists( hosts, index ):
     es = _get_connection(hosts)
     return es.indices.exists(index=index)
 
+def index_names( hosts ):
+    """Returns list of index names
+    """
+    indices = []
+    es = _get_connection(hosts)
+    status = es.indices.status()
+    for name in status['indices'].keys():
+        indices.append(name)
+    return indices
+
 
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
