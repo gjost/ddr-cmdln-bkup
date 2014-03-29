@@ -1,0 +1,218 @@
+#!/usr/bin/env python
+#
+# ddrdensho255fix
+#
+#
+
+"""
+ddr-densho-255
+
+PROBLEM: files imported with inconsistent roles and extensions.
+example: ddr-densho-255-1-Master-43199c8853.JPG
+
+for entity in entities:
+    load entity json
+    for file in entity_json['files']:
+        load file json
+        git mv path_rel
+        git mv access_rel
+        confirm moved path
+        confirm moved access
+        change file_json['path_rel']
+        change file_json['access_rel']
+        write file_json
+        git mv file_json
+        confirm moved file_json
+        update entity['files']file['path_rel']
+    write entity_json        
+    git status, confirm changed and moved files
+    if ok, commit
+Do one entity at a time
+one commit per entity
+"""
+
+import argparse
+from datetime import datetime
+import json
+import logging
+import os
+
+import envoy
+
+
+def dtfmt(dt):
+    """Consistent date format.
+    """
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+def logprint(filename, msg):
+    """Print to log file and console, with timestamp.
+    """
+    msg = '%s - %s\n' % (dtfmt(datetime.now()), msg)
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def logprint_nots(filename, msg):
+    """Print to log file and console, no timestamp.
+    """
+    msg = '%s\n' % msg
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def find_files(entity_files_dir):
+    """Looks for file JSONs in the entity files dir.
+    Just does stupid matching, not real regex or anything.
+    """
+    paths = []
+    for f in os.listdir(entity_files_dir):
+        if '.json' in f:
+            paths.append(f)
+    return paths
+
+def fix_filename( path ):
+    """
+    Right now this just makes filename lowercase
+    """
+    dirname = os.path.dirname(path)
+    basename = os.path.basename(path)
+    fixed = os.path.join(dirname, basename.lower())
+    return fixed
+
+def write_json(data, path):
+    """Write JSON using consistent formatting and sorting.
+    
+    For versioning and history to be useful we need data fields to be written
+    in a format that is easy to edit by hand and in which values can be compared
+    from one commit to the next.  This function prints JSON with nice spacing
+    and indentation and with sorted keys, so fields will be in the same relative
+    position across commits.
+    
+    >>> data = {'a':1, 'b':2}
+    >>> path = '/tmp/ddrlocal.models.write_json.json'
+    >>> write_json(data, path)
+    >>> with open(path, 'r') as f:
+    ...     print(f.readlines())
+    ...
+    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    """
+    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
+    with open(path, 'w') as f:
+        f.write(json_pretty)
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description='no description here', epilog='',
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-c', '--collection', required=True, help='Absolute path to source collection repository.')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Don't change anything, just list files that would be changed.")
+    parser.add_argument('-e', '--entityid', help="Entity ID (ex. ddr-densho-255-1).")
+    
+    args = parser.parse_args()
+    collection_abs = os.path.realpath(args.collection)
+    collection_id = os.path.basename(collection_abs)
+    entity_id = args.entityid
+    entity_rel = os.path.join('files', entity_id)
+    entity_abs = os.path.join(collection_abs, entity_rel)
+    entity_json_rel = os.path.join(entity_rel, 'entity.json')
+    entity_json_abs = os.path.join(collection_abs, entity_json_rel)
+    entity_files_rel = os.path.join(entity_rel, 'files')
+    entity_files_abs = os.path.join(collection_abs, entity_files_rel)
+    
+    LOG = os.path.join(os.getcwd(), 'ddrdensho255fix-%s.log' % entity_id)
+    
+    started = datetime.now()
+    if args.dryrun:
+        logprint(LOG, 'DRY RUN (no files will be changed)')
+    paths = find_files(entity_files_abs)
+    if args.dryrun:
+        logprint(LOG, '%s files.' % len(paths))
+        for path in paths:
+            logprint(LOG, path)
+    else:
+        logprint(LOG, '%s files.' % len(paths))
+        
+        os.chdir(collection_abs)
+        
+        # load entity json
+        entity = None
+        entity_files = []
+        with open(entity_json_abs, 'r') as f:
+            entity = json.loads(f.read())
+        for n,field in enumerate(entity):
+            if (field.keys()[0] == 'files') and not n:
+                # set vars
+                file_base = field['files']['path_rel']
+                stub = os.path.splitext(file_base)[0]
+                accs_base = '%s-a.jpg' % stub
+                json_base = '%s.json' % stub
+                file_rel = os.path.join(entity_files_rel, file_base)
+                accs_rel = os.path.join(entity_files_rel, accs_base)
+                json_rel = os.path.join(entity_files_rel, json_base)
+                file_abs = os.path.join(collection_abs, file_rel)
+                accs_abs = os.path.join(collection_abs, accs_rel)
+                json_abs = os.path.join(collection_abs, json_rel)
+                file_exists = os.path.exists(file_abs) or os.path.islink(file_abs)
+                accs_exists = os.path.exists(accs_abs) or os.path.islink(accs_abs)
+                json_exists = os.path.exists(json_abs) or os.path.islink(json_abs)
+                file_rel_fixed = fix_filename(file_rel)
+                accs_rel_fixed = fix_filename(accs_rel)
+                json_rel_fixed = fix_filename(json_rel)
+                file_abs_fixed = os.path.join(collection_abs, file_rel_fixed)
+                accs_abs_fixed = os.path.join(collection_abs, accs_rel_fixed)
+                json_abs_fixed = os.path.join(collection_abs, json_rel_fixed)
+                
+                print(file_rel, json_rel, accs_rel, file_exists, json_exists, accs_exists)
+                
+                # git mv path_rel
+                # git mv access_rel
+                # git mv file_json
+                cmd_mv_file = 'git mv %s %s' % (file_rel, file_rel_fixed)
+                cmd_mv_accs = 'git mv %s %s' % (accs_rel, accs_rel_fixed)
+                cmd_mv_json = 'git mv %s %s' % (json_rel, json_rel_fixed)
+                print(cmd_mv_file)
+                print(cmd_mv_accs)
+                print(cmd_mv_json)
+                r_file = envoy.run(cmd_mv_file)
+                r_accs = envoy.run(cmd_mv_accs)
+                r_json = envoy.run(cmd_mv_json)
+                
+                # TODO confirm moved path
+                # TODO confirm moved access
+                # TODO confirm moved file_json
+                file_moved = False
+                accs_moved = False
+                json_moved = False
+                
+                # load file json
+                # change file_json['path_rel']
+                # change file_json['access_rel']
+                # write file_json
+                with open(json_abs_fixed, 'rw') as f2:
+                    filedata = json.loads(f2.read())
+                    for field in filedata:
+                        if field.keys()[0] == 'path_rel':
+                            field['path_rel'] = file_rel_fixed
+                        if field.keys()[0] == 'access_rel':
+                            field['access_rel'] = accs_rel_fixed
+                    f2.write()
+                
+                # update entity['files']file['path_rel']
+                field['files']['path_rel'] = file_rel_fixed
+        
+        # write entity_json        
+        write_json(entity, entity_json_abs)
+        
+        # git status, confirm changed and moved files
+    
+    finished = datetime.now()
+    elapsed = finished - started
+    logprint(LOG, 'DONE!')
+    logprint_nots(LOG, '%s elapsed' % elapsed)
+    print('Wrote log to %s' % LOG)
+    print('')
+
+if __name__ == '__main__':
+    main()
