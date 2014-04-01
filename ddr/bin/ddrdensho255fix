@@ -71,6 +71,7 @@ def find_files(entity_files_dir):
             paths.append(f)
     return paths
 
+
 def fix_filename( path ):
     """
     Right now this just makes filename lowercase
@@ -102,6 +103,132 @@ def write_json(data, path):
         f.write(json_pretty)
 
 
+def exists( path_abs ):
+    return os.path.exists(path_abs) or os.path.islink(path_abs)
+
+def git_mv( src_rel, dest_rel, LOG ):
+    cmd = 'git mv %s %s' % (src_rel, dest_rel)
+    print(cmd)
+    r = envoy.run(cmd)
+    logprint(LOG, 'git_mv: %s %s' % (r.status_code, r.std_out))
+
+def confirm_moved( src_rel, dest_rel ):
+    if exists(dest_rel) and not exists(src_rel):
+       return True
+    return False
+
+def confirm_file_metadata( json_abs_fixed, file_rel_fixed, accs_rel_fixed ):
+    file_confirmed = False
+    accs_confirmed = False
+    with open(json_abs_fixed, 'r') as f:
+        data = json.loads(f.read())
+    for field in data:
+        if (field.keys()[0] == 'path_rel')   and (field['path_rel'] == file_rel_fixed): file_confirmed = True
+        if (field.keys()[0] == 'access_rel') and (field['access_rel'] == accs_rel_fixed): accs_confirmed = True
+    if file_confirmed and accs_confirmed:
+        return True
+    return False
+
+def git_add( rel, LOG ):
+    cmd = 'git add %s' % rel
+    logprint(LOG, 'git_add: %s' % cmd)
+    r = envoy.run(cmd)
+    logprint(LOG, 'git_add: %s %s' % (r.status_code, r.std_out))
+
+
+def update_files( collection_abs, entity_files_rel, path_rel, LOG ):
+    # collect variables
+    
+    # base filenames
+    file_base = path_rel
+    stub = os.path.splitext(file_base)[0]
+    accs_base = '%s-a.jpg' % stub
+    json_base = '%s.json' % stub
+    # paths relative to repo root (git uses these)
+    file_rel = os.path.join(entity_files_rel, file_base)
+    accs_rel = os.path.join(entity_files_rel, accs_base)
+    json_rel = os.path.join(entity_files_rel, json_base)
+    # absolute paths
+    file_abs = os.path.join(collection_abs, file_rel)
+    accs_abs = os.path.join(collection_abs, accs_rel)
+    json_abs = os.path.join(collection_abs, json_rel)
+    # matches actual files in filesystem
+    # or git-annex links to files that may or may not actually be there
+    file_exists = exists(file_abs)
+    accs_exists = exists(accs_abs)
+    json_exists = exists(json_abs)
+    # relative and absolute paths to fixed filenames
+    file_base_fixed = fix_filename(file_base)
+    accs_base_fixed = fix_filename(accs_base)
+    file_rel_fixed = fix_filename(file_rel)
+    accs_rel_fixed = fix_filename(accs_rel)
+    json_rel_fixed = fix_filename(json_rel)
+    file_abs_fixed = os.path.join(collection_abs, file_rel_fixed)
+    accs_abs_fixed = os.path.join(collection_abs, accs_rel_fixed)
+    json_abs_fixed = os.path.join(collection_abs, json_rel_fixed)
+    
+    logprint(LOG, 'update: %s %s %s %s %s %s' % (file_rel, json_rel, accs_rel, file_exists, json_exists, accs_exists))
+    
+    # move the files
+    git_mv(file_rel, file_rel_fixed, LOG)
+    git_mv(accs_rel, accs_rel_fixed, LOG)
+    git_mv(json_rel, json_rel_fixed, LOG)
+    
+    # confirm files were moved
+    file_moved = confirm_moved(file_rel, file_rel_fixed)
+    accs_moved = confirm_moved(accs_rel, accs_rel_fixed)
+    json_moved = confirm_moved(json_rel, json_rel_fixed)
+
+    def write_file_metadata( json_abs_fixed, file_base_fixed, accs_base_fixed ):
+        with open(json_abs_fixed, 'r') as f2:
+            filedata = json.loads(f2.read())
+        for field in filedata:
+            if field.keys()[0] == 'path_rel':   field['path_rel']   = file_base_fixed
+            if field.keys()[0] == 'access_rel': field['access_rel'] = accs_base_fixed
+        write_json(filedata, json_abs_fixed)
+    
+    # update file metadata and write
+    json_updated = False
+    if file_moved and accs_moved and json_moved:
+        write_file_metadata(json_abs_fixed, file_base_fixed, accs_base_fixed)
+        json_updated = True
+    
+    # confirm that metadata matches new filenames
+    json_confirmed = confirm_file_metadata(json_abs_fixed, file_base_fixed, accs_base_fixed)
+    if json_confirmed:
+        git_add(json_rel_fixed, LOG)
+        
+    status = {
+        'path_rel':file_base_fixed,
+        'file_moved':file_moved,
+        'accs_moved':accs_moved,
+        'json_moved':json_moved,
+        'json_updated':json_updated,
+        'json_confirmed':json_confirmed
+        }
+    return status
+
+def update_entity( entity_json_abs, path_rel_orig, path_rel_fixed, LOG ):
+    logprint(LOG, 'update_entity: %s' % entity_json_abs)
+    with open(entity_json_abs, 'r') as fr:
+        data = json.loads(fr.read())
+    for field in data:
+        if field.keys()[0] == 'files':
+            for file in field['files']:
+                if file.get('path_rel',None) and (file['path_rel'] == path_rel_orig):
+                    file['path_rel'] = path_rel_fixed
+    write_json(data, entity_json_abs)
+
+def confirm_entity_metadata( entity_json_abs, path_rel_fixed, LOG ):
+    print('looking for "%s"' % path_rel_fixed)
+    with open(entity_json_abs, 'r') as fr:
+        lines = fr.readlines()
+    for line in lines:
+        if path_rel_fixed in line:
+            return True
+    return False
+
+
 def main():
 
     parser = argparse.ArgumentParser(description='no description here', epilog='',
@@ -121,19 +248,21 @@ def main():
     entity_files_rel = os.path.join(entity_rel, 'files')
     entity_files_abs = os.path.join(collection_abs, entity_files_rel)
     
-    LOG = os.path.join(os.getcwd(), 'ddrdensho255fix-%s.log' % entity_id)
+    LOG = os.path.join('/tmp', 'ddrdensho255fix-%s.log' % entity_id)
     
     started = datetime.now()
     if args.dryrun:
         logprint(LOG, 'DRY RUN (no files will be changed)')
     paths = find_files(entity_files_abs)
+    num_files = len(paths)
     if args.dryrun:
-        logprint(LOG, '%s files.' % len(paths))
+        logprint(LOG, '%s files.' % num_files)
         for path in paths:
             logprint(LOG, path)
     else:
-        logprint(LOG, '%s files.' % len(paths))
+        logprint(LOG, '%s files.' % num_files)
         
+        # go into the collection repo directory
         os.chdir(collection_abs)
         
         # load entity json
@@ -141,72 +270,33 @@ def main():
         entity_files = []
         with open(entity_json_abs, 'r') as f:
             entity = json.loads(f.read())
-        for n,field in enumerate(entity):
-            if (field.keys()[0] == 'files') and not n:
-                # set vars
-                file_base = field['files']['path_rel']
-                stub = os.path.splitext(file_base)[0]
-                accs_base = '%s-a.jpg' % stub
-                json_base = '%s.json' % stub
-                file_rel = os.path.join(entity_files_rel, file_base)
-                accs_rel = os.path.join(entity_files_rel, accs_base)
-                json_rel = os.path.join(entity_files_rel, json_base)
-                file_abs = os.path.join(collection_abs, file_rel)
-                accs_abs = os.path.join(collection_abs, accs_rel)
-                json_abs = os.path.join(collection_abs, json_rel)
-                file_exists = os.path.exists(file_abs) or os.path.islink(file_abs)
-                accs_exists = os.path.exists(accs_abs) or os.path.islink(accs_abs)
-                json_exists = os.path.exists(json_abs) or os.path.islink(json_abs)
-                file_rel_fixed = fix_filename(file_rel)
-                accs_rel_fixed = fix_filename(accs_rel)
-                json_rel_fixed = fix_filename(json_rel)
-                file_abs_fixed = os.path.join(collection_abs, file_rel_fixed)
-                accs_abs_fixed = os.path.join(collection_abs, accs_rel_fixed)
-                json_abs_fixed = os.path.join(collection_abs, json_rel_fixed)
-                
-                print(file_rel, json_rel, accs_rel, file_exists, json_exists, accs_exists)
-                
-                # git mv path_rel
-                # git mv access_rel
-                # git mv file_json
-                cmd_mv_file = 'git mv %s %s' % (file_rel, file_rel_fixed)
-                cmd_mv_accs = 'git mv %s %s' % (accs_rel, accs_rel_fixed)
-                cmd_mv_json = 'git mv %s %s' % (json_rel, json_rel_fixed)
-                print(cmd_mv_file)
-                print(cmd_mv_accs)
-                print(cmd_mv_json)
-                r_file = envoy.run(cmd_mv_file)
-                r_accs = envoy.run(cmd_mv_accs)
-                r_json = envoy.run(cmd_mv_json)
-                
-                # TODO confirm moved path
-                # TODO confirm moved access
-                # TODO confirm moved file_json
-                file_moved = False
-                accs_moved = False
-                json_moved = False
-                
-                # load file json
-                # change file_json['path_rel']
-                # change file_json['access_rel']
-                # write file_json
-                with open(json_abs_fixed, 'rw') as f2:
-                    filedata = json.loads(f2.read())
-                    for field in filedata:
-                        if field.keys()[0] == 'path_rel':
-                            field['path_rel'] = file_rel_fixed
-                        if field.keys()[0] == 'access_rel':
-                            field['access_rel'] = accs_rel_fixed
-                    f2.write()
-                
-                # update entity['files']file['path_rel']
-                field['files']['path_rel'] = file_rel_fixed
         
-        # write entity_json        
-        write_json(entity, entity_json_abs)
-        
-        # git status, confirm changed and moved files
-    
+        # update the actual files and file metadata
+        entity_files = None
+        for field in entity:
+            if field.keys()[0] == 'files':
+                entity_files = field['files']
+        for n,entity_file in enumerate(entity_files):
+            logprint(LOG, '%s/%s --------------------------------------------------------------' % (n,num_files))
+            
+            # move files and update file metadata
+            file_status = update_files(collection_abs, entity_files_rel, entity_file['path_rel'], LOG)
+            logprint(LOG, file_status)
+            
+            # update entity metadata
+            entity_confirmed = None
+            if file_status.get('path_rel',None) and file_status.get('json_confirmed',None):
+                update_entity(
+                    entity_json_abs,
+                    entity_file['path_rel'], # original filename
+                    file_status['path_rel'], # new filename
+                    LOG
+                )
+                entity_confirmed = confirm_entity_metadata( entity_json_abs, file_status['path_rel'], LOG )
+            logprint(LOG, 'entity_confirmed: %s' % entity_confirmed)
+            if entity_confirmed:
+                git_add(entity_json_abs, LOG)
+
     finished = datetime.now()
     elapsed = finished - started
     logprint(LOG, 'DONE!')
