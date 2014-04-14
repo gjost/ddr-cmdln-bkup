@@ -235,7 +235,7 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-c', '--collection', required=True, help='Absolute path to source collection repository.')
     parser.add_argument('-d', '--dryrun', action='store_true', help="Don't change anything, just list files that would be changed.")
-    parser.add_argument('-e', '--entityid', help="Entity ID (ex. ddr-densho-255-1).")
+    parser.add_argument('-e', '--entityid', required=True, help="Entity ID (ex. ddr-densho-255-1).")
     
     args = parser.parse_args()
     collection_abs = os.path.realpath(args.collection)
