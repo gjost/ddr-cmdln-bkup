@@ -15,10 +15,10 @@ def natural_sort( l ):
 
 def natural_order_string( id ):
     """Convert a collection/entity ID into form that can be sorted naturally.
-    See natural_sort()
+    Assumes a valid format DDR ID or else, blammo.
     """
-    convert = lambda text: int(text) if text.isdigit() else text
-    alnum = [ convert(c) for c in re.split('([0-9]+)', id) ]
+    alnum = re.findall('\d+', id).pop()
+    
     return alnum
 
 
