@@ -48,13 +48,6 @@ SUCCESS_STATUSES = [200, 201]
 STATUS_OK = ['completed']
 PUBLIC_OK = [1,'1']
 
-
-
-ELASTICSEARCH_HOSTS = [
-    {'host':'192.168.56.120', 'port':9200}
-]
-
-
 """
 ddr-local
 
@@ -326,7 +319,7 @@ def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None )
             }
         }
     }
-    es = _get_connection(ELASTICSEARCH_HOSTS)
+    es = _get_connection(hosts)
     results = es.search(index=index, doc_type=model, body=payload)
     return results['facets']['results']
 
