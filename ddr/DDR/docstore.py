@@ -804,6 +804,7 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
     @param size: int Number of results to return
     @returns raw ElasticSearch query output
     """
+    logger.debug('search( hosts=%s, index=%s, model=%s, query=%s, term=%s, filters=%s, sort=%s, fields=%s, first=%s, size=%s' % (hosts, index, model, query, term, filters, sort, fields, first, size))
     _clean_dict(filters)
     _clean_dict(sort)
     body = {}
