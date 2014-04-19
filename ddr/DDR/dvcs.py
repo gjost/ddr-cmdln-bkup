@@ -20,6 +20,23 @@ def repository(path, user_name=None, user_mail=None):
     repo = git.Repo(path)
     return set_git_configs(repo, user_name, user_mail)
 
+def compose_commit_message(title, body='', agent=''):
+    """Composes a Git commit message.
+    
+    TODO wrap body text at 72 chars
+    
+    @param title: (required) 50 chars or less
+    @param body: (optional) Freeform body text.
+    @param agent: (optional) Do not include the word 'agent'.
+    """
+    # force to str
+    if not body: body = ''
+    if not agent: agent = ''
+    # formatting
+    if body:  body = '\n\n%s' % body
+    if agent: agent = '\n\n@agent: %s' % agent
+    return '%s%s%s' % (title, body, agent)
+
 def set_git_configs(repo, user_name=None, user_mail=None):
     if user_name and user_mail:
         repo.git.config('user.name', user_name)

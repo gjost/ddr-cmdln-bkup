@@ -6,6 +6,8 @@
                     # LICENSE   DEBIAN PKG (WHEEZY)              (JESSIE)                       Python3
 
 beautifulsoup4      # MIT       python-beautifulsoup (3.2.1-1)   python-beautifulsoup (3.2.1-1) y
+python-dateutil     # BSD       python-dateutil (1.5+dfsg-0.1)   python-dateutil (1.5+dfsg-1)   y
+elasticsearch       # Apache    n/a                              n/a                            y
 envoy               # MIT       n/a                              n/a                            y(?)
 GitPython           # BSD       n/a                              n/a                            NO
 lxml                # BSD       python-lxml (2.3.2-1)            python-lxml (3.2.0-1)          y

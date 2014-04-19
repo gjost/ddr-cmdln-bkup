@@ -1,0 +1,177 @@
+#!/usr/bin/env python
+#
+# This file is part of ddr-cmdln/ddr
+#
+#
+
+description = """Updates a single field in multiple JSON files with a specified value."""
+
+epilog = """* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+WARNING! THIS SCRIPT IS AN EXTREMELY STUPID BLUNT INSTRUMENT!
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+It sets all the status fields in all the collection.json and entity.json files of a collection to "completed".  You can specify the collection directory but not much else.
+
+It writes a logfile to the current directory.
+It does not commit the changes!
+
+Example:
+
+    # Update collection and entity metadata in a collection
+    $ ddrmassupdate -ce -C /var/www/media/base/ddr-testing-123
+
+    # Update all metadata files in a collection
+    $ ddrmassupdate -cef -C /var/www/media/base/ddr-testing-123
+
+    # Dry run: show which files would be changed by an operation
+    $ ddrmassupdate -d -cef -C /var/www/media/base/ddr-testing-123
+
+ddr-public - ddrmassupdate"""
+
+import argparse
+from datetime import datetime
+import json
+import logging
+import os
+import re
+import sys
+
+import envoy
+
+
+METADATA_FILES_REGEX = {
+    'collection': re.compile('collection.json'),
+    'entity': re.compile('entity.json'),
+    'file': re.compile('(\w+)-(\w+)-(\d+)-(master|mezzanine)-([\w\d]+).json'),
+}
+FIELD_NAME = 'status'
+NEW_VALUE = 'inprocess'
+
+
+def dtfmt(dt):
+    """Consistent date format.
+    """
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')
+
+def logprint(filename, msg):
+    """Print to log file and console, with timestamp.
+    """
+    msg = '%s - %s\n' % (dtfmt(datetime.now()), msg)
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def logprint_nots(filename, msg):
+    """Print to log file and console, no timestamp.
+    """
+    msg = '%s\n' % msg
+    with open(filename, 'a') as f:
+        f.writelines([msg])
+    print(msg.strip('\n'))
+
+def find_files(targetdir, file_types):
+    """Looks for filenames in the list.
+    Just does stupid matching, not real regex or anything.
+    """
+    regexes = []
+    for file_type in file_types:
+        regex = METADATA_FILES_REGEX.get(file_type,None)
+        if regex:
+            regexes.append(regex)
+    cmd = 'find %s -name "*.json" -print' % (targetdir)
+    r = envoy.run(cmd)
+    paths = []
+    for path in r.std_out.split('\n'):
+        for regex in regexes:
+            if re.search(regex, path):
+                paths.append(path)
+    return paths
+
+def write_json(data, path):
+    """Write JSON using consistent formatting and sorting.
+    
+    For versioning and history to be useful we need data fields to be written
+    in a format that is easy to edit by hand and in which values can be compared
+    from one commit to the next.  This function prints JSON with nice spacing
+    and indentation and with sorted keys, so fields will be in the same relative
+    position across commits.
+    
+    >>> data = {'a':1, 'b':2}
+    >>> path = '/tmp/ddrlocal.models.write_json.json'
+    >>> write_json(data, path)
+    >>> with open(path, 'r') as f:
+    ...     print(f.readlines())
+    ...
+    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    """
+    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
+    with open(path, 'w') as f:
+        f.write(json_pretty)
+
+def update_file(json_path, field_name, new_value):
+    """Updates specified field in json file with a value and saves.
+    """
+    with open(json_path, 'r') as f:
+        data = json.loads(f.read())
+    
+    for field in data:
+        fname = field.keys()[0]
+        if fname == field_name:
+            field[fname] = new_value
+    
+    write_json(data, json_path)
+
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-C', '--collection', required=True, help='Absolute path to source collection repository.')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Don't change anything, just list files that would be changed.")
+    parser.add_argument('-c', '--collections', action='store_true', help="Match collection metadata files.")
+    parser.add_argument('-e', '--entities', action='store_true', help="Match entity metadata files.")
+    parser.add_argument('-f', '--files', action='store_true', help="Match file files.")
+    
+    args = parser.parse_args()
+    collection_path = os.path.realpath(args.collection)
+    collection_id = os.path.basename(collection_path)
+    LOG = os.path.join(os.getcwd(), 'ddrmassupdate-%s.log' % collection_id)
+    
+    selected_file_types = []
+    if args.collections:
+        selected_file_types.append('collection')
+        logprint(LOG, 'Matching collections')
+    if args.entities:
+        selected_file_types.append('entity')
+        logprint(LOG, 'Matching entities')
+    if args.files:
+        selected_file_types.append('file')
+        logprint(LOG, 'Matching files')
+    if not len(selected_file_types):
+        print('Error: Select at least one type of file to match.')
+        sys.exit(1)
+    
+    started = datetime.now()
+    if args.dryrun:
+        logprint(LOG, 'DRY RUN (no files will be changed)')
+    logprint(LOG, 'Processing %s' % collection_path)
+    paths = find_files(collection_path, selected_file_types)
+    if args.dryrun:
+        logprint(LOG, '%s files.' % len(paths))
+        for path in paths:
+            logprint(LOG, path)
+    else:
+        logprint(LOG, '%s files.' % len(paths))
+        for path in paths:
+            update_file(path, FIELD_NAME, NEW_VALUE)
+    
+    finished = datetime.now()
+    elapsed = finished - started
+    logprint(LOG, 'DONE!')
+    logprint_nots(LOG, '%s elapsed' % elapsed)
+    print('Wrote log to %s' % LOG)
+    print('')
+
+if __name__ == '__main__':
+    main()

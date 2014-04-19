@@ -1,0 +1,22 @@
+{
+    "id": "rights",
+    "title": "Rights",
+    "description": "RIGHTS DESCRIPTION",
+    "terms": [
+        {
+            "id": "cc",
+            "title": "DDR Creative Commons",
+            "description": "CC DESCRIPTION"
+        },
+        {
+            "id": "nocc",
+            "title": "Copyright restricted",
+            "description": "NOCC DESCRIPTION"
+        },
+        {
+            "id": "pdm",
+            "title": "Public domain",
+            "description": "PDM DESCRIPTION" 
+        }
+    ]
+}

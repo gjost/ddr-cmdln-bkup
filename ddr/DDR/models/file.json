@@ -1,0 +1,342 @@
+[
+    {
+        "group": "",
+        "name": "sha1",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"no", "index":"not_analyzed"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "sha256",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"no", "index":"not_analyzed"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "md5",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"no", "index":"not_analyzed"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "size",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"integer", "store":"yes", "index":"not_analyzed"
+            },
+            "display": "filesize"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "basename_orig",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes"
+            },
+            "display": "string"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "access_rel",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "public",
+        "model_type": "int",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "ChoiceField",
+        "form": {
+            "widget": "",
+            "required": true,
+            "initial": 1,
+            "choices": [
+                ["1", "Public"],
+                ["0", "Private" ]
+            ],
+            "help_text": "Whether this file should be accessible from the public website.",
+            "label": "Privacy Level"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "rights",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "ChoiceField",
+        "form": {
+            "widget": "",
+            "required": true,
+            "initial": "cc",
+            "choices": [
+                ["cc", "DDR Creative Commons"],
+                ["pcc", "Copyright, with special 3rd-party grant permitted"],
+                ["nocc", "Copyright restricted"],
+                ["pdm", "Public domain" ]
+            ],
+            "help_text": "The use license for this file.",
+            "label": "Rights"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            },
+            "display": "rights"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "sort",
+        "model_type": "int",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "IntegerField",
+        "form": {
+            "help_text": "Order of this file in relation to others for this object (ordered low to high). Can be used to arrange images in a multi-page document.",
+            "required": true,
+            "widget": "",
+            "initial": 1,
+            "label": "Sort"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"integer", "store":"yes", "index":"not_analyzed"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "thumb",
+        "model_type": "int",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "IntegerField",
+        "form": {
+            "help_text": "",
+            "required": true,
+            "widget": "HiddenInput",
+            "initial": -1,
+            "label": "Thumbnail"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes"
+            },
+            "display": ""
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "label",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "CharField",
+        "form": {
+            "widget": "",
+            "required": false,
+            "initial": "",
+            "label": "Label",
+            "max_length": 255,
+            "help_text": "(Optional) Friendly label for file describing partitive role (i.e., \"Page 1\", \"Cover\", \"Envelope\")"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes"
+            },
+            "display": "string"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "digitize_person",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "CharField",
+        "form": {
+            "widget": "",
+            "required": false,
+            "initial": "",
+            "label": "digitize_person",
+            "max_length": 255,
+            "help_text": ""
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes", "index":"not_analyzed"
+            },
+            "display": "string"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "tech_notes",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "CharField",
+        "form": {
+            "help_text": "",
+            "required": false,
+            "widget": "Textarea",
+            "initial": "",
+            "label": "Technical Notes"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"no", "index":"no"
+            },
+            "display": "string"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "xmp",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "CharField",
+        "form": {
+            "help_text": "",
+            "required": false,
+            "widget": "HiddenInput",
+            "initial": "",
+            "label": "XMP Metadata"
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"no", "index":"no"
+            },
+            "display": "string_collapsed"
+        },
+        "default": ""
+    },
+    {
+        "group": "",
+        "name": "links",
+        "model_type": "str",
+        "xml": {
+            "xpath": "",
+            "xpath_dup": []
+        },
+        "form_type": "CharField",
+        "form": {
+            "widget": "HiddenInput",
+            "required": false,
+            "initial": "",
+            "label": "Associated Files",
+            "max_length": 255,
+            "help_text": "Semicolon-separated list of file.path_rels that this file points to."
+        },
+        "elasticsearch": {
+            "public": true,
+            "properties": {
+                "type":"string", "store":"yes"
+            },
+            "display": ""
+        },
+        "default": ""
+    }
+]
