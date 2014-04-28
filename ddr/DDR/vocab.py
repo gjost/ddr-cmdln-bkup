@@ -205,6 +205,32 @@ class Index( object ):
                     values.append(value)
                 writer.writerow(values)
     
+    def dump_graphviz( self, term_len=50 ):
+        """Dumps contents of index to a Graphviz file.
+        
+        digraph terms {
+          rankdir=RL;
+          2-classical -> 1-music;
+          3-jazz -> 1-music;
+        }
+        
+        Render thusly:
+        $ dot -Tpng -o /tmp/terms.png /tmp/terms.gv
+        """
+        lines = [
+            'digraph G {',
+            '  rankdir=RL;'
+        ]
+        for tid,term in self._terms_by_id.iteritems():
+            parent = self.parent(term)
+            if parent:
+                src = '"%s-%s"' % (term.id, term.title[:term_len].replace('"',''))
+                dest = '"%s-%s"' % (parent.id, parent.title[:term_len].replace('"',''))
+                line = '  %s -> %s;' % (src, dest)
+                lines.append(line)
+        lines.append('}')
+        return '\n'.join(lines)
+    
     def dump_json( self ):
         """Dumps contents of index to JSON.
         """
