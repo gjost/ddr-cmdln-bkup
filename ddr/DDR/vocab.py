@@ -155,6 +155,7 @@ class Index( object ):
             term.siblings = self.siblings(term)
             term.children = self.children(term)
             term.path = self.path(term)
+            term.format = self.format(term)
     
     def load_csv( self, csvfile_abs, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
         """Load terms from a CSV file.
