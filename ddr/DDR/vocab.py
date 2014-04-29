@@ -73,6 +73,7 @@ class Index( object ):
     def add( self, term ):
         """Adds a Term to the Index.
         """
+        self.ids.append(term.id)
         self._terms_by_id[term.id] = term
         # enables retrieve by title
         self._titles_to_ids[term.title] = term.id
@@ -81,6 +82,9 @@ class Index( object ):
             self._parents_to_children[term.parent_id] = []
         if (term.id not in self._parents_to_children[term.parent_id]):
             self._parents_to_children[term.parent_id].append(term.id)
+    
+    def terms( self ):
+        return [self._terms_by_id.get(tid, None) for tid in self.ids]
     
     def get( self, id=None, title=None ):
         """Returns Term matching the id or title, or None.
@@ -119,6 +123,16 @@ class Index( object ):
             return [t for t in self.children(parent) if t != term]
         return None
     
+    def path( self, term ):
+        term.path = ''
+        path = [term.title]
+        t = term
+        while t.parent_id:
+            t = self.parent(t)
+            path.append(t.title)
+        path.reverse()
+        return ': '.join(path)
+    
     def format( self, term ):
         bt = self.parent(term)
         nt = self.children(term)
@@ -140,6 +154,7 @@ class Index( object ):
             term.parent = self.parent(term)
             term.siblings = self.siblings(term)
             term.children = self.children(term)
+            term.path = self.path(term)
     
     def load_csv( self, csvfile_abs, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
         """Load terms from a CSV file.
@@ -255,6 +270,11 @@ class Index( object ):
         """
         return [(tid,term.title) for tid,term in self._terms_by_id.iteritems()]
 
+    def path_choices( self ):
+        """List of (id,title) tuples suitable for use in Django multiselect menu.
+        """
+        return [('%s [%s]' % (term.path, term.id)) for term in self.terms()]
+
 
 class Term( object ):
     id = None
@@ -269,6 +289,7 @@ class Term( object ):
     parent = None
     siblings = None
     children = None
+    path = None
 
     def __init__(self, id=None, parent_id=None, created=None, modified=None, _title=None, title=None, description='', weight=0, encyc_urls=[]):
         self.id = id
