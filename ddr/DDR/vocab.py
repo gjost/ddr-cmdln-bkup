@@ -269,7 +269,7 @@ class Index( object ):
     def menu_choices( self ):
         """List of (id,title) tuples suitable for use in Django multiselect menu.
         """
-        return [(tid,term.title) for tid,term in self._terms_by_id.iteritems()]
+        return [(term.id,term.title) for term in self.terms()]
 
     def path_choices( self ):
         """List of (id,title) tuples suitable for use in Django multiselect menu.
