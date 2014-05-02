@@ -265,6 +265,10 @@ class Index( object ):
         """
         terms = [self._format(term) for id,term in self._terms_by_id.iteritems()]
         return '\n\n'.join(terms)
+
+    def dump_terms_json( self ):
+        terms_flat = [term._flatten() for term in self.terms()]
+        return json.dumps(terms_flat)
         
     def menu_choices( self ):
         """List of (id,title) tuples suitable for use in Django multiselect menu.
