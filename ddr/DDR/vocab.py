@@ -34,18 +34,24 @@ index = Index()
 
 index.load_csv(csvfile_abs='/tmp/topics.csv')
 
-with open('/tmp/topics.json', 'w') as f:
+with open('/tmp/topic-index.json', 'w') as f:
     f.write(index.dump_json())
 
-with open('/tmp/topics.json', 'r') as f:
+with open('/tmp/topic-index.json', 'r') as f:
     index.load_json(f.read())
 
 index.dump_csv('/tmp/topics2.csv')
 
+# JSON file of all terms
+with open('/tmp/topics.json', 'w') as f:
+    f.write(index.dump_terms_json())
+
+# Text version of all terms
 with open('/tmp/topics.txt', 'w') as f:
-    f.write(index.dump_text())
+    f.write(index.dump_terms_text())
 
 index.menu_choices()
+index.path_choices()
 """
 
 import csv
