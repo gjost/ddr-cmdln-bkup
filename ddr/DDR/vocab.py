@@ -103,40 +103,40 @@ class Index( object ):
                 terms.append(term)
         return terms
     
-    def parent( self, term ):
+    def _parent( self, term ):
         """Term for term.parent_id or None.
         """
         return self._terms_by_id.get(term.parent_id, None) 
     
-    def children( self, term ):
+    def _children( self, term ):
         """List of terms that have term.id as their parent_id.
         """
         term_ids = self._parents_to_children.get(term.id, [])
         terms = self._get_by_term_ids(term_ids)
         return terms
    
-    def siblings( self, term ):
+    def _siblings( self, term ):
         """List of other terms with same parent_id.
         """
-        parent = self.parent(term)
+        parent = self._parent(term)
         if parent:
-            return [t for t in self.children(parent) if t != term]
+            return [t for t in self._children(parent) if t != term]
         return None
     
-    def path( self, term ):
+    def _path( self, term ):
         term.path = ''
         path = [term.title]
         t = term
         while t.parent_id:
-            t = self.parent(t)
+            t = self._parent(t)
             path.append(t.title)
         path.reverse()
         return ': '.join(path)
     
-    def format( self, term ):
-        bt = self.parent(term)
-        nt = self.children(term)
-        rt = self.siblings(term)
+    def _format( self, term ):
+        bt = self._parent(term)
+        nt = self._children(term)
+        rt = self._siblings(term)
         lines = []
         lines.append(term.title)
         if term.description: lines.append('  %s' % term.description)
@@ -151,11 +151,11 @@ class Index( object ):
         for term in terms:
             self.add(term)
         for term in terms:
-            term.parent = self.parent(term)
-            term.siblings = self.siblings(term)
-            term.children = self.children(term)
-            term.path = self.path(term)
-            term.format = self.format(term)
+            term.parent = self._parent(term)
+            term.siblings = self._siblings(term)
+            term.children = self._children(term)
+            term.path = self._path(term)
+            term.format = self._format(term)
     
     def load_csv( self, csvfile_abs, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
         """Load terms from a CSV file.
@@ -238,7 +238,7 @@ class Index( object ):
             '  rankdir=RL;'
         ]
         for tid,term in self._terms_by_id.iteritems():
-            parent = self.parent(term)
+            parent = self._parent(term)
             if parent:
                 src = '"%s-%s"' % (term.id, term.title[:term_len].replace('"',''))
                 dest = '"%s-%s"' % (parent.id, parent.title[:term_len].replace('"',''))
@@ -260,12 +260,12 @@ class Index( object ):
             'parents_to_children': self._parents_to_children,
         })
     
-    def dump_text( self ):
+    def dump_terms_text( self ):
         """Text format of the entire index.
         """
-        terms = [self.format(term) for id,term in self._terms_by_id.iteritems()]
+        terms = [self._format(term) for id,term in self._terms_by_id.iteritems()]
         return '\n\n'.join(terms)
-
+        
     def menu_choices( self ):
         """List of (id,title) tuples suitable for use in Django multiselect menu.
         """
