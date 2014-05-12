@@ -272,9 +272,23 @@ class Index( object ):
         terms = [self._format(term) for id,term in self._terms_by_id.iteritems()]
         return '\n\n'.join(terms)
 
-    def dump_terms_json( self ):
-        terms_flat = [term._flatten() for term in self.terms()]
-        return json.dumps(terms_flat)
+    def dump_terms_json( self, id, title, description ):
+        """JSON format of the entire index.
+        
+        Terms list plus a keyword, title, and description.
+        This is the same format used for Elasticsearch facets.
+        
+        @param id
+        @param title
+        @param description
+        """
+        data = {
+            'id': id,
+            'title': title,
+            'description': description,
+            'terms': [term._flatten() for term in self.terms()],
+        }
+        return json.dumps(data)
         
     def menu_choices( self ):
         """List of (id,title) tuples suitable for use in Django multiselect menu.
