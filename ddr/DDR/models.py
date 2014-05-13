@@ -33,51 +33,71 @@ MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 
 
-def metadata_files( basedir, recursive=False, files_first=False ):
-    """Lists absolute paths to .json files in basedir.
+def metadata_files( basedir, recursive=False, files_first=False, force_read=False, save=False ):
+    """Lists absolute paths to .json files in basedir; saves copy if requested.
     
     Skips/excludes .git directories.
     
     @param basedir: Absolute path
     @param recursive: Whether or not to recurse into subdirectories.
-    @parap files_first: Arrange paths first first, then entities, then collections
+    @param files_first: If True, list files,entities,collections; otherwise sort.
+    @param force_read: If True, always searches for files instead of using cache.
+    @param save: Write a copy to basedir.
     @returns: list of paths
     """
+    CACHE_FILENAME = '.metadata_files'
+    CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
     paths = []
-    excludes = ['.git', 'tmp', '*~']
-    if recursive:
-        for root, dirs, files in os.walk(basedir):
-            # don't go down into .git directory
-            if '.git' in dirs:
-                dirs.remove('.git')
-            for f in files:
+    if os.path.exists(CACHE_PATH) and not force_read:
+        with open(CACHE_PATH, 'r') as f:
+            paths = [line.strip() for line in f.readlines() if '#' not in line]
+    else:
+        excludes = ['.git', 'tmp', '*~']
+        if recursive:
+            for root, dirs, files in os.walk(basedir):
+                # don't go down into .git directory
+                if '.git' in dirs:
+                    dirs.remove('.git')
+                for f in files:
+                    if f.endswith('.json'):
+                        path = os.path.join(root, f)
+                        exclude = [1 for x in excludes if x in path]
+                        if not exclude:
+                            paths.append(path)
+        else:
+            for f in os.listdir(basedir):
                 if f.endswith('.json'):
-                    path = os.path.join(root, f)
+                    path = os.path.join(basedir, f)
                     exclude = [1 for x in excludes if x in path]
                     if not exclude:
                         paths.append(path)
-    else:
-        for f in os.listdir(basedir):
-            if f.endswith('.json'):
-                path = os.path.join(basedir, f)
-                exclude = [1 for x in excludes if x in path]
-                if not exclude:
-                    paths.append(path)
+    # files_first is useful for docstore.index
     if files_first:
         collections = []
         entities = []
         files = []
         for f in paths:
-            if f.endswith('collection.json'):
-                collections.append( os.path.join(root, f) )
-            elif f.endswith('entity.json'):
-                entities.append( os.path.join(root, f) )
-            elif f.endswith('.json'):
-                path = os.path.join(root, f)
-                exclude = [1 for x in excludes if x in path]
-                if not exclude:
-                    files.append(path)
+            if f.endswith('collection.json'): collections.append(f)
+            elif f.endswith('entity.json'): entities.append(f)
+            elif f.endswith('.json'): files.append(f)
         paths = files + entities + collections
+    else:
+        paths.sort()
+    # write paths to {basedir}/{CACHE_FILENAME}
+    if save:
+        # add CACHE_PATH to .gitignore
+        gitignore_path = os.path.join(basedir, '.gitignore')
+        if os.path.exists(gitignore_path):
+            gitignore_present = False
+            with open(gitignore_path, 'r') as gif:
+                if CACHE_FILENAME in gif.read():
+                    gitignore_present = True
+            if not gitignore_present:
+                with open(gitignore_path, 'a') as giff:
+                    giff.write('%s\n' % CACHE_FILENAME)
+        # write
+        with open(CACHE_PATH, 'w') as f:
+            f.write('\n'.join(paths))
     return paths
 
 def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
