@@ -316,8 +316,9 @@ class Entity( object ):
         prefix_path = self.files_path
         if prefix_path[-1] != '/':
             prefix_path = '{}/'.format(prefix_path)
-        for f in os.listdir(self.files_path):
-            files.append(f.replace(prefix_path, ''))
+        if os.path.exists(self.files_path):
+            for f in os.listdir(self.files_path):
+                files.append(f.replace(prefix_path, ''))
         files = sorted(files, key=lambda f: natural_order_string(f))
         return files
     

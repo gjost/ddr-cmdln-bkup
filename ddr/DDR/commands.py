@@ -571,13 +571,125 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
 
 @command
 @local_only
-def entity_destroy(agent=''):
-    """Command-line function for removing the specified entity from the collection.
+def entity_destroy(user_name, user_mail, collection_path, entity_uid, agent=''):
+    """Command-line function for creating an entity and adding it to the collection.
     
+    - check that paths exist, etc
+    - intantiate collection, repo objects
+    - remove entity dir
+    - update control and changelog
+    - commit everything
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    return 1,'not implemented yet'
+    entity_dir = os.path.join(collection_path, 'files', entity_uid)
+    
+    if not os.path.exists(collection_path):
+        raise Exception('collection_path not found: %s' % collection_path)
+    if not os.path.exists(entity_dir):
+        raise Exception('entity not found: %s' % entity_dir)
+    
+    collection = DDRCollection(collection_path)
+    repo = dvcs.repository(collection.path, user_name, user_mail)
+    repo.git.checkout('master')
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    git_files = []
+    
+    # remove entity directory
+    # NOTE: entity files must be removed at this point so the entity will be
+    # properly removed from the control file
+    git = repo.git
+    git.rm('-rf', entity_dir)
+    
+    # update collection control
+    ccontrol = collection.control()
+    ccontrol.update_checksums(collection)
+    ccontrol.write()
+    git_files.append(ccontrol.path)
+    
+    # prep collection log entries
+    changelog_messages = ['Deleted entity {}'.format(entity_uid),]
+    if agent:
+        changelog_messages.append('@agent: %s' % agent)
+    commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
+    
+    # collection changelog
+    write_changelog_entry(collection.changelog_path,
+                          changelog_messages,
+                          user=user_name, email=user_mail)
+    git_files.append(collection.changelog_path)
+    
+    # commit
+    repo = commit_files(repo, commit_message, git_files)
+    return 0,'ok'
+
+
+@command
+@local_only
+def file_destroy(user_name, user_mail, collection_path, entity_uid, rm_files, updated_files, agent=''):
+    """Command-line function for creating an entity and adding it to the collection.
+    
+    - check that paths exist, etc
+    - intantiate collection, repo objects
+    - remove entity dir
+    - update control and changelog
+    - commit everything
+    
+    @param user_name: Username for use in changelog, git log
+    @param user_mail: User email address for use in changelog, git log
+    @param collection_path: Absolute path to collection repo.
+    @param entity_uid: A valid DDR entity UID
+    @param rm_files: List of paths to files to delete (relative to entity files dir).
+    @param updated_files: List of paths to updated file(s), relative to entitys.
+    @param agent: (optional) Name of software making the change.
+    @return: message ('ok' if successful)
+    """
+    collection = DDRCollection(collection_path)
+    entity = DDREntity(collection.entity_path(entity_uid))
+    repo = dvcs.repository(collection.path, user_name, user_mail)
+    repo.git.checkout('master')
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    
+    # updated file paths are relative to collection root
+    git_files = [os.path.join('files', entity.uid, f) for f in updated_files]
+    
+    # Only list the original file in changelog
+    # TODO use a models.File function to ID the original file
+    changelog_files = [f for f in rm_files if ('-a.jpg' not in f) and ('.json' not in f)]
+    
+    # remove the files
+    # NOTE: entity files must be removed at this point so the entity will be
+    # properly removed from the control file
+    git = repo.git
+    for f in rm_files:
+        git.rm('-rf', f)
+    
+    # update entity control
+    econtrol = entity.control()
+    econtrol.update_checksums(entity)
+    econtrol.write()
+    git_files.append(econtrol.path_rel)
+    
+    # update entity changelog
+    changelog_messages = ['Deleted entity file {}'.format(f) for f in changelog_files]
+    if agent:
+        changelog_messages.append('@agent: %s' % agent)
+    write_changelog_entry(entity.changelog_path,
+                          changelog_messages,
+                          user_name, user_mail)
+    git_files.append(entity.changelog_path_rel)
+    
+    # add files and commit
+    commit_message = dvcs.compose_commit_message('Deleted entity file(s)', agent=agent)
+    repo = commit_files(repo, commit_message, git_files, [])
+    return 0,'ok'
 
 
 @command
