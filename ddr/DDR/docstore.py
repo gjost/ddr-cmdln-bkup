@@ -882,53 +882,6 @@ def _public_fields( basedir, models ):
     public_fields['file'].append('id')
     return public_fields
 
-def _metadata_files( basedir, recursive=False, files_first=False ):
-    """Lists absolute paths to .json files in basedir.
-    
-    Skips/excludes .git directories.
-    
-    @param basedir: Absolute path
-    @param recursive: Whether or not to recurse into subdirectories.
-    @parap files_first: Arrange paths first first, then entities, then collections
-    @returns: list of paths
-    """
-    paths = []
-    excludes = ['.git', 'tmp', '*~']
-    if recursive:
-        for root, dirs, files in os.walk(basedir):
-            # don't go down into .git directory
-            if '.git' in dirs:
-                dirs.remove('.git')
-            for f in files:
-                if f.endswith('.json'):
-                    path = os.path.join(root, f)
-                    exclude = [1 for x in excludes if x in path]
-                    if not exclude:
-                        paths.append(path)
-    else:
-        for f in os.listdir(basedir):
-            if f.endswith('.json'):
-                path = os.path.join(basedir, f)
-                exclude = [1 for x in excludes if x in path]
-                if not exclude:
-                    paths.append(path)
-    if files_first:
-        collections = []
-        entities = []
-        files = []
-        for f in paths:
-            if f.endswith('collection.json'):
-                collections.append( os.path.join(root, f) )
-            elif f.endswith('entity.json'):
-                entities.append( os.path.join(root, f) )
-            elif f.endswith('.json'):
-                path = os.path.join(root, f)
-                exclude = [1 for x in excludes if x in path]
-                if not exclude:
-                    files.append(path)
-        paths = files + entities + collections
-    return paths
-
 def _parents_status( paths ):
     """Stores value of public,status for each collection,entity so entities,files can inherit.
     
@@ -1113,7 +1066,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
         paths = [path]
     else:
         # files listed first, then entities, then collections
-        paths = _metadata_files(path, recursive, files_first=1)
+        paths = models.metadata_files(path, recursive, files_first=1)
     
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.
