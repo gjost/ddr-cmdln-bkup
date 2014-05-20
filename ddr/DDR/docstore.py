@@ -813,15 +813,29 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
         body['query']['term'] = term
     if filters:
         body['filter'] = {'term':filters}
-    sort_cleaned = _clean_sort(sort)
     logger.debug(json.dumps(body))
+    sort_cleaned = _clean_sort(sort)
+    fields = ','.join(fields)
     es = _get_connection(hosts)
-    results = es.search(index=index, doc_type=model, q=query, body=body,
-                        sort=sort_cleaned,
-                        #from=first,
-                        size=size,
-                        fields=','.join(fields)
-    )
+    if query:
+        results = es.search(
+            index=index,
+            doc_type=model,
+            q=query,
+            body=body,
+            sort=sort_cleaned,
+            size=size,
+            fields=fields,
+        )
+    else:
+        results = es.search(
+            index=index,
+            doc_type=model,
+            body=body,
+            sort=sort_cleaned,
+            size=size,
+            fields=fields,
+        )
     return results
 
 
