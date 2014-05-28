@@ -1052,6 +1052,15 @@ def _choose_signatures( paths ):
         signature_files[key] = value.replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
     return signature_files
 
+def load_document_json( json_path, model, object_id ):
+    """Load object from JSON and add some essential fields.
+    """
+    with open(json_path, 'r') as f:
+        document = json.loads(f.read())
+    if model == 'file':
+        document.append( {'id':object_id} )
+    return document
+
 def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, public=True ):
     """(Re)index with data from the specified directory.
     
@@ -1116,12 +1125,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
             additional_fields['signature_file'] = signature_files.get(object_id, '')
         
         # HERE WE GO!
-        print('adding %s' % path)
-        with open(path, 'r') as f:
-            document = json.loads(f.read())
-        # TODO files should just have an ID field...
-        if model == 'file':
-            document.append({'id':object_id})
+        document = load_document_json(path, model, object_id)
         try:
             existing = get(hosts, index, model, object_id, fields=[])
         except:
