@@ -154,9 +154,12 @@ def id_from_path( path ):
     elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
     return None
 
-def model_from_id( object_id ):
-    """Guess model by looking at object_id
+def model_from_dict( data ):
+    """Guess model by looking in dict for object_id or path_rel
     """
+    if data.get('path_rel',None):
+        return 'file'
+    object_id = data.get('id', '')
     LEGAL_LENGTHS = [
         1, # repository   (ddr)
         2, # organization (ddr-testing)

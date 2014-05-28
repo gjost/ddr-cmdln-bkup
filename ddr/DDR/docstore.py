@@ -575,7 +575,7 @@ def post( hosts, index, document, public_fields=[], additional_fields={} ):
             data[k] = v
     
     document_id = None
-    model = models.model_from_id(data['id'])
+    model = models.model_from_dict(data)
     if model in ['collection', 'entity']:
         if not (data and data.get('id', None)):
             return {'status':2, 'response':'no id'}
