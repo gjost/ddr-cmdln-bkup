@@ -125,20 +125,6 @@ def make_changelog(entries):
     cl = [make_entry(e['messages'], e['user'], e['mail'], e['timestamp']) for e in entries]
     return '\n\n'.join(cl)
 
-def write_changelog_entry(path, messages, user, email, timestamp=None):
-    logging.debug('    write_changelog_entry({})'.format(path))
-    logging.debug('    append_changelog_entry({})'.format(path))
-    entry = {'timestamp':timestamp,
-             'user':user,
-             'mail':email,
-             'messages':messages,}
-    entries = read_changelog(path)
-    if entry not in entries:
-        entries.append(entry)
-    log = make_changelog(entries)
-    with open(path, 'w') as changelog:
-        changelog.write(log)
-
 
 
 MODULE_PATH   = os.path.dirname(os.path.abspath(__file__))
@@ -152,7 +138,7 @@ def load_template(filename):
         template = f.read()
     return template
 
-def write_changelog_entry(path, messages, user, email):
+def write_changelog_entry(path, messages, user, email, timestamp=None):
     logging.debug('    write_changelog_entry({})'.format(path))
     template = load_template(CHANGELOG_TEMPLATE)
     date_format = load_template(CHANGELOG_DATE_FORMAT)
@@ -160,18 +146,20 @@ def write_changelog_entry(path, messages, user, email):
     lines = []
     [lines.append('* {}'.format(m)) for m in messages]
     changes = '\n'.join(lines)
+    if not timestamp:
+        timestamp = datetime.now()
     # render
     entry = template.format(
         changes=changes,
         user=user,
         email=email,
-        date=datetime.now().strftime(date_format)
+        date=timestamp.strftime(date_format)
         )
     try:
         preexisting = os.path.getsize(path)
     except:
         preexisting = False
-    with open(path, 'a') as changelog:
+    with open(path, 'a') as f:
         if preexisting:
-            changelog.write('\n')
-        changelog.write(entry)
+            f.write('\n')
+        f.write(entry)
