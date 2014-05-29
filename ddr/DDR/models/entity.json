@@ -477,7 +477,7 @@
             "required": false,
             "initial": "",
             "label": "Alternate ID",
-            "max_length": 255,
+            "max_length": 512,
             "help_text": "May be a physical or virtual record identifier. For example, a physical shelf/folder location, a negative number, an accession number, or a URI of an external database record."
         },
         "elasticsearch": {
