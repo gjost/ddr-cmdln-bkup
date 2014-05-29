@@ -44,22 +44,13 @@ def remount( device_file, label ):
     mount_path = mount(device_file, label)
     return mount_path
 
-def removables():
-    """List removable drives whether or not they are attached.
-    
-    This is basically a wrapper around "udisks --dump" that looks for
-    "/dev/sdb*" devices and extracts certain info.
-    Requires the udisks package (sudo apt-get install udisks).
-    
-    >> removables()
-    [{'device-file': '/dev/sdb1', 'type': 'ntfs', 'uuid': '1A2B3C4D5E6F7G89', 'label': 'USBDRIVE1'}, {'device-file': '/dev/sdb2', 'type': 'ntfs', 'uuid':  '98G7F6E5D4C3B2A1', 'label': 'USBDRIVE2'}]
-    
-    @return: list of dicts containing attribs of devices
+def _parse_removables( udisks_dump_stdout ):
+    """Parse the output of 'udisks --dump'
+    NOTE: Separated from .removables() for easier testing.
     """
     d = []
-    r = envoy.run('udisks --dump', timeout=2)
     sdchunks = []
-    chunks = r.std_out.split('========================================================================\n')
+    chunks = udisks_dump_stdout.split('========================================================================\n')
     # get sdb* devices (sdb1, sdb2, etc)
     for c in chunks:
         if ('sdb' in c) or ('sdc' in c) or ('sdd' in c):
@@ -82,6 +73,30 @@ def removables():
         d.append(attribs)
     return d
 
+def removables():
+    """List removable drives whether or not they are attached.
+    
+    This is basically a wrapper around "udisks --dump" that looks for
+    "/dev/sdb*" devices and extracts certain info.
+    Requires the udisks package (sudo apt-get install udisks).
+    
+    >> removables()
+    [{'device-file': '/dev/sdb1', 'type': 'ntfs', 'uuid': '1A2B3C4D5E6F7G89', 'label': 'USBDRIVE1'}, {'device-file': '/dev/sdb2', 'type': 'ntfs', 'uuid':  '98G7F6E5D4C3B2A1', 'label': 'USBDRIVE2'}]
+    
+    @return: list of dicts containing attribs of devices
+    """
+    r = envoy.run('udisks --dump', timeout=2)
+    return _parse_removables(r.std_out)
+
+def _parse_removables_mounted( df_h_stdout ):
+    d = []
+    for l in df_h_stdout.split('\n'):
+        if (l.find('/dev/sd') > -1) and (l.find('/media') > -1):
+            attrs = {'devicefile':l.split()[0], 'mountpath':l.split()[-1],}
+            if is_writable(attrs['mountpath']):
+                d.append(attrs)
+    return d
+
 def removables_mounted():
     """List mounted and accessible removable drives.
     
@@ -92,15 +107,18 @@ def removables_mounted():
     
     @return: List of dicts containing attribs of devices
     """
-    d = []
-    rdevices = removables()
     r = envoy.run('df -h', timeout=2)
-    for l in r.std_out.split('\n'):
-        if (l.find('/dev/sd') > -1) and (l.find('/media') > -1):
-            attrs = {'devicefile':l.split()[0], 'mountpath':l.split()[-1],}
-            if is_writable(attrs['mountpath']):
-                d.append(attrs)
-    return d
+    return _parse_removables_mounted(r.std_out)
+
+def _make_drive_label( storagetype, mountpath ):
+    """Make a drive label based on inputs.
+    NOTE: Separated from .drive_label() for easier testing.
+    """
+    if storagetype == 'removable':
+        label = mountpath.replace('/media/', '')
+        if label:
+            return label
+    return None
 
 def drive_label( path ):
     """Returns drive label for path, if path points to a removable device.
@@ -108,14 +126,11 @@ def drive_label( path ):
     @param path: Absolute path
     @return: String drive_label or None
     """
-    p = os.path.realpath(path)
-    if storage_type(p) == 'removable':
-        mp = mount_path(p)
-        label = mp.replace('/media/', '')
-        if label:
-            return label
-    return None
-    
+    realpath = os.path.realpath(path)
+    storagetype = storage_type(realpath)
+    mountpath = mount_path(realpath)
+    return _make_drive_label(storagetype, mountpath)
+
 def is_writable(path):
     """Indicates whether user has write permissions; does not check presence.
     
@@ -142,6 +157,16 @@ def mount_path( path ):
         return os.sep
     return mount_path(p1)
 
+def _guess_storage_type( mountpath ):
+    """Guess storage type based on output of mount_path().
+    NOTE: Separated from .storage_type() for easier testing.
+    """
+    if mountpath == '/':
+        return 'internal'
+    elif '/media' in mountpath:
+        return 'removable'
+    return 'unknown'
+    
 def storage_type( path ):
     """Indicates whether path points to internal drive, removable storage, etc.
     """
@@ -149,11 +174,7 @@ def storage_type( path ):
     # get label for mount at that path
     # 
     m = mount_path(path)
-    if m == '/':
-        return 'internal'
-    elif '/media' in m:
-        return 'removable'
-    return 'unknown'
+    return _guess_storage_type(m)
 
 def storage_status( path ):
     """Indicates status of storage path.
@@ -164,8 +185,7 @@ def storage_status( path ):
     except: exists = False
     try: listable = os.listdir(path)
     except: listable = False
-    try: writable = os.access(path, os.W_OK)
-    except: writable = False
+    writable = os.access(path, os.W_OK)
     # conditions
     if exists and listable and writable:
         return 'ok'
