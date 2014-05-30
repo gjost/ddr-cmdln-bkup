@@ -122,12 +122,21 @@ def set_alias( hosts, alias, index ):
     @param alias: Name of the alias
     @param index: Name of the alias' target index.
     """
-    alias = alias.lower()
-    index = index.lower()
+    alias = make_index_name(alias)
+    index = make_index_name(index)
     es = _get_connection(hosts)
     if not index_exists(hosts, index):
         create_index(hosts, index)
-    es.indices.delete_alias(index='_all', name='_all')
+    # delete existing aliases for this index
+    aliases = {}
+    indexes = es.indices.get_aliases(index=index)
+    if indexname in indexes.keys():
+        x = indexes[indexname]['aliases']
+        if x:
+            aliases = x.keys()
+    for a in aliases:
+        es.indices.delete_alias(index=index, name=a)
+    # set the alias
     es.indices.put_alias(index=index, name=alias, body='')
 
 def target_index( hosts, alias ):
