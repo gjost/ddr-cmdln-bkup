@@ -192,3 +192,25 @@ def storage_status( path ):
     elif exists and not listable:
         return 'unmounted'
     return 'unknown'
+
+def disk_space( mountpath ):
+    """Returns disk space info for the mounted drive.
+    
+    Uses 'df -h' on the back-end.
+        Filesystem  Size  Used  Avail  Use%  Mounted on
+    TODO Make this work on drives with spaces in their name!
+    """
+    fs = None
+    r = envoy.run('df -h')
+    for line in r.std_out.strip().split('\n'):
+        while line.find('  ') > -1:
+            line = line.replace('  ', ' ')
+        parts = line.split(' ')
+        path = parts[5]
+        if (path in mountpath) and (path != '/'):
+            fs = {'size': parts[1],
+                  'used': parts[2],
+                  'total': parts[3],
+                  'percent': parts[4].replace('%',''),
+                  'mount': parts[5],}
+    return fs
