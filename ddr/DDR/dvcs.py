@@ -12,6 +12,18 @@ import git
 from DDR import storage
 
 
+def set_git_configs(repo, user_name=None, user_mail=None):
+    if user_name and user_mail:
+        repo.git.config('user.name', user_name)
+        repo.git.config('user.email', user_mail)
+        # we're not actually using gitweb any more...
+        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    # ignore file permissions
+    repo.git.config('core.fileMode', 'false')
+    # earlier versions of git-annex have problems with ssh caching on NTFS
+    repo.git.config('annex.sshcaching', 'false')
+    return repo
+
 def repository(path, user_name=None, user_mail=None):
     """
     @param collection_path: Absolute path to collection repo.
@@ -37,17 +49,19 @@ def compose_commit_message(title, body='', agent=''):
     if agent: agent = '\n\n@agent: %s' % agent
     return '%s%s%s' % (title, body, agent)
 
-def set_git_configs(repo, user_name=None, user_mail=None):
-    if user_name and user_mail:
-        repo.git.config('user.name', user_name)
-        repo.git.config('user.email', user_mail)
-        # we're not actually using gitweb any more...
-        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
-    # ignore file permissions
-    repo.git.config('core.fileMode', 'false')
-    # earlier versions of git-annex have problems with ssh caching on NTFS
-    repo.git.config('annex.sshcaching', 'false')
-    return repo
+def _parse_annex_description(annex_status, uuid):
+    """
+    @param annex_status: output of git-annex-status
+    @param uuid: UUID of repository to extract
+    """
+    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
+    description = None
+    for line in annex_status.split('\n'):
+        if (uuid in line) and ('here' in line):
+            match = re.search(DESCR_REGEX, line)
+            if match and match.groupdict():
+                description = match.groupdict().get('description', None)
+    return description
 
 def get_annex_description( repo, annex_status=None ):
     """Get description of the current repo, if any.
@@ -88,16 +102,19 @@ def get_annex_description( repo, annex_status=None ):
     @param annex_status: (optional) Output of "git annex status" (saves some time).
     @return String description or None
     """
-    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
-    description = None
     uuid = repo.git.config('annex.uuid')
     if not annex_status:
         annex_status = repo.git.annex('status')
-    for line in annex_status.split('\n'):
-        if (uuid in line) and ('here' in line):
-            match = re.search(DESCR_REGEX, line)
-            if match and match.groupdict():
-                description = match.groupdict().get('description', None)
+    return _parse_annex_description(annex_status, uuid)
+
+def _make_annex_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
+    description = None
+    if drive_label:
+        description = drive_label
+    elif hostname and (hostname == partner_host) and mail:
+        description = ':'.join([ hostname, mail.split('@')[1] ])
+    elif hostname and (hostname != partner_host):
+        description = hostname
     return description
 
 def set_annex_description( repo, annex_status=None, description=None, force=False ):
@@ -133,12 +150,10 @@ def set_annex_description( repo, annex_status=None, description=None, force=Fals
             hostname = socket.gethostname()
             user_mail = repo.git.config('user.email')
             # generate description
-            if drive_label:
-                desc = drive_label
-            elif hostname and (hostname == PARTNER_HOSTNAME) and user_mail:
-                desc = ':'.join([ hostname, user_mail.split('@')[1] ])
-            elif hostname and (hostname != PARTNER_HOSTNAME):
-                desc = hostname
+            desc = _make_annex_description(
+                drive_label=drive_label,
+                hostname=hostname, partner_host=PARTNER_HOSTNAME,
+                mail=user_mail)
         if desc:
             # apply description
             logging.debug('git annex describe here %s' % desc)
@@ -180,6 +195,21 @@ def annex_status(path):
     logging.debug('\n{}'.format(status))
     return status
 
+def _parse_annex_whereis( annex_whereis_stdout ):
+    lines = annex_whereis_stdout.strip().split('\n')
+    # chop off anything before whereis line
+    startline = -1
+    for n,line in enumerate(lines):
+        if 'whereis' in line:
+            startline = n
+    lines = lines[startline:]
+    remotes = []
+    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
+        num_copies = int(lines[0].split(' ')[2].replace('(',''))
+        logging.debug('    {} copies'.format(num_copies))
+        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
+    return remotes
+
 def annex_whereis_file(repo, file_path_rel):
     """Show remotes that the file appears in
     
@@ -193,17 +223,20 @@ def annex_whereis_file(repo, file_path_rel):
     @param collection_uid: A valid DDR collection UID
     @return: List of names of remote repositories.
     """
-    remotes = []
     stdout = repo.git.annex('whereis', file_path_rel)
-    logging.debug('\n{}'.format(stdout))
-    lines = stdout.split('\n')
-    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
-        num_copies = int(lines[0].split(' ')[2].replace('(',''))
-        logging.debug('    {} copies'.format(num_copies))
-        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
-        logging.debug('    remotes: {}'.format(remotes))
-    return remotes
+    print('----------')
+    print(stdout)
+    print('----------')
+    return _parse_annex_whereis(stdout)
 
+def _gitolite_info_authorized( status, lines ):
+    if status == 0 and lines:
+        if len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
+            logging.debug('        OK ')
+            return True
+    logging.debug('        NO CONNECTION')
+    return False
+    
 def gitolite_connect_ok(server):
     """See if we can connect to gitolite server.
     
@@ -229,12 +262,7 @@ def gitolite_connect_ok(server):
     """
     logging.debug('    DDR.commands.gitolite_connect_ok()')
     status,lines = gitolite_info(server)
-    if status == 0 and lines:
-        if len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
-            logging.debug('        OK ')
-            return True
-    logging.debug('        NO CONNECTION')
-    return False
+    return _gitolite_info_authorized(status, lines)
 
 def gitolite_info(server):
     """
@@ -251,6 +279,12 @@ def gitolite_info(server):
         lines = r.std_out.split('\n')
     return status,lines
 
+def _parse_list_staged( diff ):
+    staged = []
+    if diff:
+        staged = diff.strip().split('\n')
+    return staged
+    
 def list_staged(repo):
     """Returns list of currently staged files
     
@@ -259,12 +293,14 @@ def list_staged(repo):
     @param repo: A Gitpython Repo object
     @return: List of filenames
     """
-    staged = []
-    diff = repo.git.diff('--cached', '--name-only').strip()
-    if diff:
-        staged = diff.split('\n')
-    return staged
+    stdout = repo.git.diff('--cached', '--name-only')
+    return _parse_list_staged(stdout)
 
+def _parse_list_committed( entry ):
+    entrylines = [line for line in entry.split('\n') if '|' in line]
+    files = [line.split('|')[0].strip() for line in entrylines]
+    return files
+    
 def list_committed(repo, commit):
     """Returns list of all files in the commit
 
@@ -275,24 +311,27 @@ def list_committed(repo, commit):
     @return: list of filenames
     """
     # return just the files from the specific commit's log entry
-    entry = repo.git.log('-1', '--stat', commit.hexsha).split('\n')
-    entrylines = [line for line in entry if '|' in line]
-    files = [line.split('|')[0].strip() for line in entrylines]
-    return files
+    entry = repo.git.log('-1', '--stat', commit.hexsha)
+    return _parse_list_committed(entry)
 
+def _parse_list_conflicted( ls_unmerged ):
+    files = []
+    for line in ls_unmerged.strip().split('\n'):
+        print('line: "%s"' % line)
+        if line:
+            f = line.split('\t')[1]
+            if f not in files:
+                files.append(f)
+    return files
+    
 def list_conflicted(repo):
     """Returns list of unmerged files in path; presence of files indicates merge conflict.
     
     @param repo: A Gitpython Repo object
     @return: List of filenames
     """
-    lines = repo.git.ls_files('--unmerged').split('\n')
-    files = []
-    for line in lines:
-        f = line.split('\t')[1]
-        if f not in files:
-            files.append(f)
-    return files
+    stdout = repo.git.ls_files('--unmerged')
+    return _parse_list_conflicted(stdout)
     
 """
 IMPORTANT:
