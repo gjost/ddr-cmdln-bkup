@@ -212,8 +212,8 @@ def parent_id( object_id ):
     'ddr-testing-123-1'
     """
     parts = object_id.split('-')
-    if   len(parts) == 2: return '-'.join([ parts[0], parts[1] ])
-    elif len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
+    if   len(parts) == 2: return '-'.join([ parts[0], ])
+    elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
     elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
