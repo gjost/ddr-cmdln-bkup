@@ -1,22 +1,59 @@
+from datetime import datetime
+
 from nose.tools import assert_raises
+from nose.plugins.attrib import attr
 
 import docstore
 
 
-# _get_connection
+"""
+NOTE: You can disable tests requiring Elasticseach server:
+
+    $ nosetests -a '!elasticsearch'
+
+"""
+
+
+HOSTS = [{'host':'127.0.0.1', 'port':9200}]
+
+
+@attr('elasticsearch')
+def test_get_connection():
+    es = docstore._get_connection(HOSTS)
+    assert es
+    assert es.cat.client.ping() == True
 
 def test_make_index_name():
     assert docstore.make_index_name('abc-def_ghi.jkl/mno\\pqr stu') == 'abc-def_ghi.jkl-mno-pqrstu'
+    assert docstore.make_index_name('qnfs/kinkura/gold') == 'qnfs-kinkura-gold'
 
 # index_exists
 # index_names
 # create_index
 # delete_index
+@attr('elasticsearch')
+def test_index():
+    index = 'test%s' % datetime.now().strftime('%Y%m%d%H%M%S')
+    es = docstore._get_connection(HOSTS)
+    exists_initial = docstore.index_exists(HOSTS, index)
+    created = docstore.create_index(HOSTS, index)
+    names = docstore.index_names(HOSTS)
+    exists_created = docstore.index_exists(HOSTS, index)
+    deleted = docstore.delete_index(HOSTS, index)
+    exists_deleted = docstore.index_exists(HOSTS, index)
+    assert exists_initial == False
+    assert created == {u'acknowledged': True}
+    assert index in names
+    assert exists_created == True
+    assert deleted == {u'acknowledged': True}
+    assert exists_deleted == False
+
 
 #def test_make_mappings():
 #    assert False
 
 # put_mappings
+
 # put_facets
 # list_facets
 # facet_terms
