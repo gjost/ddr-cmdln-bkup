@@ -459,9 +459,16 @@ def _clean_facility( data ):
     @param data: contents of data field
     @returns: list of field ID strings
     """
-    if isinstance(data, basestring):
+    if not isinstance(data, list):
         data = [data]
-    return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
+    cleaned = []
+    for x in data:
+        if not isinstance(x, basestring):
+            x = str(x)
+        if ('[' in x) and (']' in x):
+            x = x.split('[')[1].split(']')[0]
+        cleaned.append(x)
+    return cleaned
 
 def _clean_parent( data ):
     """Normalizes contents of 'creators' field.
@@ -499,9 +506,16 @@ def _clean_topics( data ):
     @param data: contents of data field
     @returns: list of ID strings
     """
-    if isinstance(data, basestring):
+    if not isinstance(data, list):
         data = [data]
-    return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
+    cleaned = []
+    for x in data:
+        if not isinstance(x, basestring):
+            x = str(x)
+        if ('[' in x) and (']' in x):
+            x = x.split('[')[1].split(']')[0]
+        cleaned.append(x)
+    return cleaned
 
 def _clean_dict( data ):
     """Remove null or empty fields; ElasticSearch chokes on them.

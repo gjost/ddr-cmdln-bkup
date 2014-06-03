@@ -61,15 +61,21 @@ def test_clean_creators():
     assert docstore._clean_creators(data5) == expected5
 
 def test_clean_facility():
-    data0 = 'Tule Lake [10]'
-    data1 = '10'
-    data2 = 10
-    expected0 = ['10']
-    expected1 = ['10']
-    expected2 = ['10']
+    data0 = 'Facility [123]'
+    data1 = ['Facility [123]']
+    data2 = 123
+    data3 = '123'
+    data4 = [123]
+    expected0 = ['123']
+    expected1 = ['123']
+    expected2 = ['123']
+    expected3 = ['123']
+    expected4 = ['123']
     assert docstore._clean_facility(data0) == expected0
     assert docstore._clean_facility(data1) == expected1
     assert docstore._clean_facility(data2) == expected2
+    assert docstore._clean_facility(data3) == expected3
+    assert docstore._clean_facility(data4) == expected4
 
 def test_clean_parent():
     data0 = 'ddr-testing-123'
