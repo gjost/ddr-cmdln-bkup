@@ -178,6 +178,66 @@ def test_parse_list_conflicted():
     assert dvcs._parse_list_conflicted(SAMPLE_CONFLICTED_0) == SAMPLE_CONFLICTED_0_EXPECTED
     assert dvcs._parse_list_conflicted(SAMPLE_CONFLICTED_1) == SAMPLE_CONFLICTED_1_EXPECTED
 
+CONFLICTED_JSON_TEXT = """{
+    {
+        "record_created": "2013-09-30T12:43:11"
+    },
+    {
+<<<<<<< HEAD
+        "record_lastmod": "2013-10-02T12:59:30"
+=======
+        "record_lastmod": "2013-10-02T12:59:30"
+>>>>>>> 0b9d669da8295fc05e092d7abdce22d4ffb50f45
+    },
+    {
+        "status": "completed"
+    },
+}"""
+CONFLICTED_JSON_EXPECTED = [
+    {u'record_created': u'2013-09-30T12:43:11'},
+    {u'record_lastmod': {'right': u'2013-10-02T12:59:30', 'left': u'2013-10-02T12:59:30'}},
+    {u'status': u'completed'},
+]
+
+def test_load_conflicted_json():
+    assert dvcs.load_conflicted_json(CONFLICTED_JSON_TEXT) == CONFLICTED_JSON_EXPECTED
+
+AUTOMERGE_TEXT = """
+Next level meh sriracha, distillery Tonx actually Etsy sustainable Tumblr.
+<<<<<<< HEAD
+Art party meggings tote bag drinking vinegar distillery jean shorts, mumblecore
+farm-to-table flexitarian. Pug small batch Thundercats mustache. Trust fund XOXO
+=======
+Polaroid blog Kickstarter. Ennui disrupt tote bag, you probably haven't heard of
+them VHS food truck DIY 8-bit swag direct trade fingerstache. Cliche wayfarers
+>>>>>>> 0a1b2c3d4e5f6a7b8c9d0a1b2c3d4e5f6a7b8c9d
+hashtag pour-over, church-key tousled trust fund Tonx Intelligentsia vinyl
+photo booth Vice Brooklyn seitan. Meggings irony Echo Park Pitchfork Thundercats.
+"""
+AUTOMERGE_LEFT_EXPECTED = """
+Next level meh sriracha, distillery Tonx actually Etsy sustainable Tumblr.
+Art party meggings tote bag drinking vinegar distillery jean shorts, mumblecore
+farm-to-table flexitarian. Pug small batch Thundercats mustache. Trust fund XOXO
+hashtag pour-over, church-key tousled trust fund Tonx Intelligentsia vinyl
+photo booth Vice Brooklyn seitan. Meggings irony Echo Park Pitchfork Thundercats.
+"""
+AUTOMERGE_RIGHT_EXPECTED = """
+Next level meh sriracha, distillery Tonx actually Etsy sustainable Tumblr.
+Polaroid blog Kickstarter. Ennui disrupt tote bag, you probably haven't heard of
+them VHS food truck DIY 8-bit swag direct trade fingerstache. Cliche wayfarers
+hashtag pour-over, church-key tousled trust fund Tonx Intelligentsia vinyl
+photo booth Vice Brooklyn seitan. Meggings irony Echo Park Pitchfork Thundercats.
+"""
+
+def test_automerge_conflicted():
+    assert dvcs.automerge_conflicted(AUTOMERGE_TEXT) == AUTOMERGE_LEFT_EXPECTED
+    assert dvcs.automerge_conflicted(AUTOMERGE_TEXT, which='left') == AUTOMERGE_LEFT_EXPECTED
+    assert dvcs.automerge_conflicted(AUTOMERGE_TEXT, which='right') == AUTOMERGE_RIGHT_EXPECTED
+
+# TODO merge_add
+# TODO merge_commit
+# TODO diverge_commit
+
 
 GIT_STATUS_SYNCED = [
     """## master""",
