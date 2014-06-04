@@ -33,6 +33,29 @@ def repository(path, user_name=None, user_mail=None):
     repo = git.Repo(path)
     return set_git_configs(repo, user_name, user_mail)
 
+def latest_commit(repo_or_path=None):
+    """Returns latest commit for the specified repository
+    
+    This function prefers a GitPython Repository object but will also accept an
+    absolute path to a repository.  If no argument is provided it will use CWD.
+    
+    >>> repo = repository('/path/to/repo')
+    >>> latest_commit(repo)
+    '8ad396324cc4a9ce6b9c0bce1cc8b78cc8e82859 (HEAD, master) 2013-07-11 11:03:19 -0700'
+    
+    @param repo_or_path: GitPython Repository object or repo path
+    """
+    if not repo_or_path:
+        repo_or_path = os.getcwd()
+    repo = None
+    if isinstance(repo_or_path, git.Repo):
+        repo = repo_or_path
+    elif isinstance(repo_or_path, basestring) and os.path.exists(repo_or_path):
+        repo = git.Repo(repo_or_path)
+    if repo:
+        return repo.git.log('--pretty=format:%H %d %ad', '--date=iso', '-1')
+    return None
+
 def compose_commit_message(title, body='', agent=''):
     """Composes a Git commit message.
     

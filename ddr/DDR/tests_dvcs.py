@@ -1,4 +1,6 @@
 from datetime import datetime
+import os
+import re
 
 import git
 
@@ -18,6 +20,14 @@ def test_repository():
     assert ('name',user) in reader.items('user')
     assert ('email',mail) in reader.items('user')
     assert ('sshcaching','false') in reader.items('annex')
+
+def test_latest_commit():
+    repo = dvcs.latest_commit(git.Repo(os.getcwd()))
+    path = dvcs.latest_commit(os.getcwd())
+    nopath = dvcs.latest_commit()
+    assert nopath == path == repo
+    regex = r'(([0123456789abcdef]+) +\(HEAD, master\) [0-9-]+ [0-9:]+ -[0-9]+)'
+    assert re.match(regex, repo)
 
 def test_compose_commit_message():
     title = 'made-up title'
