@@ -116,6 +116,7 @@ GITOLITE_INFO_OK = """hello ddr, this is git@mits running gitolite3 v3.2-19-gb9b
  R W	ddr-testing
  R W	ddr-testing-101
 """
+GITOLITE_ORGS_EXPECTED = ['ddr-densho', 'ddr-testing']
 
 def test_gitolite_info_authorized():
     assert dvcs._gitolite_info_authorized(
@@ -125,6 +126,10 @@ def test_gitolite_info_authorized():
     assert dvcs._gitolite_info_authorized(status=1, lines=[]) == False
 
 # gitolite_connect_ok
+
+def test_gitolite_orgs():
+    assert dvcs.gitolite_orgs(GITOLITE_INFO_OK.split('\n')) == GITOLITE_ORGS_EXPECTED
+
 # gitolite_info
 
 GIT_DIFF_STAGED = """collection.json

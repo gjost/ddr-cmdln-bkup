@@ -265,6 +265,21 @@ def gitolite_connect_ok(server):
     status,lines = gitolite_info(server)
     return _gitolite_info_authorized(status, lines)
 
+def gitolite_orgs( gitoliteinfo ):
+    """Returns list of orgs to which user has access
+    
+    @param gitoliteinfo: lines part of gitolite_info() output
+    @returns: list of organization IDs
+    """
+    repos_orgs = []
+    for line in gitoliteinfo:
+        if 'R W C' in line:
+            parts = line.replace('R W C', '').strip().split('-')
+            repo_org = '-'.join([parts[0], parts[1]])
+            if repo_org not in repos_orgs:
+                repos_orgs.append(repo_org)
+    return repos_orgs
+
 def gitolite_info(server):
     """
     @param server: USERNAME@DOMAIN
