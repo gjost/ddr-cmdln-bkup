@@ -118,6 +118,85 @@ def metadata_files( basedir, recursive=False, files_first=False, force_read=Fals
             f.write('\n'.join(paths))
     return paths
 
+class Path( object ):
+    path = None
+    base_path = None
+    collection_path = None
+    entity_path = None
+    file_path = None
+    filename = None
+    ext = None
+    object_type = None
+    object_id = None
+    collection_id = None
+    entity_id = None
+    file_id = None
+    repo = None
+    org = None
+    cid = None
+    eid = None
+    role = None
+    sha1 = None
+
+def dissect_path( path_abs ):
+    """Slices up an absolute path and extracts as much as it can.
+    
+    @param path_abs: An absolute file path.
+    @returns: object
+    """
+    if ('master' in path_abs) or ('mezzanine' in path_abs):
+        # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
+        # /basepath/collection_id/files/entity_id/files/file_id.ext
+        # /basepath/collection_id/files/entity_id/files/file_id.json
+        # /basepath/collection_id/files/entity_id/files/file_id
+        p = Path()
+        p.path = path_abs
+        p.entity_path = os.path.dirname(os.path.dirname(path_abs))
+        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+        p.base_path = os.path.dirname(p.collection_path)
+        pathname,ext = os.path.splitext(path_abs)
+        if ext and (pathname[-2:] == '-a'):
+            p.object_id = os.path.basename(pathname[:-2])
+        else:
+            p.object_id = os.path.basename(pathname)
+        p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
+        p.file_id = p.object_id
+        p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
+        return p
+        
+    elif ('entity.json' in path_abs) or ('files' in path_abs):
+        # /basepath/collection_id/files/entity_id/entity.json
+        p = Path()
+        p.path = path_abs
+        if (os.path.basename(path_abs) == 'entity.json') or (os.path.basename(path_abs) == 'files'):
+            p.entity_path = os.path.dirname(path_abs)
+        else:
+            p.entity_path = path_abs
+        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+        p.base_path = os.path.dirname(p.collection_path)
+        p.object_id = os.path.basename(p.entity_path)
+        p.object_type,p.repo,p.org,p.cid,p.eid = split_object_id(p.object_id)
+        p.entity_id = p.object_id
+        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
+        return p
+        
+    else:
+        # /basepath/collection_id/collection.json
+        p = Path()
+        p.path = path_abs
+        if (os.path.basename(path_abs) == 'collection.json'):
+            p.collection_path = os.path.dirname(path_abs)
+        else:
+            p.collection_path = path_abs
+        p.base_path = os.path.dirname(p.collection_path)
+        p.object_id = os.path.basename(p.collection_path)
+        p.object_type,p.repo,p.org,p.cid = split_object_id(p.object_id)
+        p.collection_id = p.object_id
+        return p
+        
+    return None
+
 def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
     if   (model == 'file') and repo and org and cid and eid and role and sha1:
         return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)

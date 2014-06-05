@@ -18,6 +18,100 @@ def test_file_hash():
 
 # TODO metadata_files
 
+def test_dissect_path():
+    c0 = models.dissect_path('/base/ddr-test-123/collection.json')
+    c1 = models.dissect_path('/base/ddr-test-123')
+    assert c0
+    assert c1
+    assert c0.base_path == c1.base_path
+    assert c0.collection_path == c1.collection_path
+    assert c0.entity_path == c1.entity_path
+    assert c0.object_type == c1.object_type
+    assert c0.object_id == c1.object_id
+    assert c0.repo == c1.repo
+    assert c0.org == c1.org
+    assert c0.cid == c1.cid
+    assert c0.eid == c1.eid
+    assert c0.base_path == '/base'
+    assert c0.collection_path == '/base/ddr-test-123'
+    assert c0.object_type == 'collection'
+    assert c0.object_id == 'ddr-test-123'
+    assert c0.repo == 'ddr'
+    assert c0.org == 'test'
+    assert c0.cid == '123'
+    assert c0.eid == None
+    assert c0.role == None
+    assert c0.sha1 == None
+    assert c0.file_id == None
+    assert c0.entity_id == None
+    assert c0.collection_id == 'ddr-test-123'
+    
+    e0 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/entity.json')
+    e1 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files')
+    e2 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1')
+    assert e0
+    assert e1
+    assert e2
+    assert e0.base_path == e1.base_path == e2.base_path
+    assert e0.collection_path == e1.collection_path == e2.collection_path
+    assert e0.entity_path == e1.entity_path == e2.entity_path
+    assert e0.object_type == e1.object_type == e2.object_type
+    assert e0.object_id == e1.object_id == e2.object_id
+    assert e0.repo == e1.repo == e2.repo
+    assert e0.org == e1.org == e2.org
+    assert e0.cid == e1.cid == e2.cid
+    assert e0.eid == e1.eid == e2.eid
+    assert e0.base_path == '/base'
+    assert e0.collection_path == '/base/ddr-test-123'
+    assert e0.entity_path == '/base/ddr-test-123/files/ddr-test-123-1'
+    assert e0.object_type == 'entity'
+    assert e0.object_id == 'ddr-test-123-1'
+    assert e0.repo == 'ddr'
+    assert e0.org == 'test'
+    assert e0.cid == '123'
+    assert e0.eid == '1'
+    assert e0.role == None
+    assert e0.sha1 == None
+    assert e0.file_id == None
+    assert e0.entity_id == 'ddr-test-123-1'
+    assert e0.collection_id == 'ddr-test-123'
+    
+    f0 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc-a.jpg')
+    f1 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc.json')
+    f2 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc.jpg')
+    f3 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc.pdf')
+    f4 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc')
+    assert f0
+    assert f1
+    assert f2
+    assert f3
+    assert f4
+    assert f0.base_path == f1.base_path == f2.base_path == f3.base_path == f4.base_path
+    assert f0.collection_path == f1.collection_path == f2.collection_path == f3.collection_path == f4.collection_path
+    assert f0.entity_path == f1.entity_path == f2.entity_path == f3.entity_path == f4.entity_path
+    assert f0.object_type == f1.object_type == f2.object_type == f3.object_type == f4.object_type
+    assert f0.object_id == f1.object_id == f2.object_id == f3.object_id == f4.object_id
+    assert f0.repo == f1.repo == f2.repo == f3.repo == f4.repo
+    assert f0.org == f1.org == f2.org == f3.org == f4.org
+    assert f0.cid == f1.cid == f2.cid == f3.cid == f4.cid
+    assert f0.eid == f1.eid == f2.eid == f3.eid == f4.eid
+    assert f0.role == f1.role == f2.role == f3.role == f4.role
+    assert f0.sha1 == f1.sha1 == f2.sha1 == f3.sha1 == f4.sha1
+    assert f0.base_path == '/base'
+    assert f0.collection_path == '/base/ddr-test-123'
+    assert f0.entity_path == '/base/ddr-test-123/files/ddr-test-123-1'
+    assert f0.object_type == 'file'
+    assert f0.object_id == 'ddr-test-123-1-master-abc'
+    assert f0.repo == 'ddr'
+    assert f0.org == 'test'
+    assert f0.cid == '123'
+    assert f0.eid == '1'
+    assert f0.role == 'master'
+    assert f0.sha1 == 'abc'
+    assert f0.file_id == 'ddr-test-123-1-master-abc'
+    assert f0.entity_id == 'ddr-test-123-1'
+    assert f0.collection_id == 'ddr-test-123'
+
 def test_make_object_id():
     assert models.make_object_id('file','ddr','test','123','1','role','a1') == 'ddr-test-123-1-role-a1'
     assert models.make_object_id('entity','ddr','test','123','1') == 'ddr-test-123-1'
