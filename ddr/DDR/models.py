@@ -251,6 +251,24 @@ def id_from_path( path ):
     elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
     return None
 
+def model_from_path( path ):
+    """Guess model from the path.
+    
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
+    'collection'
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
+    'entity'
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
+    'file'
+    
+    @param path: absolute or relative path to metadata JSON file.
+    @returns: model
+    """
+    if 'collection.json' in path: return 'collection'
+    elif 'entity.json' in path: return 'entity'
+    elif ('master' in path) or ('mezzanine' in path): return 'file'
+    return None
+
 def model_from_dict( data ):
     """Guess model by looking in dict for object_id or path_rel
     """
@@ -272,24 +290,6 @@ def model_from_dict( data ):
         elif len_parts == 3: return 'collection'
         #elif len_parts == 2: return 'organization'
         #elif len_parts == 1: return 'repository'
-    return None
-
-def model_from_path( path ):
-    """Guess model from the path.
-    
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
-    'collection'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'entity'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'file'
-    
-    @param path: absolute or relative path to metadata JSON file.
-    @returns: model
-    """
-    if 'collection.json' in path: return 'collection'
-    elif 'entity.json' in path: return 'entity'
-    elif ('master' in path) or ('mezzanine' in path): return 'file'
     return None
 
 def parent_id( object_id ):
