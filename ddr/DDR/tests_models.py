@@ -167,6 +167,14 @@ def test_Collection_changelog():
 # TODO Collection.gitignore
 # TODO Collection.collections
 # TODO Collection.entities
+# TODO Collection.repo_fetch
+# TODO Collection.repo_status
+# TODO Collection.repo_synced
+# TODO Collection.repo_ahead
+# TODO Collection.repo_behind
+# TODO Collection.repo_diverged
+# TODO Collection.repo_conflicted
+# TODO Collection.repo_annex_status
 
 # Collection.locking
 # Collection.unlock

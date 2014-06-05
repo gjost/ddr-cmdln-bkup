@@ -7,6 +7,7 @@ import re
 from DDR import CONFIG_FILE
 from DDR import natural_order_string
 from DDR.control import CollectionControlFile, EntityControlFile
+from DDR import dvcs
 
 
 
@@ -526,6 +527,43 @@ class Collection( object ):
                 entities.append(e)
         entities = sorted(entities, key=lambda e: natural_order_string(e.uid))
         return entities
+    
+    def repo_fetch( self ):
+        """Fetch latest changes to collection repo from origin/master.
+        """
+        result = '-1'
+        if os.path.exists(os.path.join(self.path, '.git')):
+            result = dvcs.fetch(self.path)
+        else:
+            result = '%s is not a git repository' % self.path
+        return result
+    
+    def repo_status( self ):
+        """Get status of collection repo vis-a-vis origin/master.
+        
+        The repo_(synced,ahead,behind,diverged,conflicted) functions all use
+        the result of this function so that git-status is only called once.
+        """
+        if not self._status and (os.path.exists(os.path.join(self.path, '.git'))):
+            status = dvcs.repo_status(self.path, short=True)
+            if status:
+                self._status = status
+        return self._status
+    
+    def repo_synced( self ):     return dvcs.synced(self.repo_status())
+    def repo_ahead( self ):      return dvcs.ahead(self.repo_status())
+    def repo_behind( self ):     return dvcs.behind(self.repo_status())
+    def repo_diverged( self ):   return dvcs.diverged(self.repo_status())
+    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status())
+    
+    def repo_annex_status( self ):
+        """Get annex status of collection repo.
+        """
+        if not self._astatus and (os.path.exists(os.path.join(self.path, '.git'))):
+            astatus = dvcs.annex_status(self.path)
+            if astatus:
+                self._astatus = astatus
+        return self._astatus
 
 
 
