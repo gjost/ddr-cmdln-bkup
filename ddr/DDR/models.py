@@ -337,6 +337,99 @@ def _inherit( parent, child ):
         if hasattr(parent, field) and hasattr(child, field):
             setattr(child, field, getattr(parent, field))
 
+def lock( lock_path, text ):
+    """Writes lockfile to collection dir; complains if can't.
+    
+    Celery tasks don't seem to know their own task_id, and there don't
+    appear to be any handlers that can be called just *before* a task
+    is fired. so it appears to be impossible for a task to lock itself.
+    
+    This method should(?) be called immediately after starting the task:
+    >> result = collection_sync.apply_async((args...), countdown=2)
+    >> lock_status = collection.lock(result.task_id)
+    
+    >>> path = '/tmp/ddr-testing-123'
+    >>> os.mkdir(path)
+    >>> c = Collection(path)
+    >>> c.lock('abcdefg')
+    'ok'
+    >>> c.lock('abcdefg')
+    'locked'
+    >>> c.unlock('abcdefg')
+    'ok'
+    >>> os.rmdir(path)
+    
+    TODO return 0 if successful
+    
+    @param lock_path
+    @param text
+    @returns 'ok' or 'locked'
+    """
+    if os.path.exists(lock_path):
+        return 'locked'
+    with open(lock_path, 'w') as f:
+        f.write(text)
+    return 'ok'
+
+def unlock( lock_path, text ):
+    """Removes lockfile or complains if can't
+    
+    This method should be called by celery Task.after_return()
+    See "Abstract classes" section of http://celery.readthedocs.org/en/latest/userguide/tasks.html#custom-task-classes
+    
+    >>> path = '/tmp/ddr-testing-123'
+    >>> os.mkdir(path)
+    >>> c = Collection(path)
+    >>> c.lock('abcdefg')
+    'ok'
+    >>> c.unlock('xyz')
+    'task_id miss'
+    >>> c.unlock('abcdefg')
+    'ok'
+    >>> c.unlock('abcdefg')
+    'not locked'
+    >>> os.rmdir(path)
+    
+    TODO return 0 if successful
+    
+    @param lock_path
+    @param text
+    @returns 'ok', 'not locked', 'task_id miss', 'blocked'
+    """
+    if not os.path.exists(lock_path):
+        return 'not locked'
+    with open(lock_path, 'r') as f:
+        lockfile_text = f.read().strip()
+    if lockfile_text and (lockfile_text != text):
+        return 'miss'
+    os.remove(lock_path)
+    if os.path.exists(lock_path):
+        return 'blocked'
+    return 'ok'
+    
+def locked( lock_path ):
+    """Returns contents of lockfile if collection repo is locked, False if not
+    
+    >>> c = Collection('/tmp/ddr-testing-123')
+    >>> c.locked()
+    False
+    >>> c.lock('abcdefg')
+    'ok'
+    >>> c.locked()
+    'abcdefg'
+    >>> c.unlock('abcdefg')
+    'ok'
+    >>> c.locked()
+    False
+    
+    @param lock_path
+    """
+    if os.path.exists(lock_path):
+        with open(lock_path, 'r') as f:
+            text = f.read().strip()
+        return text
+    return False
+
 
 
 class Collection( object ):
@@ -348,6 +441,7 @@ class Collection( object ):
     changelog_path = None
     control_path = None
     gitignore_path = None
+    lock_path = None
     annex_path_rel = None
     changelog_path_rel = None
     control_path_rel = None
@@ -372,6 +466,7 @@ class Collection( object ):
         self.control_path       = self._path_absrel('control'    )
         self.files_path         = self._path_absrel('files'      )
         self.gitignore_path     = self._path_absrel('.gitignore' )
+        self.lock_path          = self._path_absrel('lock' )
         self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
         self.control_path_rel   = self._path_absrel('control',    rel=True)
         self.files_path_rel     = self._path_absrel('files',      rel=True)
@@ -390,6 +485,10 @@ class Collection( object ):
         if not os.path.exists(self.control_path):
             CollectionControlFile.create(self.control_path, self.uid)
         return CollectionControlFile(self.control_path)
+    
+    def lock( self, text ): return lock(self.lock_path, text)
+    def unlock( self, text ): return unlock(self.lock_path, text)
+    def locked( self ): return locked(self.lock_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -437,6 +536,7 @@ class Entity( object ):
     parent_path = None
     uid = None
     parent_uid = None
+    lock_path = None
     changelog_path = None
     control_path = None
     files_path = None
@@ -462,12 +562,17 @@ class Entity( object ):
             uid = os.path.basename(self.path)
         self.uid = uid
         self.parent_uid = os.path.split(self.parent_path)[1]
+        self.lock_path          = self._path_absrel('lock'  )
         self.changelog_path     = self._path_absrel('changelog'  )
         self.control_path       = self._path_absrel('control'    )
         self.files_path         = self._path_absrel('files'      )
         self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
         self.control_path_rel   = self._path_absrel('control',    rel=True)
         self.files_path_rel     = self._path_absrel('files',      rel=True)
+    
+    def lock( self, text ): return lock(self.lock_path, text)
+    def unlock( self, text ): return unlock(self.lock_path, text)
+    def locked( self ): return locked(self.lock_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):

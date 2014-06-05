@@ -1,3 +1,5 @@
+import os
+
 import models
 
 
@@ -106,6 +108,28 @@ def test_inheritable_fields():
 
 # TODO _inherit
 
+# lock
+# unlock
+# locked
+def test_locking():
+    lock_path = '/tmp/test-lock-%s' % datetime.now().strftime('%Y%m%dT%H%M%S')
+    text = 'we are locked. go away.'
+    # before locking
+    assert models.locked(lock_path) == False
+    assert models.unlock(lock_path, text) == 'not locked'
+    # locking
+    assert models.lock(lock_path, text) == 'ok'
+    # locked
+    assert models.locked(lock_path) == text
+    assert models.lock(lock_path, text) == 'locked'
+    assert models.unlock(lock_path, 'not the right text') == 'miss'
+    # unlocking
+    assert models.unlock(lock_path, text) == 'ok'
+    # unlocked
+    assert models.locked(lock_path) == False
+    assert models.unlock(lock_path, text) == 'not locked'
+    assert not os.path.exists(lock_path)
+
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
@@ -117,6 +141,7 @@ def test_Collection__init__():
     assert c.changelog_path == '/tmp/ddr-testing-123/changelog'
     assert c.control_path == '/tmp/ddr-testing-123/control'
     assert c.files_path == '/tmp/ddr-testing-123/files'
+    assert c.lock_path == '/tmp/ddr-testing-123/lock'
     assert c.gitignore_path == '/tmp/ddr-testing-123/.gitignore'
     assert c.changelog_path_rel == 'changelog'
     assert c.control_path_rel == 'control'
@@ -143,6 +168,30 @@ def test_Collection_changelog():
 # TODO Collection.collections
 # TODO Collection.entities
 
+# Collection.locking
+# Collection.unlock
+# Collection.locked
+def test_Collection_locking():
+    c = models.Collection('/tmp/ddr-testing-123')
+    text = 'we are locked. go away.'
+    os.mkdir(c.path)
+    # before locking
+    assert models.locked(c.lock_path) == False
+    assert models.unlock(c.lock_path, text) == 'not locked'
+    # locking
+    assert models.lock(c.lock_path, text) == 'ok'
+    # locked
+    assert models.locked(c.lock_path) == text
+    assert models.lock(c.lock_path, text) == 'locked'
+    assert models.unlock(c.lock_path, 'not the right text') == 'miss'
+    # unlocking
+    assert models.unlock(c.lock_path, text) == 'ok'
+    # unlocked
+    assert models.locked(c.lock_path) == False
+    assert models.unlock(c.lock_path, text) == 'not locked'
+    assert not os.path.exists(c.lock_path)
+    os.rmdir(c.path)
+
 def test_Entity__init__():
     e = models.Entity('/tmp/ddr-testing-123/files/1')
     assert e.path == '/tmp/ddr-testing-123/files/1'
@@ -151,6 +200,7 @@ def test_Entity__init__():
     assert e.parent_path == '/tmp/ddr-testing-123'
     assert e.uid == '1'
     assert e.parent_uid == 'ddr-testing-123'
+    assert e.lock_path == '/tmp/ddr-testing-123/files/1/lock'
     assert e.changelog_path == '/tmp/ddr-testing-123/files/1/changelog'
     assert e.control_path == '/tmp/ddr-testing-123/files/1/control'
     assert e.files_path == '/tmp/ddr-testing-123/files/1/files'
@@ -162,6 +212,30 @@ def test_Entity_path_absrel():
     e = models.Entity('/tmp/ddr-testing-123/files/1')
     assert e._path_absrel('filename') == '/tmp/ddr-testing-123/files/1/filename'
     assert e._path_absrel('filename', rel=True) == 'files/1/filename'
+
+# Entity.locking
+# Entity.unlock
+# Entity.locked
+def test_Entity_locking():
+    e = models.Entity('/tmp/ddr-testing-123-1')
+    text = 'we are locked. go away.'
+    os.mkdir(e.path)
+    # before locking
+    assert models.locked(e.lock_path) == False
+    assert models.unlock(e.lock_path, text) == 'not locked'
+    # locking
+    assert models.lock(e.lock_path, text) == 'ok'
+    # locked
+    assert models.locked(e.lock_path) == text
+    assert models.lock(e.lock_path, text) == 'locked'
+    assert models.unlock(e.lock_path, 'not the right text') == 'miss'
+    # unlocking
+    assert models.unlock(e.lock_path, text) == 'ok'
+    # unlocked
+    assert models.locked(e.lock_path) == False
+    assert models.unlock(e.lock_path, text) == 'not locked'
+    assert not os.path.exists(e.lock_path)
+    os.rmdir(e.path)
 
 def test_Entity_changelog():
     e = models.Entity('/tmp/ddr-testing-123/files/1')
