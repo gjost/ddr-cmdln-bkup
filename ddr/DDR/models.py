@@ -313,6 +313,30 @@ def write_json(data, path):
     with open(path, 'w') as f:
         f.write(json_pretty)
 
+def _inheritable_fields( MODEL_FIELDS ):
+    """Returns a list of fields that can inherit or grant values.
+    
+    Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
+    
+    @param MODEL_FIELDS
+    @returns: list
+    """
+    inheritable = []
+    for f in MODEL_FIELDS:
+        if f.get('inheritable', None):
+            inheritable.append(f['name'])
+    return inheritable
+
+def _inherit( parent, child ):
+    """Set inheritable fields in child object with values from parent.
+    
+    @param parent: A webui.models.Collection or webui.models.Entity
+    @param child: A webui.models.Entity or webui.models.File
+    """
+    for field in parent.inheritable_fields():
+        if hasattr(parent, field) and hasattr(child, field):
+            setattr(child, field, getattr(parent, field))
+
 
 
 class Collection( object ):

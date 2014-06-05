@@ -93,6 +93,19 @@ def test_write_json():
     # clean up
     os.remove(path)
 
+MODEL_FIELDS_INHERITABLE = [
+    {'name':'id',},
+    {'name':'record_created',},
+    {'name':'record_lastmod',},
+    {'name':'status', 'inheritable':True,},
+    {'name':'public', 'inheritable':True,},
+    {'name':'title',},
+]
+def test_inheritable_fields():
+    assert models._inheritable_fields(MODEL_FIELDS_INHERITABLE) == ['status','public']
+
+# TODO _inherit
+
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
