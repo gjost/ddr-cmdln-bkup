@@ -1,6 +1,19 @@
 import models
 
 
+def test_file_hash():
+    path = '/tmp/test-hash-%s' % datetime.now().strftime('%Y%m%dT%H%M%S')
+    text = 'hash'
+    sha1 = '2346ad27d7568ba9896f1b7da6b5991251debdf2'
+    sha256 = 'd04b98f48e8f8bcc15c6ae5ac050801cd6dcfd428fb5f9e65c4e16e7807340fa'
+    md5 = '0800fc577294c34e0b28ad2839435945'
+    with open(path, 'w') as f:
+        f.write(text)
+    assert models.file_hash(path, 'sha1') == sha1
+    assert models.file_hash(path, 'sha256') == sha256
+    assert models.file_hash(path, 'md5') == md5
+    os.remove(path)
+
 # TODO metadata_files
 
 def test_make_object_id():

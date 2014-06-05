@@ -33,6 +33,23 @@ MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 
 
+def file_hash(path, algo='sha1'):
+    if algo == 'sha256':
+        h = hashlib.sha256()
+    elif algo == 'md5':
+        h = hashlib.md5()
+    else:
+        h = hashlib.sha1()
+    block_size=1024
+    f = open(path, 'rb')
+    while True:
+        data = f.read(block_size)
+        if not data:
+            break
+        h.update(data)
+    f.close()
+    return h.hexdigest()
+
 def metadata_files( basedir, recursive=False, files_first=False, force_read=False, save=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
     
@@ -398,28 +415,11 @@ class Entity( object ):
     
     def checksums( self, algo ):
         checksums = []
-        def file_checksum( path, algo, block_size=1024 ):
-            if algo == 'md5':
-                h = hashlib.md5()
-            elif algo == 'sha1':
-                h = hashlib.sha1()
-            elif algo == 'sha256':
-                h = hashlib.sha256()
-            else:
-                return None
-            f = open(path, 'rb')
-            while True:
-                data = f.read(block_size)
-                if not data:
-                    break
-                h.update(data)
-            f.close()
-            return h.hexdigest()
         if algo not in Entity.checksum_algorithms():
             raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
         for f in self.files():
             fpath = os.path.join(self.files_path, f)
-            cs = file_checksum(fpath, algo)
+            cs = file_hash(fpath, algo)
             if cs:
                 checksums.append( (cs, fpath) )
         return checksums
