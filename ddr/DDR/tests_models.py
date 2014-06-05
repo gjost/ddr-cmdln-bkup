@@ -83,6 +83,16 @@ def test_module_function():
 
 # TODO module_xml_function
 
+def test_write_json():
+    data = {'a':1, 'b':2}
+    path = '/tmp/ddrlocal.models.write_json.json'
+    models.write_json(data, path)
+    with open(path, 'r') as f:
+        written = f.readlines()
+    assert written == ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    # clean up
+    os.remove(path)
+
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
