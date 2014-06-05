@@ -21,6 +21,12 @@ def test_repository():
     assert ('email',mail) in reader.items('user')
     assert ('sshcaching','false') in reader.items('annex')
 
+def test_git_version():
+    out = dvcs.git_version()
+    assert 'git version' in out
+    assert 'git-annex version' in out
+    assert 'local repository version' in out
+
 def test_latest_commit():
     repo = dvcs.latest_commit(git.Repo(os.getcwd()))
     path = dvcs.latest_commit(os.getcwd())

@@ -33,6 +33,30 @@ def repository(path, user_name=None, user_mail=None):
     repo = git.Repo(path)
     return set_git_configs(repo, user_name, user_mail)
 
+def git_version(repo_path=None):
+    """Returns version info for Git and git-annex.
+    
+    If repo_path is specified, returns version of local repo's annex.
+    example:
+    'git version 1.7.10.4; git-annex version: 3.20120629; local repository version: 3; ' \
+    'default repository version: 3; supported repository versions: 3; ' \
+    'upgrade supported from repository versions: 0 1 2'
+    
+    @param repo_path: Absolute path to repository (optional).
+    @returns string
+    """
+    try:
+        # git
+        gitv = envoy.run('git --version').std_out.strip()
+        # git annex
+        if repo_path and os.path.exists(repo_path):
+            os.chdir(repo_path)
+        annex = envoy.run('git annex version').std_out.strip().split('\n')
+        gitversion = '; '.join([gitv] + annex)
+    except Exception as err:
+        gitversion = '%s' % err
+    return gitversion
+
 def latest_commit(repo_or_path=None):
     """Returns latest commit for the specified repository
     
