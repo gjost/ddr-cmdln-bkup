@@ -75,6 +75,14 @@ def test_parent_id():
 
 # TODO model_fields
 
+def test_module_function():
+    module = models
+    functionname = 'id_from_path'
+    value = '.../ddr-test-123/collection.json'
+    assert models.module_function(module, functionname, value) == 'ddr-test-123'
+
+# TODO module_xml_function
+
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
