@@ -436,6 +436,40 @@ def _filter_payload( data, public_fields ):
                 data.remove(field)
                 print('removed %s' % fieldname)
 
+def _clean_controlled_vocab( data ):
+    """Extract topics IDs from textual control-vocab texts.
+
+    >>> _clean_controlled_vocab('Topics [123]')
+    ['123']
+    >>> _clean_controlled_vocab(['Topics [123]'])
+    ['123']
+    >>> _clean_controlled_vocab(['123'])
+    ['123']
+    >>> _clean_controlled_vocab([123])
+    ['123']
+    >>> _clean_controlled_vocab('123')
+    ['123']
+    >>> _clean_controlled_vocab(123)
+    ['123']
+    
+    @param data: contents of data field
+    @returns: list of ID strings
+    """
+    if isinstance(data, int):
+        data = str(data)
+    if isinstance(data, basestring):
+        data = [data]
+    cleaned = []
+    for x in data:
+        if not isinstance(x, basestring):
+            x = str(x)
+        if ('[' in x) and (']' in x):
+            y = x.split('[')[1].split(']')[0] 
+        else:
+            y = x
+        cleaned.append(y)
+    return cleaned
+
 def _clean_creators( data ):
     """Normalizes contents of 'creators' field.
     
@@ -507,9 +541,7 @@ def _clean_facility( data ):
     @param data: contents of data field
     @returns: list of field ID strings
     """
-    if isinstance(data, basestring):
-        data = [data]
-    return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
+    return _clean_controlled_vocab(data)
 
 def _clean_parent( data ):
     """Normalizes contents of 'creators' field.
@@ -537,19 +569,19 @@ def _clean_topics( data ):
     ['123']
     >>> _clean_topics(['Topics [123]'])
     ['123']
-    >>> _clean_topics(123)
+    >>> _clean_topics(['123'])
+    ['123']
+    >>> _clean_topics([123])
     ['123']
     >>> _clean_topics('123')
     ['123']
-    >>> _clean_topics([123])
+    >>> _clean_topics(123)
     ['123']
     
     @param data: contents of data field
     @returns: list of ID strings
     """
-    if isinstance(data, basestring):
-        data = [data]
-    return [x.split('[')[1].split(']')[0] for x in data if ('[' in x) and (']' in x)]
+    return _clean_controlled_vocab(data)
 
 def _clean_dict( data ):
     """Remove null or empty fields; ElasticSearch chokes on them.

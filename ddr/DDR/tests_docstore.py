@@ -64,12 +64,10 @@ def test_clean_facility():
     data0 = 'Tule Lake [10]'
     data1 = '10'
     data2 = 10
-    expected0 = ['10']
-    expected1 = ['10']
-    expected2 = ['10']
-    assert docstore._clean_facility(data0) == expected0
-    assert docstore._clean_facility(data1) == expected1
-    assert docstore._clean_facility(data2) == expected2
+    expected = ['10']
+    assert docstore._clean_facility(data0) == expected
+    assert docstore._clean_facility(data1) == expected
+    assert docstore._clean_facility(data2) == expected
 
 def test_clean_parent():
     data0 = 'ddr-testing-123'
@@ -80,21 +78,19 @@ def test_clean_parent():
     assert docstore._clean_parent(data1) == expected1
 
 def test_clean_topics():
-    data0 = 'Topics [123]'
-    data1 = ['Topics [123]']
-    data2 = 123
-    data3 = '123'
-    data4 = [123]
-    expected0 = ['123']
-    expected1 = ['123']
-    expected2 = ['123']
-    expected3 = ['123']
-    expected4 = ['123']
-    assert docstore._clean_topics(data0) == expected0
-    assert docstore._clean_topics(data1) == expected1
-    assert docstore._clean_topics(data2) == expected2
-    assert docstore._clean_topics(data3) == expected3
-    assert docstore._clean_topics(data4) == expected4
+    data0 = ['Topics [123]']
+    data1 = 'Topics [123]'
+    data2 = ['123']
+    data3 = [123]
+    data4 = '123'
+    data5 = 123
+    expected = ['123']
+    assert docstore._clean_topics(data0) == expected
+    assert docstore._clean_topics(data1) == expected
+    assert docstore._clean_topics(data2) == expected
+    assert docstore._clean_topics(data3) == expected
+    assert docstore._clean_topics(data4) == expected
+    assert docstore._clean_topics(data5) == expected
 
 def test_clean_dict():
     d = {'a': 'abc', 'b': 'bcd', 'x':'' }
