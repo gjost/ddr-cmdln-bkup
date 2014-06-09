@@ -150,6 +150,8 @@ def mount_path( path ):
     @param path: Absolute file path
     @return: Path to mount point or '/'
     """
+    if not path:
+        return '/'
     p1 = os.sep.join( path.split(os.sep)[:-1] )
     if os.path.ismount(p1):
         return p1

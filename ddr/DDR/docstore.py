@@ -113,6 +113,54 @@ def index_names( hosts ):
         indices.append(name)
     return indices
 
+def set_alias( hosts, alias, index ):
+    """Point alias at specified index; create index if doesn't exist.
+    
+    IMPORTANT: There is only ever ONE index at a time. All existing
+    aliases are deleted before specified one is created.
+    
+    @param hosts: list of dicts containing host information.
+    @param alias: Name of the alias
+    @param index: Name of the alias' target index.
+    """
+    alias = make_index_name(alias)
+    index = make_index_name(index)
+    es = _get_connection(hosts)
+    if not index_exists(hosts, index):
+        create_index(hosts, index)
+    # delete existing aliases
+    catindexes = es.cat.aliases(h=['alias','index'])
+    for line in catindexes.strip().split('\n'):
+        # cat.aliases arranges data in columns so rm extra spaces
+        while '  ' in line:
+            line = line.replace('  ', ' ')
+        a,i = line.strip().split(' ')
+        es.indices.delete_alias(index=i, name=a)
+    # set the alias
+    es.indices.put_alias(index=index, name=alias, body='')
+
+def target_index( hosts, alias ):
+    """Get the name of the index to which the alias points
+    
+    >>> es.cat.aliases(h=['alias','index'])
+    u'documents0 wd5000bmv-2 \n'
+    
+    @param hosts: list of dicts containing host information.
+    @param alias: Name of the alias
+    @returns: name of target index
+    """
+    alias = alias.lower()
+    target = []
+    es = _get_connection(hosts)
+    catindexes = es.cat.aliases(h=['alias','index'])
+    for line in catindexes.strip().split('\n'):
+        # cat.aliases arranges data in columns so rm extra spaces
+        while '  ' in line:
+            line = line.replace('  ', ' ')
+        a,i = line.strip().split(' ')
+        if a == alias:
+            target = i
+    return target
 
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
