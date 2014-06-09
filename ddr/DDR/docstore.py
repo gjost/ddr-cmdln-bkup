@@ -135,8 +135,9 @@ def set_alias( hosts, alias, index ):
         # cat.aliases arranges data in columns so rm extra spaces
         while '  ' in line:
             line = line.replace('  ', ' ')
-        a,i = line.strip().split(' ')
-        es.indices.delete_alias(index=i, name=a)
+        if line:
+            a,i = line.strip().split(' ')
+            es.indices.delete_alias(index=i, name=a)
     # set the alias
     es.indices.put_alias(index=index, name=alias, body='')
 
@@ -158,9 +159,10 @@ def target_index( hosts, alias ):
         # cat.aliases arranges data in columns so rm extra spaces
         while '  ' in line:
             line = line.replace('  ', ' ')
-        a,i = line.strip().split(' ')
-        if a == alias:
-            target = i
+        if line:
+            a,i = line.strip().split(' ')
+            if a == alias:
+                target = i
     return target
 
 def create_index( hosts, index ):
