@@ -84,6 +84,7 @@ def make_index_name( text ):
     SEPARATORS = ['/', '\\',]
     name = []
     if text:
+        text = os.path.normpath(text)
         for n,char in enumerate(text):
             if char in SEPARATORS:
                 char = '-'
