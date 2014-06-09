@@ -7,6 +7,7 @@ import re
 from DDR import CONFIG_FILE
 from DDR import natural_order_string
 from DDR.control import CollectionControlFile, EntityControlFile
+from DDR import dvcs
 
 
 
@@ -32,6 +33,23 @@ MODELS = ['collection', 'entity', 'file']
 MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 
+
+def file_hash(path, algo='sha1'):
+    if algo == 'sha256':
+        h = hashlib.sha256()
+    elif algo == 'md5':
+        h = hashlib.md5()
+    else:
+        h = hashlib.sha1()
+    block_size=1024
+    f = open(path, 'rb')
+    while True:
+        data = f.read(block_size)
+        if not data:
+            break
+        h.update(data)
+    f.close()
+    return h.hexdigest()
 
 def metadata_files( basedir, recursive=False, files_first=False, force_read=False, save=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
@@ -100,6 +118,85 @@ def metadata_files( basedir, recursive=False, files_first=False, force_read=Fals
             f.write('\n'.join(paths))
     return paths
 
+class Path( object ):
+    path = None
+    base_path = None
+    collection_path = None
+    entity_path = None
+    file_path = None
+    filename = None
+    ext = None
+    object_type = None
+    object_id = None
+    collection_id = None
+    entity_id = None
+    file_id = None
+    repo = None
+    org = None
+    cid = None
+    eid = None
+    role = None
+    sha1 = None
+
+def dissect_path( path_abs ):
+    """Slices up an absolute path and extracts as much as it can.
+    
+    @param path_abs: An absolute file path.
+    @returns: object
+    """
+    if ('master' in path_abs) or ('mezzanine' in path_abs):
+        # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
+        # /basepath/collection_id/files/entity_id/files/file_id.ext
+        # /basepath/collection_id/files/entity_id/files/file_id.json
+        # /basepath/collection_id/files/entity_id/files/file_id
+        p = Path()
+        p.path = path_abs
+        p.entity_path = os.path.dirname(os.path.dirname(path_abs))
+        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+        p.base_path = os.path.dirname(p.collection_path)
+        pathname,ext = os.path.splitext(path_abs)
+        if ext and (pathname[-2:] == '-a'):
+            p.object_id = os.path.basename(pathname[:-2])
+        else:
+            p.object_id = os.path.basename(pathname)
+        p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
+        p.file_id = p.object_id
+        p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
+        return p
+        
+    elif ('entity.json' in path_abs) or ('files' in path_abs):
+        # /basepath/collection_id/files/entity_id/entity.json
+        p = Path()
+        p.path = path_abs
+        if (os.path.basename(path_abs) == 'entity.json') or (os.path.basename(path_abs) == 'files'):
+            p.entity_path = os.path.dirname(path_abs)
+        else:
+            p.entity_path = path_abs
+        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+        p.base_path = os.path.dirname(p.collection_path)
+        p.object_id = os.path.basename(p.entity_path)
+        p.object_type,p.repo,p.org,p.cid,p.eid = split_object_id(p.object_id)
+        p.entity_id = p.object_id
+        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
+        return p
+        
+    else:
+        # /basepath/collection_id/collection.json
+        p = Path()
+        p.path = path_abs
+        if (os.path.basename(path_abs) == 'collection.json'):
+            p.collection_path = os.path.dirname(path_abs)
+        else:
+            p.collection_path = path_abs
+        p.base_path = os.path.dirname(p.collection_path)
+        p.object_id = os.path.basename(p.collection_path)
+        p.object_type,p.repo,p.org,p.cid = split_object_id(p.object_id)
+        p.collection_id = p.object_id
+        return p
+        
+    return None
+
 def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
     if   (model == 'file') and repo and org and cid and eid and role and sha1:
         return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
@@ -154,6 +251,24 @@ def id_from_path( path ):
     elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
     return None
 
+def model_from_path( path ):
+    """Guess model from the path.
+    
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
+    'collection'
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
+    'entity'
+    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
+    'file'
+    
+    @param path: absolute or relative path to metadata JSON file.
+    @returns: model
+    """
+    if 'collection.json' in path: return 'collection'
+    elif 'entity.json' in path: return 'entity'
+    elif ('master' in path) or ('mezzanine' in path): return 'file'
+    return None
+
 def model_from_dict( data ):
     """Guess model by looking in dict for object_id or path_rel
     """
@@ -177,24 +292,6 @@ def model_from_dict( data ):
         #elif len_parts == 1: return 'repository'
     return None
 
-def model_from_path( path ):
-    """Guess model from the path.
-    
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
-    'collection'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'entity'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'file'
-    
-    @param path: absolute or relative path to metadata JSON file.
-    @returns: model
-    """
-    if 'collection.json' in path: return 'collection'
-    elif 'entity.json' in path: return 'entity'
-    elif ('master' in path) or ('mezzanine' in path): return 'file'
-    return None
-
 def parent_id( object_id ):
     """Given a DDR object ID, returns the parent object ID.
     
@@ -212,8 +309,8 @@ def parent_id( object_id ):
     'ddr-testing-123-1'
     """
     parts = object_id.split('-')
-    if   len(parts) == 2: return '-'.join([ parts[0], parts[1] ])
-    elif len(parts) == 3: return '-'.join([ parts[0], parts[1] ])
+    if   len(parts) == 2: return '-'.join([ parts[0], ])
+    elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
     elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
@@ -238,6 +335,181 @@ def model_fields( model ):
         return fields
     return []
 
+def module_function(module, function_name, value):
+    """If named function is present in module and callable, pass value to it and return result.
+    
+    Among other things this may be used to prep data for display, prepare it
+    for editing in a form, or convert cleaned form data into Python data for
+    storage in objects.
+    
+    @param module: A Python module
+    @param function_name: Name of the function to be executed.
+    @param value: A single value to be passed to the function, or None.
+    @returns: Whatever the specified function returns.
+    """
+    if (function_name in dir(module)):
+        function = getattr(module, function_name)
+        value = function(value)
+    return value
+
+def module_xml_function(module, function_name, tree, NAMESPACES, f, value):
+    """If module function is present and callable, pass value to it and return result.
+    
+    Same as module_function() but with XML we need to pass namespaces lists to
+    the functions.
+    Used in dump_ead(), dump_mets().
+    
+    @param module: A Python module
+    @param function_name: Name of the function to be executed.
+    @param tree: An lxml tree object.
+    @param NAMESPACES: Dict of namespaces used in the XML document.
+    @param f: Field dict (from MODEL_FIELDS).
+    @param value: A single value to be passed to the function, or None.
+    @returns: Whatever the specified function returns.
+    """
+    if (function_name in dir(module)):
+        function = getattr(module, function_name)
+        tree = function(tree, NAMESPACES, f, value)
+    return tree
+
+def write_json(data, path):
+    """Write JSON using consistent formatting and sorting.
+    
+    For versioning and history to be useful we need data fields to be written
+    in a format that is easy to edit by hand and in which values can be compared
+    from one commit to the next.  This function prints JSON with nice spacing
+    and indentation and with sorted keys, so fields will be in the same relative
+    position across commits.
+    
+    >>> data = {'a':1, 'b':2}
+    >>> path = '/tmp/ddrlocal.models.write_json.json'
+    >>> write_json(data, path)
+    >>> with open(path, 'r') as f:
+    ...     print(f.readlines())
+    ...
+    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    """
+    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
+    with open(path, 'w') as f:
+        f.write(json_pretty)
+
+def _inheritable_fields( MODEL_FIELDS ):
+    """Returns a list of fields that can inherit or grant values.
+    
+    Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
+    
+    @param MODEL_FIELDS
+    @returns: list
+    """
+    inheritable = []
+    for f in MODEL_FIELDS:
+        if f.get('inheritable', None):
+            inheritable.append(f['name'])
+    return inheritable
+
+def _inherit( parent, child ):
+    """Set inheritable fields in child object with values from parent.
+    
+    @param parent: A webui.models.Collection or webui.models.Entity
+    @param child: A webui.models.Entity or webui.models.File
+    """
+    for field in parent.inheritable_fields():
+        if hasattr(parent, field) and hasattr(child, field):
+            setattr(child, field, getattr(parent, field))
+
+def lock( lock_path, text ):
+    """Writes lockfile to collection dir; complains if can't.
+    
+    Celery tasks don't seem to know their own task_id, and there don't
+    appear to be any handlers that can be called just *before* a task
+    is fired. so it appears to be impossible for a task to lock itself.
+    
+    This method should(?) be called immediately after starting the task:
+    >> result = collection_sync.apply_async((args...), countdown=2)
+    >> lock_status = collection.lock(result.task_id)
+    
+    >>> path = '/tmp/ddr-testing-123'
+    >>> os.mkdir(path)
+    >>> c = Collection(path)
+    >>> c.lock('abcdefg')
+    'ok'
+    >>> c.lock('abcdefg')
+    'locked'
+    >>> c.unlock('abcdefg')
+    'ok'
+    >>> os.rmdir(path)
+    
+    TODO return 0 if successful
+    
+    @param lock_path
+    @param text
+    @returns 'ok' or 'locked'
+    """
+    if os.path.exists(lock_path):
+        return 'locked'
+    with open(lock_path, 'w') as f:
+        f.write(text)
+    return 'ok'
+
+def unlock( lock_path, text ):
+    """Removes lockfile or complains if can't
+    
+    This method should be called by celery Task.after_return()
+    See "Abstract classes" section of http://celery.readthedocs.org/en/latest/userguide/tasks.html#custom-task-classes
+    
+    >>> path = '/tmp/ddr-testing-123'
+    >>> os.mkdir(path)
+    >>> c = Collection(path)
+    >>> c.lock('abcdefg')
+    'ok'
+    >>> c.unlock('xyz')
+    'task_id miss'
+    >>> c.unlock('abcdefg')
+    'ok'
+    >>> c.unlock('abcdefg')
+    'not locked'
+    >>> os.rmdir(path)
+    
+    TODO return 0 if successful
+    
+    @param lock_path
+    @param text
+    @returns 'ok', 'not locked', 'task_id miss', 'blocked'
+    """
+    if not os.path.exists(lock_path):
+        return 'not locked'
+    with open(lock_path, 'r') as f:
+        lockfile_text = f.read().strip()
+    if lockfile_text and (lockfile_text != text):
+        return 'miss'
+    os.remove(lock_path)
+    if os.path.exists(lock_path):
+        return 'blocked'
+    return 'ok'
+    
+def locked( lock_path ):
+    """Returns contents of lockfile if collection repo is locked, False if not
+    
+    >>> c = Collection('/tmp/ddr-testing-123')
+    >>> c.locked()
+    False
+    >>> c.lock('abcdefg')
+    'ok'
+    >>> c.locked()
+    'abcdefg'
+    >>> c.unlock('abcdefg')
+    'ok'
+    >>> c.locked()
+    False
+    
+    @param lock_path
+    """
+    if os.path.exists(lock_path):
+        with open(lock_path, 'r') as f:
+            text = f.read().strip()
+        return text
+    return False
+
 
 
 class Collection( object ):
@@ -249,6 +521,7 @@ class Collection( object ):
     changelog_path = None
     control_path = None
     gitignore_path = None
+    lock_path = None
     annex_path_rel = None
     changelog_path_rel = None
     control_path_rel = None
@@ -273,6 +546,7 @@ class Collection( object ):
         self.control_path       = self._path_absrel('control'    )
         self.files_path         = self._path_absrel('files'      )
         self.gitignore_path     = self._path_absrel('.gitignore' )
+        self.lock_path          = self._path_absrel('lock' )
         self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
         self.control_path_rel   = self._path_absrel('control',    rel=True)
         self.files_path_rel     = self._path_absrel('files',      rel=True)
@@ -291,6 +565,10 @@ class Collection( object ):
         if not os.path.exists(self.control_path):
             CollectionControlFile.create(self.control_path, self.uid)
         return CollectionControlFile(self.control_path)
+    
+    def lock( self, text ): return lock(self.lock_path, text)
+    def unlock( self, text ): return unlock(self.lock_path, text)
+    def locked( self ): return locked(self.lock_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -328,6 +606,43 @@ class Collection( object ):
                 entities.append(e)
         entities = sorted(entities, key=lambda e: natural_order_string(e.uid))
         return entities
+    
+    def repo_fetch( self ):
+        """Fetch latest changes to collection repo from origin/master.
+        """
+        result = '-1'
+        if os.path.exists(os.path.join(self.path, '.git')):
+            result = dvcs.fetch(self.path)
+        else:
+            result = '%s is not a git repository' % self.path
+        return result
+    
+    def repo_status( self ):
+        """Get status of collection repo vis-a-vis origin/master.
+        
+        The repo_(synced,ahead,behind,diverged,conflicted) functions all use
+        the result of this function so that git-status is only called once.
+        """
+        if not self._status and (os.path.exists(os.path.join(self.path, '.git'))):
+            status = dvcs.repo_status(self.path, short=True)
+            if status:
+                self._status = status
+        return self._status
+    
+    def repo_synced( self ):     return dvcs.synced(self.repo_status())
+    def repo_ahead( self ):      return dvcs.ahead(self.repo_status())
+    def repo_behind( self ):     return dvcs.behind(self.repo_status())
+    def repo_diverged( self ):   return dvcs.diverged(self.repo_status())
+    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status())
+    
+    def repo_annex_status( self ):
+        """Get annex status of collection repo.
+        """
+        if not self._astatus and (os.path.exists(os.path.join(self.path, '.git'))):
+            astatus = dvcs.annex_status(self.path)
+            if astatus:
+                self._astatus = astatus
+        return self._astatus
 
 
 
@@ -338,6 +653,7 @@ class Entity( object ):
     parent_path = None
     uid = None
     parent_uid = None
+    lock_path = None
     changelog_path = None
     control_path = None
     files_path = None
@@ -363,12 +679,17 @@ class Entity( object ):
             uid = os.path.basename(self.path)
         self.uid = uid
         self.parent_uid = os.path.split(self.parent_path)[1]
+        self.lock_path          = self._path_absrel('lock'  )
         self.changelog_path     = self._path_absrel('changelog'  )
         self.control_path       = self._path_absrel('control'    )
         self.files_path         = self._path_absrel('files'      )
         self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
         self.control_path_rel   = self._path_absrel('control',    rel=True)
         self.files_path_rel     = self._path_absrel('files',      rel=True)
+    
+    def lock( self, text ): return lock(self.lock_path, text)
+    def unlock( self, text ): return unlock(self.lock_path, text)
+    def locked( self ): return locked(self.lock_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -398,28 +719,11 @@ class Entity( object ):
     
     def checksums( self, algo ):
         checksums = []
-        def file_checksum( path, algo, block_size=1024 ):
-            if algo == 'md5':
-                h = hashlib.md5()
-            elif algo == 'sha1':
-                h = hashlib.sha1()
-            elif algo == 'sha256':
-                h = hashlib.sha256()
-            else:
-                return None
-            f = open(path, 'rb')
-            while True:
-                data = f.read(block_size)
-                if not data:
-                    break
-                h.update(data)
-            f.close()
-            return h.hexdigest()
         if algo not in Entity.checksum_algorithms():
             raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
         for f in self.files():
             fpath = os.path.join(self.files_path, f)
-            cs = file_checksum(fpath, algo)
+            cs = file_hash(fpath, algo)
             if cs:
                 checksums.append( (cs, fpath) )
         return checksums
