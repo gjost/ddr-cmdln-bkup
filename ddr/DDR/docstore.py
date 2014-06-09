@@ -114,9 +114,10 @@ def index_names( hosts ):
     return indices
 
 def set_alias( hosts, alias, index ):
-    """Point the alias at the specified index; create index if doesn't exist.
+    """Point alias at specified index; create index if doesn't exist.
     
-    IMPORTANT This function deletes ALL aliases before creating specified alias.
+    IMPORTANT: There is only ever ONE index at a time. All existing
+    aliases are deleted before specified one is created.
     
     @param hosts: list of dicts containing host information.
     @param alias: Name of the alias
@@ -127,15 +128,14 @@ def set_alias( hosts, alias, index ):
     es = _get_connection(hosts)
     if not index_exists(hosts, index):
         create_index(hosts, index)
-    # delete existing aliases for this index
-    aliases = {}
-    indexes = es.indices.get_aliases(index=index)
-    if indexname in indexes.keys():
-        x = indexes[indexname]['aliases']
-        if x:
-            aliases = x.keys()
-    for a in aliases:
-        es.indices.delete_alias(index=index, name=a)
+    # delete existing aliases
+    catindexes = es.cat.aliases(h=['alias','index'])
+    for line in catindexes.strip().split('\n'):
+        # cat.aliases arranges data in columns so rm extra spaces
+        while '  ' in line:
+            line = line.replace('  ', ' ')
+        a,i = line.strip().split(' ')
+        es.indices.delete_alias(index=i, name=a)
     # set the alias
     es.indices.put_alias(index=index, name=alias, body='')
 
@@ -152,18 +152,15 @@ def target_index( hosts, alias ):
     alias = alias.lower()
     target = []
     es = _get_connection(hosts)
-    out = es.cat.aliases(h=['alias','index'])
-    for line in out.strip().split('\n'):
+    catindexes = es.cat.aliases(h=['alias','index'])
+    for line in catindexes.strip().split('\n'):
         # cat.aliases arranges data in columns so rm extra spaces
         while '  ' in line:
             line = line.replace('  ', ' ')
-        print(line)
-        if line:
-            a,i = line.strip().split(' ')
-            if a == alias:
-                target = i
+        a,i = line.strip().split(' ')
+        if a == alias:
+            target = i
     return target
-    
 
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
