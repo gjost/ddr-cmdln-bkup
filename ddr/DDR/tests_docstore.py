@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 
 from nose.tools import assert_raises
 from nose.plugins.attrib import attr
@@ -48,6 +49,12 @@ def test_index():
     assert deleted == {u'acknowledged': True}
     assert exists_deleted == False
 
+# set_alias
+# target_index
+def test_parse_cataliases():
+    cataliases = u'ddrworkstation documents0 \nwd5000bmv-2 documents0 \n'
+    expected = [('ddrworkstation','documents0'), ('wd5000bmv-2','documents0')]
+    assert docstore._parse_cataliases(cataliases) == expected
 
 #def test_make_mappings():
 #    assert False
@@ -197,8 +204,87 @@ def test_page_bottom_top():
     assert_raises(docstore.EmptyPage, docstore._page_bottom_top, 10,0,5)
     assert_raises(docstore.EmptyPage, docstore._page_bottom_top, 10,3,5)
 
-#def test_massage_query_results():
-#    assert False
+MASSAGE_QUERY_RESULTS	= {
+    'hits': {
+        'hits': [
+            {
+                '_id': 'ddr-test-123',
+                '_index': 'fakeindex',
+                '_type': 'collection',
+                'fields': {
+                    'index': 'fakeindex',
+                    'model': 'collection',
+                    'type': 'collection',
+                    'id': 'ddr-test-123',
+                    'title': 'TITLE TEXT',
+                    'description': 'DESCRIPTION TEXT',
+                    'signature_file': 'ddr-test-123-1-master-a1b2c3'
+                }
+            },
+            {
+                '_id': 'ddr-test-123-1',
+                '_index': 'fakeindex',
+                '_type': 'entity',
+                'fields': {
+                    'index': 'fakeindex',
+                    'model': 'entity',
+                    'type': 'entity',
+                    'id': 'ddr-test-123-1',
+                    'title': 'TITLE TEXT',
+                    'description': 'DESCRIPTION TEXT',
+                    'signature_file': 'ddr-test-123-1-master-a1b2c3'
+                }
+            },
+            {
+                '_id': 'ddr-test-123-1-master-a1b2c3',
+                '_index': 'fakeindex',
+                '_type': 'file',
+                '_source': {
+                    'index': 'fakeindex',
+                    'model': 'file',
+                    'type': 'file',
+                    'id': 'ddr-test-123-1-master-a1b2c3',
+                    'title': 'TITLE TEXT',
+                    'description': 'DESCRIPTION TEXT',
+                    'signature_file': 'ddr-test-123-1-master-a1b2c3'
+                }
+            },
+            {
+                '_id': 'ddr-test-123-2',
+                '_index': 'fakeindex',
+                '_type': 'entity',
+                'fields': {
+                    'index': 'fakeindex',
+                    'model': 'entity',
+                    'type': 'entity',
+                    'id': 'ddr-test-123-2',
+                    'title': 'TITLE TEXT',
+                    'description': 'DESCRIPTION TEXT',
+                    'signature_file': 'ddr-test-123-1-master-a1b2c3'
+                }
+            },
+        ],
+        'total': 7
+    },
+}
+MASSAGE_EXPECTED0 = [
+    {'index': 'fakeindex', 'description': 'DESCRIPTION TEXT', 'title': 'TITLE TEXT', 'model': 'collection', 'type': 'collection', 'id': 'ddr-test-123', 'signature_file': 'ddr-test-123-1-master-a1b2c3'},
+    {'index': 'fakeindex', 'description': 'DESCRIPTION TEXT', 'title': 'TITLE TEXT', 'model': 'entity', 'type': 'entity', 'id': 'ddr-test-123-1', 'signature_file': 'ddr-test-123-1-master-a1b2c3'},
+    {'placeholder': True, 'id': 'ddr-test-123-1-master-a1b2c3', 'n': 2},
+    {'placeholder': True, 'id': 'ddr-test-123-2', 'n': 3}
+]
+MASSAGE_EXPECTED1 = [
+    {'placeholder': True, 'id': 'ddr-test-123', 'n': 0},
+    {'placeholder': True, 'id': 'ddr-test-123-1', 'n': 1},
+    {'index': 'fakeindex', 'description': 'DESCRIPTION TEXT', 'title': 'TITLE TEXT', 'model': 'file', 'type': 'file', 'id': 'ddr-test-123-1-master-a1b2c3', 'signature_file': 'ddr-test-123-1-master-a1b2c3'},
+    {'index': 'fakeindex', 'description': 'DESCRIPTION TEXT', 'title': 'TITLE TEXT', 'model': 'entity', 'type': 'entity', 'id': 'ddr-test-123-2', 'signature_file': 'ddr-test-123-1-master-a1b2c3'}
+]
+
+def test_massage_query_results():
+    objects0 = docstore.massage_query_results(MASSAGE_QUERY_RESULTS, page_size=2, thispage=1)
+    objects1 = docstore.massage_query_results(MASSAGE_QUERY_RESULTS, page_size=2, thispage=2)
+    assert objects0 == MASSAGE_EXPECTED0
+    assert objects1 == MASSAGE_EXPECTED1
 
 def test_clean_sort():
     data0 = 'whatever'
@@ -214,12 +300,79 @@ def test_clean_sort():
 # search
 # delete
 # _model_fields
-# _public_fields
+
+PUBLIC_FIELDS = '''{
+"entity": [{"elasticsearch": {"public": true}, "name": "id"}, {"elasticsearch": {"public": true}, "name": "notes"}, {"elasticsearch": {"public": true}, "name": "title"}, {"name": "noelastic"}],
+"file": [{"elasticsearch": {"public": true}, "name": "id"}, {"elasticsearch": {"public": true}, "name": "notes"}, {"elasticsearch": {"public": true}, "name": "title"}, {"name": "noelastic"}]
+}
+'''
+PUBLIC_FIELDS_EXPECTED = {
+    'file': ['id', 'notes', 'title', 'path_rel', 'id'],
+    'entity': ['id', 'notes', 'title']
+}
+
+def test_public_fields():
+    data = json.loads(PUBLIC_FIELDS)
+    assert docstore._public_fields(data) == PUBLIC_FIELDS_EXPECTED
+
 # _parents_status
-# _file_parent_ids
-# _publishable_or_not
+
+def test_file_parent_ids():
+    case0 = ('collection', '.../ddr-testing-123/collection.json', [])
+    case1 = ('entity', '.../ddr-testing-123-1/entity.json', ['ddr-testing-123'])
+    case2 = ('file', '.../ddr-testing-123-1-master-a1.json', ['ddr-testing-123', 'ddr-testing-123-1'])
+    assert docstore._file_parent_ids(case0[0], case0[1]) == case0[2]
+    assert docstore._file_parent_ids(case1[0], case1[1]) == case1[2]
+    assert docstore._file_parent_ids(case2[0], case2[1]) == case2[2]
+
+def test_publishable_or_not():
+    PATHS = [
+        '/BASE/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-96c.json',
+        '/BASE/ddr-test-123/files/ddr-test-123-2/files/ddr-test-123-2-master-c46.json',
+        '/BASE/ddr-test-123/files/ddr-test-123-1/entity.json',
+        '/BASE/ddr-test-123/files/ddr-test-123-2/entity.json',
+        '/BASE/ddr-test-123/collection.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-1/files/ddr-test-124-1-master-6c9.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-2/files/ddr-test-124-2-master-46c.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-1/entity.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-2/entity.json',
+        '/BASE/ddr-test-124/collection.json',
+       ]
+    PARENTS = {
+        u'ddr-test-123-1': {'status': u'completed', 'public': u'1'},
+        u'ddr-test-123-2': {'status': u'completed', 'public': u'0'},
+        u'ddr-test-123': {'status': u'completed', 'public': u'1'},
+        u'ddr-test-124-1': {'status': u'completed', 'public': u'1'},
+        u'ddr-test-124-2': {'status': u'completed', 'public': u'0'},
+        u'ddr-test-124': {'status': u'completed', 'public': u'1'},
+       }
+    EXPECTED_SUCCESSFUL = [
+        '/BASE/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-96c.json',
+        '/BASE/ddr-test-123/files/ddr-test-123-1/entity.json',
+        '/BASE/ddr-test-123/files/ddr-test-123-2/entity.json',
+        '/BASE/ddr-test-123/collection.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-1/files/ddr-test-124-1-master-6c9.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-1/entity.json',
+        '/BASE/ddr-test-124/files/ddr-test-124-2/entity.json',
+        '/BASE/ddr-test-124/collection.json'
+       ]
+    EXPECTED_BAD = [
+        ('/BASE/ddr-test-123/files/ddr-test-123-2/files/ddr-test-123-2-master-c46.json',
+         403, "parent unpublishable: ['ddr-test-123-2']"),
+        ('/BASE/ddr-test-124/files/ddr-test-124-2/files/ddr-test-124-2-master-46c.json',
+         403, "parent unpublishable: ['ddr-test-124-2']")
+       ]
+    successful_paths,bad_paths = docstore._publishable_or_not(PATHS, PARENTS)
+    assert successful_paths == EXPECTED_SUCCESSFUL
+    assert bad_paths == EXPECTED_BAD
+
 # _has_access_file
 # _store_signature_file
 # _choose_signatures
 # load_document_json
-# index
+
+def test_indexer():
+    hosts = [{'host': '127.0.0.1', 'port': 9999}]
+    index = 'fakeindex'
+    results = docstore.index(hosts, index, '/tmp', recursive=True, public=True)
+    assert results == {'successful': 0, 'bad': [], 'total': 0}

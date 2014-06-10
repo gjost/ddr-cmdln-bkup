@@ -114,6 +114,24 @@ def index_names( hosts ):
         indices.append(name)
     return indices
 
+def _parse_cataliases( cataliases ):
+    """
+    Sample input:
+    u'ddrworkstation documents0 \nwd5000bmv-2 documents0 \n'
+
+    @param cataliases: Raw output of es.cat.aliases(h=['index','alias'])
+    @returns: list of (index,alias) tuples
+    """
+    indices_aliases = []
+    for line in cataliases.strip().split('\n'):
+        # cat.aliases arranges data in columns so rm extra spaces
+        while '  ' in line:
+            line = line.replace('  ', ' ')
+        if line:
+            i,a = line.strip().split(' ')
+            indices_aliases.append( (i,a) )
+    return indices_aliases
+
 def set_alias( hosts, alias, index ):
     """Point alias at specified index; create index if doesn't exist.
     
@@ -130,14 +148,8 @@ def set_alias( hosts, alias, index ):
     if not index_exists(hosts, index):
         create_index(hosts, index)
     # delete existing aliases
-    catindexes = es.cat.aliases(h=['alias','index'])
-    for line in catindexes.strip().split('\n'):
-        # cat.aliases arranges data in columns so rm extra spaces
-        while '  ' in line:
-            line = line.replace('  ', ' ')
-        if line:
-            a,i = line.strip().split(' ')
-            es.indices.delete_alias(index=i, name=a)
+    for i,a in _parse_cataliases(es.cat.aliases(h=['index','alias'])):
+        es.indices.delete_alias(index=i, name=a)
     # set the alias
     es.indices.put_alias(index=index, name=alias, body='')
 
@@ -151,18 +163,12 @@ def target_index( hosts, alias ):
     @param alias: Name of the alias
     @returns: name of target index
     """
-    alias = alias.lower()
+    alias = make_index_name(alias)
     target = []
     es = _get_connection(hosts)
-    catindexes = es.cat.aliases(h=['alias','index'])
-    for line in catindexes.strip().split('\n'):
-        # cat.aliases arranges data in columns so rm extra spaces
-        while '  ' in line:
-            line = line.replace('  ', ' ')
-        if line:
-            a,i = line.strip().split(' ')
-            if a == alias:
-                target = i
+    for i,a in _parse_cataliases(es.cat.aliases(h=['index','alias'])):
+        if a == alias:
+            target = i
     return target
 
 def create_index( hosts, index ):
@@ -957,23 +963,21 @@ def _model_fields( basedir, model_names ):
         models[model_name] = data
     return models
 
-def _public_fields( basedir, models ):
+def _public_fields( modelfields ):
     """Lists public fields for each model
     
     IMPORTANT: Adds certain dynamically-created fields
     
-    @param basedir: Absolute path to directory containing model files
-    @param models: List of model names
+    @param modelfields: Output of _model_fields
     @returns: Dict
     """
     public_fields = {}
-    models =  _model_fields(basedir, models)
-    for model in models:
-        modelfields = []
-        for field in models[model]:
-            if field['elasticsearch'].get('public',None):
-                modelfields.append(field['name'])
-        public_fields[model] = modelfields
+    for model in modelfields.keys():
+        mfields = []
+        for field in modelfields[model]:
+            if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None):
+                mfields.append(field['name'])
+        public_fields[model] = mfields
     # add dynamically created fields
     public_fields['file'].append('path_rel')
     public_fields['file'].append('id')
@@ -1165,7 +1169,8 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     """
     logger.debug('index(%s, %s, %s)' % (hosts, index, path))
     
-    public_fields = _public_fields(models_dir, models.MODELS)
+    modelsfields = _model_fields(models_dir, models.MODELS)
+    public_fields = _public_fields(modelsfields)
     
     # process a single file if requested
     if os.path.isfile(path):
