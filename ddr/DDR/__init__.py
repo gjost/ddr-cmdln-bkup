@@ -2,6 +2,9 @@ VERSION = 0.1
 CONFIG_FILE = '/etc/ddr/ddr.cfg'
 
 
+from datetime import datetime, timedelta
+import logging
+logger = logging.getLogger(__name__)
 import re
 
 def natural_sort( l ):
@@ -47,14 +50,12 @@ class Timer( object ):
         self.steps.append(step)
         logger.debug(msg)
     
-    def display( self, sorting='descending' ):
+    def display( self ):
         """Return list of steps arranged slowest first.
         """
         from operator import itemgetter
-        steps = sorted(self.steps, key=itemgetter('delta'))
-        if sorting == 'descending':
-            steps.reverse()
+        ordered = sorted(self.steps, key=itemgetter('delta'))
         logger.debug('TIMER RESULTS -- SLOWEST-FASTEST -----------------------------------')
-        for step in steps:
+        for step in ordered:
             logger.debug('{:>10}: {:<14} | {}'.format(step['index'], step['delta'], step['msg']))
-        return steps
+        return self.steps

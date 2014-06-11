@@ -68,7 +68,30 @@ def test_storage_status():
     assert storage.storage_status(exists_notlistable) == 'unmounted'
     assert storage.storage_status(nonexistent) == 'unknown'
 
+DF_OUTPUT = """Filesystem                Size  Used Avail Use% Mounted on
+rootfs                    7.3G  3.5G  3.5G  50% /
+udev                       10M     0   10M   0% /dev
+tmpfs                     406M  320K  406M   1% /run
+/dev/mapper/partner-root  7.3G  3.5G  3.5G  50% /
+tmpfs                     5.0M     0  5.0M   0% /run/lock
+tmpfs                     811M     0  811M   0% /run/shm
+/dev/sda1                 228M   19M  197M   9% /boot
+/dev/sdb1                 126G  591M  120G   1% /media/ddrworkstation
+none                      927G  603G  325G  66% /media/sf_ddrshared
+/dev/sdc1                 466G  272G  195G  59% /media/WD5000BMV-2
+"""
+DF_PATH0 = '/'
+DF_PATH1 = '/media/ddrworkstation'
+DF_PATH2 = '/media/WD5000BMV-2'
+DF_EXPECTED0 = None
+DF_EXPECTED1 = {'total': '120G', 'mount': '/media/ddrworkstation', 'used': '591M', 'percent': '1', 'size': '126G'}
+DF_EXPECTED2 = {'total': '195G', 'mount': '/media/WD5000BMV-2', 'used': '272G', 'percent': '59', 'size': '466G'}
 
+# disk_space
+def test_parse_df():
+    assert storage._parse_diskspace(DF_OUTPUT, DF_PATH0) == DF_EXPECTED0
+    assert storage._parse_diskspace(DF_OUTPUT, DF_PATH1) == DF_EXPECTED1
+    assert storage._parse_diskspace(DF_OUTPUT, DF_PATH2) == DF_EXPECTED2
 
 # sample udisks output
 input_removables = """

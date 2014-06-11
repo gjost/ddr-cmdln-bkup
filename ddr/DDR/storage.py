@@ -195,6 +195,21 @@ def storage_status( path ):
         return 'unmounted'
     return 'unknown'
 
+def _parse_diskspace( df_h_stdout, mountpath ):
+    fs = None
+    for line in df_h_stdout.strip().split('\n'):
+        while line.find('  ') > -1:
+            line = line.replace('  ', ' ')
+        parts = line.split(' ')
+        path = parts[5]
+        if (path in mountpath) and (path != '/'):
+            fs = {'size': parts[1],
+                  'used': parts[2],
+                  'total': parts[3],
+                  'percent': parts[4].replace('%',''),
+                  'mount': parts[5],}
+    return fs
+
 def disk_space( mountpath ):
     """Returns disk space info for the mounted drive.
     
@@ -202,18 +217,7 @@ def disk_space( mountpath ):
         Filesystem  Size  Used  Avail  Use%  Mounted on
     TODO Make this work on drives with spaces in their name!
     """
-    fs = None
     if mount_path:
         r = envoy.run('df -h')
-        for line in r.std_out.strip().split('\n'):
-            while line.find('  ') > -1:
-                line = line.replace('  ', ' ')
-            parts = line.split(' ')
-            path = parts[5]
-            if (path in mountpath) and (path != '/'):
-                fs = {'size': parts[1],
-                      'used': parts[2],
-                      'total': parts[3],
-                      'percent': parts[4].replace('%',''),
-                      'mount': parts[5],}
-    return fs
+        return _parse_diskspace(r.std_out, mountpath)
+    return None
