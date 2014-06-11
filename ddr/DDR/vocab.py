@@ -1,57 +1,69 @@
 """
 DDR.vocab.py -- controlled vocabulary tools
 
-from DDR.vocab import Index, Term
-index = Index()
-index.add( Term( id=1, parent_id=0, title='music') )
-index.add( Term( id=2, parent_id=1, title='classical') )
-index.add( Term( id=3, parent_id=1, title='jazz') )
-index.add( Term( id=4, parent_id=1, title='electronic') )
-index.add( Term( id=5, parent_id=2, title='romantic') )
-index.add( Term( id=6, parent_id=2, title='modern') )
-index.add( Term( id=7, parent_id=3, title='traditional') )
-index.add( Term( id=8, parent_id=3, title='fusion') )
-index.add( Term( id=9, parent_id=4, title='dance') )
-index.add( Term(id=10, parent_id=4, title='experimental') )
+Working directly with the objects::
 
-music = index.get(id=1)
-index.parent(music)
-index.siblings(music)
-index.children(music)
+    >>> from DDR.vocab import Index, Term
+    >>> index = Index()
+    >>> index.add( Term( id=1, parent_id=0, title='music') )
+    >>> index.add( Term( id=2, parent_id=1, title='classical') )
+    >>> index.add( Term( id=3, parent_id=1, title='jazz') )
+    >>> index.add( Term( id=4, parent_id=1, title='electronic') )
+    >>> index.add( Term( id=5, parent_id=2, title='romantic') )
+    >>> index.add( Term( id=6, parent_id=2, title='modern') )
+    >>> index.add( Term( id=7, parent_id=3, title='traditional') )
+    >>> index.add( Term( id=8, parent_id=3, title='fusion') )
+    >>> index.add( Term( id=9, parent_id=4, title='dance') )
+    >>> index.add( Term(id=10, parent_id=4, title='experimental') )
+    
+    >>> music = index.get(id=1)
+    >>> index._parent(music)
+    >>> index._siblings(music)
+    >>> index._children(music)
+    [<Term 2: classical>, <Term 3: jazz>, <Term 4: electronic>]
+    
+    >>> electronic = index.get(title='electronic')
+    >>> index._parent(electronic)
+    <Term 1: music>
+    >>> index._siblings(electronic)
+    [<Term 2: classical>, <Term 3: jazz>]
+    >>> index._children(electronic)
+    [<Term 9: dance>, <Term 10: experimental>]
+    
+    >>> experimental = index.get(title='experimental')
+    >>> index._parent(experimental)
+    <Term 4: electronic>
+    >>> index._siblings(experimental)
+    [<Term 9: dance>]
+    >>> index._children(experimental)
+    []
 
-electronic = index.get(title='electronic')
-index.parent(electronic)
-index.siblings(electronic)
-index.children(electronic)
+Sample workflow::
 
-experimental = index.get(title='experimental')
-index.parent(experimental)
-index.siblings(experimental)
-index.children(experimental)
+    $ ./manage.py shell
+    >>> from DDR.vocab import Index
+    
+    # Load from CSV file
+    >>> index = Index()
+    >>> index.load_csv(csvfile_abs='/tmp/topics.csv')
+    
+    # Write CSV file
+    >>> with open('/tmp/topics.csv', 'w') as f:
+    >>>     f.write(index.dump_terms_csv())
+    
+    # Write JSON file
+    >>> with open('/tmp/topics.json', 'w') as f:
+    >>>     f.write(index.dump_terms_json())
 
-from DDR.vocab import Index, Term
-index = Index()
-
-index.load_csv(csvfile_abs='/tmp/topics.csv')
-
-with open('/tmp/topic-index.json', 'w') as f:
-    f.write(index.dump_json())
-
-with open('/tmp/topic-index.json', 'r') as f:
-    index.load_json(f.read())
-
-index.dump_csv('/tmp/topics2.csv')
-
-# JSON file of all terms
-with open('/tmp/topics.json', 'w') as f:
-    f.write(index.dump_terms_json())
-
-# Text version of all terms
-with open('/tmp/topics.txt', 'w') as f:
-    f.write(index.dump_terms_text())
-
-index.menu_choices()
-index.path_choices()
+    # Write text file
+    >>> with open('/tmp/topics.txt', 'w') as f:
+    >>>     f.write(index.dump_terms_text())
+    
+    # Generate Django form menu from index.
+    >>> index.menu_choices()
+    
+    # Generate Django form menu with topic "paths".
+    >>> index.path_choices()
 """
 
 import csv
