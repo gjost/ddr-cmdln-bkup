@@ -56,6 +56,7 @@ index.path_choices()
 
 import csv
 import json
+import StringIO
 
 CSV_HEADER_MAPPING = [
     {'header':'id',            'attr':'id'},
@@ -202,31 +203,6 @@ class Index( object ):
         """
         pass
     
-    def dump_csv( self, csvfile_abs, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
-        """Write terms to a CSV file.
-        
-        See header list in Index.CSV_HEADER_MAPPING.
-        
-        @param csvfile_abs: Absolute path to CSV file
-        @param header_mapping
-        @param delimiter
-        @param quotechar
-        @param quoting
-        """
-        with open(csvfile_abs, 'wb') as csvfile:
-            writer = csv.writer(csvfile) #, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
-            # headers
-            writer.writerow([header['header'] for header in header_mapping])
-            # data
-            for tid,term in self._terms_by_id.iteritems():
-                values = []
-                for header in header_mapping:
-                    value = ''
-                    if header.get('attr',None):
-                        value = getattr(term, header['attr'])
-                    values.append(value)
-                writer.writerow(values)
-    
     def dump_graphviz( self, term_len=50 ):
         """Dumps contents of index to a Graphviz file.
         
@@ -265,6 +241,31 @@ class Index( object ):
             'titles_to_ids': self._titles_to_ids,
             'parents_to_children': self._parents_to_children,
         })
+    
+    def dump_terms_csv( self, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
+        """Write terms to a CSV file.
+        
+        See header list in Index.CSV_HEADER_MAPPING.
+        
+        @param header_mapping
+        @param delimiter
+        @param quotechar
+        @param quoting
+        """
+        output = StringIO.StringIO()
+        writer = csv.writer(output) #, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+        # headers
+        writer.writerow([header['header'] for header in header_mapping])
+        # data
+        for tid,term in self._terms_by_id.iteritems():
+            values = []
+            for header in header_mapping:
+                value = ''
+                if header.get('attr',None):
+                    value = getattr(term, header['attr'])
+                values.append(value)
+            writer.writerow(values)
+        return output.getvalue()
     
     def dump_terms_text( self ):
         """Text format of the entire index.
