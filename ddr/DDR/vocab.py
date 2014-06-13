@@ -82,6 +82,8 @@ CSV_HEADER_MAPPING = [
     {'header':'created',       'attr':'created'},
     {'header':'modified',      'attr':'modified'},
 ]
+headers_expected = [col['header'] for col in CSV_HEADER_MAPPING]
+
 
 class Index( object ):
     ids = []
@@ -191,7 +193,14 @@ class Index( object ):
         reader = csv.reader(csvfile) #, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         terms = []
         for n,row in enumerate(reader):
-            if n:
+            if n == 0:
+                if row != headers_expected:
+                    print('Expected these headers:')
+                    print('    %s' % headers_expected)
+                    print('Got these:')
+                    print('    %s' % row)
+                    print("Sorry not smart enough to rearrange the headers myself... (hangs head in shame)")
+            else:
                 term = Term()
                 for c,col in enumerate(header_mapping):
                     attr = col['attr']
