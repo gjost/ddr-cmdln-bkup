@@ -187,7 +187,7 @@ class Index( object ):
         @param quotechar
         @param quoting
         """
-        csvfile = open(csvfile_abs, 'rb')
+        csvfile = open(csvfile_abs, 'rU')
         reader = csv.reader(csvfile) #, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         terms = []
         for n,row in enumerate(reader):
