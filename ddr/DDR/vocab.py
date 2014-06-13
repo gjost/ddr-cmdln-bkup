@@ -199,7 +199,7 @@ class Index( object ):
                     print('    %s' % headers_expected)
                     print('Got these:')
                     print('    %s' % row)
-                    print("Sorry not smart enough to rearrange the headers myself... (hangs head in shame)")
+                    print("Sorry not smart enough to rearrange the headers myself... (;-_-)")
             else:
                 term = Term()
                 for c,col in enumerate(header_mapping):
