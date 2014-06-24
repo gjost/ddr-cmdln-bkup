@@ -262,6 +262,7 @@ def test_automerge_conflicted():
 
 GIT_STATUS_SYNCED = [
     """## master""",
+    """## master\n?? .gitstatus""",
 ]
 GIT_STATUS_AHEAD = [
     """## master...origin/master [ahead 1]""",

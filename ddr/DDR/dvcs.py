@@ -538,6 +538,9 @@ of "git status --short --branch".
 SYNCED
 $ git status --short --branch
 ## master
+-or-
+## master
+?? unknown-file.ext
 
 AHEAD
 $ git status --short --branch
@@ -561,8 +564,9 @@ def synced(status):
     @param status: Output of "git status --short --branch"
     @returns 1 (behind), 0 (not behind), -1 (error)
     """
-    if status == '## master':
-        return 1
+    for line in status.split('\n'):
+        if line == '## master':
+            return 1
     return 0
 
 AHEAD = "(ahead [0-9]+)"
