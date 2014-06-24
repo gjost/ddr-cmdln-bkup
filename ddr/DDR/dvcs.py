@@ -769,3 +769,29 @@ def repos_remotes(path):
     @returns list of dicts {'path':..., 'remotes':[...]}
     """
     return [{'path':p, 'remotes':remotes(p),} for p in repos(path)]
+
+def annex_file_targets( repo_dir, relative=False ):
+    """Lists annex file symlinks and their targets in the annex objects dir
+    
+    @param repo_dir: Absolute path
+    @param relative: Report paths relative to repo_dir
+    @returns: list of (symlink,target)
+    """
+    paths = []
+    excludes = ['.git', 'tmp', '*~']
+    basedir = os.path.realpath(repo_dir)
+    for root, dirs, files in os.walk(basedir):
+        # don't go down into .git directory
+        if '.git' in dirs:
+            dirs.remove('.git')
+        for f in files:
+            path = os.path.join(root, f)
+            if os.path.islink(path):
+                if relative:
+                    relpath = os.path.relpath(path, basedir)
+                    reltarget = os.readlink(path)
+                    paths.append((relpath, reltarget))
+                else:
+                    target = os.path.realpath(path)
+                    paths.append((path, target))
+    return paths
