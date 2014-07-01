@@ -263,6 +263,7 @@ def test_automerge_conflicted():
 GIT_STATUS_SYNCED = [
     """## master""",
     """## master\n?? .gitstatus""",
+    """## master\n?? .gitstatus\n?? files/ddr-testing-233-1/addfile.log""",
 ]
 GIT_STATUS_AHEAD = [
     """## master...origin/master [ahead 1]""",

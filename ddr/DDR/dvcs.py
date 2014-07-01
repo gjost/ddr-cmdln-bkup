@@ -541,6 +541,10 @@ $ git status --short --branch
 -or-
 ## master
 ?? unknown-file.ext
+-or-
+## master
+?? .gitstatus
+?? files/ddr-testing-233-1/addfile.log
 
 AHEAD
 $ git status --short --branch
