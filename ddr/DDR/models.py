@@ -5,7 +5,7 @@ import os
 import re
 
 from DDR import CONFIG_FILE
-from DDR import natural_order_string
+from DDR import natural_order_string, natural_sort
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 
@@ -581,7 +581,9 @@ class Collection( object ):
     
     @staticmethod
     def collections( collections_root, repository, organization ):
-        collections = []
+        """Returns collection paths.
+        """
+        collection_paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
         uid = re.compile(regex)
         for x in os.listdir(collections_root):
@@ -589,23 +591,23 @@ class Collection( object ):
             if m:
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
-                    collections.append(colldir)
-        collections = sorted(collections, key=lambda c: natural_order_string(c))
-        return collections
+                    collection_paths.append(colldir)
+        collection_paths = natural_sort(collection_paths)
+        return collection_paths
     
     def entities( self ):
-        """Returns relative paths to entities."""
-        entities = []
+        """Returns relative paths to entities.
+        """
+        entity_paths = []
         cpath = self.path
         if cpath[-1] != '/':
             cpath = '{}/'.format(cpath)
         if os.path.exists(self.files_path):
             for uid in os.listdir(self.files_path):
                 epath = os.path.join(self.files_path, uid)
-                e = Entity(epath)
-                entities.append(e)
-        entities = sorted(entities, key=lambda e: natural_order_string(e.uid))
-        return entities
+                entity_paths.append(epath)
+        entity_paths = natural_sort(entity_paths)
+        return entity_paths
     
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
@@ -702,7 +704,8 @@ class Entity( object ):
         return EntityControlFile(self.control_path)
     
     def files( self ):
-        """Returns relative paths to payload files."""
+        """Returns relative paths to payload files.
+        """
         files = []
         prefix_path = self.files_path
         if prefix_path[-1] != '/':
