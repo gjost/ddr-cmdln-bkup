@@ -580,10 +580,10 @@ class Collection( object ):
             return f.read()
     
     @staticmethod
-    def collections( collections_root, repository, organization ):
+    def collection_paths( collections_root, repository, organization ):
         """Returns collection paths.
         """
-        collection_paths = []
+        paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
         uid = re.compile(regex)
         for x in os.listdir(collections_root):
@@ -591,23 +591,24 @@ class Collection( object ):
             if m:
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
-                    collection_paths.append(colldir)
-        collection_paths = natural_sort(collection_paths)
-        return collection_paths
+                    paths.append(colldir)
+        return natural_sort(paths)
     
-    def entities( self ):
+    def entity_paths( self ):
         """Returns relative paths to entities.
         """
-        entity_paths = []
+        paths = []
         cpath = self.path
         if cpath[-1] != '/':
             cpath = '{}/'.format(cpath)
         if os.path.exists(self.files_path):
             for uid in os.listdir(self.files_path):
                 epath = os.path.join(self.files_path, uid)
-                entity_paths.append(epath)
-        entity_paths = natural_sort(entity_paths)
-        return entity_paths
+                paths.append(epath)
+        return natural_sort(paths)
+    
+    def entities( self ):
+        return [Entity(path) for path in self.entity_paths()]
     
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
@@ -703,18 +704,18 @@ class Entity( object ):
             EntityControlFile.create(self.control_path, self.parent_uid, self.uid)
         return EntityControlFile(self.control_path)
     
-    def files( self ):
+    def file_paths( self ):
         """Returns relative paths to payload files.
         """
-        files = []
+        paths = []
         prefix_path = self.files_path
         if prefix_path[-1] != '/':
             prefix_path = '{}/'.format(prefix_path)
         if os.path.exists(self.files_path):
             for f in os.listdir(self.files_path):
-                files.append(f.replace(prefix_path, ''))
-        files = sorted(files, key=lambda f: natural_order_string(f))
-        return files
+                paths.append(f.replace(prefix_path, ''))
+        paths = sorted(paths, key=lambda f: natural_order_string(f))
+        return paths
     
     @staticmethod
     def checksum_algorithms():
