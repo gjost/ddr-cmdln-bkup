@@ -725,7 +725,7 @@ class Entity( object ):
         checksums = []
         if algo not in Entity.checksum_algorithms():
             raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
-        for f in self.files():
+        for f in self.file_paths():
             fpath = os.path.join(self.files_path, f)
             cs = file_hash(fpath, algo)
             if cs:
