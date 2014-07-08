@@ -8,8 +8,8 @@
 beautifulsoup4      # MIT       python-beautifulsoup (3.2.1-1)   python-beautifulsoup (3.2.1-1) y
 python-dateutil     # BSD       python-dateutil (1.5+dfsg-0.1)   python-dateutil (1.5+dfsg-1)   y
 elasticsearch       # Apache    n/a                              n/a                            y
-envoy               # MIT       n/a                              n/a                            y(?)
+envoy               # MIT       n/a                              n/a                            y
 GitPython           # BSD       python-git (0.3.2~RC1-1)         python-git (0.3.2~RC1-3)       NO
-lxml                # BSD       python-lxml (2.3.2-1)            python-lxml (3.2.0-1)          y
+lxml                # BSD       python-lxml (2.3.2-1+deb7u1)     python-lxml (3.3.5-1+b1)       y
 pytz                # MIT       python-tz (2012c-1)              python-tz (2012c-1)            y
-requests            # Apache    python-requests (0.12.1-1)       python-requests (1.2.3-1)      y
+requests            # Apache    python-requests (0.12.1-1)       python-requests (2.3.0-1)      y
