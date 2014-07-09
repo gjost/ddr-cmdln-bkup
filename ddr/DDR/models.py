@@ -4,25 +4,19 @@ import json
 import os
 import re
 
-from DDR import CONFIG_FILE
+from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_order_string, natural_sort
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 
 
 
-class NoConfigError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
-
-if not os.path.exists(CONFIG_FILE):
-    raise NoConfigError('No config file!')
 config = ConfigParser.ConfigParser()
-config.read(CONFIG_FILE)
-GITOLITE = config.get('workbench','gitolite')
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
 
+GITOLITE = config.get('workbench','gitolite')
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')

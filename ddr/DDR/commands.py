@@ -10,7 +10,7 @@ import sys
 import envoy
 import git
 
-from DDR import CONFIG_FILE
+from DDR import CONFIG_FILES, NoConfigError
 from DDR import storage
 from DDR import dvcs
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
@@ -18,16 +18,11 @@ from DDR.changelog import write_changelog_entry
 from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
 
 
-class NoConfigError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
-
-if not os.path.exists(CONFIG_FILE):
-    raise NoConfigError('No config file!')
 config = ConfigParser.ConfigParser()
-config.read(CONFIG_FILE)
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
+
 GITOLITE = config.get('workbench','gitolite')
 GIT_REMOTE_NAME = config.get('workbench','remote')
 ACCESS_FILE_APPEND = config.get('local','access_file_append')

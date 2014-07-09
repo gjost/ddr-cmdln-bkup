@@ -1,5 +1,11 @@
 VERSION = 0.1
-CONFIG_FILE = '/etc/ddr/ddr.cfg'
+CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
+
+class NoConfigError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 
 from datetime import datetime, timedelta
