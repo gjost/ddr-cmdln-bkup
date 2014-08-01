@@ -739,7 +739,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
 
 @command
 @local_only
-def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_files, new_annex_files, agent=''):
+def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_files, new_annex_files, agent='', entity=None):
     """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
@@ -748,6 +748,11 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     It does not mark the file as master/mezzanine/access/etc or edit any metadata.
     It does not perform any background processing on the file.
     
+    TODO Refactor this when ddr-local models moved into ddr-cmdln
+    WARNING - UGLY HACK!
+    The 'entity' arg is intended to allow ddr-local to pass in Entity
+    objects and use their checksums() method.
+    
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
@@ -755,10 +760,12 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     @param updated_files: list of paths to updated files (relative to collection repo).
     @param new_annex_files: List of paths to new files (relative to entity files dir).
     @param agent: (optional) Name of software making the change.
+    @param entity: (optional) Entity object (see above)
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
-    entity = DDREntity(collection.entity_path(entity_uid))
+    if not entity:
+        entity = DDREntity(collection.entity_path(entity_uid))
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
