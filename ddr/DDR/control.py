@@ -106,6 +106,9 @@ class EntityControlFile( ControlFile ):
         self._config.remove_section('Files')
         self._config.add_section('Files')
         for md5,path in entity.checksums('md5'):
-            size = os.path.getsize(path)
+            try:
+                size = os.path.getsize(path)
+            except:
+                size = 'UNKNOWNSIZE'
             path = relative_path(entity.files_path, path)
             self._config.set('Files', md5, '{} ; {}'.format(size,path))
