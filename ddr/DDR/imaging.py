@@ -113,7 +113,7 @@ def thumbnail(src, dest, geometry):
     assert os.path.exists(os.path.dirname(dest))
     assert geometry_is_ok(geometry)
     analysis = analyze(src)
-    cmd = make_convert_cmd(src, dest, geometry, analysis)
+    cmd = make_convert_cmd(src, dest, geometry)
     out = subprocess.check_output(cmd, shell=True)
     if not os.path.exists(dest):
         raise Exception('access file was not created: %s' % dest)
