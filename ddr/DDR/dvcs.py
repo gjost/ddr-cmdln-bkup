@@ -326,14 +326,15 @@ def gitolite_orgs( gitolite_out ):
                 repos_orgs.append(repo_org)
     return repos_orgs
 
-def gitolite_info(server):
+def gitolite_info(server, timeout=60):
     """
     @param server: USERNAME@DOMAIN
+    @param timeout: int Maximum seconds to wait for reponse
     @return: raw Gitolite output from SSH
     """
     cmd = 'ssh {} info'.format(server)
     logging.debug('        {}'.format(cmd))
-    r = envoy.run(cmd, timeout=30)
+    r = envoy.run(cmd, timeout=int(timeout))
     logging.debug('        {}'.format(r.status_code))
     status = r.status_code
     if r.status_code != 0:
