@@ -277,11 +277,11 @@ def annex_whereis_file(repo, file_path_rel):
     print('----------')
     return _parse_annex_whereis(stdout)
 
-def _gitolite_info_authorized( status, lines ):
-    if status == 0 and lines:
-        if len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
-            logging.debug('        OK ')
-            return True
+def _gitolite_info_authorized( gitolite_out ):
+    lines = gitolite_out.split('\n')
+    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
+        logging.debug('        OK ')
+        return True
     logging.debug('        NO CONNECTION')
     return False
     
@@ -309,17 +309,16 @@ def gitolite_connect_ok(server):
     @return: True or False
     """
     logging.debug('    DDR.commands.gitolite_connect_ok()')
-    status,lines = gitolite_info(server)
-    return _gitolite_info_authorized(status, lines)
+    return _gitolite_info_authorized(gitolite_info(server))
 
-def gitolite_orgs( gitoliteinfo ):
+def gitolite_orgs( gitolite_out ):
     """Returns list of orgs to which user has access
     
-    @param gitoliteinfo: lines part of gitolite_info() output
+    @param gitolite_out: raw output of gitolite_info()
     @returns: list of organization IDs
     """
     repos_orgs = []
-    for line in gitoliteinfo:
+    for line in gitolite_out.split('\n'):
         if 'R W C' in line:
             parts = line.replace('R W C', '').strip().split('-')
             repo_org = '-'.join([parts[0], parts[1]])
@@ -330,17 +329,16 @@ def gitolite_orgs( gitoliteinfo ):
 def gitolite_info(server):
     """
     @param server: USERNAME@DOMAIN
-    @return: status,lines
+    @return: raw Gitolite output from SSH
     """
-    status = None; lines = []
     cmd = 'ssh {} info'.format(server)
     logging.debug('        {}'.format(cmd))
     r = envoy.run(cmd, timeout=30)
     logging.debug('        {}'.format(r.status_code))
     status = r.status_code
-    if r.status_code == 0:
-        lines = r.std_out.split('\n')
-    return status,lines
+    if r.status_code != 0:
+        raise Exception('Bad reply from Gitolite server: %s' % r.std_err)
+    return r.std_out
 
 def _parse_list_staged( diff ):
     staged = []
