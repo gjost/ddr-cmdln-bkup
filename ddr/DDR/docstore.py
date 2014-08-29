@@ -19,14 +19,15 @@ docstore.delete_index(HOSTS, INDEX)
 
 docstore.create_index(HOSTS, INDEX)
 
-docstore.put_mappings(HOSTS, INDEX, docstore.HARD_CODED_MAPPINGS_PATH, models.MODELS_DIR)
-docstore.put_facets(HOSTS, INDEX, docstore.HARD_CODED_FACETS_PATH)
+docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH, models.MODELS_DIR)
+docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
 
 docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 
 ------------------------------------------------------------------------
 """
 from __future__ import print_function
+import ConfigParser
 from datetime import datetime
 import json
 import logging
@@ -35,14 +36,20 @@ import os
 
 from elasticsearch import Elasticsearch
 
+from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_sort
 from DDR import models
 
+config = ConfigParser.ConfigParser()
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
+
+MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
+FACETS_PATH = config.get('cmdln','vocab_facets_path')
+
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
-
-HARD_CODED_MAPPINGS_PATH = '/var/www/media/base/ddr/docstore/mappings.json'
-HARD_CODED_FACETS_PATH = '/var/www/media/base/ddr/vocab'
 
 SUCCESS_STATUSES = [200, 201]
 STATUS_OK = ['completed']
@@ -295,7 +302,7 @@ def put_mappings( hosts, index, mappings_path, models_dir ):
     return statuses
 
 
-def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
+def put_facets( hosts, index, path=FACETS_PATH ):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
@@ -309,7 +316,7 @@ def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
     logger.debug('index_facets(%s, %s, %s)' % (hosts, index, path))
     statuses = []
     es = _get_connection(hosts)
-    for facet_json in os.listdir(HARD_CODED_FACETS_PATH):
+    for facet_json in os.listdir(FACETS_PATH):
         facet = facet_json.split('.')[0]
         srcpath = os.path.join(path, facet_json)
         with open(srcpath, 'r') as f:
@@ -318,7 +325,7 @@ def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
             statuses.append(status)
     return statuses
 
-def list_facets( path=HARD_CODED_FACETS_PATH ):
+def list_facets( path=FACETS_PATH ):
     return [filename.replace('.json', '') for filename in os.listdir(path)]
 
 def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None ):
