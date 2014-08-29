@@ -41,8 +41,8 @@ from DDR import models
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
 
-HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
-HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
+HARD_CODED_MAPPINGS_PATH = '/var/www/media/base/ddr/docstore/mappings.json'
+HARD_CODED_FACETS_PATH = '/var/www/media/base/ddr/vocab'
 
 SUCCESS_STATUSES = [200, 201]
 STATUS_OK = ['completed']
