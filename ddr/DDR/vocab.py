@@ -1,6 +1,29 @@
 """
 DDR.vocab.py -- controlled vocabulary tools
 
+Manages vocabulary used for the Topic field in ddr-local and ddr-public.
+The data file lives in the main Repository repo for the installation,
+which should be present on each Store.::
+
+    /var/www/media/base/ddr/facets/topics.json
+    /media/DRIVELABEL/ddr/ddr/facets/topics.json
+
+ddr-local looks for topics.json at "local:vocab_terms_url", specified
+in `/etc/ddr/ddr.cfg`.::
+
+    http://partner.densho.org/vocab/api/0.2/topics.json
+
+ddrindex is used to upload topics.json to Elasticsearch for use by
+ddr-public.
+
+Once in Elasticsearch it is available at this URL.::
+
+    http://HOST:PORT/INDEX/facet/topics/
+
+IMPORTANT: Only tested with small vocabularies (<200 terms).
+- Use pointers to Term.ancestors/siblings/children instead of objects.
+- Use a real tree structure.
+
 Working directly with the objects::
 
     >>> from DDR.vocab import Index, Term
@@ -38,26 +61,27 @@ Working directly with the objects::
     >>> index._children(experimental)
     []
 
-Sample workflow::
+Sample edit workflow.  Topics are exported to CSV, edited in Google Docs,
+and reimported from CSV.::
 
+    # Load JSON file and export to CSV.
     $ ./manage.py shell
-    >>> from DDR.vocab import Index
-    
-    # Load from CSV file
+    >>> from DDR import vocab
     >>> index = Index()
-    >>> index.load_csv(csvfile_abs='/tmp/topics.csv')
+    >>> index.read('/PATH/TO/BASE/ddr/facets/topics.json')
+    >>> index.write('/tmp/topics-exported.csv')
     
-    # Write CSV file
-    >>> with open('/tmp/topics.csv', 'w') as f:
-    >>>     f.write(index.dump_terms_csv())
+    # Import to and export from Google Docs using the default settings.
     
-    # Write JSON file
-    >>> with open('/tmp/topics.json', 'w') as f:
-    >>>     f.write(index.dump_terms_json())
+    # Re-import from CSV and update JSON file.
+    $ ./manage.py shell
+    >>> from DDR import vocab
+    >>> index = Index()
+    >>> index.read('/tmp/updated-finished.csv')
+    >>> index.write('/PATH/TO/BASE/ddr/facets/topics.json')
 
-    # Write text file
-    >>> with open('/tmp/topics.txt', 'w') as f:
-    >>>     f.write(index.dump_terms_text())
+
+::
     
     # Generate Django form menu from index.
     >>> index.menu_choices()
@@ -67,25 +91,36 @@ Sample workflow::
 """
 
 import csv
+from datetime import datetime
 import json
+import os
 import StringIO
 
-CSV_HEADER_MAPPING = [
-    {'header':'id',            'attr':'id'},
-    {'header':'title',         'attr':'_title'},
-    {'header':'title_display', 'attr':'title'},
-    {'header':'parent_id',     'attr':'parent_id'},
-    {'header':'change notes',  'attr':None},
-    {'header':'weight',        'attr':'weight'},
-    {'header':'encyc_links',   'attr':'encyc_urls'},
-    {'header':'description',   'attr':'description'},
-    {'header':'created',       'attr':'created'},
-    {'header':'modified',      'attr':'modified'},
+from dateutil import parser
+
+
+CSV_HEADERS = [
+    'id',
+    '_title',
+    'title',
+    'parent_id',
+    'weight',
+    'encyc_urls',
+    'description',
+    'created',
+    'modified',
 ]
-headers_expected = [col['header'] for col in CSV_HEADER_MAPPING]
+CSV_DELIMITER = ','
+CSV_QUOTECHAR = '"'
+CSV_QUOTING = csv.QUOTE_MINIMAL
+
+TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
 
 class Index( object ):
+    id = ''
+    title = ''
+    description = ''
     ids = []
     _terms_by_id = {}
     _titles_to_ids = {}
@@ -94,10 +129,13 @@ class Index( object ):
     def add( self, term ):
         """Adds a Term to the Index.
         """
-        self.ids.append(term.id)
-        self._terms_by_id[term.id] = term
+        if not term.id in self.ids:
+            self.ids.append(term.id)
+        if not term in self._terms_by_id:
+            self._terms_by_id[term.id] = term
         # enables retrieve by title
-        self._titles_to_ids[term.title] = term.id
+        if not term.id in self._titles_to_ids:
+            self._titles_to_ids[term.title] = term.id
         # lists of children for each parent
         if not self._parents_to_children.get(term.parent_id):
             self._parents_to_children[term.parent_id] = []
@@ -142,10 +180,23 @@ class Index( object ):
         parent = self._parent(term)
         if parent:
             return [t for t in self._children(parent) if t != term]
-        return None
+        return []
+    
+    def _ancestors( self, term ):
+        """List of term IDs leading from term to root.
+        @param term
+        @returns: list of term IDs, from root to leaf.
+        """
+        term.path = ''
+        ancestors = []
+        t = term
+        while t.parent_id:
+            t = self._parent(t)
+            ancestors.append(t.id)
+        ancestors.reverse()
+        return ancestors
     
     def _path( self, term ):
-        term.path = ''
         path = [term.title]
         t = term
         while t.parent_id:
@@ -155,6 +206,8 @@ class Index( object ):
         return ': '.join(path)
     
     def _format( self, term ):
+        """Generates thesaurus-style text output for each Term.
+        """
         bt = self._parent(term)
         nt = self._children(term)
         rt = self._siblings(term)
@@ -171,58 +224,177 @@ class Index( object ):
         """
         for term in terms:
             self.add(term)
-        for term in terms:
-            term.parent = self._parent(term)
+        for term in self.terms():
+            #term.parent = self._parent(term)
             term.siblings = self._siblings(term)
             term.children = self._children(term)
+            term.ancestors = self._ancestors(term)
             term.path = self._path(term)
-            term.format = self._format(term)
+            #term.format = self._format(term)
     
-    def load_csv( self, csvfile_abs, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
+    def read( self, path, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+        """Read from the specified file (.json or .csv).
+        
+        @param path: Absolute path to file; must be .json or .csv.
+        @param delimiter: Only used for CSV files.
+        @param quotechar: Only used for CSV files.
+        @param quoting: Only used for CSV files.
+        @returns: Index object with terms
+        """
+        extension = os.path.splitext(path)[1]
+        if not extension in ['.json', '.csv']:
+            raise Exception('Index.read only reads .json and .csv files.')
+        if extension.lower() == '.json':
+            with open(path, 'r') as f:
+                self.load_json(f.read())
+        elif extension.lower() == '.csv':
+            with open(path, 'r') as f:
+                self.load_csv(f.read(), delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+    
+    def write( self, path, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+        """Write to the specified file (.json or .csv).
+        
+        @param path: Absolute path to file; must be .json or .csv.
+        @param delimiter: Only used for CSV files.
+        @param quotechar: Only used for CSV files.
+        @param quoting: Only used for CSV files.
+        """
+        extension = os.path.splitext(path)[1]
+        if not extension in ['.json', '.csv']:
+            raise Exception('Index.read only writes .json and .csv files.')
+        if extension.lower() == '.json':
+            with open(path, 'w') as f:
+                f.write(self.dump_json())
+        elif extension.lower() == '.csv':
+            with open(path, 'w') as f:
+                f.write(self.dump_csv(delimiter=delimiter, quotechar=quotechar, quoting=quoting))
+            
+    def load_json( self, text ):
+        """Load terms from a JSON file.
+        
+        Sample JSON format (fields will not be in same order):
+            {
+                "id": "topics",
+                "title": "Topics",
+                "description": "DDR Topics",
+                "terms": [
+                    {
+                        "id": 120,
+                        "parent_id": 0,
+                        "ancestors": [],
+                        "siblings": [],
+                        "children": [
+                            233,
+                            234,
+                            235
+                        ],
+                        "weight": 0,
+                        "path": "Activism and involvement",
+                        "encyc_urls": [],
+                        "created": "1969-12-31T00:00:00-0800" [or null],
+                        "modified": "1969-12-31T00:00:00-0800" [or null],
+                        "title": "Activism and involvement",
+                        _"title": "Activism and involvement [120]",
+                        "description": "",
+                        "format": "Activism and involvement NT Civil liberties, Civil rights, Politics"
+                    },
+                    ...
+                ]
+            }
+        
+        NOTE: When reading, the following fields are are generated using parent_id
+        and are ignored: "ancestors", "children", "siblings", "format"
+        
+        @param text: JSON-formatted text
+        @returns: Index object with terms
+        """
+        data = json.loads(text)
+        self.id = data['id']
+        self.title = data['title']
+        self.description = data['description']
+        terms = []
+        for t in data['terms']:
+            term = Term.from_dict(t)
+            terms.append(term)
+        self._build(terms)
+
+    def load_csv( self, text, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
         """Load terms from a CSV file.
         
-        See header list in Index.CSV_HEADER_MAPPING.
-        
-        @param csvfile_abs: Absolute path to CSV file
-        @param header_mapping
+            id, topics
+            title, Topics
+            description,"DDR Topics"
+            id,_title,title,parent_id,weight,encyc_urls,description,created,modified
+            120,"Activism and involvement [120]","Activism and involvement",0,0,"","","1969-12-31T00:00:00-0800","1969-12-31T00:00:00-0800"
+
+        @param text: str Raw contents of CSV file
         @param delimiter
         @param quotechar
         @param quoting
+        @returns: Index object with terms
         """
-        csvfile = open(csvfile_abs, 'rU')
-        reader = csv.reader(csvfile) #, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+        pseudofile = StringIO.StringIO(text)
+        reader = csv.reader(pseudofile, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         terms = []
         for n,row in enumerate(reader):
-            if n == 0:
-                if row != headers_expected:
+            if (n == 0): self.id = row[1]
+            elif (n == 1): self.title = row[1]
+            elif (n == 2): self.description = row[1]
+            elif (n == 3):
+                if (row != CSV_HEADERS):
                     print('Expected these headers:')
                     print('    %s' % headers_expected)
                     print('Got these:')
                     print('    %s' % row)
-                    print("Sorry not smart enough to rearrange the headers myself... (;-_-)")
+                    raise Exception("Sorry not smart enough to rearrange the headers myself... (;-_-)")
             else:
-                term = Term()
-                for c,col in enumerate(header_mapping):
-                    attr = col['attr']
-                    value = row[c]
-                    if attr:
-                        if (attr in ['id', 'parent_id', 'weight']) and value:
-                            value = int(value)
-                        elif (attr == 'encyc_urls') and value:
-                            value = value.split(',')
-                        setattr(term, attr, value)
+                # convert row to dict
+                t = {}
+                for c,col in enumerate(CSV_HEADERS):
+                    t[col] = row[c]
+                term = Term.from_dict(t)
                 terms.append(term)
         self._build(terms)
     
-    def load_json( self, jsonfile ):
-        """Load terms from a JSON file.
+    def dump_json( self ):
+        """JSON format of the entire index.
         
-        See header list in Index.CSV_HEADER_MAPPING.
+        Terms list plus a keyword, title, and description.
+        This is the same format used for Elasticsearch facets.
         
-        @param jsonfile: JSON-formatted text
-        @param header_mapping
+        @param id
+        @param title
+        @param description
         """
-        pass
+        data = {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'terms': [term._flatten_json() for term in self.terms()],
+        }
+        json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
+        return json_pretty
+    
+    def dump_csv( self, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+        """Write terms to a CSV file.
+        
+        @param delimiter
+        @param quotechar
+        @param quoting
+        @returns: CSV formatted text
+        """
+        output = StringIO.StringIO()
+        writer = csv.writer(output, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+        # metadata
+        writer.writerow(['id', self.id])
+        writer.writerow(['title', self.title])
+        writer.writerow(['description', self.description])
+        # headers
+        writer.writerow(CSV_HEADERS)
+        # terms
+        for term in self.terms():
+            writer.writerow(term.csv())
+        return output.getvalue()
     
     def dump_graphviz( self, term_len=50 ):
         """Dumps contents of index to a Graphviz file.
@@ -250,67 +422,11 @@ class Index( object ):
         lines.append('}')
         return '\n'.join(lines)
     
-    def dump_json( self ):
-        """Dumps contents of index to JSON.
-        """
-        terms = {}
-        for tid,term in self._terms_by_id.iteritems():
-            terms[tid] = term._flatten()
-        return json.dumps({
-            'ids': self.ids,
-            'terms_by_id': terms,
-            'titles_to_ids': self._titles_to_ids,
-            'parents_to_children': self._parents_to_children,
-        })
-    
-    def dump_terms_csv( self, header_mapping=CSV_HEADER_MAPPING, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC ):
-        """Write terms to a CSV file.
-        
-        See header list in Index.CSV_HEADER_MAPPING.
-        
-        @param header_mapping
-        @param delimiter
-        @param quotechar
-        @param quoting
-        """
-        output = StringIO.StringIO()
-        writer = csv.writer(output) #, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
-        # headers
-        writer.writerow([header['header'] for header in header_mapping])
-        # data
-        for tid,term in self._terms_by_id.iteritems():
-            values = []
-            for header in header_mapping:
-                value = ''
-                if header.get('attr',None):
-                    value = getattr(term, header['attr'])
-                values.append(value)
-            writer.writerow(values)
-        return output.getvalue()
-    
-    def dump_terms_text( self ):
+    def dump_text( self ):
         """Text format of the entire index.
         """
         terms = [self._format(term) for id,term in self._terms_by_id.iteritems()]
         return '\n\n'.join(terms)
-
-    def dump_terms_json( self, id, title, description ):
-        """JSON format of the entire index.
-        
-        Terms list plus a keyword, title, and description.
-        This is the same format used for Elasticsearch facets.
-        
-        @param id
-        @param title
-        @param description
-        """
-        data = {
-            'id': id,
-            'title': title,
-            'description': description,
-            'terms': [term._flatten() for term in self.terms()],
-        }
-        return json.dumps(data)
         
     def menu_choices( self ):
         """List of (id,title) tuples suitable for use in Django multiselect menu.
@@ -325,26 +441,25 @@ class Index( object ):
 
 class Term( object ):
     id = None
-    parent_id = None
-    created = None
-    modified = None
-    _title = None
-    title = None
+    parent_id = 0
+    siblings = []
+    children = []
+    created = None   # Date fields must contain dates or "null",
+    modified = None  # or Elasticsearch will throw a parsing error.
+    title = ''
+    _title = ''
     description = ''
     weight = 0
     encyc_urls = []
-    parent = None
-    siblings = None
-    children = None
-    path = None
+    path = ''
 
-    def __init__(self, id=None, parent_id=None, created=None, modified=None, _title=None, title=None, description='', weight=0, encyc_urls=[]):
+    def __init__(self, id=None, parent_id=0, created=None, modified=None, title='', _title='', description='', weight=0, encyc_urls=[]):
         self.id = id
         self.parent_id = parent_id
         self.created = created
         self.modified = modified
-        self._title = _title
         self.title = title
+        self._title = _title
         self.description = description
         self.weight = weight
         self.encyc_urls = encyc_urls
@@ -352,17 +467,69 @@ class Term( object ):
     def __repr__( self ):
         return "<Term %s: %s>" % (self.id, self.title)
     
-    def _flatten( self ):
+    @staticmethod
+    def from_dict(t):
+        """
+        @param t: dict
+        @returns: Term object
+        """
+        term = Term()
+        term.id = int(t['id'])
+        term.parent_id = int(t['parent_id'])
+        if t.get('created', None):
+            term.created = parser.parse(t['created'].strip())
+        if t.get('modified', None):
+            term.modified = parser.parse(t['modified'].strip())
+        term._title = t['_title'].strip()
+        term.title = t['title'].strip()
+        term.description = t['description'].strip()
+        # parse list from string in CSV
+        encyc_urls = t.get('encyc_urls', [])
+        if encyc_urls:
+            if isinstance(encyc_urls, basestring):
+                term.encyc_urls = encyc_urls.strip().split(',')
+            elif isinstance(encyc_urls, list):
+                term.encyc_urls = encyc_urls
+        if t.get('weight',None):
+            term.weight = int(t['weight'])
+        else:
+            term.weight = 0
+        return term
+
+    def _flatten_json( self ):
+        """Converts Term into a dict suitable for writing to JSON.
+        """
         data = {}
         for key,val in self.__dict__.iteritems():
-            if (key in ['parent']) and val:
-                val = getattr(self, key).id
+            if (key in ['parent_id']) and val:
+                val = getattr(self, key)
             elif (key in ['siblings', 'children']) and val:
                 val = []
                 for t in getattr(self, key):
                     val.append(t.id)
+            elif (key in ['created', 'modified']):
+                if val:
+                    val = datetime.strftime(val, TIMESTAMP_FORMAT)
+                else:
+                    val = None
             data[key] = val
         return data
     
-    def json( self ):
-        return json.dumps(self._flatten())
+    def csv( self ):
+        """Converts Term into a list suitable for writing to CSV.
+        """
+        data = []
+        for key in CSV_HEADERS:
+            val = getattr(self, key)
+            if (key in ['created', 'modified']):
+                if val:
+                    val = datetime.strftime(val, TIMESTAMP_FORMAT)
+                else:
+                    val = ''
+            elif (key == 'encyc_urls'):
+                if val:
+                    val = ','.join(val)
+                else:
+                    val = ''
+            data.append(val)
+        return data

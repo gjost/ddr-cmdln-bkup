@@ -41,8 +41,8 @@ from DDR import models
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
 
-HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
-HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
+HARD_CODED_MAPPINGS_PATH = '/var/www/media/base/ddr/docstore/mappings.json'
+HARD_CODED_FACETS_PATH = '/var/www/media/base/ddr/vocab'
 
 SUCCESS_STATUSES = [200, 201]
 STATUS_OK = ['completed']
@@ -247,21 +247,22 @@ def _make_mappings( mappings_path, index, models_dir ):
         for mapping in mappings['documents']:
             model = mapping.keys()[0]
             json_path = os.path.join(models_dir, '%s.json' % model)
-            with open(json_path, 'r') as f:
-                data = json.loads(f.read())
-            for field in data:
-                fname = field['name']
-                mapping[model]['properties'][fname] = field['elasticsearch']['properties']
-            # mappings for parent_id, etc
-            if model == 'collection':
-                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-            elif model == 'entity':
-                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                mapping[model]['properties']['collection_id'] = ID_PROPERTIES
-            elif model == 'file':
-                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                mapping[model]['properties']['collection_id'] = ID_PROPERTIES
-                mapping[model]['properties']['entity_id'] = ID_PROPERTIES
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    data = json.loads(f.read())
+                for field in data:
+                    fname = field['name']
+                    mapping[model]['properties'][fname] = field['elasticsearch']['properties']
+                # mappings for parent_id, etc
+                if model == 'collection':
+                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                elif model == 'entity':
+                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                    mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+                elif model == 'file':
+                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                    mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+                    mapping[model]['properties']['entity_id'] = ID_PROPERTIES
         return mappings
     elif 'meta' in index:
         return mappings['meta']
