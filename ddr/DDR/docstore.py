@@ -12,6 +12,7 @@ HOSTS = [{'host':'192.168.56.120', 'port':9200}]
 INDEX = 'documents0'
 PATH = '/var/www/media/base'
 
+import os
 from DDR import models
 from DDR import docstore
 
@@ -21,6 +22,8 @@ docstore.create_index(HOSTS, INDEX)
 
 docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH, models.MODELS_DIR)
 docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
+
+docstore.delete(HOSTS, INDEX, os.path.basename(PATH), recursive=True)
 
 docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 
@@ -935,22 +938,23 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
         )
     return results
 
-
-def delete( hosts, index, model, document_id, recursive=False ):
-    """
+def delete( hosts, index, document_id, recursive=False ):
+    """Delete a document and optionally its children.
+    
     @param hosts: list of dicts containing host information.
     @param index:
-    @param model:
     @param document_id:
     @param recursive: True or False
     """
+    model = models.split_object_id(document_id)[0]
+    es = _get_connection(hosts)
     if recursive:
-        fieldname = None
-        if model == 'collection': fieldname = 'collection_id'
-        elif model == 'entity': fieldname = 'entity_id'
-        assert False
+        if model == 'collection': doc_type = 'collection,entity,file'
+        elif model == 'entity': doc_type = 'entity,file'
+        elif model == 'file': doc_type = 'file'
+        query = 'id:"%s"' % document_id
+        return es.delete_by_query(index=index, doc_type=doc_type, q=query)
     else:
-        es = _get_connection(hosts)
         return es.delete(index=index, doc_type=model, id=document_id)
 
 
