@@ -142,7 +142,7 @@ def _parse_cataliases( cataliases ):
             indices_aliases.append( (i,a) )
     return indices_aliases
 
-def set_alias( hosts, alias, index ):
+def set_alias( hosts, alias, index, remove=False ):
     """Point alias at specified index; create index if doesn't exist.
     
     IMPORTANT: There is only ever ONE index at a time. All existing
@@ -151,6 +151,7 @@ def set_alias( hosts, alias, index ):
     @param hosts: list of dicts containing host information.
     @param alias: Name of the alias
     @param index: Name of the alias' target index.
+    @param remove: boolean
     """
     alias = make_index_name(alias)
     index = make_index_name(index)
@@ -160,8 +161,9 @@ def set_alias( hosts, alias, index ):
     # delete existing aliases
     for i,a in _parse_cataliases(es.cat.aliases(h=['index','alias'])):
         es.indices.delete_alias(index=i, name=a)
-    # set the alias
-    es.indices.put_alias(index=index, name=alias, body='')
+    if not remove:
+        # set the alias
+        es.indices.put_alias(index=index, name=alias, body='')
 
 def target_index( hosts, alias ):
     """Get the name of the index to which the alias points
@@ -196,7 +198,6 @@ def create_index( hosts, index ):
     es = _get_connection(hosts)
     status = es.indices.create(index=index, body=body)
     return status
-
 
 def delete_index( hosts, index ):
     """Delete the specified index.
@@ -304,7 +305,6 @@ def put_mappings( hosts, index, mappings_path, models_dir ):
         statuses.append( {'model':model, 'status':status} )
     return statuses
 
-
 def put_facets( hosts, index, path=FACETS_PATH ):
     """PUTs facets from file into ES.
     
@@ -390,6 +390,41 @@ def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None )
     es = _get_connection(hosts)
     results = es.search(index=index, doc_type=model, body=payload)
     return results['facets']['results']
+
+def repo( hosts, index, path ):
+    """Add or update base repository metadata.
+    """
+    # get and validate file
+    with open(path, 'r') as f:
+        body = f.read()
+    data = json.loads(body)
+    if (not (data.get('id') and  data.get('repo'))) or (data.get('org')):
+        raise Exception('Data file is not well-formed.')
+    document_id = data['id']
+    # add/update
+    doctype = 'repo'
+    es = _get_connection(hosts)
+    results = es.index(index=index, doc_type=doctype, id=document_id, body=data)
+    return results
+
+def org( hosts, index, path, remove=False):
+    """Add/update or remove organization metadata.
+    """
+    # get and validate file
+    with open(path, 'r') as f:
+        body = f.read()
+    data = json.loads(body)
+    if (not (data.get('id') and  data.get('repo') and  data.get('org'))):
+        raise Exception('Data file is not well-formed.')
+    document_id = data['id']
+    # add/update/remove
+    doctype = 'organization'
+    es = _get_connection(hosts)
+    if remove and exists(hosts, index, doctype, document_id):
+        results = es.delete(index=index, doc_type=doctype, id=document_id)
+    else:
+        results = es.index(index=index, doc_type=doctype, id=document_id, body=data)
+    return results
 
 
 # post -----------------------------------------------------------------
