@@ -1,4 +1,4 @@
-VERSION = 0.1
+VERSION = '0.9-beta'
 CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
 
 class NoConfigError(Exception):
@@ -24,11 +24,13 @@ def natural_sort( l ):
 
 def natural_order_string( id ):
     """Convert a collection/entity ID into form that can be sorted naturally.
-    Assumes a valid format DDR ID or else, blammo.
-    """
-    alnum = re.findall('\d+', id).pop()
     
-    return alnum
+    @param id: A valid format DDR ID
+    """
+    alnum = re.findall('\d+', id)
+    if not alnum:
+        raise Exception('Valid DDR ID required.')
+    return alnum.pop()
 
 
 class Timer( object ):

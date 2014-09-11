@@ -8,7 +8,7 @@ setup(
     url = 'https://github.com/densho/ddr-cmdln/',
     download_url = 'https://github.com/densho/ddr-cmdln.git',
     author_email = 'geoffrey.jost@densho.org',
-    version = '0.1',
+    version = '0.9-beta',
     install_requires = ['nose'],
     packages = ['DDR'],
     package_dir = {'DDR': 'DDR'},

@@ -12,6 +12,7 @@ HOSTS = [{'host':'192.168.56.120', 'port':9200}]
 INDEX = 'documents0'
 PATH = '/var/www/media/base'
 
+import os
 from DDR import models
 from DDR import docstore
 
@@ -19,14 +20,17 @@ docstore.delete_index(HOSTS, INDEX)
 
 docstore.create_index(HOSTS, INDEX)
 
-docstore.put_mappings(HOSTS, INDEX, docstore.HARD_CODED_MAPPINGS_PATH, models.MODELS_DIR)
-docstore.put_facets(HOSTS, INDEX, docstore.HARD_CODED_FACETS_PATH)
+docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH, models.MODELS_DIR)
+docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
+
+docstore.delete(HOSTS, INDEX, os.path.basename(PATH), recursive=True)
 
 docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 
 ------------------------------------------------------------------------
 """
 from __future__ import print_function
+import ConfigParser
 from datetime import datetime
 import json
 import logging
@@ -35,14 +39,20 @@ import os
 
 from elasticsearch import Elasticsearch
 
+from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_sort
 from DDR import models
 
+config = ConfigParser.ConfigParser()
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
+
+MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
+FACETS_PATH = config.get('cmdln','vocab_facets_path')
+
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
-
-HARD_CODED_MAPPINGS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/mappings.json'
-HARD_CODED_FACETS_PATH = '/usr/local/src/ddr-cmdln/ddr/DDR/facets'
 
 SUCCESS_STATUSES = [200, 201]
 STATUS_OK = ['completed']
@@ -132,7 +142,7 @@ def _parse_cataliases( cataliases ):
             indices_aliases.append( (i,a) )
     return indices_aliases
 
-def set_alias( hosts, alias, index ):
+def set_alias( hosts, alias, index, remove=False ):
     """Point alias at specified index; create index if doesn't exist.
     
     IMPORTANT: There is only ever ONE index at a time. All existing
@@ -141,6 +151,7 @@ def set_alias( hosts, alias, index ):
     @param hosts: list of dicts containing host information.
     @param alias: Name of the alias
     @param index: Name of the alias' target index.
+    @param remove: boolean
     """
     alias = make_index_name(alias)
     index = make_index_name(index)
@@ -150,8 +161,9 @@ def set_alias( hosts, alias, index ):
     # delete existing aliases
     for i,a in _parse_cataliases(es.cat.aliases(h=['index','alias'])):
         es.indices.delete_alias(index=i, name=a)
-    # set the alias
-    es.indices.put_alias(index=index, name=alias, body='')
+    if not remove:
+        # set the alias
+        es.indices.put_alias(index=index, name=alias, body='')
 
 def target_index( hosts, alias ):
     """Get the name of the index to which the alias points
@@ -186,7 +198,6 @@ def create_index( hosts, index ):
     es = _get_connection(hosts)
     status = es.indices.create(index=index, body=body)
     return status
-
 
 def delete_index( hosts, index ):
     """Delete the specified index.
@@ -247,21 +258,22 @@ def _make_mappings( mappings_path, index, models_dir ):
         for mapping in mappings['documents']:
             model = mapping.keys()[0]
             json_path = os.path.join(models_dir, '%s.json' % model)
-            with open(json_path, 'r') as f:
-                data = json.loads(f.read())
-            for field in data:
-                fname = field['name']
-                mapping[model]['properties'][fname] = field['elasticsearch']['properties']
-            # mappings for parent_id, etc
-            if model == 'collection':
-                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-            elif model == 'entity':
-                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                mapping[model]['properties']['collection_id'] = ID_PROPERTIES
-            elif model == 'file':
-                mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                mapping[model]['properties']['collection_id'] = ID_PROPERTIES
-                mapping[model]['properties']['entity_id'] = ID_PROPERTIES
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    data = json.loads(f.read())
+                for field in data:
+                    fname = field['name']
+                    mapping[model]['properties'][fname] = field['elasticsearch']['properties']
+                # mappings for parent_id, etc
+                if model == 'collection':
+                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                elif model == 'entity':
+                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                    mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+                elif model == 'file':
+                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+                    mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+                    mapping[model]['properties']['entity_id'] = ID_PROPERTIES
         return mappings
     elif 'meta' in index:
         return mappings['meta']
@@ -293,8 +305,7 @@ def put_mappings( hosts, index, mappings_path, models_dir ):
         statuses.append( {'model':model, 'status':status} )
     return statuses
 
-
-def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
+def put_facets( hosts, index, path=FACETS_PATH ):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
@@ -308,7 +319,7 @@ def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
     logger.debug('index_facets(%s, %s, %s)' % (hosts, index, path))
     statuses = []
     es = _get_connection(hosts)
-    for facet_json in os.listdir(HARD_CODED_FACETS_PATH):
+    for facet_json in os.listdir(FACETS_PATH):
         facet = facet_json.split('.')[0]
         srcpath = os.path.join(path, facet_json)
         with open(srcpath, 'r') as f:
@@ -317,7 +328,7 @@ def put_facets( hosts, index, path=HARD_CODED_FACETS_PATH ):
             statuses.append(status)
     return statuses
 
-def list_facets( path=HARD_CODED_FACETS_PATH ):
+def list_facets( path=FACETS_PATH ):
     return [filename.replace('.json', '') for filename in os.listdir(path)]
 
 def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None ):
@@ -379,6 +390,41 @@ def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None )
     es = _get_connection(hosts)
     results = es.search(index=index, doc_type=model, body=payload)
     return results['facets']['results']
+
+def repo( hosts, index, path ):
+    """Add or update base repository metadata.
+    """
+    # get and validate file
+    with open(path, 'r') as f:
+        body = f.read()
+    data = json.loads(body)
+    if (not (data.get('id') and  data.get('repo'))) or (data.get('org')):
+        raise Exception('Data file is not well-formed.')
+    document_id = data['id']
+    # add/update
+    doctype = 'repo'
+    es = _get_connection(hosts)
+    results = es.index(index=index, doc_type=doctype, id=document_id, body=data)
+    return results
+
+def org( hosts, index, path, remove=False):
+    """Add/update or remove organization metadata.
+    """
+    # get and validate file
+    with open(path, 'r') as f:
+        body = f.read()
+    data = json.loads(body)
+    if (not (data.get('id') and  data.get('repo') and  data.get('org'))):
+        raise Exception('Data file is not well-formed.')
+    document_id = data['id']
+    # add/update/remove
+    doctype = 'organization'
+    es = _get_connection(hosts)
+    if remove and exists(hosts, index, doctype, document_id):
+        results = es.delete(index=index, doc_type=doctype, id=document_id)
+    else:
+        results = es.index(index=index, doc_type=doctype, id=document_id, body=data)
+    return results
 
 
 # post -----------------------------------------------------------------
@@ -927,22 +973,23 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
         )
     return results
 
-
-def delete( hosts, index, model, document_id, recursive=False ):
-    """
+def delete( hosts, index, document_id, recursive=False ):
+    """Delete a document and optionally its children.
+    
     @param hosts: list of dicts containing host information.
     @param index:
-    @param model:
     @param document_id:
     @param recursive: True or False
     """
+    model = models.split_object_id(document_id)[0]
+    es = _get_connection(hosts)
     if recursive:
-        fieldname = None
-        if model == 'collection': fieldname = 'collection_id'
-        elif model == 'entity': fieldname = 'entity_id'
-        assert False
+        if model == 'collection': doc_type = 'collection,entity,file'
+        elif model == 'entity': doc_type = 'entity,file'
+        elif model == 'file': doc_type = 'file'
+        query = 'id:"%s"' % document_id
+        return es.delete_by_query(index=index, doc_type=doc_type, q=query)
     else:
-        es = _get_connection(hosts)
         return es.delete(index=index, doc_type=model, id=document_id)
 
 
