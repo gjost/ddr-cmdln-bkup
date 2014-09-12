@@ -329,6 +329,38 @@ def model_fields( model ):
         return fields
     return []
 
+def module_is_valid(module):
+    """Indicates whether this is a proper module
+
+    TODO determine required fields for models
+
+    @param module: The module in question
+    @returns: Boolean,str message
+    """
+    # Is the module located in a 'ddr' Repository repo?
+    # collection.__file__ == absolute path to the module
+    match = 'ddr/repo_models'
+    if not match in module.__file__:
+        return False,"Module %s not in 'ddr' Repository repo." % module.__name__
+    # is fields var present in module?
+    fields = None
+    fieldsname = None
+    for name in ['COLLECTION_FIELDS', 'ENTITY_FIELDS', 'FILE_FIELDS']:
+        if hasattr(module, name):
+            fields = getattr(module, name)
+            fieldsname = name
+    if not fields:
+        return False,'Module does not contain a *_FIELDS variable.'
+    # is fields var listy?
+    try:
+        len(fields)
+    except TypeError:
+        return False,'Module %s is not a list.' % fieldsname
+    # are there any fields?
+    if not len(fields):
+        return False,'Module %s is empty.' % fieldsname
+    return True,'ok'
+
 def module_function(module, function_name, value):
     """If named function is present in module and callable, pass value to it and return result.
     
