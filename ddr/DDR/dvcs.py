@@ -57,26 +57,24 @@ def git_version(repo_path=None):
         gitversion = '%s' % err
     return gitversion
 
-def latest_commit(repo_or_path=None):
+def latest_commit(path):
     """Returns latest commit for the specified repository
     
-    This function prefers a GitPython Repository object but will also accept an
-    absolute path to a repository.  If no argument is provided it will use CWD.
+    One of several arguments must be provided:
+    - Absolute path to a repository.
+    - Absolute path to file within a repository. In this case the log
+      will be specific to the file.
     
-    >>> repo = repository('/path/to/repo')
-    >>> latest_commit(repo)
-    '8ad396324cc4a9ce6b9c0bce1cc8b78cc8e82859 (HEAD, master) 2013-07-11 11:03:19 -0700'
+    >>> path = '/path/to/repo'
+    >>> latest_commit(path=path)
+    'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2 (HEAD, master) 1970-01-01 00:00:00 -0000'
     
-    @param repo_or_path: GitPython Repository object or repo path
+    @param path: Absolute path to repo or file within.
     """
-    if not repo_or_path:
-        repo_or_path = os.getcwd()
-    repo = None
-    if isinstance(repo_or_path, git.Repo):
-        repo = repo_or_path
-    elif isinstance(repo_or_path, basestring) and os.path.exists(repo_or_path):
-        repo = git.Repo(repo_or_path)
-    if repo:
+    repo = git.Repo(path)
+    if os.path.isfile(path):
+        return repo.git.log('--pretty=format:%H %d %ad', '--date=iso', '-1', path)
+    else:
         return repo.git.log('--pretty=format:%H %d %ad', '--date=iso', '-1')
     return None
 
