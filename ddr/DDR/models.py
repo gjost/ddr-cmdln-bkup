@@ -343,14 +343,9 @@ def module_is_valid(module):
     if not match in module.__file__:
         return False,"Module %s not in 'ddr' Repository repo." % module.__name__
     # is fields var present in module?
-    fields = None
-    fieldsname = None
-    for name in ['COLLECTION_FIELDS', 'ENTITY_FIELDS', 'FILE_FIELDS']:
-        if hasattr(module, name):
-            fields = getattr(module, name)
-            fieldsname = name
+    fields = getattr(module, 'FIELDS', None)
     if not fields:
-        return False,'Module does not contain a *_FIELDS variable.'
+        return False,'Module does not contain a FIELDS variable.'
     # is fields var listy?
     try:
         len(fields)
