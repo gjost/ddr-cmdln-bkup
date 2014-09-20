@@ -78,6 +78,50 @@ def latest_commit(path):
         return repo.git.log('--pretty=format:%H %d %ad', '--date=iso', '-1')
     return None
 
+def _parse_cmp_commits(gitlog, a, b, abbrev=False):
+    """
+    If abbrev == True:
+        git log --pretty=%h
+    else:
+        git log --pretty=%H
+    
+    @param gitlog: str
+    @param a: str Commit A
+    @param b: str Commit B
+    @param abbrev: Boolean Whether or not to use abbreviated commits
+    """
+    commits = gitlog.strip().split('\n')
+    commits.reverse()
+    if a not in commits:
+        raise ValueError("'%s' is not in log" % a)
+    elif b not in commits:
+        raise ValueError("'%s' is not in log" % b)
+    if commits.index(a) < commits.index(b): return -1
+    elif commits.index(a) == commits.index(b): return 0
+    elif commits.index(a) > commits.index(b): return 1
+
+def cmp_commits(repo, a, b, abbrev=False):
+    """Indicates how two commits are related (newer,older,equal)
+    
+    Both commits must be in the same branch of the same repo.
+    Git log normally lists commits in reverse chronological order.
+    This function uses the words "before" and "after" in the normal sense:
+    If commit B comes "before" commit A it means that B occurred at an
+    earlier datetime than A.
+    Raises Exception if can't find both commits.
+    
+    @param repo: A GitPython Repo object.
+    @param a: str A commit hash.
+    @param b: str A commit hash.
+    @param abbrev: Boolean If True use abbreviated commit hash.
+    @returns: -1, 0, 1
+    """
+    if abbrev:
+        fmt = '--pretty=%h'
+    else:
+        fmt = '--pretty=%H'
+    return _parse_cmp_commits(repo.git.log(fmt), a, b, abbrev)
+
 def compose_commit_message(title, body='', agent=''):
     """Composes a Git commit message.
     
