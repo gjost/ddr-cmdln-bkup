@@ -1,12 +1,14 @@
 import ConfigParser
+from copy import deepcopy
 from datetime import datetime
 import csv
+import json
 import os
 import sys
 
 from DDR import CONFIG_FILES, NoConfigError
 from DDR import commands
-from DDR.models import metadata_files
+from DDR.models import metadata_files, module_function
 
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
@@ -59,6 +61,12 @@ def csv_reader(csvfile):
         quotechar=CSV_QUOTECHAR,
     )
     return reader
+
+def make_entity_path(collection_path, entity_id):
+    return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id)
+
+def make_entity_json_path(collection_path, entity_id):
+    return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id, 'entity.json')
 
 
 # export ---------------------------------------------------------------
@@ -122,15 +130,19 @@ def dump_entity(path, class_, module, field_names):
                 and field.get('form',None):
             key = field['name']
             label = field['form']['label']
-            # run csvexport_* functions on field data if present
-            val = module_function(module,
-                                  'csvexport_%s' % key,
-                                  getattr(entity, field['name']))
+            # run csvdump_* functions on field data if present
+            val = module_function(
+                module,
+                'csvdump_%s' % key,
+                getattr(entity, field['name'])
+            )
             if not (isinstance(val, str) or isinstance(val, unicode)):
                 val = unicode(val)
             if val:
                 value = val.encode('utf-8')
-        values.append(value)
+            value = value.strip()
+            value = value.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\\n')
+            values.append(value)
     return values
 
 def dump_file(path, class_, module, field_names):
@@ -152,14 +164,18 @@ def dump_file(path, class_, module, field_names):
         value = ''
         if hasattr(file_, f['name']):
             key = f['name']
-            # run csvexport_* functions on field data if present
-            val = module_function(module,
-                                  'csvexport_%s' % key,
-                                  getattr(file_, f['name']))
+            # run csvdump_* functions on field data if present
+            val = module_function(
+                module,
+                'csvdump_%s' % key,
+                getattr(file_, f['name'])
+            )
             if not (isinstance(val, str) or isinstance(val, unicode)):
                 val = unicode(val)
             if val:
                 value = val.encode('utf-8')
+            value = value.strip()
+            value = value.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\\n')
         values.append(value)
     return values
 
@@ -198,6 +214,7 @@ def export(json_paths, class_, module, csv_path):
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
         for n,path in enumerate(json_paths):
+            print('%s/%s' % (n, len(json_paths)))
             if module.MODEL == 'entity':
                 values = dump_entity(path, class_, module, field_names)
             elif module.MODEL == 'file':
@@ -206,7 +223,7 @@ def export(json_paths, class_, module, csv_path):
     return csv_path
 
 
-# import ---------------------------------------------------------------
+# import entities ------------------------------------------------------
 
 def read_csv(path):
     """Read specified file, return list of rows.
@@ -234,6 +251,36 @@ def get_required_fields(fields, exceptions):
             required_fields.append(field['name'])
     return required_fields
 
+def prep_valid_values(vocabs_path):
+    """Packages dict of acceptable values for controlled-vocab fields.
+    
+    Loads choice values from FIELD.json files in the 'ddr' repository
+    into a dict:
+    {
+        'FIELD': ['VALID', 'VALUES', ...],
+        'status': ['inprocess', 'completed'],
+        'rights': ['cc', 'nocc', 'pdm'],
+        ...
+    }
+    
+    @param vocabs_path: Absolute path to dir containing vocab .json files.
+    @returns: dict
+    """
+    valid_values = {}
+    json_paths = []
+    for p in os.listdir(vocabs_path):
+        path = os.path.join(vocabs_path, p)
+        if os.path.splitext(path)[1] == '.json':
+            json_paths.append(path)
+    for path in json_paths:
+        with open(path, 'r') as f:
+            data = json.loads(f.read())
+        field = data['id']
+        values = [term['id'] for term in data['terms']]
+        if values:
+            valid_values[field] = values
+    return valid_values
+
 def make_row_dict(headers, row):
     """Turns the row into a dict with the headers as keys
     
@@ -242,39 +289,33 @@ def make_row_dict(headers, row):
     @returns dict
     """
     if len(headers) != len(row):
-        raise Exception
+        print(headers)
+        print(row)
+        raise Exception('Row and header have different number of fields.')
     d = {}
     for n in range(0, len(row)):
         d[headers[n]] = row[n]
     return d
 
-def replace_variant_cv_field_values(headers, rows, alt_indexes):
+def replace_variant_cv_field_values(headers, rowd, alt_indexes):
     """Tries to replace variants of controlled-vocab with official values
     
     TODO pass in alternates data
     
     @param headers: List of field names
-    @param rows: List of rows (each with list of fields, not dict)
+    @param rowd: A single row (dict, not list of fields)
     @param alt_indexes: list
     @returns: list rows
     """
-    def replace(fieldname, row, headers, rowd, index):
-        """This does the actual work.
-        """
+    for field_name, alt_index in alt_indexes.iteritems():
         value = rowd.get(fieldname, None)
         # if value appears in index, it is a variant
         if value and index.get(value, None):
-            row[headers.index(fieldname)] = index[value]
-        return row
-    
-    for row in rows:
-        rowd = make_row_dict(headers, row)
-        for field_name, alt_index in alt_indexes.iteritems():
-            row = replace(field_name, row, headers, rowd, alt_index)
-    return rows
+            rowd[fieldname] = index[value]
+    return rowd
 
-def analyze_headers(model, headers, field_names, exceptions):
-    """Analyzes headers and crashes if problems.
+def validate_headers(model, headers, field_names, exceptions):
+    """Validates headers and crashes if problems.
     
     @param model: 'entity' or 'file'
     @param headers: List of field names
@@ -298,112 +339,121 @@ def analyze_headers(model, headers, field_names, exceptions):
     if bad_headers:
         raise Exception('BAD HEADER(S): %s' % bad_headers)
 
-#def analyze_row(model, headers, rowd, choices_values):
-#    """Analyzes row values and crashes if problems.
-#    
-#    TODO refers to lots of globals!!!
-#    
-#    @param model: 'entity' or 'file'
-#    @param headers: List of field names
-#    @param rowd: A single row (dict, not list of fields)
-#    @param choices_values:
-#    @returns: list of invalid values
-#    """
-#    invalid = []
-#    if model == 'entity':
-#        if not choice_is_valid(STATUS_CHOICES_VALUES, rowd['status']): invalid.append('status')
-#        if not choice_is_valid(PUBLIC_CHOICES_VALUES, rowd['public']): invalid.append('public')
-#        if not choice_is_valid(RIGHTS_CHOICES_VALUES, rowd['rights']): invalid.append('rights')
-#        # language can be 'eng', 'eng;jpn', 'eng:English', 'jpn:Japanese'
-#        for x in rowd['language'].strip().split(';'):
-#            if ':' in x:
-#                code = x.strip().split(':')[0]
-#            else:
-#                code = x.strip()
-#            if not choice_is_valid(LANGUAGE_CHOICES_VALUES, code) and 'language' not in invalid:
-#                invalid.append('language')
-#        if not choice_is_valid(GENRE_CHOICES_VALUES, rowd['genre']): invalid.append('genre')
-#        if not choice_is_valid(FORMAT_CHOICES_VALUES, rowd['format']): invalid.append('format')
-#    elif model == 'file':
-#        if not choice_is_valid(PUBLIC_CHOICES_VALUES, rowd['public']): invalid.append('public')
-#        if not choice_is_valid(RIGHTS_CHOICES_VALUES, rowd['rights']): invalid.append('rights')
-#    return invalid
-
-def analyze_rows(model, headers, required_fields, rows):
-    """Analyzes rows and crashes if problems.
+def account_row(required_fields, rowd):
+    """Looks for required fields that are missing.
     
-    @param model: 'entity' or 'file'
+    @param required_fields: List of required field names
+    @param rowd: A single row (dict, not list of fields)
+    @returns: list of field names
+    """
+    missing = []
+    for f in required_fields:
+        if (f not in rowd.keys()) or (not rowd.get(f,None)):
+            missing.append(f)
+    return missing
+
+def validate_row(module, headers, valid_values, rowd):
+    """Examines row values and returns names of invalid fields.
+    
+    TODO refers to lots of globals!!!
+    
+    @param module: entity_module or files_module
+    @param headers: List of field names
+    @param valid_values:
+    @param rowd: A single row (dict, not list of fields)
+    @returns: list of invalid values
+    """
+    invalid = []
+    for f in module.FIELDS:
+        field = f['name']
+        if rowd.get(field,None):
+            valid = module_function(
+                module,
+                'csvvalidate_%s' % field,
+                [valid_values, rowd[field]]
+            )
+            if not valid:
+                invalid.append(field)
+    return invalid
+
+def validate_rows(module, headers, required_fields, valid_values, rows):
+    """Examines rows and crashes if problems.
+    
+    @param module: entity_module or files_module
     @param headers: List of field names
     @param required_fields: List of required field names
+    @param valid_values:
     @param rows: List of rows (each with list of fields, not dict)
     """
-    for row in rows:
+    for n,row in enumerate(rows):
         rowd = make_row_dict(headers, row)
-        missing_required_fields = row_missing_required_fields(required_fields, rowd)
-#        analyze_row(model, headers, rowd)
+        missing_required = account_row(required_fields, rowd)
+        invalid_fields = validate_row(module, headers, valid_values, rowd)
         # print feedback and die
-        if missing_required_fields or invalid:
-            print(row)
-            if missing_required_fields:
-                raise Exception('MISSING REQUIRED FIELDS: %s' % missing_required_fields)
-            if invalid:
-                raise Exception('INVALID VALUES: %s' % invalid)
+        if missing_required or invalid_fields:
+            if missing_required:
+                raise Exception('MISSING REQUIRED FIELDS: %s' % missing_required)
+            if invalid_fields:
+                raise Exception('INVALID VALUES: %s' % invalid_fields)
 
-def load_entity(headers, row, collection_path, class_, module):
+def entity_exists(entity_json_path):
+    pass
+
+def load_entity(headers, row, collection_path, class_, module, update=False):
     """Write new entity.json file, return new Entity object
+    
+    TODO Populates entity attribs EXCEPT FOR .files!!!
     
     @param headers: List of field names
     @param row: row from csv.reader
     @param collection_path: Absolute path to collection
     @param class_: subclass of Entity
     @param module: entity_module
+    @param update: Boolean True if we're updating an existing entity
     @returns: entity
     """
-    assert False
-    # TODO write to tmp file, return Entity object
-    # Should not WRITE anything - see new/update_entity()
-    
-    row = replace_variant_cv_field_values('entity', headers, row)
     rowd = make_row_dict(headers, row)
-    # run csvimport_* functions on row data
-    for field_name in module.FIELDS:
-        rowd[field_name] = module_function(
-            module, 'csvimport_%s' % key, rowd[field_name]
-        )
-    # write blank entity.json template to entity location
+    #rowd = replace_variant_cv_field_values(headers, rowd, alt_indexes)
     entity_uid = rowd['id']
-    entity_path = os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_uid)
-    class_(entity_path).dump_json(path=TEMPLATE_EJSON, template=True)
-    # load Entity object from .json
-    entity = class_.from_json(entity_path)
-    # set values
-    for key in rowd.keys():
-        setattr(entity, key, rowd[key])
-    entity.record_created = datetime.now()
-    entity.record_lastmod = datetime.now()
-    # write back to file
-    entity.dump_json()
-    return entity.json_path
+    entity_path = make_entity_path(collection_path, entity_uid)
+    # update an existing entity
+    if os.path.exists(entity_path):
+        new = False
+        entity = class_.from_json(entity_path)
+    else:
+        new = True
+        entity = class_(entity_path)
+        entity.id = entity_uid
+    # exclude 'files' from entities bc hard to convert to CSV.
+    field_names = module_field_names(module)
+    if module.MODEL == 'entity':
+        field_names.remove('files')
+    # run csvload_* functions on row data, set values
+    for field in field_names:
+        value = module_function(
+            module,
+            'csvload_%s' % field,
+            rowd[field]
+        )
+        try:
+            value = value.strip()
+            value = value.replace('\\n', '\n')
+        except AttributeError:
+            pass # doesn't work on ints and lists :P
+        setattr(entity, field, value)
+    if new:
+        entity.record_created = datetime.now()
+        entity.record_lastmod = datetime.now()
+    # done
+    return entity
 
-def entity_exists():
+def commit_entities():
     """
-    TODO whether entity exists in repo
+    TODO commit_entities
     """
     assert False
 
-def new_entity():
-    """
-    TODO new entity
-    """
-    assert False
-
-def update_entity():
-    """
-    TODO update entity
-    """
-    assert False
-
-def import_entities(csv_path, collection_path, class_, module, git_name, git_mail):
+def import_entities(csv_path, collection_path, class_, module, vocabs_path, git_name, git_mail):
     """Reads a CSV file, checks for errors, writes entity.json files, commits them.
     
     TODO Commit entity.json files in a big batch.
@@ -414,31 +464,30 @@ def import_entities(csv_path, collection_path, class_, module, git_name, git_mai
     @param collection_path: Absolute path to collection repo.
     @param class_: subclass of Entity
     @param module: entity_module
+    @param vocabs_path: Absolute path to vocab dir
     @param git_name: Username for use in changelog, git log
     @param git_mail: User email address for use in changelog, git log
     """
     field_names = module_field_names(module)
-    nonrequired_fields = REQUIRED_FIELDS_EXCEPTIONS['entity']
+    nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
+    valid_values = prep_valid_values(vocabs_path)
     # read entire file into memory
     rows = read_csv(csv_path)
     headers = rows.pop(0)
     # check for errors
-    analyze_headers('entity', headers, field_names, nonrequired_fields)
-    analyze_rows(model, headers, required_fields, rows)
+    validate_headers('entity', headers, field_names, nonrequired_fields)
+    validate_rows(module, headers, required_fields, valid_values, rows)
     # make some entity files!
     entity_json_paths = []
     for n,row in enumerate(rows):
         entity = load_entity(headers, row, collection_path, class_, module)
-        
-        if entity_exists():
-            update_entity(entity)
-        else:
-            new_entity(entity)
-        
-       entity_json_paths.append(path)
-    # TODO commit all the files at once
-    assert False
+        # TODO entity._load_file_objects() ???
+        entity.dump_json()
+        entity_json_paths.append(entity.json_path)
+    # commit all the files at once
+    commit_entities(entity_json_paths)
+
 
 # import files ---------------------------------------------------------
 
@@ -517,6 +566,7 @@ def load_file(csv_dir, rowd, entity_class, git_name, git_mail, agent):
     
     assert False
     # TODO WAIT! WHAT ABOUT FILE METADATA!
+    # TODO entity.add_file should return list of modified files but not do the commit
     entity.add_file(git_name, git_mail, src_path, role, rowd, agent=agent)
 
 def file_exists():
@@ -560,7 +610,7 @@ def import_files(csv_path, collection_path, class_, module, git_name, git_mail, 
     rows = read_csv(csv_path)
     headers = rows.pop(0)
     # check for errors
-    analyze_headers('file', headers, field_names, nonrequired_fields)
+    validate_headers('file', headers, field_names, nonrequired_fields)
     
     # convert to list of rowds so we don't do this in each following function
     # rm from rows as we go so we don't have two of these potentially giant lists
@@ -570,7 +620,7 @@ def import_files(csv_path, collection_path, class_, module, git_name, git_mail, 
         rowds.append(make_row_dict(headers, row))
     
     # check for errors
-    analyze_rows(model, headers, required_fields, rowds)
+    validate_rows(model, headers, required_fields, rowds)
     bad_entities = test_entities(headers, rowds)
     if bad_entities:
         print('ONE OR MORE OBJECTS ARE COULD NOT BE LOADED! - IMPORT CANCELLED!')
