@@ -98,6 +98,8 @@ import StringIO
 
 from dateutil import parser
 
+from DDR import format_json
+
 
 CSV_HEADERS = [
     'id',
@@ -372,8 +374,7 @@ class Index( object ):
             'description': self.description,
             'terms': [term._flatten_json() for term in self.terms()],
         }
-        json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
-        return json_pretty
+        return format_json(data)
     
     def dump_csv( self, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
         """Write terms to a CSV file.
