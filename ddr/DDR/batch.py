@@ -123,18 +123,14 @@ def dump_entity(path, class_, module, field_names):
     entity = class_.from_json(entity_dir)
     # seealso ddrlocal.models.__init__.module_function()
     values = []
-    for field in module.FIELDS:
+    for field_name in field_names:
         value = ''
-        if (field['name'] in field_names) \
-                and hasattr(entity, field['name']) \
-                and field.get('form',None):
-            key = field['name']
-            label = field['form']['label']
+        if hasattr(entity, field_name):
             # run csvdump_* functions on field data if present
             val = module_function(
                 module,
-                'csvdump_%s' % key,
-                getattr(entity, field['name'])
+                'csvdump_%s' % field_name,
+                getattr(entity, field_name)
             )
             if not (isinstance(val, str) or isinstance(val, unicode)):
                 val = unicode(val)
@@ -160,15 +156,14 @@ def dump_file(path, class_, module, field_names):
     file_ = class_.from_json(path)
     # seealso ddrlocal.models.__init__.module_function()
     values = []
-    for f in module.FIELDS:
+    for field_name in field_names:
         value = ''
-        if hasattr(file_, f['name']):
-            key = f['name']
+        if hasattr(file_, field_name):
             # run csvdump_* functions on field data if present
             val = module_function(
                 module,
-                'csvdump_%s' % key,
-                getattr(file_, f['name'])
+                'csvdump_%s' % field_name,
+                getattr(file_, field_name)
             )
             if not (isinstance(val, str) or isinstance(val, unicode)):
                 val = unicode(val)
