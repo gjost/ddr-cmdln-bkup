@@ -138,7 +138,7 @@ def dissect_path( path_abs ):
     @param path_abs: An absolute file path.
     @returns: object
     """
-    if ('master' in path_abs) or ('mezzanine' in path_abs):
+    if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
         # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
         # /basepath/collection_id/files/entity_id/files/file_id.ext
         # /basepath/collection_id/files/entity_id/files/file_id.json
@@ -154,6 +154,7 @@ def dissect_path( path_abs ):
         else:
             p.object_id = os.path.basename(pathname)
         p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
+        p.role = p.role.lower()
         p.file_id = p.object_id
         p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
         p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
