@@ -45,18 +45,30 @@ def file_hash(path, algo='sha1'):
     f.close()
     return h.hexdigest()
 
-def metadata_files( basedir, recursive=False, files_first=False, force_read=False, save=False ):
+def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False, save=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
     
     Skips/excludes .git directories.
+    TODO depth (go down N levels from basedir)
     
     @param basedir: Absolute path
     @param recursive: Whether or not to recurse into subdirectories.
+    @param model: list Restrict to the named model ('collection','entity','file').
     @param files_first: If True, list files,entities,collections; otherwise sort.
     @param force_read: If True, always searches for files instead of using cache.
     @param save: Write a copy to basedir.
     @returns: list of paths
     """
+    def model_exclude(m, p):
+        exclude = 0
+        if m:
+            if (m == 'collection') and not ('collection.json' in p):
+                exclude = 1
+            elif (m == 'entity') and not ('entity.json' in p):
+                exclude = 1
+            elif (m == 'file') and not (('master' in p.lower()) or ('mezz' in p.lower())):
+                exclude = 1
+        return exclude
     CACHE_FILENAME = '.metadata_files'
     CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
     paths = []
@@ -74,7 +86,8 @@ def metadata_files( basedir, recursive=False, files_first=False, force_read=Fals
                     if f.endswith('.json'):
                         path = os.path.join(root, f)
                         exclude = [1 for x in excludes if x in path]
-                        if not exclude:
+                        modexclude = model_exclude(model, path)
+                        if not (exclude or modexclude):
                             paths.append(path)
         else:
             for f in os.listdir(basedir):
