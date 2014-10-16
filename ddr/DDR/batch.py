@@ -8,7 +8,7 @@ import sys
 
 from DDR import CONFIG_FILES, NoConfigError
 from DDR import commands
-from DDR.models import metadata_files, module_function
+from DDR.models import metadata_files, module_function, sort_file_paths
 
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
@@ -225,6 +225,8 @@ def export(json_paths, class_, module, csv_path):
     @param module: entity_module or files_module
     @param csv_path: Absolute path to CSV data file.
     """
+    if module.MODEL == 'file':
+        json_paths = sort_file_paths(json_paths)
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
     with open(csv_path, 'wb') as csvfile:

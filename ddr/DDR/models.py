@@ -125,6 +125,36 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
             f.write('\n'.join(paths))
     return paths
 
+def sort_file_paths(json_paths, rank='role-eid-sort'):
+    """Sort file JSON paths in human-friendly order.
+    
+    @param json_paths: 
+    @param rank: 'role-eid-sort' or 'eid-sort-role'
+    """
+    paths = {}
+    keys = []
+    while json_paths:
+        path = json_paths.pop()
+        model,repo,org,cid,eid,role,sha1 = split_object_id(id_from_path(path))
+        sort = 0
+        with open(path, 'r') as f:
+            for line in f.readlines():
+                if 'sort' in line:
+                    sort = line.split(':')[1].replace('"','').strip()
+        if rank == 'eid-sort-role':
+            key = '-'.join([eid,sort,role,sha1])
+        elif rank == 'role-eid-sort':
+            key = '-'.join([role,eid,sort,sha1])
+        paths[key] = path
+        keys.append(key)
+    keys_sorted = [key for key in natural_sort(keys)]
+    paths_sorted = []
+    while keys_sorted:
+        val = paths.pop(keys_sorted.pop(), None)
+        if val:
+            paths_sorted.append(val)
+    return paths_sorted
+
 class Path( object ):
     path = None
     base_path = None
