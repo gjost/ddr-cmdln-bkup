@@ -274,7 +274,7 @@ def model_from_path( path ):
     """
     if 'collection.json' in path: return 'collection'
     elif 'entity.json' in path: return 'entity'
-    elif ('master' in path) or ('mezzanine' in path): return 'file'
+    elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
     return None
 
 def model_from_dict( data ):
