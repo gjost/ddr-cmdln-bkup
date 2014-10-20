@@ -330,6 +330,34 @@ def model_from_dict( data ):
         #elif len_parts == 1: return 'repository'
     return None
 
+def path_from_id( object_id, base_dir='' ):
+    """Return's path to object* given the object ID and (optional) base_dir.
+    
+    * Does not append 'entity.json' or file extension.
+    
+    @param object_id:
+    @param base_dir: Absolute path, with no trailing slash.
+    @returns: Relative path or (if base_dir) absolute path
+    """
+    path = None
+    repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
+    parts = split_object_id(object_id)
+    model = parts[0]
+    base = '%s/' % base_dir
+    if model == 'collection':
+        repo = parts[1]; org = parts[2]; cid = parts[3]
+        path = '%s%s-%s-%s' % (
+            base, repo,org,cid)
+    elif model == 'entity':
+        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
+        path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
+            base, repo,org,cid, repo,org,cid,eid)
+    elif model == 'file':
+        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
+        path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
+            base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
+    return path
+
 def parent_id( object_id ):
     """Given a DDR object ID, returns the parent object ID.
     
