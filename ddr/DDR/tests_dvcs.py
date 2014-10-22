@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import re
 
+from nose.tools import assert_raises
 import git
 
 import dvcs
@@ -34,6 +35,18 @@ def test_latest_commit():
     assert nopath == path == repo
     regex = r'(([0123456789abcdef]+) +\(([a-zA-Z ,/]+)\) [0-9-]+ [0-9:]+ -[0-9]+)'
     assert re.match(regex, repo)
+
+def test_parse_cmp_commits():
+    log = '\n'.join(['e3bde9b', '8adad36', 'c63ec7c', 'eefe033', 'b10b4cd'])
+    later = 'e3bde9b'
+    earlier = '8adad36'
+    assert dvcs._parse_cmp_commits(log, earlier,later, abbrev=True) == -1
+    assert dvcs._parse_cmp_commits(log, earlier,earlier, abbrev=True) == 0
+    assert dvcs._parse_cmp_commits(log, later,earlier, abbrev=True) == 1
+    assert_raises(ValueError, dvcs._parse_cmp_commits, log, earlier,'123', True)
+    assert_raises(ValueError, dvcs._parse_cmp_commits, log, '123',later, True)
+
+# cmp_commits
 
 def test_compose_commit_message():
     title = 'made-up title'
