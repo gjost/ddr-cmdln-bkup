@@ -341,6 +341,25 @@ def gitolite_info(server, timeout=60):
         raise Exception('Bad reply from Gitolite server: %s' % r.std_err)
     return r.std_out
 
+def _parse_list_modified( diff ):
+    """Parses output of git stage --name-only.
+    """
+    paths = []
+    if diff:
+        paths = diff.strip().split('\n')
+    return paths
+    
+def list_modified(repo):
+    """Returns list of currently modified files
+    
+    Works for git-annex files just like for regular files.
+    
+    @param repo: A Gitpython Repo object
+    @return: List of filenames
+    """
+    stdout = repo.git.diff('--name-only')
+    return _parse_list_modified(stdout)
+
 def _parse_list_staged( diff ):
     staged = []
     if diff:
