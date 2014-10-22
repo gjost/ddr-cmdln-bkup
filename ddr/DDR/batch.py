@@ -8,7 +8,7 @@ import sys
 
 from DDR import CONFIG_FILES, NoConfigError
 from DDR import commands
-from DDR.models import metadata_files, module_function, sort_file_paths
+from DDR import models
 
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
@@ -148,7 +148,7 @@ def dump_object(obj, module, field_names):
             val = obj.id
         elif hasattr(obj, field_name):
             # run csvdump_* functions on field data if present
-            val = module_function(
+            val = models.module_function(
                 module,
                 'csvdump_%s' % field_name,
                 getattr(obj, field_name)
@@ -169,7 +169,7 @@ def export(json_paths, class_, module, csv_path):
     # entities
     collection_path = '/var/www/media/base/ddr-test-123'
     entity_paths = []
-    for path in metadata_files(basedir=collection_path, recursive=True):
+    for path in models.metadata_files(basedir=collection_path, recursive=True):
         if os.path.basename(path) == 'entity.json':
             entity_paths.append(path)
     csv_path = '/tmp/ddr-test-123-entities.csv'
@@ -178,7 +178,7 @@ def export(json_paths, class_, module, csv_path):
     # files
     collection_path = '/var/www/media/base/ddr-test-123'
     file_paths = []
-    for path in metadata_files(basedir=collection_path, recursive=True):
+    for path in models.metadata_files(basedir=collection_path, recursive=True):
         if ('master' in path) or ('mezzanine' in path):
             file_paths.append(path)
     csv_path = '/tmp/ddr-test-123-files.csv'
@@ -190,7 +190,7 @@ def export(json_paths, class_, module, csv_path):
     @param csv_path: Absolute path to CSV data file.
     """
     if module.MODEL == 'file':
-        json_paths = sort_file_paths(json_paths)
+        json_paths = models.sort_file_paths(json_paths)
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
     with open(csv_path, 'wb') as csvfile:
@@ -350,7 +350,7 @@ def validate_row(module, headers, valid_values, rowd):
     for f in module.FIELDS:
         field = f['name']
         if rowd.get(field,None):
-            valid = module_function(
+            valid = models.module_function(
                 module,
                 'csvvalidate_%s' % field,
                 [valid_values, rowd[field]]
@@ -413,7 +413,7 @@ def load_entity(headers, row, collection_path, class_, module, update=False):
         field_names.remove('files')
     # run csvload_* functions on row data, set values
     for field in field_names:
-        value = module_function(
+        value = models.module_function(
             module,
             'csvload_%s' % field,
             rowd[field]
