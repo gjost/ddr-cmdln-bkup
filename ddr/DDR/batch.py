@@ -484,26 +484,160 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
             write_entity_changelog(entity, git_name, git_mail, agent)
 
 
-# import files ---------------------------------------------------------
+# update files ---------------------------------------------------------
 
-def test_entities(headers, rowds, class_):
+def test_entities(collection_path, class_, rowds):
     """Test-loads Entities mentioned in rows; crashes if any are missing.
     
-    @param headers: list of field names
+    @param collection_path:
     @param rowds: List of rowds
     @param class_: subclass of Entity
-    @returns: list of invalid entity IDs
+    @returns: ok,bad
     """
-    entity_ids = []
+    basedir = os.path.dirname(os.path.dirname(collection_path))
+    # get unique entity_ids
+    paths = []
     for rowd in rowds:
-        entity_id = rowd.pop('entity_id')
-        repo,org,cid,eid = entity_id.split('-')
-        entity_path = class_.entity_path(None, repo, org, cid, eid)
+        model,repo,org,cid,eid,role,sha1 = models.split_object_id(rowd['file_id'])
+        entity_id = models.make_object_id('entity', repo,org,cid,eid)
+        path = models.path_from_id(entity_id, basedir)
+        if path not in paths:
+            paths.append(path)
+    # test-load the Entities
+    entities = {}
+    bad = []
+    for path in paths:
+        print(path)
+        entity = class_.from_json(path)
         try:
-            entity = class_.from_json(entity_path)
+            entity = class_.from_json(path)
+            entities[entity.id] = entity
         except:
-            entity_ids.append(entity_id)
-    return entity_ids
+            broken.append(models.id_from_path(path))
+    return entities,bad
+
+def load_file(collection_path, file_class, rowd):
+    """
+    @param collection_path: Absolute path to collection
+    @param file_class: subclass of DDRFile
+    @param rowd:
+    @returns: file_ object
+    """
+    file_path = models.path_from_id(
+        rowd['file_id'],
+        os.path.dirname(os.path.dirname(collection_path))
+    ) + '.json'
+    # update an existing entity
+    if os.path.exists(file_path):
+        file_ = file_class.from_json(file_path)
+        file_.new = False
+    else:
+        file_ = file_class(file_path)
+        file_.new = True
+    return file_
+
+def csvload_file(file_, module, field_names, rowd):
+    """Write new file .json file, return new File object
+    
+    @param file_:
+    @param module: file_module
+    @param field_names:
+    @param rowd:
+    @returns: file_
+    """
+    # run csvload_* functions on row data, set values
+    file_.modified = 0
+    for field in field_names:
+        oldvalue = getattr(file_, field, None)
+        value = models.module_function(
+            module,
+            'csvload_%s' % field,
+            rowd[field]
+        )
+        try:
+            value = value.strip()
+            value = value.replace('\\n', '\n')
+        except AttributeError:
+            pass # doesn't work on ints and lists :P
+        if value != oldvalue:
+            file_.modified += 1
+        setattr(file_, field, value)
+    return file_
+
+def write_file_changelog(entity, files, git_name, git_mail, agent):
+    # write entity changelogs
+    messages = []
+    for f in files:
+        messages.append('Updated entity file {}'.format(f.json_path))
+    messages.append('@agent: %s' % agent)
+    changelog.write_changelog_entry(
+        entity.changelog_path, messages,
+        user=git_name, email=git_mail)
+
+def update_files(csv_path, collection_path, entity_class, file_class, module, vocabs_path, git_name, git_mail, agent):
+    """Updates metadata for files in csv_path.
+    
+    TODO Commit .json files in a big batch.
+    
+    TODO What if files already exist???
+    TODO do we overwrite fields?
+    TODO how to handle excluded fields like XMP???
+    
+    @param csv_path: Absolute path to CSV data file.
+    @param collection_path: Absolute path to collection repo.
+    @param entity_class: subclass of Entity
+    @param file_class: subclass of DDRFile
+    @param module: file_module
+    @param vocabs_path: Absolute path to vocab dir
+    @param git_name:
+    @param git_mail:
+    @param agent:
+    """
+    csv_dir = os.path.dirname(csv_path)
+    field_names = module_field_names(module)
+    nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
+    required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
+    valid_values = prep_valid_values(vocabs_path)
+    # read file into memory
+    rows = read_csv(csv_path)
+    headers = rows.pop(0)
+    # check for errors
+    validate_headers('file', headers, field_names, nonrequired_fields)
+    validate_rows(module, headers, required_fields, valid_values, rows)
+    # make list-of-dicts
+    rowds = []
+    while rows:
+        rowd = rows.pop(0)
+        rowds.append(make_row_dict(headers, rowd))
+    # more checks
+    print('Checking entities')
+    entities,bad_entities = test_entities(collection_path, entity_class, rowds)
+    if bad_entities:
+        print('One or more objects (entities) could not be loaded! - IMPORT CANCELLED!')
+        for f in bad_entities:
+            print('    %s' % f)
+    else:
+        print('ok')
+    if bad_entities:
+        raise Exception('Cannot continue!')
+    # ok go
+    print('Updating...')
+    for eid,entity in entities.iteritems():
+        entity.files_updated = []
+    for n,rowd in enumerate(rowds):
+        print('%s/%s' % (n+1, len(rowds)))
+        file_ = load_file(collection_path, file_class, rowd)
+        file_ = csvload_file(file_, module, field_names, rowd)
+        if file_.new or file_.modified:
+            with open(file_.json_path, 'w') as f:
+                f.write(file_.dump_json())
+            entity_id = models.id_from_path(os.path.join(file_.entity_path, 'entity.json'))
+            entity = entities[entity_id]
+            entity.files_updated.append(file_)
+    print('Writing entity changelogs')
+    for eid,entity in entities.iteritems():
+        write_file_changelog(entity, entity.files_updated, git_name, git_mail, agent)
+    assert False
 
 def find_missing_files(csv_dir, headers, rowds):
     """checks for missing files
@@ -530,6 +664,7 @@ def find_unreadable_files(csv_dir, headers, rowds):
     """
     paths = []
     for rowd in rowds:
+        print(rowd)
         path = os.path.join(csv_dir, rowd.pop('basename_orig'))
         try:
             f = open(path, 'r')
@@ -537,117 +672,3 @@ def find_unreadable_files(csv_dir, headers, rowds):
         except:
             paths.append(path)
     return paths
-
-def load_file(csv_dir, rowd, entity_class, git_name, git_mail, agent):
-    """
-    @param csv_dir: Absolute path to dir
-    @param rowd
-    @param class_: subclass of Entity
-    @param git_name: Username for use in changelog, git log
-    @param git_mail: User email address for use in changelog, git log
-    @param agent: 
-    @returns: file_ object
-    """
-    assert False
-    # TODO WHAT ABOUT FILE METADATA???
-    # TODO WHAT ABOUT EXISTING FILES???
-    
-    entity_id = rowd.pop('entity_id')
-    repo,org,cid,eid = entity_id.split('-')
-    entity_path = entity_class.entity_path(None, repo, org, cid, eid)
-    entity = entity_class.from_json(entity_path)
-    src_path = os.path.join(csv_dir, rowd.pop('basename_orig'))
-    role = rowd.pop('role')
-    
-    assert False
-    # TODO WAIT! WHAT ABOUT FILE METADATA!
-    # TODO entity.add_file should return list of modified files but not do the commit
-    entity.add_file(git_name, git_mail, src_path, role, rowd, agent=agent)
-
-def file_exists():
-    """
-    TODO whether file exists in repo
-    """
-    assert False
-
-def new_file():
-    """
-    TODO new file
-    """
-    assert False
-
-def update_file():
-    """
-    TODO update file
-    """
-    assert False
-
-def import_files(csv_path, collection_path, class_, module, git_name, git_mail, agent):
-    """Reads a CSV file, checks for errors, imports files.
-    
-    Note: Each file is an individual commit
-    
-    TODO What if files already exist???
-    
-    @param csv_path: Absolute path to CSV data file.
-    @param collection_path: Absolute path to collection repo.
-    @param class_: subclass of Entity
-    @param module: entity_module
-    @param git_name: Username for use in changelog, git log
-    @param git_mail: User email address for use in changelog, git log
-    @param agent:
-    """
-    field_names = module_field_names(module)
-    nonrequired_fields = REQUIRED_FIELDS_EXCEPTIONS['file']
-    required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
-    
-    # read entire file into memory
-    rows = read_csv(csv_path)
-    headers = rows.pop(0)
-    # check for errors
-    validate_headers('file', headers, field_names, nonrequired_fields)
-    
-    # convert to list of rowds so we don't do this in each following function
-    # rm from rows as we go so we don't have two of these potentially giant lists
-    rowds = []
-    while rows:
-        row = rows.pop(0)
-        rowds.append(make_row_dict(headers, row))
-    
-    # check for errors
-    validate_rows(model, headers, required_fields, rowds)
-    bad_entities = test_entities(headers, rowds)
-    if bad_entities:
-        print('ONE OR MORE OBJECTS ARE COULD NOT BE LOADED! - IMPORT CANCELLED!')
-        for f in bad_entities:
-            print('    %s' % f)
-    # check for missing files
-    missing_files = find_missing_files(csv_dir, headers, rowds)
-    if missing_files:
-        print('ONE OR MORE SOURCE FILES ARE MISSING! - IMPORT CANCELLED!')
-        for f in missing_files:
-            print('    %s' % f)
-    else:
-        print('Source files present')
-    # check for unreadable files
-    unreadable_files = find_unreadable_files(csv_dir, headers, rowds)
-    if unreadable_files:
-        print('ONE OR MORE SOURCE FILES COULD NOT BE OPENED! - IMPORT CANCELLED!')
-        for f in unreadable_files:
-            print('    %s' % f)
-        print('Files must be readable to the user running this script (probably ddr).')
-    else:
-        print('Source files readable')
-    
-    if bad_entities or missing_files or unreadable_files:
-        raise Exception('Cannot continue!')
-        
-    # all right let's do this thing!
-    for n,rowd in enumerate(rowds):
-        file_ = load_file(csv_dir, rowd, entity_class, git_name, git_mail, agent)
-        assert False
-        
-        if file_exists():
-            update_file(file_)
-        else:
-            new_file(file_)
