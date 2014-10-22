@@ -7,6 +7,7 @@ import os
 import sys
 
 from DDR import CONFIG_FILES, NoConfigError
+from DDR import changelog
 from DDR import commands
 from DDR import models
 
@@ -206,7 +207,7 @@ def export(json_paths, class_, module, csv_path):
     return csv_path
 
 
-# import entities ------------------------------------------------------
+# update entities ------------------------------------------------------
 
 def read_csv(path):
     """Read specified file, return list of rows.
@@ -280,14 +281,14 @@ def make_row_dict(headers, row):
         d[headers[n]] = row[n]
     return d
 
-def replace_variant_cv_field_values(headers, rowd, alt_indexes):
+def replace_variant_cv_field_values(headers, alt_indexes, rowd):
     """Tries to replace variants of controlled-vocab with official values
     
     TODO pass in alternates data
     
     @param headers: List of field names
-    @param rowd: A single row (dict, not list of fields)
     @param alt_indexes: list
+    @param rowd: A single row (dict, not list of fields)
     @returns: list rows
     """
     for field_name, alt_index in alt_indexes.iteritems():
@@ -306,8 +307,6 @@ def validate_headers(model, headers, field_names, exceptions):
     @param exceptions: List of nonrequired field names
     """
     headers = deepcopy(headers)
-    if model == 'file':
-        headers.remove('entity_id')
     # validate
     missing_headers = []
     for field in field_names:
@@ -379,40 +378,44 @@ def validate_rows(module, headers, required_fields, valid_values, rows):
             if invalid_fields:
                 raise Exception('INVALID VALUES: %s' % invalid_fields)
 
-def entity_exists(entity_json_path):
-    pass
+def load_entity(collection_path, class_, rowd):
+    """Get new or existing Entity object
+    
+    @param collection_path: Absolute path to collection
+    @param class_: subclass of Entity
+    @param rowd:
+    @returns: entity
+    """
+    entity_uid = rowd['id']
+    entity_path = make_entity_path(collection_path, entity_uid)
+    print(entity_path)
+    # update an existing entity
+    if os.path.exists(entity_path):
+        entity = class_.from_json(entity_path)
+        entity.new = False
+    else:
+        entity = class_(entity_path)
+        entity.id = entity_uid
+        entity.record_created = datetime.now()
+        entity.record_lastmod = datetime.now()
+        entity.new = True
+    return entity
 
-def load_entity(headers, row, collection_path, class_, module, update=False):
-    """Write new entity.json file, return new Entity object
+def csvload_entity(entity, module, field_names, rowd):
+    """Update entity with values from CSV row.
     
     TODO Populates entity attribs EXCEPT FOR .files!!!
     
-    @param headers: List of field names
-    @param row: row from csv.reader
-    @param collection_path: Absolute path to collection
-    @param class_: subclass of Entity
+    @param entity:
     @param module: entity_module
-    @param update: Boolean True if we're updating an existing entity
-    @returns: entity
+    @param field_names:
+    @param rowd:
+    @returns: entity,modified
     """
-    rowd = make_row_dict(headers, row)
-    #rowd = replace_variant_cv_field_values(headers, rowd, alt_indexes)
-    entity_uid = rowd['id']
-    entity_path = make_entity_path(collection_path, entity_uid)
-    # update an existing entity
-    if os.path.exists(entity_path):
-        new = False
-        entity = class_.from_json(entity_path)
-    else:
-        new = True
-        entity = class_(entity_path)
-        entity.id = entity_uid
-    # exclude 'files' from entities bc hard to convert to CSV.
-    field_names = module_field_names(module)
-    if module.MODEL == 'entity':
-        field_names.remove('files')
     # run csvload_* functions on row data, set values
+    entity.modified = 0
     for field in field_names:
+        oldvalue = getattr(entity, field, None)
         value = models.module_function(
             module,
             'csvload_%s' % field,
@@ -423,33 +426,40 @@ def load_entity(headers, row, collection_path, class_, module, update=False):
             value = value.replace('\\n', '\n')
         except AttributeError:
             pass # doesn't work on ints and lists :P
+        if value != oldvalue:
+            entity.modified += 1
         setattr(entity, field, value)
-    if new:
-        entity.record_created = datetime.now()
+    if entity.modified:
         entity.record_lastmod = datetime.now()
-    # done
     return entity
 
-def commit_entities():
-    """
-    TODO commit_entities
-    """
-    assert False
+def write_entity_changelog(entity, git_name, git_mail, agent):
+    # write entity changelogs
+    messages = [
+        'Updated entity file {}'.format(entity.json_path),
+        '@agent: %s' % agent,
+    ]
+    changelog.write_changelog_entry(
+        entity.changelog_path, messages,
+        user=git_name, email=git_mail)
 
-def import_entities(csv_path, collection_path, class_, module, vocabs_path, git_name, git_mail):
-    """Reads a CSV file, checks for errors, writes entity.json files, commits them.
+def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_name, git_mail, agent):
+    """Reads a CSV file, checks for errors, and writes entity.json files
     
     TODO Commit entity.json files in a big batch.
     
     TODO What if entities already exist???
+    TODO do we overwrite fields?
+    TODO how to handle excluded fields like XMP???
     
     @param csv_path: Absolute path to CSV data file.
     @param collection_path: Absolute path to collection repo.
     @param class_: subclass of Entity
     @param module: entity_module
     @param vocabs_path: Absolute path to vocab dir
-    @param git_name: Username for use in changelog, git log
-    @param git_mail: User email address for use in changelog, git log
+    @param git_name:
+    @param git_mail:
+    @param agent:
     """
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
@@ -461,15 +471,17 @@ def import_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     # check for errors
     validate_headers('entity', headers, field_names, nonrequired_fields)
     validate_rows(module, headers, required_fields, valid_values, rows)
-    # make some entity files!
-    entity_json_paths = []
+    # ok go
     for n,row in enumerate(rows):
-        entity = load_entity(headers, row, collection_path, class_, module)
-        # TODO entity._load_file_objects() ???
-        entity.dump_json()
-        entity_json_paths.append(entity.json_path)
-    # commit all the files at once
-    commit_entities(entity_json_paths)
+        print('%s/%s' % (n+1, len(rows)))
+        rowd = make_row_dict(headers, row)
+        #rowd = replace_variant_cv_field_values(headers, rowd, alt_indexes)
+        entity = load_entity(collection_path, class_, rowd)
+        entity = csvload_entity(entity, module, field_names, rowd)
+        if entity.new or entity.modified:
+            with open(entity.json_path, 'w') as f:
+                f.write(entity.dump_json())
+            write_entity_changelog(entity, git_name, git_mail, agent)
 
 
 # import files ---------------------------------------------------------
