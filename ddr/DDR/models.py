@@ -329,6 +329,11 @@ def model_fields( model ):
         return fields
     return []
 
+def module_path(module):
+    """Returns path to the module source file (.py).
+    """
+    return module.__file__.replace('.pyc', '.py')
+
 def module_is_valid(module):
     """Indicates whether this is a proper module
 
