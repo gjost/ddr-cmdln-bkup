@@ -1,22 +1,13 @@
-import ConfigParser
 import hashlib
 import json
 import os
 import re
 
-from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_order_string, natural_sort
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 
-
-
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-GITOLITE = config.get('workbench','gitolite')
+from DDR import GITOLITE
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')

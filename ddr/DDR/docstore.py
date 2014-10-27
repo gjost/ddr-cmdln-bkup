@@ -30,7 +30,6 @@ docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 ------------------------------------------------------------------------
 """
 from __future__ import print_function
-import ConfigParser
 from datetime import datetime
 import json
 import logging
@@ -39,17 +38,11 @@ import os
 
 from elasticsearch import Elasticsearch
 
-from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_sort
 from DDR import models
 
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
-FACETS_PATH = config.get('cmdln','vocab_facets_path')
+from DDR import MAPPINGS_PATH
+from DDR import FACETS_PATH
 
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20

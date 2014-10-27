@@ -1,17 +1,31 @@
 VERSION = '0.9.1-beta'
 CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
 
+import ConfigParser
+from datetime import datetime, timedelta
+import logging
+logger = logging.getLogger(__name__)
+import re
+
+
 class NoConfigError(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return repr(self.value)
 
+config = ConfigParser.ConfigParser()
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
 
-from datetime import datetime, timedelta
-import logging
-logger = logging.getLogger(__name__)
-import re
+GITOLITE = config.get('workbench','gitolite')
+GIT_REMOTE_NAME = config.get('workbench','remote')
+ACCESS_FILE_APPEND = config.get('local','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('local','access_file_extension')
+MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
+FACETS_PATH = config.get('cmdln','vocab_facets_path')
+
 
 def natural_sort( l ):
     """Sort the given list in the way that humans expect.
