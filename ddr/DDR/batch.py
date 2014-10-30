@@ -32,6 +32,9 @@ CSV_QUOTING = csv.QUOTE_ALL
 def dtfmt(dt, fmt='%Y-%m-%dT%H:%M:%S.%f'):
     """Format dates in consistent format.
     
+    >>> dtfmt(datetime.fromtimestamp(0), fmt='%Y-%m-%dT%H:%M:%S.%f')
+    '1969-12-31T16:00:00.000000'
+    
     @param dt: datetime
     @param fmt: str Format string (default: '%Y-%m-%dT%H:%M:%S.%f')
     @returns: str
@@ -65,9 +68,21 @@ def csv_reader(csvfile):
     return reader
 
 def make_entity_path(collection_path, entity_id):
+    """
+    >>> cpath0 = '/var/www/media/base/ddr-test-123'
+    >>> eid0 = 'ddr-test-123-456'
+    >>> make_entity_path(cpath0, eid0)
+    '/var/www/media/base/ddr-test-123/files/ddr-test-123-456'
+    """
     return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id)
 
 def make_entity_json_path(collection_path, entity_id):
+    """
+    >>> cpath0 = '/var/www/media/base/ddr-test-123'
+    >>> eid0 = 'ddr-test-123-456'
+    >>> make_entity_json_path(cpath0, eid0)
+    '/var/www/media/base/ddr-test-123/files/ddr-test-123-456/entity.json'
+    """
     return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id, 'entity.json')
 
 
@@ -251,6 +266,10 @@ def prep_valid_values(vocabs_path):
 def make_row_dict(headers, row):
     """Turns the row into a dict with the headers as keys
     
+    >>> headers0 = ['id', 'created', 'lastmod', 'title', 'description']
+    >>> row0 = ['id', 'then', 'now', 'title', 'descr']
+    {'title': 'title', 'description': 'descr', 'lastmod': 'now', 'id': 'id', 'created': 'then'}
+
     @param headers: List of header field names
     @param row: A single row (list of fields, not dict)
     @returns dict
@@ -284,6 +303,19 @@ def replace_variant_cv_field_values(headers, alt_indexes, rowd):
 def validate_headers(model, headers, field_names, exceptions):
     """Validates headers and crashes if problems.
     
+    >>> model = 'entity'
+    >>> field_names = ['id', 'title', 'notused']
+    >>> exceptions = ['notused']
+    >>> headers = ['id', 'title']
+    >>> validate_headers(model, headers, field_names, exceptions)
+    >>> headers = ['id', 'titl']
+    >>> validate_headers(model, headers, field_names, exceptions)
+    Traceback (most recent call last):
+      File "<input>", line 1, in <module>
+      File "/usr/local/lib/python2.7/dist-packages/DDR/batch.py", line 319, in validate_headers
+        raise Exception('MISSING HEADER(S): %s' % missing_headers)
+    Exception: MISSING HEADER(S): ['title']
+    
     @param model: 'entity' or 'file'
     @param headers: List of field names
     @param field_names: List of field names
@@ -305,7 +337,15 @@ def validate_headers(model, headers, field_names, exceptions):
         raise Exception('BAD HEADER(S): %s' % bad_headers)
 
 def account_row(required_fields, rowd):
-    """Looks for required fields that are missing.
+    """Returns list of any required fields that are missing from rowd.
+    
+    >>> required_fields = ['id', 'title']
+    >>> rowd = {'id': 123, 'title': 'title'}
+    >>> account_row(required_fields, rowd)
+    []
+    >>> required_fields = ['id', 'title', 'description']
+    >>> account_row(required_fields, rowd)
+    ['description']
     
     @param required_fields: List of required field names
     @param rowd: A single row (dict, not list of fields)
