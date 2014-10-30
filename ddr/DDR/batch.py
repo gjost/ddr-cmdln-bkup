@@ -88,26 +88,6 @@ def write_csv(path, headers, rows):
         for row in rows:
             writer.writerow(row)
 
-def export_csv_path( collection_path, model ):
-    collection_id = os.path.basename(collection_path)
-    if model == 'entity':
-        csv_filename = '%s-objects.csv' % collection_id
-    elif model == 'file':
-        csv_filename = '%s-files.csv' % collection_id
-    csv_path = os.path.join(CSV_TMPDIR, csv_filename)
-    return csv_path
-
-def parse_ids(text):
-    """Parses IDs arg and returns list of IDs.
-    
-    ddr-test-123-*            All entities in a collection
-    ddr-test-123-1-*          All files in an entity
-    ddr-test-123-*            All files in a collection
-    ddr-test-123-(1-5,7-8,10) Ranges of entities
-    
-    """
-    return []
-
 def module_field_names(module):
     """Manipulates list of fieldnames to include/exclude columns from CSV.
     """
@@ -287,7 +267,7 @@ def make_row_dict(headers, row):
 def replace_variant_cv_field_values(headers, alt_indexes, rowd):
     """Tries to replace variants of controlled-vocab with official values
     
-    TODO pass in alternates data
+    NOTE: This was a cool idea but we're not using it.
     
     @param headers: List of field names
     @param alt_indexes: list
