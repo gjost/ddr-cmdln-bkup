@@ -45,7 +45,7 @@ def file_hash(path, algo='sha1'):
     f.close()
     return h.hexdigest()
 
-def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False, save=False ):
+def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
     
     Skips/excludes .git directories.
@@ -56,7 +56,6 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
     @param model: list Restrict to the named model ('collection','entity','file').
     @param files_first: If True, list files,entities,collections; otherwise sort.
     @param force_read: If True, always searches for files instead of using cache.
-    @param save: Write a copy to basedir.
     @returns: list of paths
     """
     def model_exclude(m, p):
@@ -106,23 +105,6 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
             elif f.endswith('entity.json'): entities.append(f)
             elif f.endswith('.json'): files.append(f)
         paths = files + entities + collections
-    else:
-        paths.sort()
-    # write paths to {basedir}/{CACHE_FILENAME}
-    if save:
-        # add CACHE_PATH to .gitignore
-        gitignore_path = os.path.join(basedir, '.gitignore')
-        if os.path.exists(gitignore_path):
-            gitignore_present = False
-            with open(gitignore_path, 'r') as gif:
-                if CACHE_FILENAME in gif.read():
-                    gitignore_present = True
-            if not gitignore_present:
-                with open(gitignore_path, 'a') as giff:
-                    giff.write('%s\n' % CACHE_FILENAME)
-        # write
-        with open(CACHE_PATH, 'w') as f:
-            f.write('\n'.join(paths))
     return paths
 
 def sort_file_paths(json_paths, rank='role-eid-sort'):
