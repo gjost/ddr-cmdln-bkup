@@ -7,6 +7,7 @@ import os
 import sys
 
 from DDR import CONFIG_FILES, NoConfigError
+from DDR import natural_sort
 from DDR import changelog
 from DDR import commands
 from DDR import models
@@ -192,6 +193,8 @@ def export(json_paths, class_, module, csv_path):
     """
     if module.MODEL == 'file':
         json_paths = models.sort_file_paths(json_paths)
+    else:
+        json_paths = natural_sort(json_paths)
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
     with open(csv_path, 'wb') as csvfile:
