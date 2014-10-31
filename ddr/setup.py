@@ -10,7 +10,7 @@ setup(
     author_email = 'geoffrey.jost@densho.org',
     version = '0.9-beta',
     install_requires = ['nose'],
-    packages = ['DDR'],
+    packages = ['DDR', 'DDR.converters'],
     package_dir = {'DDR': 'DDR'},
     package_data = {'DDR': ['*.tpl', 'templates/*',]},
     scripts = ['bin/ddr', 'bin/ddrfilter', 'bin/ddrindex', 'bin/ddrmassupdate', 'bin/ddrpubcopy', 'bin/ddrdensho255fix'],
