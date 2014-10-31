@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import datetime
 import csv
 import json
+import logging
 import os
 import sys
 
@@ -196,12 +197,12 @@ def export(json_paths, class_, module, csv_path):
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
         for n,path in enumerate(json_paths):
+            logging.info('%s/%s - %s' % (n+1, len(json_paths), path))
             if module.MODEL == 'entity':
                 obj = class_.from_json(os.path.dirname(path))
             elif module.MODEL == 'file':
                 obj = class_.from_json(path)
             writer.writerow(dump_object(obj, module, field_names))
-            print('%s/%s' % (n+1, len(json_paths)))
     return csv_path
 
 
@@ -275,8 +276,8 @@ def make_row_dict(headers, row):
     @returns dict
     """
     if len(headers) != len(row):
-        print(headers)
-        print(row)
+        logging.error(headers)
+        logging.error(row)
         raise Exception('Row and header have different number of fields.')
     d = {}
     for n in range(0, len(row)):
@@ -411,7 +412,6 @@ def load_entity(collection_path, class_, rowd):
     """
     entity_uid = rowd['id']
     entity_path = make_entity_path(collection_path, entity_uid)
-    print(entity_path)
     # update an existing entity
     if os.path.exists(entity_path):
         entity = class_.from_json(entity_path)
@@ -492,16 +492,19 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     rows = read_csv(csv_path)
     headers = rows.pop(0)
     # check for errors
+    logging.info('Validating headers')
     validate_headers('entity', headers, field_names, nonrequired_fields)
+    logging.info('Validating rows')
     validate_rows(module, headers, required_fields, valid_values, rows)
     # ok go
     for n,row in enumerate(rows):
-        print('%s/%s' % (n+1, len(rows)))
         rowd = make_row_dict(headers, row)
+        logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
         #rowd = replace_variant_cv_field_values(headers, rowd, alt_indexes)
         entity = load_entity(collection_path, class_, rowd)
         entity = csvload_entity(entity, module, field_names, rowd)
         if entity.new or entity.modified:
+            logging.debug('writing %s' % entity.json_path)
             with open(entity.json_path, 'w') as f:
                 f.write(entity.dump_json())
             write_entity_changelog(entity, git_name, git_mail, agent)
@@ -621,11 +624,13 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
     valid_values = prep_valid_values(vocabs_path)
-    # read file into memory
+    # read entire file into memory
     rows = read_csv(csv_path)
     headers = rows.pop(0)
     # check for errors
+    logging.info('Validating headers')
     validate_headers('file', headers, field_names, nonrequired_fields)
+    logging.info('Validating rows')
     validate_rows(module, headers, required_fields, valid_values, rows)
     # make list-of-dicts
     rowds = []
@@ -633,14 +638,14 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         rowd = rows.pop(0)
         rowds.append(make_row_dict(headers, rowd))
     # more checks
-    print('Checking entities')
+    logging.info('Looking for missing/bad entities')
     entities,bad_entities = test_entities(collection_path, entity_class, rowds)
     if bad_entities:
-        print('One or more objects (entities) could not be loaded! - IMPORT CANCELLED!')
+        logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
         for f in bad_entities:
-            print('    %s' % f)
+            logging.error('    %s' % f)
     else:
-        print('ok')
+        logging.info('ok')
     if bad_entities:
         raise Exception('Cannot continue!')
     # ok go
@@ -648,7 +653,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     for eid,entity in entities.iteritems():
         entity.files_updated = []
     for n,rowd in enumerate(rowds):
-        print('%s/%s' % (n+1, len(rowds)))
+        logging.info('%s/%s' % (n+1, len(rowds)))
         file_ = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file_, module, field_names, rowd)
         if file_.new or file_.modified:
@@ -657,7 +662,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
             entity_id = models.id_from_path(os.path.join(file_.entity_path, 'entity.json'))
             entity = entities[entity_id]
             entity.files_updated.append(file_)
-    print('Writing entity changelogs')
+    logging.info('Writing entity changelogs')
     for eid,entity in entities.iteritems():
         write_file_changelog(entity, entity.files_updated, git_name, git_mail, agent)
     assert False
