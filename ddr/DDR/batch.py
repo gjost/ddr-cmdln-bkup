@@ -151,6 +151,8 @@ def dump_object(obj, module, field_names):
                 'csvdump_%s' % field_name,
                 getattr(obj, field_name)
             )
+            if val == None:
+                val = ''
         # clean values
         if not (isinstance(val, str) or isinstance(val, unicode)):
             val = unicode(val)
@@ -438,7 +440,7 @@ def csvload_entity(entity, module, field_names, rowd):
     # run csvload_* functions on row data, set values
     entity.modified = 0
     for field in field_names:
-        oldvalue = getattr(entity, field, None)
+        oldvalue = getattr(entity, field, '')
         value = models.module_function(
             module,
             'csvload_%s' % field,
@@ -574,7 +576,7 @@ def csvload_file(file_, module, field_names, rowd):
     # run csvload_* functions on row data, set values
     file_.modified = 0
     for field in field_names:
-        oldvalue = getattr(file_, field, None)
+        oldvalue = getattr(file_, field, '')
         value = models.module_function(
             module,
             'csvload_%s' % field,

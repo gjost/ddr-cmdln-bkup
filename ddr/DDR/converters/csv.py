@@ -11,8 +11,8 @@ def choice_is_valid(valid_values, field, value):
     return False
 
 def normalize_string(text):
-    if text == None:
-        return None
+    if not text:
+        return ''
     text = unicode(text)
     text = text.strip()
     text = text.replace('\r\n', '\n').replace('\r', '\n')
@@ -40,7 +40,7 @@ def load_datetime(text, datetime_format):
     text = normalize_string(text)
     if text and text.strip():
         return datetime.strptime(text.strip(), datetime_format)
-    return None
+    return ''
 
 def load_list(text):
     """Loads a simple list.
@@ -48,7 +48,7 @@ def load_list(text):
     >>> csv.load_list('thing1; thing2')
     ['thing1', 'thing2']
     """
-    if text == None:
+    if not text:
         return []
     data = []
     for x in normalize_string(text).split(';'):
@@ -63,7 +63,7 @@ def load_kvlist(text):
     >>>csv.load_kvlist('name1:author; name2:photog')
     [{u'name1': u'author'}, {u'name2': u'photog'}]
     """
-    if text == None:
+    if not text:
         return []
     data = []
     for x in normalize_string(text).split(';'):
@@ -87,7 +87,7 @@ def load_labelledlist(text):
     >>>csv.load_labelledlist('eng:English; jpn:Japanese')
     [u'eng', u'jpn']
     """
-    if text == None:
+    if not text:
         return []
     data = []
     for x in normalize_string(text).split(';'):
@@ -114,7 +114,7 @@ def load_rolepeople(text):
     >>> formpost_creators(data3)
     [{'namepart': 'Boyle, Rob', 'role': 'concept,editor'}, {'namepart': 'Cross, Brian', 'role': 'concept,editor'}]
     """
-    if text == None:
+    if not text:
         return []
     data = []
     for a in normalize_string(text).split(';'):
