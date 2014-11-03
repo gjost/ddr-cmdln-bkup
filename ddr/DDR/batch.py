@@ -11,6 +11,7 @@ from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_sort
 from DDR import changelog
 from DDR import commands
+from DDR import dvcs
 from DDR import models
 
 config = ConfigParser.ConfigParser()
@@ -474,7 +475,8 @@ def write_entity_changelog(entity, git_name, git_mail, agent):
 def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_name, git_mail, agent):
     """Reads a CSV file, checks for errors, and writes entity.json files
     
-    TODO Commit entity.json files in a big batch.
+    This function writes and stages files but does not commit them!
+    That is left to the user or to another function.
     
     TODO What if entities already exist???
     TODO do we overwrite fields?
@@ -502,6 +504,8 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     logging.info('Validating rows')
     validate_rows(module, headers, required_fields, valid_values, rows)
     # ok go
+    git_files = []
+    annex_files = []
     for n,row in enumerate(rows):
         rowd = make_row_dict(headers, row)
         logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
@@ -513,7 +517,14 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
             with open(entity.json_path, 'w') as f:
                 f.write(entity.dump_json())
             write_entity_changelog(entity, git_name, git_mail, agent)
-
+            git_files.append(entity.json_path_rel)
+            git_files.append(entity.changelog_path_rel)
+    # stage modified files
+    repo = dvcs.repository(collection_path)
+    logging.debug(repo)
+    for path in git_files:
+        logging.debug('git add %s' % path)
+        repo.git.add(path)
 
 # update files ---------------------------------------------------------
 
@@ -654,9 +665,8 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     if bad_entities:
         raise Exception('Cannot continue!')
     # ok go
-    print('Updating...')
-    for eid,entity in entities.iteritems():
-        entity.files_updated = []
+    git_files = []
+    annex_files = []
     for n,rowd in enumerate(rowds):
         logging.info('%s/%s' % (n+1, len(rowds)))
         file_ = load_file(collection_path, file_class, rowd)
@@ -664,13 +674,23 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         if file_.new or file_.modified:
             with open(file_.json_path, 'w') as f:
                 f.write(file_.dump_json())
+            git_files.append(file_.json_path_rel)
             entity_id = models.id_from_path(os.path.join(file_.entity_path, 'entity.json'))
             entity = entities[entity_id]
+            if not hasattr(entity, 'files_updated'):
+                entity.files_updated = []
             entity.files_updated.append(file_)
     logging.info('Writing entity changelogs')
     for eid,entity in entities.iteritems():
-        write_file_changelog(entity, entity.files_updated, git_name, git_mail, agent)
-    assert False
+        if hasattr(entity, 'files_updated') and getattr(entity, 'files_updated', None):
+            write_file_changelog(entity, entity.files_updated, git_name, git_mail, agent)
+            git_files.append(entity.changelog_path_rel)
+    # stage modified files
+    repo = dvcs.repository(collection_path)
+    logging.debug(repo)
+    for path in git_files:
+        logging.debug('git add %s' % path)
+        repo.git.add(path)
 
 def find_missing_files(csv_dir, headers, rowds):
     """checks for missing files
