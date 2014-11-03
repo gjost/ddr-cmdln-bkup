@@ -372,16 +372,19 @@ def validate_row(module, headers, valid_values, rowd):
     @returns: list of invalid values
     """
     invalid = []
-    for f in module.FIELDS:
-        field = f['name']
-        if rowd.get(field,None):
-            valid = models.module_function(
-                module,
-                'csvvalidate_%s' % field,
-                [valid_values, rowd[field]]
-            )
-            if not valid:
-                invalid.append(field)
+    for field in valid_values:
+        value = models.module_function(
+            module,
+            'csvload_%s' % field,
+            rowd[field]
+        )
+        valid = models.module_function(
+            module,
+            'csvvalidate_%s' % field,
+            [valid_values, value]
+        )
+        if not valid:
+            invalid.append(field)
     return invalid
 
 def validate_rows(module, headers, required_fields, valid_values, rows):
