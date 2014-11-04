@@ -568,7 +568,7 @@ def load_file(collection_path, file_class, rowd):
     """
     file_path = models.path_from_id(
         rowd['file_id'],
-        os.path.dirname(os.path.dirname(collection_path))
+        os.path.dirname(collection_path)
     ) + '.json'
     # update an existing entity
     if os.path.exists(file_path):
