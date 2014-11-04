@@ -513,13 +513,14 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
         entity = load_entity(collection_path, class_, rowd)
         entity = csvload_entity(entity, module, field_names, rowd)
         if entity.new or entity.modified:
-            logging.debug('writing %s' % entity.json_path)
+            logging.debug('    wrote %s' % entity.json_path)
             with open(entity.json_path, 'w') as f:
                 f.write(entity.dump_json())
             write_entity_changelog(entity, git_name, git_mail, agent)
             git_files.append(entity.json_path_rel)
             git_files.append(entity.changelog_path_rel)
     # stage modified files
+    logging.info('Staging changes to the repo')
     repo = dvcs.repository(collection_path)
     logging.debug(repo)
     for path in git_files:
@@ -654,7 +655,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         rowd = rows.pop(0)
         rowds.append(make_row_dict(headers, rowd))
     # more checks
-    logging.info('Looking for missing/bad entities')
+    logging.info('Validating parent entities')
     entities,bad_entities = test_entities(collection_path, entity_class, rowds)
     if bad_entities:
         logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
@@ -668,7 +669,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     git_files = []
     annex_files = []
     for n,rowd in enumerate(rowds):
-        logging.info('%s/%s' % (n+1, len(rowds)))
+        logging.info('%s/%s - %s' % (n+1, len(rowds), rowd['file_id']))
         file_ = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file_, module, field_names, rowd)
         if file_.new or file_.modified:
@@ -686,6 +687,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
             write_file_changelog(entity, entity.files_updated, git_name, git_mail, agent)
             git_files.append(entity.changelog_path_rel)
     # stage modified files
+    logging.info('Staging changes to the repo')
     repo = dvcs.repository(collection_path)
     logging.debug(repo)
     for path in git_files:
