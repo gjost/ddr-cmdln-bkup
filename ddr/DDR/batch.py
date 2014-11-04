@@ -373,7 +373,7 @@ def validate_row(module, headers, valid_values, rowd):
     @returns: list of invalid values
     """
     invalid = []
-    for field in valid_values:
+    for field in headers:
         value = models.module_function(
             module,
             'csvload_%s' % field,
