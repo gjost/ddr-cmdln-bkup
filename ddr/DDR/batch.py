@@ -539,24 +539,24 @@ def test_entities(collection_path, class_, rowds):
     """
     basedir = os.path.dirname(os.path.dirname(collection_path))
     # get unique entity_ids
-    paths = []
+    eids = []
     for rowd in rowds:
         model,repo,org,cid,eid,role,sha1 = models.split_object_id(rowd['file_id'])
         entity_id = models.make_object_id('entity', repo,org,cid,eid)
-        path = models.path_from_id(entity_id, basedir)
-        if path not in paths:
-            paths.append(path)
+        eids.append(entity_id)
     # test-load the Entities
     entities = {}
     bad = []
-    for path in paths:
-        print(path)
-        entity = class_.from_json(path)
-        try:
-            entity = class_.from_json(path)
+    for entity_id in eids:
+        entity_path = make_entity_path(collection_path, entity_id)
+        # update an existing entity
+        entity = None
+        if os.path.exists(entity_path):
+            entity = class_.from_json(entity_path)
+        if entity:
             entities[entity.id] = entity
-        except:
-            broken.append(models.id_from_path(path))
+        else:
+            bad.append(entity_id)
     return entities,bad
 
 def load_file(collection_path, file_class, rowd):
