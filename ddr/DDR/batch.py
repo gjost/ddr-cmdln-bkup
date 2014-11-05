@@ -1,3 +1,4 @@
+import codecs
 import ConfigParser
 from copy import deepcopy
 from datetime import datetime
@@ -99,6 +100,7 @@ def make_tmpdir(tmpdir):
         os.makedirs(tmpdir)
 
 def write_csv(path, headers, rows):
+    # TODO use codecs.open utf-8
     with open(path, 'wb') as f:
         writer = csv_writer(f)
         writer.writerow(headers)
@@ -196,6 +198,7 @@ def export(json_paths, class_, module, csv_path):
         json_paths = natural_sort(json_paths)
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
+    # TODO use codecs.open utf-8
     with open(csv_path, 'wb') as csvfile:
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
@@ -218,6 +221,7 @@ def read_csv(path):
     @returns list of rows
     """
     rows = []
+    # TODO use codecs.open utf-8
     with open(path, 'rU') as f:  # the 'U' is for universal-newline mode
         reader = csv_reader(f)
         for row in reader:
@@ -259,6 +263,7 @@ def prep_valid_values(vocabs_path):
         if os.path.splitext(path)[1] == '.json':
             json_paths.append(path)
     for path in json_paths:
+        # TODO use codecs.open utf-8
         with open(path, 'r') as f:
             data = json.loads(f.read())
         field = data['id']
@@ -514,6 +519,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
         entity = csvload_entity(entity, module, field_names, rowd)
         if entity.new or entity.modified:
             logging.debug('    wrote %s' % entity.json_path)
+            # TODO use codecs.open utf-8
             with open(entity.json_path, 'w') as f:
                 f.write(entity.dump_json())
             write_entity_changelog(entity, git_name, git_mail, agent)
@@ -673,6 +679,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         file_ = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file_, module, field_names, rowd)
         if file_.new or file_.modified:
+            # TODO use codecs.open utf-8
             with open(file_.json_path, 'w') as f:
                 f.write(file_.dump_json())
             git_files.append(file_.json_path_rel)
