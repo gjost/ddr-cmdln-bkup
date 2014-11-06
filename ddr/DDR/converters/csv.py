@@ -153,7 +153,9 @@ def dump_datetime(data, datetime_format):
     @param data: datetime object
     @returns: unicode string
     """
-    return datetime.strftime(data, datetime_format)
+    if data:
+        return datetime.strftime(data, datetime_format)
+    return None
 
 def dump_list(data):
     """Dumps a simple list of strings
