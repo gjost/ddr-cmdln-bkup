@@ -377,6 +377,18 @@ def list_staged(repo):
     stdout = repo.git.diff('--cached', '--name-only')
     return _parse_list_staged(stdout)
 
+def stage(repo, git_files=[], annex_files=[]):
+    """Stage some files.
+    
+    @param repo: A GitPython repository
+    @param git_files: list of file paths, relative to repo bas
+    @param annex_files: list of annex file paths, relative to repo base
+    """
+    for path in git_files:
+        repo.git.add(path)
+    for path in annex_files:
+        repo.git.annex('add', path)
+
 def _parse_list_committed( entry ):
     entrylines = [line for line in entry.split('\n') if '|' in line]
     files = [line.split('|')[0].strip() for line in entrylines]
@@ -394,6 +406,18 @@ def list_committed(repo, commit):
     # return just the files from the specific commit's log entry
     entry = repo.git.log('-1', '--stat', commit.hexsha)
     return _parse_list_committed(entry)
+
+def commit(repo, msg, agent):
+    """Commit some changes.
+    
+    @param repo: A GitPython repository
+    @param msg: str Commit message
+    @param agent: str
+    @returns: GitPython commit object
+    """
+    commit_message = compose_commit_message(msg, agent=agent)
+    commit = repo.index.commit(commit_message)
+    return commit
 
 def _parse_list_conflicted( ls_unmerged ):
     files = []
