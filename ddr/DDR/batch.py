@@ -408,10 +408,12 @@ def validate_rows(module, headers, required_fields, valid_values, rows):
         invalid_fields = validate_row(module, headers, valid_values, rowd)
         # print feedback and die
         if missing_required or invalid_fields:
+            logging.error('HEADERS: %s' % (headers))
+            logging.error('%s/%s: %s' % (n+1, len(rows), row))
             if missing_required:
-                raise Exception('MISSING REQUIRED FIELDS: %s' % missing_required)
+                raise Exception('Row %s missing required fields: %s' % (n+1, missing_required))
             if invalid_fields:
-                raise Exception('INVALID VALUES: %s' % invalid_fields)
+                raise Exception('Row %s invalid values: %s' % (n+1, invalid_fields))
 
 def load_entity(collection_path, class_, rowd):
     """Get new or existing Entity object
