@@ -1,4 +1,3 @@
-import codecs
 import ConfigParser
 from copy import deepcopy
 from datetime import datetime
@@ -523,9 +522,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
         entity = csvload_entity(entity, module, field_names, rowd)
         if entity.new or entity.modified:
             logging.debug('    wrote %s' % entity.json_path)
-            # TODO use codecs.open utf-8
-            with open(entity.json_path, 'w') as f:
-                f.write(entity.dump_json())
+            entity.write_json()
             write_entity_changelog(entity, git_name, git_mail, agent)
             git_files.append(entity.json_path_rel)
             git_files.append(entity.changelog_path_rel)
@@ -683,9 +680,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         file_ = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file_, module, field_names, rowd)
         if file_.new or file_.modified:
-            # TODO use codecs.open utf-8
-            with open(file_.json_path, 'w') as f:
-                f.write(file_.dump_json())
+            file_.write_json()
             git_files.append(file_.json_path_rel)
             entity_id = models.id_from_path(os.path.join(file_.entity_path, 'entity.json'))
             entity = entities[entity_id]
