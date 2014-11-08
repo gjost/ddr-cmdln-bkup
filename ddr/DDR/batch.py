@@ -202,11 +202,11 @@ def export(json_paths, class_, module, csv_path):
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
         for n,path in enumerate(json_paths):
-            logging.info('%s/%s - %s' % (n+1, len(json_paths), path))
             if module.MODEL == 'entity':
                 obj = class_.from_json(os.path.dirname(path))
             elif module.MODEL == 'file':
                 obj = class_.from_json(path)
+            logging.info('%s/%s - %s' % (n+1, len(json_paths), obj.id))
             writer.writerow(dump_object(obj, module, field_names))
     return csv_path
 
