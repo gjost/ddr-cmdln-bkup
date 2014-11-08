@@ -471,9 +471,12 @@ def csvload_entity(entity, module, field_names, rowd):
     return entity
 
 def write_entity_changelog(entity, git_name, git_mail, agent):
-    # write entity changelogs
+    if entity.new:
+        msg = 'Initialized entity {}'
+    else:
+        msg = 'Updated entity file {}'
     messages = [
-        'Updated entity file {}'.format(entity.json_path),
+        msg.format(entity.json_path),
         '@agent: %s' % agent,
     ]
     changelog.write_changelog_entry(
