@@ -524,7 +524,9 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
         entity = load_entity(collection_path, class_, rowd)
         entity = csvload_entity(entity, module, field_names, rowd)
         if entity.new or entity.modified:
-            logging.debug('    wrote %s' % entity.json_path)
+            if not os.path.exists(entity.path):
+                os.mkdir(entity.path)
+            logging.debug('    writing %s' % entity.json_path)
             entity.write_json()
             write_entity_changelog(entity, git_name, git_mail, agent)
             git_files.append(entity.json_path_rel)
