@@ -43,6 +43,23 @@ def dtfmt(dt, fmt='%Y-%m-%dT%H:%M:%S.%f'):
     """
     return dt.strftime(fmt)
 
+def normalize_text(text):
+    """Strip text, convert line endings, etc.
+    
+    TODO make this work on lists, dict values
+    TODO handle those ^M chars
+    """
+    def process(t):
+        try:
+            t = t.strip()
+            t = t.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\\n')
+        except AttributeError:
+            pass # doesn't work on ints and lists :P
+        return t
+    if isinstance(text, basestring):
+        return process(text)
+    return text
+
 def csv_writer(csvfile):
     """Get a csv.writer object for the file.
     
@@ -155,13 +172,7 @@ def dump_object(obj, module, field_names):
             )
             if val == None:
                 val = ''
-        # clean values
-        if not (isinstance(val, str) or isinstance(val, unicode)):
-            val = unicode(val)
-        if val:
-            value = val.encode('utf-8')
-        value = value.strip()
-        value = value.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\\n')
+        value = normalize_text(val)
         values.append(value)
     return values
 
@@ -458,11 +469,7 @@ def csvload_entity(entity, module, field_names, rowd):
             'csvload_%s' % field,
             rowd[field]
         )
-        try:
-            value = value.strip()
-            value = value.replace('\\n', '\n')
-        except AttributeError:
-            pass # doesn't work on ints and lists :P
+        value = normalize_text(value)
         if value != oldvalue:
             entity.modified += 1
         setattr(entity, field, value)
@@ -609,11 +616,7 @@ def csvload_file(file_, module, field_names, rowd):
             'csvload_%s' % field,
             rowd[field]
         )
-        try:
-            value = value.strip()
-            value = value.replace('\\n', '\n')
-        except AttributeError:
-            pass # doesn't work on ints and lists :P
+        value = normalize_text(value)
         if value != oldvalue:
             file_.modified += 1
         setattr(file_, field, value)
