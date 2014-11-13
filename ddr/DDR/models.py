@@ -239,6 +239,10 @@ def split_object_id( object_id=None ):
         if len(parts) == 6:
             parts.insert(0, 'file')
             return parts
+        elif len(parts) == 5:
+            # file ID without the SHA1 hash; used to mark new files in batch CSV
+            parts.insert(0, 'file partial')
+            return parts
         elif len(parts) == 4:
             parts.insert(0, 'entity')
             return parts
