@@ -1,11 +1,12 @@
 import ConfigParser
 from copy import deepcopy
 from datetime import datetime
-import csv
 import json
 import logging
 import os
 import sys
+
+import unicodecsv as csv
 
 from DDR import CONFIG_FILES, NoConfigError
 from DDR import natural_sort
