@@ -1,3 +1,4 @@
+import codecs
 import ConfigParser
 from copy import deepcopy
 from datetime import datetime
@@ -117,8 +118,7 @@ def make_tmpdir(tmpdir):
         os.makedirs(tmpdir)
 
 def write_csv(path, headers, rows):
-    # TODO use codecs.open utf-8
-    with open(path, 'wb') as f:
+    with codecs.open(path, 'wb', 'utf-8') as f:
         writer = csv_writer(f)
         writer.writerow(headers)
         for row in rows:
@@ -209,8 +209,7 @@ def export(json_paths, class_, module, csv_path):
         json_paths = natural_sort(json_paths)
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
-    # TODO use codecs.open utf-8
-    with open(csv_path, 'wb') as csvfile:
+    with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
         for n,path in enumerate(json_paths):
@@ -232,8 +231,7 @@ def read_csv(path):
     @returns list of rows
     """
     rows = []
-    # TODO use codecs.open utf-8
-    with open(path, 'rU') as f:  # the 'U' is for universal-newline mode
+    with codecs.open(path, 'rU', 'utf-8') as f:  # the 'U' is for universal-newline mode
         reader = csv_reader(f)
         for row in reader:
             rows.append(row)
