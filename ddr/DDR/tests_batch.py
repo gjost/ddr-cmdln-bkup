@@ -47,8 +47,6 @@ def test_make_row_dict():
     }
     assert batch.make_row_dict(headers0, row0) == out0
 
-# TODO test_replace_variant_cv_field_values
-
 def test_validate_headers():
     model = 'entity'
     field_names = ['id', 'title', 'notused']
@@ -83,5 +81,3 @@ def test_account_row():
 # TODO test_csvload_file
 # TODO test_write_file_changelog
 # TODO test_update_files
-# TODO test_find_missing_files
-# TODO test_find_unreadable_files

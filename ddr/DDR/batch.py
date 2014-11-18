@@ -329,23 +329,6 @@ def make_row_dict(headers, row):
         d[headers[n]] = row[n]
     return d
 
-def replace_variant_cv_field_values(headers, alt_indexes, rowd):
-    """Tries to replace variants of controlled-vocab with official values
-    
-    NOTE: This was a cool idea but we're not using it.
-    
-    @param headers: List of field names
-    @param alt_indexes: list
-    @param rowd: A single row (dict, not list of fields)
-    @returns: list rows
-    """
-    for field_name, alt_index in alt_indexes.iteritems():
-        value = rowd.get(fieldname, None)
-        # if value appears in index, it is a variant
-        if value and index.get(value, None):
-            rowd[fieldname] = index[value]
-    return rowd
-
 def validate_headers(model, headers, field_names, exceptions):
     """Validates headers and crashes if problems.
     
@@ -556,7 +539,6 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     for n,row in enumerate(rows):
         rowd = make_row_dict(headers, row)
         logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
-        #rowd = replace_variant_cv_field_values(headers, rowd, alt_indexes)
         entity = load_entity(collection_path, class_, rowd)
         entity = csvload_entity(entity, module, field_names, rowd)
         if entity.new or entity.modified:
@@ -847,113 +829,3 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
             logging.debug('| %s' % path)
         else:
             logging.debug('+ %s' % path)
-
-
-def find_missing_files(csv_dir, headers, rowds):
-    """checks for missing files
-    
-    @param csv_dir: Absolute path to dir
-    @param headers: List of field names
-    @param rowds: List of rowds
-    @returns list of missing files
-    """
-    paths = []
-    for rowd in rowds:
-        path = os.path.join(csv_dir, rowd.pop('basename_orig'))
-        if not os.path.exists(path):
-            paths.append(path)
-    return paths
-
-def find_unreadable_files(csv_dir, headers, rowds):
-    """checks for unreadable files
-    
-    @param csv_dir: Absolute path to dir
-    @param headers: List of field names
-    @param rowds: List of rowds
-    @returns list of unreadable files
-    """
-    paths = []
-    for rowd in rowds:
-        print(rowd)
-        path = os.path.join(csv_dir, rowd.pop('basename_orig'))
-        try:
-            f = open(path, 'r')
-            f.close()
-        except:
-            paths.append(path)
-    return paths
-
-#def import_files(csv_path, collection_path, entity_class, file_class, module, vocabs_path, git_name, git_mail, agent):
-#    """imports new files
-#    
-#    If you only want to update file metadata, use update_files.
-#    
-#    TODO Commit .json files in a big batch.
-#    
-#    TODO What if files already exist???
-#    TODO do we overwrite fields?
-#    TODO how to handle excluded fields like XMP???
-#    
-#    @param csv_path: Absolute path to CSV data file.
-#    @param collection_path: Absolute path to collection repo.
-#    @param entity_class: subclass of Entity
-#    @param file_class: subclass of DDRFile
-#    @param module: file_module
-#    @param vocabs_path: Absolute path to vocab dir
-#    @param git_name:
-#    @param git_mail:
-#    @param agent:
-#    """
-#    csv_dir = os.path.dirname(csv_path)
-#    field_names = module_field_names(module)
-#    nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
-#    required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
-#    valid_values = prep_valid_values(vocabs_path)
-#    # read file into memory
-#    rows = read_csv(csv_path)
-#    headers = rows.pop(0)
-#    # check for errors
-#    validate_headers('file', headers, field_names, nonrequired_fields)
-#    validate_rows(module, headers, required_fields, valid_values, rows)
-#    # make list-of-dicts
-#    rowds = []
-#    while rows:
-#        rowd = rows.pop(0)
-#        rowds.append(make_row_dict(headers, rowd))
-#    # more checks
-#    print('Checking entities')
-#    bad_entities = test_entities(collection_path, entity_class, rowds)
-#    if bad_entities:
-#        print('One or more objects (entities) could not be loaded! - IMPORT CANCELLED!')
-#        for f in bad_entities:
-#            print('    %s' % f)
-#    else:
-#        print('ok')
-#    print('Looking for missing files')
-#    missing_files = find_missing_files(csv_dir, headers, rowds)
-#    if missing_files:
-#        print('One or more source files are missing! - IMPORT CANCELLED!')
-#        for f in missing_files:
-#            print('    %s' % f)
-#    else:
-#        print('ok')
-#    print('Looking for unreadable files')
-#    unreadable_files = find_unreadable_files(csv_dir, headers, rowds)
-#    if unreadable_files:
-#        print('One or more source files were unreadable! - IMPORT CANCELLED!')
-#        for f in unreadable_files:
-#            print('    %s' % f)
-#        print('Files must be readable to the user running this script (probably ddr).')
-#    else:
-#        print('ok')
-#    if bad_entities or missing_files or unreadable_files:
-#        raise Exception('Cannot continue!')
-#    # ok go
-#    for n,rowd in enumerate(rowds):
-#        file_ = load_file(csv_dir, rowd, file_class)
-#        assert False
-#        
-#        if file_exists():
-#            update_file(file_)
-#        else:
-#            new_file(file_)
