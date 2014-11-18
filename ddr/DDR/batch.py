@@ -88,6 +88,54 @@ def csv_reader(csvfile):
     )
     return reader
 
+def write_csv(path, headers, rows):
+    """Write header and list of rows to file.
+    
+    >>> path = '/tmp/batch-test_write_csv.csv'
+    >>> headers = ['id', 'title', 'description']
+    >>> rows = [
+    ...     ['ddr-test-123', 'thing 1', 'nothing here'],
+    ...     ['ddr-test-124', 'thing 2', 'still nothing'],
+    ... ]
+    >>> batch.write_csv(path, headers, rows)
+    >>> with open(path, 'r') as f:
+    ...    f.read()
+    '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
+    
+    @param path: Absolute path to CSV file
+    @param headers: list of strings
+    @param rows: list of lists
+    """
+    with codecs.open(path, 'wb', 'utf-8') as f:
+        writer = csv_writer(f)
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow(row)
+
+def read_csv(path):
+    """Read specified file, return list of rows.
+    
+    >>> path = '/tmp/batch-test_write_csv.csv'
+    >>> csv_file = '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
+    >>> with open(path, 'w') as f:
+    ...    f.write(csv_file)
+    >>> batch.read_csv(path)
+    [
+        ['id', 'title', 'description'],
+        ['ddr-test-123', 'thing 1', 'nothing here'],
+        ['ddr-test-124', 'thing 2', 'still nothing']
+    ]
+    
+    @param path: Absolute path to CSV file
+    @returns list of rows
+    """
+    rows = []
+    with codecs.open(path, 'rU', 'utf-8') as f:  # the 'U' is for universal-newline mode
+        reader = csv_reader(f)
+        for row in reader:
+            rows.append(row)
+    return rows
+
 def make_entity_path(collection_path, entity_id):
     """
     >>> cpath0 = '/var/www/media/base/ddr-test-123'
@@ -116,13 +164,6 @@ def make_tmpdir(tmpdir):
     """
     if not os.path.exists(tmpdir):
         os.makedirs(tmpdir)
-
-def write_csv(path, headers, rows):
-    with codecs.open(path, 'wb', 'utf-8') as f:
-        writer = csv_writer(f)
-        writer.writerow(headers)
-        for row in rows:
-            writer.writerow(row)
 
 def module_field_names(module):
     """Manipulates list of fieldnames to include/exclude columns from CSV.
@@ -223,19 +264,6 @@ def export(json_paths, class_, module, csv_path):
 
 
 # update entities ------------------------------------------------------
-
-def read_csv(path):
-    """Read specified file, return list of rows.
-    
-    @param path: Absolute path to CSV file
-    @returns list of rows
-    """
-    rows = []
-    with codecs.open(path, 'rU', 'utf-8') as f:  # the 'U' is for universal-newline mode
-        reader = csv_reader(f)
-        for row in reader:
-            rows.append(row)
-    return rows
 
 def get_required_fields(fields, exceptions):
     """Picks out the required fields.
