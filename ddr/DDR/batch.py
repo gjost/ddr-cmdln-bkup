@@ -576,6 +576,12 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
 
 # update files ---------------------------------------------------------
 
+class ModifiedFilesError(Exception):
+    pass
+
+class UncommittedFilesError(Exception):
+    pass
+
 def test_repository(repo):
     """Raise exception if staged or modified files in repo
     
@@ -590,13 +596,13 @@ def test_repository(repo):
         logging.error('*** Staged files in repo %s' % repo.working_dir)
         for f in staged:
             logging.error('*** %s' % f)
-        raise Exception('Repository contains staged/uncommitted files - import cancelled!')
+        raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
     modified = dvcs.list_modified(repo)
     if modified:
         logging.error('Modified files in repo: %s' % repo.working_dir)
         for f in modified:
             logging.error('*** %s' % f)
-        raise Exception('Repository contains modified files - import cancelled!')
+        raise ModifiedFilesError('Repository contains modified files - import cancelled!')
 
 def test_entities(collection_path, class_, rowds):
     """Test-loads Entities mentioned in rows; crashes if any are missing.
