@@ -278,7 +278,24 @@ def get_required_fields(fields, exceptions):
             required_fields.append(field['name'])
     return required_fields
 
-def prep_valid_values(vocabs_path):
+def load_vocab_files(vocabs_path):
+    """Loads FIELD.json files in the 'ddr' repository
+    
+    @param vocabs_path: Absolute path to dir containing vocab .json files.
+    @returns: list of raw text contents of files.
+    """
+    json_paths = []
+    for p in os.listdir(vocabs_path):
+        path = os.path.join(vocabs_path, p)
+        if os.path.splitext(path)[1] == '.json':
+            json_paths.append(path)
+    files = []
+    for path in json_paths:
+        with codecs.open(path, 'r', 'utf-8') as f:
+            files.append(f.read())
+    return files
+
+def prep_valid_values(json_texts):
     """Packages dict of acceptable values for controlled-vocab fields.
     
     Loads choice values from FIELD.json files in the 'ddr' repository
@@ -290,19 +307,19 @@ def prep_valid_values(vocabs_path):
         ...
     }
     
-    @param vocabs_path: Absolute path to dir containing vocab .json files.
+    >>> json_texts = [
+    ...     '{"terms": [{"id": "advertisement"}, {"id": "album"}, {"id": "architecture"}], "id": "genre"}',
+    ...     '{"terms": [{"id": "eng"}, {"id": "jpn"}, {"id": "chi"}], "id": "language"}',
+    ... ]
+    >>> batch.prep_valid_values(json_texts)
+    {u'genre': [u'advertisement', u'album', u'architecture'], u'language': [u'eng', u'jpn', u'chi']}
+    
+    @param json_texts: list of raw text contents of files.
     @returns: dict
     """
     valid_values = {}
-    json_paths = []
-    for p in os.listdir(vocabs_path):
-        path = os.path.join(vocabs_path, p)
-        if os.path.splitext(path)[1] == '.json':
-            json_paths.append(path)
-    for path in json_paths:
-        # TODO use codecs.open utf-8
-        with open(path, 'r') as f:
-            data = json.loads(f.read())
+    for text in json_texts:
+        data = json.loads(text)
         field = data['id']
         values = [term['id'] for term in data['terms']]
         if values:
@@ -524,7 +541,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
-    valid_values = prep_valid_values(vocabs_path)
+    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
     # read entire file into memory
     rows = read_csv(csv_path)
     headers = rows.pop(0)
@@ -760,7 +777,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
-    valid_values = prep_valid_values(vocabs_path)
+    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
     # read entire file into memory
     logging.info('Reading %s' % csv_path)
     rows = read_csv(csv_path)
