@@ -50,6 +50,21 @@ def normalize_text(text):
     
     TODO make this work on lists, dict values
     TODO handle those ^M chars
+    
+    >>> normalize_text('  this is a test')
+    'this is a test'
+    >>> normalize_text('this is a test  ')
+    'this is a test'
+    >>> normalize_text('this\r\nis a test')
+    'this\\nis a test'
+    >>> normalize_text('this\ris a test')
+    'this\\nis a test'
+    >>> normalize_text('this\\nis a test')
+    'this\\nis a test'
+    >>> normalize_text(['this is a test'])
+    ['this is a test']
+    >>> normalize_text({'this': 'is a test'})
+    {'this': 'is a test'}
     """
     def process(t):
         try:
@@ -137,20 +152,30 @@ def read_csv(path):
     return rows
 
 def make_entity_path(collection_path, entity_id):
-    """
+    """Returns path to entity directory.
+    
     >>> cpath0 = '/var/www/media/base/ddr-test-123'
     >>> eid0 = 'ddr-test-123-456'
     >>> make_entity_path(cpath0, eid0)
     '/var/www/media/base/ddr-test-123/files/ddr-test-123-456'
+    
+    @param collection_path: str
+    @param entity_id: str
+    @returns: str Absolute path to entity.
     """
     return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id)
 
 def make_entity_json_path(collection_path, entity_id):
-    """
+    """Returns path to entity JSON file.
+    
     >>> cpath0 = '/var/www/media/base/ddr-test-123'
     >>> eid0 = 'ddr-test-123-456'
     >>> make_entity_json_path(cpath0, eid0)
     '/var/www/media/base/ddr-test-123/files/ddr-test-123-456/entity.json'
+    
+    @param collection_path: str
+    @param entity_id: str
+    @returns: str Absolute path to entity JSON.
     """
     return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id, 'entity.json')
 
@@ -167,6 +192,22 @@ def make_tmpdir(tmpdir):
 
 def module_field_names(module):
     """Manipulates list of fieldnames to include/exclude columns from CSV.
+    
+    >>> m = TestModule()
+    >>> m.FIELDS = [{'name':'id'}, {'name':'title'}, {'name':'description'}]
+    >>> m.FIELDS_CSV_EXCLUDED = ['description']
+    >>> m.MODEL = 'collection'
+    >>> batch.module_field_names(m)
+    ['id', 'title']
+    >>> m.MODEL = 'entity'
+    >>> batch.module_field_names(m)
+    ['id', 'title']
+    >>> m.MODEL = 'file'
+    >>> batch.module_field_names(m)
+    ['file_id', 'id', 'title']
+    
+    @param module: 
+    @returns: list of field names
     """
     if hasattr(module, 'FIELDS_CSV_EXCLUDED'):
         excluded = module.FIELDS_CSV_EXCLUDED
@@ -267,6 +308,17 @@ def export(json_paths, class_, module, csv_path):
 
 def get_required_fields(fields, exceptions):
     """Picks out the required fields.
+    
+    >>> fields = [
+    ...     {'name':'id', 'form':{'required':True}},
+    ...     {'name':'title', 'form':{'required':True}},
+    ...     {'name':'description', 'form':{'required':False}},
+    ...     {'name':'formless'},
+    ...     {'name':'files', 'form':{'required':True}},
+    ... ]
+    >>> exceptions = ['files', 'whatever']
+    >>> batch.get_required_fields(fields, exceptions)
+    ['id', 'title']
     
     @param fields: module.FIELDS
     @param exceptions: list of field names
