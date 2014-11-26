@@ -590,6 +590,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     @param git_name:
     @param git_mail:
     @param agent:
+    @returns: list of updated entities
     """
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
@@ -606,6 +607,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     # ok go
     git_files = []
     annex_files = []
+    updated = []
     for n,row in enumerate(rows):
         rowd = make_row_dict(headers, row)
         logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
@@ -619,6 +621,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
             write_entity_changelog(entity, git_name, git_mail, agent)
             git_files.append(entity.json_path_rel)
             git_files.append(entity.changelog_path_rel)
+            updated.append(entity)
     # stage modified files
     logging.info('Staging changes to the repo')
     repo = dvcs.repository(collection_path)
@@ -626,6 +629,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     for path in git_files:
         logging.debug('git add %s' % path)
         repo.git.add(path)
+    return updated
 
 # update files ---------------------------------------------------------
 
