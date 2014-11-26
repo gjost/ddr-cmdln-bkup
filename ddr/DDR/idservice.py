@@ -123,7 +123,13 @@ def _objects_latest(session, url, args, num_objects=1):
       <tr><td><a class="collection" href="/workbench/kiroku/ddr-densho-2/">ddr-densho-2</a></td></tr>
     ...
     
-    We're screenscraping when we should be using the API.
+    TODO Replace screenscraping with a real API
+    
+    @param session: requests.session object
+    @param url: URL of page to scrape.
+    @param args: tuple Tag and class that contains the IDs.
+    @param num_objects: int N most recent IDs to get.
+    @returns: list of IDs
     """
     objects = []
     r = session.get(url)
@@ -133,8 +139,10 @@ def _objects_latest(session, url, args, num_objects=1):
     ids = []
     for o in soup.find_all(args[0], args[1]):
         ids.append(o.string.strip())
-    objects = ids[-num_objects:]
-    return objects
+    if num_objects:
+        return ids[-num_objects:]
+    else:
+        return ids
 
 def collections_latest(session, repo, org, num_objects=1):
     """Get the most recent N collection IDs for the logged-in user.
@@ -144,7 +152,13 @@ def collections_latest(session, repo, org, num_objects=1):
       <tr><td><a class="collection" href="/workbench/kiroku/ddr-densho-2/">ddr-densho-2</a></td></tr>
     ...
     
-    We're screenscraping when we should be using the API.
+    TODO Replace screenscraping with a real API
+    
+    @param session: requests.session object
+    @param repo: str Repository keyword
+    @param org: str Organization keyword
+    @param num_objects: int N most recent IDs to get.
+    @returns: list of IDs
     """
     url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
     return _objects_latest(session, url, ('a','collection'), num_objects)
@@ -157,7 +171,14 @@ def entities_latest(session, repo, org, cid, num_objects=1):
       <tr><td><a class="collection" href="/workbench/kiroku/ddr-densho-2/">ddr-densho-2</a></td></tr>
     ...
     
-    We're screenscraping when we should be using the API.
+    TODO Replace screenscraping with a real API
+    
+    @param session: requests.session object
+    @param repo: str Repository keyword
+    @param org: str Organization keyword
+    @param cid: int/str Collection id
+    @param num_objects: int N most recent IDs to get.
+    @returns: list of IDs
     """
     url = '{}/kiroku/{}-{}-{}/'.format(WORKBENCH_URL, repo, org, cid)
     return _objects_latest(session, url, ('td','eid'), num_objects)
