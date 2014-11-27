@@ -207,52 +207,50 @@ def entities_latest(session, repo, org, cid, num_objects=1):
     url = '{}/kiroku/{}-{}-{}/'.format(WORKBENCH_URL, repo, org, cid)
     return _objects_latest(session, url, ('td','eid'), num_objects)
 
-def _objects_next(session, repo, org, cid=None, num_ids=1):
-    """Generate the next N object IDs for the logged-in user.
-    
-    <table id="collections" class="table table-striped table-bordered table-condensed">
-      <tr><td><a class="collection" href="/workbench/kiroku/ddr-densho-1/">ddr-densho-1</a></td></tr>
-      <tr><td><a class="collection" href="/workbench/kiroku/ddr-densho-2/">ddr-densho-2</a></td></tr>
-    ...
+def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
+    """Generate the next N object IDs.
     
     TODO We're screenscraping when we should be using the API.
     
-    @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
-    @param cid: str [optional] Collection ID
-    @param num_ids: int The number of new object IDs requested.
-    @returns: list of object ids or debugging info.
+    @param model: 'collection' or 'entity'
+    @param session: requests.session.Session object
+    @param new_ids_url: WORKBENCH_NEWCOL_URL
+    @param csrf_token_url: url
+    @param tag_class: tuple Tag and class containing IDs
+    @param num_ids: int The number of new IDs requested.
+    @returns: list of IDs or debugging info.
     """
-    if cid:
-        # entity
-        url = WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',cid)
-        post_data = {}
-        soup_args = ['td', 'eid']
-    else:
-        # collection
-        url = WORKBENCH_NEWCOL_URL.replace('REPO',repo).replace('ORG',org)
-        post_data = {'num': num_ids,}
-        soup_args = ['a', 'collection']
-    # get CSRF token
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
     csrf_token = _get_csrf_token(session, csrf_token_url)
-    post_data['csrftoken'] = csrf_token
-    # POST
-    r = session.post(url,
-                     headers={'X-CSRFToken': csrf_token},
-                     cookies={'csrftoken': csrf_token},
-                     data=post_data)
+    post_data={
+        'csrftoken': csrf_token,
+    }
+    if model == 'entity':
+        post_data['num'] = num_ids
+    r = session.post(
+        new_ids_url,
+        headers={'X-CSRFToken': csrf_token},
+        cookies={'csrftoken': csrf_token},
+        data=post_data
+    )
     if not (r.status_code == 200):
-        raise IOError(
-            'Could not get new ID(s) (%s:%s on %s)' % (r.status_code, r.reason, url))
-    # scrape
-    soup = BeautifulSoup(r.text)
+        raise IOError('Could not get new ID(s) (%s:%s on %s)' % (
+            r.status_code, r.reason, url))
+    return _objects_next_process(new_ids_url, r.text, tag_class, num_ids)
+
+def _objects_next_process(new_ids_url, text, find, num_ids):
+    """Extract IDs from page retrieved by _objects_next.
+    
+    @param new_ids_url: WORKBENCH_NEWCOL_URL
+    @param text: HTML
+    @param find: tuple Tag and class containing IDs
+    @param num_ids: int The number of new IDs requested.
+    """
+    soup = BeautifulSoup(text)
     if _needs_login(soup):
         raise Exception('Could not get IDs. Please log out and try again.')
-    ids = [x.string.strip() for x in soup.find_all(soup_args[0], soup_args[1])]
+    ids = [x.string.strip() for x in soup.find_all(find[0], find[1])]
     if not ids:
-        raise Exception('Could not get IDs (not found in page %s)' % url)
+        raise Exception('Could not get IDs (not found in page %s)' % new_ids_url)
     object_ids = ids[-num_ids:]
     return object_ids
 
@@ -265,7 +263,11 @@ def collections_next(session, repo, org, num_ids=1):
     @param num_ids: int The number of new IDs requested.
     @returns: list of collection_ids or debugging info.
     """
-    return _objects_next(session, repo, org, num_ids=num_ids)
+    new_ids_url = WORKBENCH_NEWCOL_URL.replace('REPO',repo).replace('ORG',org)
+    csrf_token_url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
+    tag_class = ['a', 'collection']
+    return _objects_next(
+        'collection', session, new_ids_url, csrf_token_url, tag_class, num_ids)
 
 def entities_next(session, repo, org, cid, num_ids=1):
     """Generate the next N entity IDs for the logged-in user.
@@ -277,7 +279,11 @@ def entities_next(session, repo, org, cid, num_ids=1):
     @param num_ids: int The number of new IDs requested.
     @returns: list of entity_ids or debugging info.
     """
-    return _objects_next(session, repo, org, cid=cid, num_ids=num_ids)
+    new_ids_url = WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',str(cid))
+    csrf_token_url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
+    tag_class = ['td', 'eid']
+    return _objects_next(
+        'entity', session, new_ids_url, csrf_token_url, tag_class, num_ids)
 
 def register_entity_ids(session, entities):
     """Register the specified entity IDs with the ID service
