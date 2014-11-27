@@ -27,6 +27,18 @@ MESSAGES = {
 }
 
 
+def session(sessionid, csrftoken):
+    """Recreate an ID service session
+    
+    @param sessionid: str
+    @param csrftoken: str
+    @returns: requests.session object
+    """
+    s = requests.Session()
+    s.cookies.set('sessionid', sessionid)
+    s.cookies.set('csrftoken', csrftoken)
+    return s
+
 def _get_csrf_token(session, url):
     """Load page on ID service site, get CSRF token.
     
@@ -34,6 +46,8 @@ def _get_csrf_token(session, url):
     @param url: 
     @returns: string csrf_token
     """
+    if session.cookies.get('csrftoken', None):
+        return session.cookies.get('csrftoken')
     r = session.get(url)
     if not (r.status_code == 200):
         raise IOError('Could not get CSRF token (%s:%s on %s)' % (r.status_code, r.reason, url))
@@ -56,9 +70,13 @@ def _needs_login(soup):
     return False
 
 def login(username, password):
-    """Logs in to the workbench server.
+    """Logs in to the workbench server and get user info
     
-    @returns requests.Session object or string error message (starting with 'error:')
+    git_name and git_mail added as attributes of session object.
+    
+    @param username: str
+    @param password: str
+    @returns: requests.Session object
     """
     session = requests.Session()
     # load test page to see if already logged in
@@ -83,30 +101,35 @@ def login(username, password):
         raise Exception('ID service login: return HTTP code %s' % r1.status_code)
     # it would be better to look for a success message...
     error_msg = 'Please enter a correct username and password.'
-    if r1.text:
-        if (error_msg not in r1.text):
-            # get user first/last name and email from workbench profile (via API)
-            url = WORKBENCH_USERINFO
-            r2 = session.get(url)
-            if r2.status_code == 200:
-                data = json.loads(r2.text)
-                email = data.get('email', None)
-                if not email:
-                    raise Exception(MESSAGES['API_LOGIN_INVALID_EMAIL'])
-                firstname = data.get('firstname', '')
-                lastname = data.get('lastname', '')
-                user_name = '{} {}'.format(firstname, lastname).strip()
-                if email and (not user_name):
-                    user_name = email
-                    raise Exception(MESSAGES['API_LOGIN_INVALID_NAME'])
-            logging.debug('%s is logged in' % username)
-            return session
-        else:
-            raise Exception('ID service login: bad username or password')
+    if r1.text and (error_msg not in r1.text):
+        # get user first/last name and email from workbench profile (via API)
+        url = WORKBENCH_USERINFO
+        r2 = session.get(url)
+        logging.debug('r2.status_code %s' % r2.status_code)
+        if r2.status_code == 200:
+            data = json.loads(r2.text)
+            email = data.get('email', None)
+            if not email:
+                raise Exception(MESSAGES['API_LOGIN_INVALID_EMAIL'])
+            firstname = data.get('firstname', '')
+            lastname = data.get('lastname', '')
+            user_name = '{} {}'.format(firstname, lastname).strip()
+            if email and (not user_name):
+                user_name = email
+                raise Exception(MESSAGES['API_LOGIN_INVALID_NAME'])
+            session.git_name = user_name
+            session.git_mail = email
+            logging.debug('session.git_name %s' % session.git_name)
+            logging.debug('session.git_mail %s' % session.git_mail)
+        logging.debug('%s is logged in' % username)
+        return session
+    else:
+        raise Exception('ID service login: bad username or password')
     raise Exception('ID service login: unspecified')
 
 def logout():
     """Logs out of the workbench server.
+    
     @returns string: 'ok' or error message
     """
     s = requests.Session()
