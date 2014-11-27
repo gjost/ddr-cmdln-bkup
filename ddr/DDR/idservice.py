@@ -19,6 +19,7 @@ WORKBENCH_LOGIN_TEST = config.get('workbench','login_test_url')
 WORKBENCH_USERINFO   = config.get('workbench','workbench_userinfo_url')
 WORKBENCH_NEWCOL_URL = config.get('workbench','workbench_newcol_url')
 WORKBENCH_NEWENT_URL = config.get('workbench','workbench_newent_url')
+WORKBENCH_REGISTER_EIDS_URL = config.get('workbench','workbench_register_eids_url')
 
 MESSAGES = {
     'API_LOGIN_NOT_200': 'Error: status code {} on POST', # status code
@@ -277,3 +278,31 @@ def entities_next(session, repo, org, cid, num_ids=1):
     @returns: list of entity_ids or debugging info.
     """
     return _objects_next(session, repo, org, cid=cid, num_ids=num_ids)
+
+def register_entity_ids(session, entities):
+    """Register the specified entity IDs with the ID service
+    
+    TODO Replace screenscraping with a real API
+    
+    @param session: requests.session object
+    @param entities: list of Entity objects - all will be added!
+    @returns: list of IDs added
+    """
+    collection_id = entities[0].parent_uid
+    entity_ids = '\n'.join([entity.id for entity in entities])
+    csrf_token_url = '{}/kiroku/{}/'.format(WORKBENCH_URL, collection_id)
+    csrf_token = _get_csrf_token(session, csrf_token_url)
+    register_eids_url = WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
+    r = session.post(
+        register_eids_url,
+        headers={'X-CSRFToken': csrf_token},
+        cookies={'csrftoken': csrf_token},
+        data={
+            'csrftoken': csrf_token,
+            'entity_ids': entity_ids,
+        },
+    )
+    if not (r.status_code == 200):
+        raise IOError('Could not get new object ID(s) (%s:%s on %s)' % (
+            r.status_code, r.reason, register_eids_url))
+    return entity_ids
