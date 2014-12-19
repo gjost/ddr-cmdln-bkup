@@ -25,8 +25,8 @@ if not configs_read:
 
 GITOLITE = config.get('workbench','gitolite')
 GIT_REMOTE_NAME = config.get('workbench','remote')
-ACCESS_FILE_APPEND = config.get('local','access_file_append')
-ACCESS_FILE_EXTENSION = config.get('local','access_file_extension')
+ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')

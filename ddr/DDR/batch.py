@@ -21,8 +21,8 @@ configs_read = config.read(CONFIG_FILES)
 if not configs_read:
     raise NoConfigError('No config file!')
 
-TEMPLATE_EJSON = config.get('local','template_ejson')
-TEMPLATE_METS = config.get('local','template_mets')
+TEMPLATE_EJSON = config.get('cmdln','template_ejson')
+TEMPLATE_METS = config.get('cmdln','template_mets')
 
 COLLECTION_FILES_PREFIX = 'files'
 
