@@ -1,4 +1,3 @@
-import ConfigParser
 from datetime import datetime
 from functools import wraps
 import logging
@@ -10,23 +9,15 @@ import sys
 import envoy
 import git
 
-from DDR import CONFIG_FILES, NoConfigError
+from DDR import GITOLITE
+from DDR import GIT_REMOTE_NAME
+from DDR import ACCESS_FILE_APPEND
+from DDR import ACCESS_FILE_EXTENSION
 from DDR import storage
 from DDR import dvcs
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
 from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
-
-
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-GITOLITE = config.get('workbench','gitolite')
-GIT_REMOTE_NAME = config.get('workbench','remote')
-ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
-ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')

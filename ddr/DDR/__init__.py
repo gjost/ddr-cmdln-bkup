@@ -1,6 +1,15 @@
 VERSION = '0.9.1-beta'
-CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
 
+
+import ConfigParser
+from datetime import datetime, timedelta
+import json
+import logging
+logger = logging.getLogger(__name__)
+import re
+
+
+CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
 
 class NoConfigError(Exception):
     def __init__(self, value):
@@ -8,12 +17,27 @@ class NoConfigError(Exception):
     def __str__(self):
         return repr(self.value)
 
+config = ConfigParser.ConfigParser()
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
 
-from datetime import datetime, timedelta
-import json
-import logging
-logger = logging.getLogger(__name__)
-import re
+ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
+FACETS_PATH = config.get('cmdln','vocab_facets_path')
+GITOLITE = config.get('workbench','gitolite')
+GIT_REMOTE_NAME = config.get('workbench','remote')
+MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
+TEMPLATE_EJSON = config.get('cmdln','template_ejson')
+TEMPLATE_METS = config.get('cmdln','template_mets')
+WORKBENCH_LOGIN_TEST = config.get('workbench','login_test_url')
+WORKBENCH_LOGIN_URL = config.get('workbench','workbench_login_url')
+WORKBENCH_LOGOUT_URL = config.get('workbench','workbench_logout_url')
+WORKBENCH_NEWCOL_URL = config.get('workbench','workbench_newcol_url')
+WORKBENCH_NEWENT_URL = config.get('workbench','workbench_newent_url')
+WORKBENCH_REGISTER_EIDS_URL = config.get('workbench','workbench_register_eids_url')
+WORKBENCH_URL = config.get('workbench','workbench_url')
+WORKBENCH_USERINFO = config.get('workbench','workbench_userinfo_url')
 
 
 def format_json(data):

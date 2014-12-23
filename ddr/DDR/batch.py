@@ -1,5 +1,4 @@
 import codecs
-import ConfigParser
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -9,20 +8,13 @@ import sys
 
 import unicodecsv as csv
 
-from DDR import CONFIG_FILES, NoConfigError
+from DDR import TEMPLATE_EJSON
+from DDR import TEMPLATE_METS
 from DDR import natural_sort
 from DDR import changelog
 from DDR import commands
 from DDR import dvcs
 from DDR import models
-
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-TEMPLATE_EJSON = config.get('cmdln','template_ejson')
-TEMPLATE_METS = config.get('cmdln','template_mets')
 
 COLLECTION_FILES_PREFIX = 'files'
 

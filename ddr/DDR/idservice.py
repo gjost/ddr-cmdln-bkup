@@ -1,25 +1,17 @@
-import ConfigParser
 import json
 import logging
 
 from bs4 import BeautifulSoup
 import requests
 
-from DDR import CONFIG_FILES, NoConfigError
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-
-WORKBENCH_URL        = config.get('workbench','workbench_url')
-WORKBENCH_LOGIN_URL  = config.get('workbench','workbench_login_url')
-WORKBENCH_LOGOUT_URL = config.get('workbench','workbench_logout_url')
-WORKBENCH_LOGIN_TEST = config.get('workbench','login_test_url')
-WORKBENCH_USERINFO   = config.get('workbench','workbench_userinfo_url')
-WORKBENCH_NEWCOL_URL = config.get('workbench','workbench_newcol_url')
-WORKBENCH_NEWENT_URL = config.get('workbench','workbench_newent_url')
-WORKBENCH_REGISTER_EIDS_URL = config.get('workbench','workbench_register_eids_url')
+from DDR import WORKBENCH_URL
+from DDR import WORKBENCH_USERINFO
+from DDR import WORKBENCH_LOGIN_URL
+from DDR import WORKBENCH_LOGOUT_URL
+from DDR import WORKBENCH_LOGIN_TEST
+from DDR import WORKBENCH_NEWCOL_URL
+from DDR import WORKBENCH_NEWENT_URL
+from DDR import WORKBENCH_REGISTER_EIDS_URL
 
 MESSAGES = {
     'API_LOGIN_NOT_200': 'Error: status code {} on POST', # status code
