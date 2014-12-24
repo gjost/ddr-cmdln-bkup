@@ -7,6 +7,8 @@ import git
 import dvcs
 
 
+# set_git_configs
+
 def test_repository():
     # set_git_configs
     # repository
@@ -32,7 +34,7 @@ def test_latest_commit():
     path = dvcs.latest_commit(os.getcwd())
     nopath = dvcs.latest_commit()
     assert nopath == path == repo
-    regex = r'(([0123456789abcdef]+) +\(([a-zA-Z ,/]+)\) [0-9-]+ [0-9:]+ -[0-9]+)'
+    regex = r'([0123456789abcdef]+)\s+\([a-zA-Z]+, [a-zA-Z-]+\) ([0-9-]+) ([0-9:]+) (-[0-9]+)'
     assert re.match(regex, repo)
 
 def test_compose_commit_message():
@@ -135,18 +137,30 @@ GITOLITE_INFO_OK = """hello ddr, this is git@mits running gitolite3 v3.2-19-gb9b
 GITOLITE_ORGS_EXPECTED = ['ddr-densho', 'ddr-testing']
 
 def test_gitolite_info_authorized():
-    assert dvcs._gitolite_info_authorized(
-        status=0, lines=GITOLITE_INFO_OK.split('\n')
-    ) == True
-    assert dvcs._gitolite_info_authorized(status=1, lines='') == False
-    assert dvcs._gitolite_info_authorized(status=1, lines=[]) == False
+    assert dvcs._gitolite_info_authorized(GITOLITE_INFO_OK) == True
+    assert dvcs._gitolite_info_authorized('') == False
 
 # gitolite_connect_ok
 
 def test_gitolite_orgs():
-    assert dvcs.gitolite_orgs(GITOLITE_INFO_OK.split('\n')) == GITOLITE_ORGS_EXPECTED
+    assert dvcs.gitolite_orgs(GITOLITE_INFO_OK) == GITOLITE_ORGS_EXPECTED
 
 # gitolite_info
+
+GIT_DIFF_MODIFIED = """collection.json
+files/ddr-densho-10-1/entity.json
+files/ddr-densho-10-1/files/ddr-densho-10-1-master-c85f8d0f91.json
+"""
+GIT_DIFF_MODIFIED_EXPECTED = [
+    'collection.json',
+    'files/ddr-densho-10-1/entity.json',
+    'files/ddr-densho-10-1/files/ddr-densho-10-1-master-c85f8d0f91.json',
+]
+
+def test_parse_list_modified():
+    assert dvcs._parse_list_modified(GIT_DIFF_MODIFIED) == GIT_DIFF_MODIFIED_EXPECTED
+
+# list_modified
 
 GIT_DIFF_STAGED = """collection.json
 files/ddr-densho-10-1/entity.json
@@ -160,6 +174,8 @@ GIT_DIFF_STAGED_EXPECTED = [
 
 def test_parse_list_staged():
     assert dvcs._parse_list_staged(GIT_DIFF_STAGED) == GIT_DIFF_STAGED_EXPECTED
+
+# list_staged
 
 SAMPLE_COMMIT_LOG = """
 commit 4df7877f43a10873ced2c484cc9f65605ee4ca68
@@ -178,10 +194,13 @@ SAMPLE_COMMIT_LOG_PARSED = [
     'files/ddr-densho-10-1/files/ddr-densho-10-1-master-c85f8d0f91.json',
 ]
 
+# TODO stage
+
 def test_parse_list_committed():
     assert dvcs._parse_list_committed(SAMPLE_COMMIT_LOG) == SAMPLE_COMMIT_LOG_PARSED
 
 # list_committed
+# TODO commit
 
 SAMPLE_CONFLICTED_0 = """
 100755 a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2 1\tpath/to/conflicted_file/01
@@ -198,6 +217,8 @@ SAMPLE_CONFLICTED_1_EXPECTED = []
 def test_parse_list_conflicted():
     assert dvcs._parse_list_conflicted(SAMPLE_CONFLICTED_0) == SAMPLE_CONFLICTED_0_EXPECTED
     assert dvcs._parse_list_conflicted(SAMPLE_CONFLICTED_1) == SAMPLE_CONFLICTED_1_EXPECTED
+
+# list_conflicted
 
 CONFLICTED_JSON_TEXT = """{
     {
@@ -332,3 +353,4 @@ def test_is_local():
 # TODO is_clone
 # TODO remotes
 # TODO repos_remotes
+# TODO annex_file_targets

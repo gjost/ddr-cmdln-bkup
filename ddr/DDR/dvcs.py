@@ -277,19 +277,8 @@ def annex_whereis_file(repo, file_path_rel):
     print('----------')
     return _parse_annex_whereis(stdout)
 
-def _gitolite_info_authorized( gitolite_out ):
-    lines = gitolite_out.split('\n')
-    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
-        logging.debug('        OK ')
-        return True
-    logging.debug('        NO CONNECTION')
-    return False
-    
-def gitolite_connect_ok(server):
-    """See if we can connect to gitolite server.
-    
-    We should do some lightweight operation, just enough to make sure we can connect.
-    But we can't ping.
+def _gitolite_info_authorized(gitolite_out):
+    """Parse Gitolite server response, indicate whether user is authorized
     
     http://gitolite.com/gitolite/user.html#info
     "The only command that is always available to every user is the info command
@@ -305,6 +294,22 @@ def gitolite_connect_ok(server):
          R W C  ddr-dev-[0-9]+
         ...
     
+    @param gitolite_out: raw Gitolite output from SSH
+    @returns: boolean
+    """
+    lines = gitolite_out.split('\n')
+    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
+        logging.debug('        OK ')
+        return True
+    logging.debug('        NO CONNECTION')
+    return False
+    
+def gitolite_connect_ok(server):
+    """See if we can connect to gitolite server.
+    
+    We should do some lightweight operation, just enough to make sure we can connect.
+    But we can't ping.
+        
     @param server: USERNAME@DOMAIN
     @return: True or False
     """
@@ -342,7 +347,7 @@ def gitolite_info(server, timeout=60):
     return r.std_out
 
 def _parse_list_modified( diff ):
-    """Parses output of git stage --name-only.
+    """Parses output of "git stage --name-only".
     """
     paths = []
     if diff:
@@ -361,6 +366,8 @@ def list_modified(repo):
     return _parse_list_modified(stdout)
 
 def _parse_list_staged( diff ):
+    """Parses output of "git stage --name-only --cached".
+    """
     staged = []
     if diff:
         staged = diff.strip().split('\n')
