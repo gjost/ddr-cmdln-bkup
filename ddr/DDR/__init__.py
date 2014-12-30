@@ -21,8 +21,8 @@ if not configs_read:
 
 GITOLITE = config.get('workbench','gitolite')
 GIT_REMOTE_NAME = config.get('workbench','remote')
-ACCESS_FILE_APPEND = config.get('local','access_file_append')
-ACCESS_FILE_EXTENSION = config.get('local','access_file_extension')
+ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
+ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
 MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
 FACETS_PATH = config.get('cmdln','vocab_facets_path')
 
