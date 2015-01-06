@@ -549,7 +549,7 @@
             "xpath": "",
             "xpath_dup": []
         },
-        "form_type": "DateField",
+        "form_type": "CharField",
         "form": {
             "help_text": "Date of scan. M/D/YYYY.",
             "required": false,
