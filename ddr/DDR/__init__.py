@@ -20,6 +20,7 @@ if not configs_read:
     raise NoConfigError('No config file!')
 
 GITOLITE = config.get('workbench','gitolite')
+CGIT_URL = config.get('workbench','cgit_url')
 GIT_REMOTE_NAME = config.get('workbench','remote')
 ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
 ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')

@@ -9,7 +9,9 @@ import socket
 
 import envoy
 import git
+import requests
 
+from DDR import CGIT_URL
 from DDR import storage
 
 
@@ -396,6 +398,61 @@ def gitolite_info(server, timeout=60):
     if r.status_code != 0:
         raise Exception('Bad reply from Gitolite server: %s' % r.std_err)
     return r.std_out
+
+def gitolite_collection_titles(repos, username=None, password=None, timeout=5):
+    """Returns IDs:titles dict for all collections to which user has access.
+    
+    >>> gitolite_out = dvcs.gitolite_info(SERVER)
+    >>> repos = dvcs.gitolite_repos(gitolite_out)
+    >>> collections = dvcs.cgit_collection_titles(repos, USERNAME, PASSWORD)
+    
+    TODO Page through the Cgit index pages (fewer HTTP requests)?
+    TODO Set REPO/.git/description to collection title, read via Gitolite?
+    
+    @param repos: list of repo names
+    @param username: str [optional] Cgit server HTTP Auth username
+    @param password: str [optional] Cgit server HTTP Auth password
+    @param timeout: int Timeout for getting individual collection info
+    @returns: list of (repo,title) tuples
+    """
+    session = requests.Session()
+    session.auth = (username,password)
+    collections = [(repo,cgit_collection_title(repo,session,timeout)) for repo in repos]
+    return collections
+
+def cgit_collection_title(repo, session, timeout=5):
+    """Gets collection title from CGit
+    
+    Requests plain blob of collection.json, reads 'title' field.
+    PROBLEM: requires knowledge of repository internals.
+    
+    @param repo: str Repository name
+    @param session: requests.Session
+    @param timeout: int
+    @returns: str Repository collection title
+    """
+    title = '---'
+    URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
+    url = URL_TEMPLATE % (CGIT_URL, repo)
+    logging.debug(url)
+    try:
+        r = session.get(url, timeout=timeout)
+        logging.debug(str(r.status_code))
+    except requests.ConnectionError:
+        r = None
+        title = '[ConnectionError]'
+    data = None
+    if r and r.status_code == 200:
+        try:
+            data = json.loads(r.text)
+        except ValueError:
+            title = '[no data]'
+    if data:
+        for field in data:
+            if field and field.get('title', None) and field['title']:
+                title = field['title']
+    logging.debug('%s: "%s"' % (repo,title))
+    return title
 
 def _parse_list_staged( diff ):
     staged = []
