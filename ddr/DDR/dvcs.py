@@ -367,6 +367,20 @@ def gitolite_orgs( gitolite_out ):
             if repo_org not in repos_orgs:
                 repos_orgs.append(repo_org)
     return repos_orgs
+ 
+def gitolite_repos( gitolite_out ):
+    """Returns list of repos to which user has access
+    
+    @param gitolite_out: raw output of gitolite_info()
+    @returns: list of repo names
+    """
+    repos = []
+    for line in gitolite_out.split('\n'):
+        if ('R W' in line) and not ('R W C' in line):
+            repo = line.strip().split('\t')[1]
+            if repo not in repos:
+                repos.append(repo)
+    return repos
 
 def gitolite_info(server, timeout=60):
     """
