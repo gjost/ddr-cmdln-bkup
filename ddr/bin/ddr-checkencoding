@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+#
+# This file is part of ddr-cmdln/ddr
+#
+#  
+
+description = """Checks collection repository for non-UTF-8 chars, lists offending files."""
+
+epilog = """
+Example:
+    $ ddr-checkencoding git@mits.densho.org:REPO.git /var/www/media/base/temp/REPO ddr-testing-141
+
+Clones collection repo to specified location, loads every .json file in the collection with strict utf-8 encoding,
+then removes the directory.  This should surface any UTF-8 encoding problems.
+
+"""
+
+import argparse
+import codecs
+import ConfigParser
+from datetime import datetime
+import json
+import logging
+import os
+import shutil
+import sys
+
+import chardet
+import git
+
+from DDR import models
+from DDR import CONFIG_FILES, NoConfigError
+
+config = ConfigParser.ConfigParser()
+configs_read = config.read(CONFIG_FILES)
+if not configs_read:
+    raise NoConfigError('No config file!')
+
+
+def out(verbose, text):
+    if verbose:
+        print(text)
+
+def clone(url, destpath):
+    """
+    @param url: 
+    @param destpath: 
+    """
+    return git.Repo.clone_from(url, destpath)
+
+def clean(repo_path):
+    """
+    @param repo_path: 
+    """
+    shutil.rmtree(repo_path)
+
+def analyze_files(repo_path, verbose=False):
+    paths = models.metadata_files(repo_path, recursive=True)
+    defects = []
+    for path in paths:
+        bad = 0
+        try:
+            with codecs.open(path, 'r', encoding='utf-8', errors='strict') as f:
+                text = f.read()
+        except:
+            bad += 1
+            defects.append(path)
+            with open(path, 'r') as f:
+                text = f.read()
+            guess = chardet.detect(text)
+            if verbose:
+                print('\n| %s %s' % (path, guess))
+        if (not bad) and verbose:
+            sys.stdout.write('.')
+    if len(paths) and verbose:
+        print('')
+    return paths,defects
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('repo_url_pattern', help='Repository URL pattern.')
+    parser.add_argument('dest_dir', help='Absolute path to destination dir.')
+    parser.add_argument('collection_id', help='Collection ID')
+    parser.add_argument(
+        '-v', '--verbose', action='store_const', const=1,
+        help='Print lots of output. Important lines prefixed with "%%%%".'
+    )
+    parser.add_argument(
+        '-c', '--csv', action='store_const', const=1,
+        help='Print output in CSV-friendly form.'
+    )
+    parser.add_argument(
+        '-H', '--headers', action='store_const', const=1,
+        help='Print CSV headers (requires -c).'
+    )
+    parser.add_argument(
+        '-j', '--json', action='store_const', const=1,
+        help='Print output in JSON-friendly form.'
+    )
+    
+    args = parser.parse_args()
+    
+    # if verbose, add marker to important lines
+    if args.verbose:
+        prefix = '%% '
+    else:
+        prefix = ''
+    
+    if args.csv and args.headers:
+        print('%scollection id, files, defects, elapsed' % prefix)
+    
+    out(args.verbose, args.collection_id)
+    
+    start = datetime.now()
+    out(args.verbose, start)
+    
+    url = args.repo_url_pattern.replace('REPO', args.collection_id)
+    repo_path = args.dest_dir.replace('REPO', args.collection_id)
+    
+    out(args.verbose, repo_path)
+    out(args.verbose, 'clone %s %s' % (url, repo_path))
+    
+    repo = clone(url, repo_path)
+    
+    out(args.verbose, repo)
+    
+    paths,defects = analyze_files(repo_path, args.verbose)
+    
+    out(args.verbose, 'cleaning up')
+    
+    clean(repo_path)
+    
+    end = datetime.now()
+    elapsed = end - start
+    out(args.verbose, end)
+    
+    if args.csv:
+        print '%s%s' % (
+            prefix,
+            ','.join([
+                str(args.collection_id), str(len(paths)), str(len(defects)), str(elapsed)
+            ])
+        )
+    elif args.json:
+        data = {
+            'collection id': args.collection_id,
+            'files': len(paths),
+            'defects': len(defects),
+            'elapsed': str(elapsed),
+            }
+        print '%s%s' % (
+            prefix,
+            json.dumps(data)
+        )
+    else:
+        print('%s%s, %s files, %s bad, %s elapsed' % (
+            prefix, args.collection_id, len(paths), len(defects), elapsed))
+
+
+if __name__ == '__main__':
+    main()
