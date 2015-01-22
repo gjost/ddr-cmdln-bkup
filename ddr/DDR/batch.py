@@ -592,9 +592,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     rows = read_csv(csv_path)
     headers = rows.pop(0)
     # check for errors
-    logging.info('Validating headers')
     validate_headers('entity', headers, field_names, nonrequired_fields)
-    logging.info('Validating rows')
     validate_rows(module, headers, required_fields, valid_values, rows)
     # ok go
     git_files = []
@@ -617,7 +615,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     # stage modified files
     logging.info('Staging changes to the repo')
     repo = dvcs.repository(collection_path)
-    logging.debug(repo)
+    logging.debug(str(repo))
     for path in git_files:
         logging.debug('git add %s' % path)
         repo.git.add(path)
