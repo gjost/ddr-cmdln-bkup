@@ -67,7 +67,7 @@ and reimported from CSV.::
     # Load JSON file and export to CSV.
     $ ./manage.py shell
     >>> from DDR import vocab
-    >>> index = Index()
+    >>> index = vocab.Index()
     >>> index.read('/PATH/TO/BASE/ddr/facets/topics.json')
     >>> index.write('/tmp/topics-exported.csv')
     
@@ -76,7 +76,7 @@ and reimported from CSV.::
     # Re-import from CSV and update JSON file.
     $ ./manage.py shell
     >>> from DDR import vocab
-    >>> index = Index()
+    >>> index = vocab.Index()
     >>> index.read('/tmp/updated-finished.csv')
     >>> index.write('/PATH/TO/BASE/ddr/facets/topics.json')
 
