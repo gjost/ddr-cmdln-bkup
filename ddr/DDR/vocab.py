@@ -95,6 +95,7 @@ from datetime import datetime
 import json
 import os
 import StringIO
+import urlparse
 
 from dateutil import parser
 
@@ -318,7 +319,22 @@ class Index( object ):
             terms.append(term)
         self._build(terms)
 
-    def load_csv( self, text, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+    def _parse_csv_urls(self, text):
+        """Parses URLs, removes domain, returns list of URIs
+        @param text: str
+        @returns: list
+        """
+        urls = []
+        for part in t[col].split(';'):
+            if part.strip():
+                urls.append(part.strip())
+        uris = []
+        for url in urls:
+            if url and urlparse.urlparse(url).path:
+                uris.append(urlparse.urlparse(url).path)
+        return uris
+    
+   def load_csv( self, text, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
         """Load terms from a CSV file.
         
             id, topics
@@ -337,13 +353,13 @@ class Index( object ):
         reader = csv.reader(pseudofile, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         terms = []
         for n,row in enumerate(reader):
-            if (n == 0): self.id = row[1]
-            elif (n == 1): self.title = row[1]
-            elif (n == 2): self.description = row[1]
+            if (n == 0): self.id = row[1].strip()
+            elif (n == 1): self.title = row[1].strip()
+            elif (n == 2): self.description = row[1].strip()
             elif (n == 3):
                 if (row != CSV_HEADERS):
                     print('Expected these headers:')
-                    print('    %s' % headers_expected)
+                    print('    %s' % CSV_HEADERS)
                     print('Got these:')
                     print('    %s' % row)
                     raise Exception("Sorry not smart enough to rearrange the headers myself... (;-_-)")
@@ -351,7 +367,10 @@ class Index( object ):
                 # convert row to dict
                 t = {}
                 for c,col in enumerate(CSV_HEADERS):
-                    t[col] = row[c]
+                    t[col] = row[c].strip()
+                    # special processing for certain columns
+                    if col == 'encyc_urls':
+                        t[col] = self._parse_csv_urls(t[col])
                 term = Term.from_dict(t)
                 terms.append(term)
         self._build(terms)
