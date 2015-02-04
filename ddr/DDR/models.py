@@ -36,18 +36,29 @@ def file_hash(path, algo='sha1'):
     f.close()
     return h.hexdigest()
 
-def metadata_files( basedir, recursive=False, files_first=False, force_read=False, save=False ):
+def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
     
     Skips/excludes .git directories.
+    TODO depth (go down N levels from basedir)
     
     @param basedir: Absolute path
     @param recursive: Whether or not to recurse into subdirectories.
+    @param model: list Restrict to the named model ('collection','entity','file').
     @param files_first: If True, list files,entities,collections; otherwise sort.
     @param force_read: If True, always searches for files instead of using cache.
-    @param save: Write a copy to basedir.
     @returns: list of paths
     """
+    def model_exclude(m, p):
+        exclude = 0
+        if m:
+            if (m == 'collection') and not ('collection.json' in p):
+                exclude = 1
+            elif (m == 'entity') and not ('entity.json' in p):
+                exclude = 1
+            elif (m == 'file') and not (('master' in p.lower()) or ('mezz' in p.lower())):
+                exclude = 1
+        return exclude
     CACHE_FILENAME = '.metadata_files'
     CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
     paths = []
@@ -65,7 +76,8 @@ def metadata_files( basedir, recursive=False, files_first=False, force_read=Fals
                     if f.endswith('.json'):
                         path = os.path.join(root, f)
                         exclude = [1 for x in excludes if x in path]
-                        if not exclude:
+                        modexclude = model_exclude(model, path)
+                        if not (exclude or modexclude):
                             paths.append(path)
         else:
             for f in os.listdir(basedir):
@@ -84,24 +96,37 @@ def metadata_files( basedir, recursive=False, files_first=False, force_read=Fals
             elif f.endswith('entity.json'): entities.append(f)
             elif f.endswith('.json'): files.append(f)
         paths = files + entities + collections
-    else:
-        paths.sort()
-    # write paths to {basedir}/{CACHE_FILENAME}
-    if save:
-        # add CACHE_PATH to .gitignore
-        gitignore_path = os.path.join(basedir, '.gitignore')
-        if os.path.exists(gitignore_path):
-            gitignore_present = False
-            with open(gitignore_path, 'r') as gif:
-                if CACHE_FILENAME in gif.read():
-                    gitignore_present = True
-            if not gitignore_present:
-                with open(gitignore_path, 'a') as giff:
-                    giff.write('%s\n' % CACHE_FILENAME)
-        # write
-        with open(CACHE_PATH, 'w') as f:
-            f.write('\n'.join(paths))
     return paths
+
+def sort_file_paths(json_paths, rank='role-eid-sort'):
+    """Sort file JSON paths in human-friendly order.
+    
+    @param json_paths: 
+    @param rank: 'role-eid-sort' or 'eid-sort-role'
+    """
+    paths = {}
+    keys = []
+    while json_paths:
+        path = json_paths.pop()
+        model,repo,org,cid,eid,role,sha1 = split_object_id(id_from_path(path))
+        sort = 0
+        with open(path, 'r') as f:
+            for line in f.readlines():
+                if 'sort' in line:
+                    sort = line.split(':')[1].replace('"','').strip()
+        if rank == 'eid-sort-role':
+            key = '-'.join([eid,sort,role,sha1])
+        elif rank == 'role-eid-sort':
+            key = '-'.join([role,eid,sort,sha1])
+        paths[key] = path
+        keys.append(key)
+    keys_sorted = [key for key in natural_sort(keys)]
+    paths_sorted = []
+    while keys_sorted:
+        val = paths.pop(keys_sorted.pop(), None)
+        if val:
+            paths_sorted.append(val)
+    return paths_sorted
 
 class Path( object ):
     path = None
@@ -129,7 +154,7 @@ def dissect_path( path_abs ):
     @param path_abs: An absolute file path.
     @returns: object
     """
-    if ('master' in path_abs) or ('mezzanine' in path_abs):
+    if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
         # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
         # /basepath/collection_id/files/entity_id/files/file_id.ext
         # /basepath/collection_id/files/entity_id/files/file_id.json
@@ -145,6 +170,7 @@ def dissect_path( path_abs ):
         else:
             p.object_id = os.path.basename(pathname)
         p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
+        p.role = p.role.lower()
         p.file_id = p.object_id
         p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
         p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
@@ -204,6 +230,10 @@ def split_object_id( object_id=None ):
         if len(parts) == 6:
             parts.insert(0, 'file')
             return parts
+        elif len(parts) == 5:
+            # file ID without the SHA1 hash; used to mark new files in batch CSV
+            parts.insert(0, 'file partial')
+            return parts
         elif len(parts) == 4:
             parts.insert(0, 'entity')
             return parts
@@ -251,7 +281,7 @@ def model_from_path( path ):
     """
     if 'collection.json' in path: return 'collection'
     elif 'entity.json' in path: return 'entity'
-    elif ('master' in path) or ('mezzanine' in path): return 'file'
+    elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
     return None
 
 def model_from_dict( data ):
@@ -276,6 +306,34 @@ def model_from_dict( data ):
         #elif len_parts == 2: return 'organization'
         #elif len_parts == 1: return 'repository'
     return None
+
+def path_from_id( object_id, base_dir='' ):
+    """Return's path to object* given the object ID and (optional) base_dir.
+    
+    * Does not append 'entity.json' or file extension.
+    
+    @param object_id:
+    @param base_dir: Absolute path, with no trailing slash.
+    @returns: Relative path or (if base_dir) absolute path
+    """
+    path = None
+    repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
+    parts = split_object_id(object_id)
+    model = parts[0]
+    base = '%s/' % base_dir
+    if model == 'collection':
+        repo = parts[1]; org = parts[2]; cid = parts[3]
+        path = '%s%s-%s-%s' % (
+            base, repo,org,cid)
+    elif model == 'entity':
+        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
+        path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
+            base, repo,org,cid, repo,org,cid,eid)
+    elif model == 'file':
+        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
+        path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
+            base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
+    return path
 
 def parent_id( object_id ):
     """Given a DDR object ID, returns the parent object ID.
@@ -388,27 +446,6 @@ def module_xml_function(module, function_name, tree, NAMESPACES, f, value):
         function = getattr(module, function_name)
         tree = function(tree, NAMESPACES, f, value)
     return tree
-
-def write_json(data, path):
-    """Write JSON using consistent formatting and sorting.
-    
-    For versioning and history to be useful we need data fields to be written
-    in a format that is easy to edit by hand and in which values can be compared
-    from one commit to the next.  This function prints JSON with nice spacing
-    and indentation and with sorted keys, so fields will be in the same relative
-    position across commits.
-    
-    >>> data = {'a':1, 'b':2}
-    >>> path = '/tmp/ddrlocal.models.write_json.json'
-    >>> write_json(data, path)
-    >>> with open(path, 'r') as f:
-    ...     print(f.readlines())
-    ...
-    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
-    """
-    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
-    with open(path, 'w') as f:
-        f.write(json_pretty)
 
 def _inheritable_fields( MODEL_FIELDS ):
     """Returns a list of fields that can inherit or grant values.

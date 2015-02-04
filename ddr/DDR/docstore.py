@@ -395,7 +395,7 @@ def repo( hosts, index, path ):
         raise Exception('Data file is not well-formed.')
     document_id = data['id']
     # add/update
-    doctype = 'repo'
+    doctype = 'repository'
     es = _get_connection(hosts)
     results = es.index(index=index, doc_type=doctype, id=document_id, body=data)
     return results

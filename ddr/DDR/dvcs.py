@@ -321,19 +321,8 @@ def annex_whereis_file(repo, file_path_rel):
     print('----------')
     return _parse_annex_whereis(stdout)
 
-def _gitolite_info_authorized( gitolite_out ):
-    lines = gitolite_out.split('\n')
-    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
-        logging.debug('        OK ')
-        return True
-    logging.debug('        NO CONNECTION')
-    return False
-    
-def gitolite_connect_ok(server):
-    """See if we can connect to gitolite server.
-    
-    We should do some lightweight operation, just enough to make sure we can connect.
-    But we can't ping.
+def _gitolite_info_authorized(gitolite_out):
+    """Parse Gitolite server response, indicate whether user is authorized
     
     http://gitolite.com/gitolite/user.html#info
     "The only command that is always available to every user is the info command
@@ -349,6 +338,22 @@ def gitolite_connect_ok(server):
          R W C  ddr-dev-[0-9]+
         ...
     
+    @param gitolite_out: raw Gitolite output from SSH
+    @returns: boolean
+    """
+    lines = gitolite_out.split('\n')
+    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
+        logging.debug('        OK ')
+        return True
+    logging.debug('        NO CONNECTION')
+    return False
+    
+def gitolite_connect_ok(server):
+    """See if we can connect to gitolite server.
+    
+    We should do some lightweight operation, just enough to make sure we can connect.
+    But we can't ping.
+        
     @param server: USERNAME@DOMAIN
     @return: True or False
     """
@@ -454,7 +459,28 @@ def cgit_collection_title(repo, session, timeout=5):
     logging.debug('%s: "%s"' % (repo,title))
     return title
 
+def _parse_list_modified( diff ):
+    """Parses output of "git stage --name-only".
+    """
+    paths = []
+    if diff:
+        paths = diff.strip().split('\n')
+    return paths
+    
+def list_modified(repo):
+    """Returns list of currently modified files
+    
+    Works for git-annex files just like for regular files.
+    
+    @param repo: A Gitpython Repo object
+    @return: List of filenames
+    """
+    stdout = repo.git.diff('--name-only')
+    return _parse_list_modified(stdout)
+
 def _parse_list_staged( diff ):
+    """Parses output of "git stage --name-only --cached".
+    """
     staged = []
     if diff:
         staged = diff.strip().split('\n')
@@ -470,6 +496,18 @@ def list_staged(repo):
     """
     stdout = repo.git.diff('--cached', '--name-only')
     return _parse_list_staged(stdout)
+
+def stage(repo, git_files=[], annex_files=[]):
+    """Stage some files.
+    
+    @param repo: A GitPython repository
+    @param git_files: list of file paths, relative to repo bas
+    @param annex_files: list of annex file paths, relative to repo base
+    """
+    for path in git_files:
+        repo.git.add(path)
+    for path in annex_files:
+        repo.git.annex('add', path)
 
 def _parse_list_committed( entry ):
     entrylines = [line for line in entry.split('\n') if '|' in line]
@@ -488,6 +526,18 @@ def list_committed(repo, commit):
     # return just the files from the specific commit's log entry
     entry = repo.git.log('-1', '--stat', commit.hexsha)
     return _parse_list_committed(entry)
+
+def commit(repo, msg, agent):
+    """Commit some changes.
+    
+    @param repo: A GitPython repository
+    @param msg: str Commit message
+    @param agent: str
+    @returns: GitPython commit object
+    """
+    commit_message = compose_commit_message(msg, agent=agent)
+    commit = repo.index.commit(commit_message)
+    return commit
 
 def _parse_list_conflicted( ls_unmerged ):
     files = []
