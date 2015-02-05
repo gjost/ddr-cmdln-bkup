@@ -663,7 +663,7 @@ def _clean_payload( data ):
             # rm null or empty fields
             _clean_dict(field)
 
-def post( hosts, index, document, public_fields=[], additional_fields={} ):
+def post( hosts, index, document, public_fields=[], additional_fields={}, private_ok=False ):
     """Add a new document to an index or update an existing one.
     
     This function can produce ElasticSearch documents in two formats:
@@ -684,12 +684,13 @@ def post( hosts, index, document, public_fields=[], additional_fields={} ):
     @param document: The object to post.
     @param public_fields: List of field names; if present, fields not in list will be removed.
     @param additional_fields: dict of fields added during indexing process
+    @param private_ok: boolean Publish even if not "publishable".
     @returns: JSON dict with status code and response
     """
-    logger.debug('post(%s, %s, %s, %s, %s)' % (hosts, index, document, public_fields, additional_fields))
+    logger.debug('post(%s, %s, %s, %s, %s, %s)' % (hosts, index, document, public_fields, additional_fields, private_ok))
     
     # die if document is public=False or status=incomplete
-    if not _is_publishable(document):
+    if (not _is_publishable(document)) and (not private_ok):
         return {'status':403, 'response':'object not publishable'}
     # remove non-public fields
     _filter_payload(document, public_fields)
@@ -735,11 +736,11 @@ def post( hosts, index, document, public_fields=[], additional_fields={} ):
     # additional_fields
     for key,val in additional_fields.iteritems():
         data[key] = val
-
+    logger.debug('document_id %s' % document_id)
+    
     if document_id:
         es = _get_connection(hosts)
-        status = es.index(index=index, doc_type=model, id=document_id, body=data)
-        return status
+        return es.index(index=index, doc_type=model, id=document_id, body=data)
     return {'status':4, 'response':'unknown problem'}
 
 
