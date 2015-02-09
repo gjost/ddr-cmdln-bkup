@@ -30,6 +30,63 @@ def test_metadata_files():
     paths1 = models.metadata_files('/tmp', recursive=True, force_read=True)
     print('paths: %s' % paths1)
 
+# TODO sort_file_paths
+# TODO document_metadata
+
+TEST_DOCUMENT = """[
+    {
+        "application": "https://github.com/densho/ddr-local.git",
+        "commit": "52155f819ccfccf72f80a11e1cc53d006888e283  (HEAD, repo-models) 2014-09-16 16:30:42 -0700",
+        "git": "git version 1.7.10.4; git-annex version: 3.20120629",
+        "models": "",
+        "release": "0.10"
+    },
+    {"id": "ddr-test-123"},
+    {"timestamp": "2014-09-19T03:14:59"},
+    {"status": 1},
+    {"title": "TITLE"},
+    {"description": "DESCRIPTION"}
+]"""
+
+# TODO read_json
+
+def test_write_json():
+    data = {'a':1, 'b':2}
+    path = '/tmp/ddrlocal.models.write_json.json'
+    models.write_json(data, path)
+    with open(path, 'r') as f:
+        written = f.readlines()
+    assert written == ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
+    # clean up
+    os.remove(path)
+
+def test_load_json():
+    document = Document()
+    models.load_json(document, testmodule, TEST_DOCUMENT)
+    assert document.id == 'ddr-test-123'
+    assert document.timestamp == u'2014-09-19T03:14:59'
+    assert document.status == 1
+    assert document.title == 'TITLE'
+    assert document.description == 'DESCRIPTION'
+
+# TODO prep_json
+# TODO from_json
+# TODO cmp_model_definition_commits
+
+def test_cmp_model_definition_fields():
+    document = json.loads(TEST_DOCUMENT)
+    assert models.cmp_model_definition_fields(
+        json.dumps(document), testmodule) == ([],[])
+    
+    document.append( {'new': 'new field'} )
+    assert models.cmp_model_definition_fields(
+        json.dumps(document), testmodule) == (['new'],[])
+    
+    document.pop()
+    document.pop()
+    assert models.cmp_model_definition_fields(
+        json.dumps(document), testmodule) == ([],['description'])
+
 def test_dissect_path():
     c0 = models.dissect_path('/base/ddr-test-123/collection.json')
     c1 = models.dissect_path('/base/ddr-test-123')
@@ -174,6 +231,8 @@ def test_model_from_path():
     assert models.model_from_path('.../ddr-testing-123-1/entity.json') == 'entity'
     assert models.model_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json') == 'file'
 
+# TODO path_from_id
+
 def test_parent_id():
     assert models.parent_id('ddr') == None
     assert models.parent_id('ddr-testing') == 'ddr'
@@ -189,17 +248,10 @@ def test_module_function():
     value = '.../ddr-test-123/collection.json'
     assert models.module_function(module, functionname, value) == 'ddr-test-123'
 
+# TODO module_path
+# TODO module_is_valid
+# TODO module_function
 # TODO module_xml_function
-
-def test_write_json():
-    data = {'a':1, 'b':2}
-    path = '/tmp/ddrlocal.models.write_json.json'
-    models.write_json(data, path)
-    with open(path, 'r') as f:
-        written = f.readlines()
-    assert written == ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
-    # clean up
-    os.remove(path)
 
 MODEL_FIELDS_INHERITABLE = [
     {'name':'id',},
