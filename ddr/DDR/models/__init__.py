@@ -1,12 +1,25 @@
+from datetime import datetime
 import hashlib
 import json
 import os
 import re
+import sys
 
-from DDR import VERSION, GITOLITE
-from DDR import natural_order_string, natural_sort
+from lxml import etree
+
+from DDR import VERSION, INSTALL_PATH, REPO_MODELS_PATH, GITOLITE
+from DDR import DATETIME_FORMAT, TIME_FORMAT
+from DDR import format_json, natural_order_string, natural_sort
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
+from DDR.models.xml import EAD, METS
+
+if REPO_MODELS_PATH not in sys.path:
+    sys.path.append(REPO_MODELS_PATH)
+try:
+    from repo_models import collection as collectionmodule
+except ImportError:
+    from DDR.models import collectionmodule
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
@@ -139,8 +152,8 @@ def document_metadata(module, document_repo_path):
     @returns: dict
     """
     data = {
-        'application': 'https://github.com/densho/ddr-local.git',
-        'app_commit': dvcs.latest_commit(os.path.dirname(__file__)),
+        'application': 'https://github.com/densho/ddr-cmdln.git',
+        'app_commit': dvcs.latest_commit(INSTALL_PATH),
         'app_release': VERSION,
         'models_commit': dvcs.latest_commit(module_path(module)),
         'git_version': dvcs.git_version(document_repo_path),
@@ -764,20 +777,25 @@ def locked( lock_path ):
 
 
 class Collection( object ):
-    path = None
-    path_rel = None
     root = None
     uid = None
-    annex_path = None
-    changelog_path = None
-    control_path = None
-    gitignore_path = None
+    id = None
+    repo = None
+    org = None
+    cid = None
+    path = None; path_rel = None
+    annex_path = None; annex_path_rel = None
+    json_path = None; json_path_rel = None
+    files_path = None; files_path_rel = None
+    changelog_path = None; changelog_path_rel = None
+    control_path = None; control_path_rel = None
+    ead_path = None; ead_path_rel = None
+    gitignore_path = None; gitignore_path_rel = None
     lock_path = None
-    annex_path_rel = None
-    changelog_path_rel = None
-    control_path_rel = None
-    gitignore_path_rel = None
     git_url = None
+    _status = ''
+    _astatus = ''
+    _unsynced = 0
     
     def _path_absrel( self, filename, rel=False ):
         if rel:
@@ -785,27 +803,148 @@ class Collection( object ):
         return os.path.join(self.path, filename)
     
     def __init__( self, path, uid=None ):
+        """
+        >>> c = DDRLocalCollection('/tmp/ddr-testing-123')
+        >>> c.uid
+        'ddr-testing-123'
+        >>> c.repo
+        'ddr'
+        >>> c.org
+        'testing'
+        >>> c.cid
+        '123'
+        >>> c.ead_path_rel
+        'ead.xml'
+        >>> c.ead_path
+        '/tmp/ddr-testing-123/ead.xml'
+        >>> c.json_path_rel
+        'collection.json'
+        >>> c.json_path
+        '/tmp/ddr-testing-123/collection.json'
+        """
         self.path = path
         self.path_rel = os.path.split(self.path)[1]
         self.root = os.path.split(self.path)[0]
         if not uid:
             uid = os.path.basename(self.path)
         self.uid  = uid
-        self.annex_path = os.path.join(self.path, '.git', 'annex')
-        self.annex_path_rel = os.path.join('.git', 'annex')
-        self.changelog_path     = self._path_absrel('changelog'  )
-        self.control_path       = self._path_absrel('control'    )
-        self.files_path         = self._path_absrel('files'      )
-        self.gitignore_path     = self._path_absrel('.gitignore' )
-        self.lock_path          = self._path_absrel('lock' )
-        self.changelog_path_rel = self._path_absrel('changelog',  rel=True)
-        self.control_path_rel   = self._path_absrel('control',    rel=True)
-        self.files_path_rel     = self._path_absrel('files',      rel=True)
+        self.id = uid
+        self_model,self.repo,self.org,self.cid = split_object_id(uid)
+        self.annex_path         = os.path.join(self.path, '.git', 'annex')
+        self.annex_path_rel     = os.path.join('.git', 'annex')
+        self.json_path          = self._path_absrel('collection.json')
+        self.json_path_rel      = self._path_absrel('collection.json',rel=True)
+        self.files_path         = self._path_absrel('files')
+        self.files_path_rel     = self._path_absrel('files', rel=True)
+        self.changelog_path     = self._path_absrel('changelog')
+        self.changelog_path_rel = self._path_absrel('changelog', rel=True)
+        self.control_path       = self._path_absrel('control')
+        self.control_path_rel   = self._path_absrel('control', rel=True)
+        self.ead_path           = self._path_absrel('ead.xml')
+        self.ead_path_rel       = self._path_absrel('ead.xml', rel=True)
+        self.gitignore_path     = self._path_absrel('.gitignore')
         self.gitignore_path_rel = self._path_absrel('.gitignore', rel=True)
+        self.lock_path          = self._path_absrel('lock')
         self.git_url = '{}:{}'.format(GITOLITE, self.uid)
     
-    def entity_path( self, entity_uid ):
-        return os.path.join(self.files_path, entity_uid)
+    def __repr__(self):
+        """Returns string representation of object.
+        
+        >>> c = Collection('/tmp/ddr-testing-123')
+        >>> c
+        <Collection ddr-testing-123>
+        """
+        return "<Collection %s>" % (self.id)
+    
+    @staticmethod
+    def create(path):
+        """Creates a new collection with the specified collection ID.
+        
+        Also sets initial field values if present.
+        
+        >>> c = DDRLocalCollection.create('/tmp/ddr-testing-120')
+        
+        @param path: Absolute path to collection; must end in valid DDR collection id.
+        @returns: Collection object
+        """
+        collection = DDRLocalCollection(path)
+        for f in collectionmodule.FIELDS:
+            if hasattr(f, 'name') and hasattr(f, 'initial'):
+                setattr(collection, f['name'], f['initial'])
+        return collection
+    
+    @staticmethod
+    def from_json(collection_abs):
+        """Creates a DDRLocalCollection and populates with data from JSON file.
+        
+        @param collection_abs: Absolute path to collection directory.
+        @returns: DDRLocalCollection
+        """
+        return from_json(DDRLocalCollection, os.path.join(collection_abs, 'collection.json'))
+    
+    def model_def_commits( self ):
+        return cmp_model_definition_commits(self, collectionmodule)
+    
+    def model_def_fields( self ):
+        return cmp_model_definition_fields(read_json(self.json_path), collectionmodule)
+    
+    def inheritable_fields( self ):
+        """Returns list of Collection object's field names marked as inheritable.
+        
+        >>> c = Collection.from_json('/tmp/ddr-testing-123')
+        >>> c.inheritable_fields()
+        ['status', 'public', 'rights']
+        """
+        return _inheritable_fields(collectionmodule.FIELDS )
+    
+    def json( self ):
+        """Returns a ddrlocal.models.meta.CollectionJSON object
+        
+        TODO Do we really need this?
+        """
+        #if not os.path.exists(self.json_path):
+        #    CollectionJSON.create(self.json_path)
+        return CollectionJSON(self)
+    
+    def load_json(self, json_text):
+        """Populates Collection from JSON-formatted text.
+        
+        Goes through COLLECTION_FIELDS, turning data in the JSON file into
+        object attributes.
+        
+        @param json_text: JSON-formatted text
+        """
+        load_json(self, collectionmodule, json_text)
+        # special cases
+        if hasattr(self, 'record_created') and self.record_created:
+            self.record_created = datetime.strptime(self.record_created, DATETIME_FORMAT)
+        else:
+            self.record_created = datetime.now()
+        if hasattr(self, 'record_lastmod') and self.record_lastmod:
+            self.record_lastmod = datetime.strptime(self.record_lastmod, DATETIME_FORMAT)
+        else:
+            self.record_lastmod = datetime.now()
+    
+    def dump_json(self, template=False, doc_metadata=False):
+        """Dump Collection data to JSON-formatted text.
+        
+        @param template: [optional] Boolean. If true, write default values for fields.
+        @param doc_metadata: boolean. Insert document_metadata().
+        @returns: JSON-formatted text
+        """
+        data = prep_json(self, collectionmodule, template=template)
+        if doc_metadata:
+            data.insert(0, document_metadata(collectionmodule, self.path))
+        return format_json(data)
+    
+    def write_json(self):
+        """Write JSON file to disk.
+        """
+        write_json(self.dump_json(doc_metadata=True), self.json_path)
+    
+    def lock( self, text ): return lock(self.lock_path, text)
+    def unlock( self, text ): return unlock(self.lock_path, text)
+    def locked( self ): return locked(self.lock_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -817,9 +956,36 @@ class Collection( object ):
             CollectionControlFile.create(self.control_path, self.uid)
         return CollectionControlFile(self.control_path)
     
-    def lock( self, text ): return lock(self.lock_path, text)
-    def unlock( self, text ): return unlock(self.lock_path, text)
-    def locked( self ): return locked(self.lock_path)
+    def ead( self ):
+        """Returns a ddrlocal.models.xml.EAD object for the collection.
+        
+        TODO Do we really need this?
+        """
+        if not os.path.exists(self.ead_path):
+            EAD.create(self.ead_path)
+        return EAD(self)
+    
+    def dump_ead(self):
+        """Dump Collection data to ead.xml file.
+        
+        TODO render a Django/Jinja template instead of using lxml
+        TODO This should not actually write the XML! It should return XML to the code that calls it.
+        """
+        NAMESPACES = None
+        tree = etree.fromstring(self.ead().xml)
+        for f in collectionmodule.FIELDS:
+            key = f['name']
+            value = ''
+            if hasattr(self, f['name']):
+                value = getattr(self, key)
+                # run ead_* functions on field data if present
+                tree = module_xml_function(collectionmodule,
+                                           'ead_%s' % key,
+                                           tree, NAMESPACES, f,
+                                           value)
+        xml_pretty = etree.tostring(tree, pretty_print=True)
+        with open(self.ead_path, 'w') as f:
+            f.write(xml_pretty)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -845,6 +1011,9 @@ class Collection( object ):
                     paths.append(colldir)
         return natural_sort(paths)
     
+    def entity_path( self, entity_uid ):
+        return os.path.join(self.files_path, entity_uid)
+    
     def entity_paths( self ):
         """Returns relative paths to entities.
         """
@@ -858,8 +1027,47 @@ class Collection( object ):
                 paths.append(epath)
         return natural_sort(paths)
     
-    def entities( self ):
-        return [Entity(path) for path in self.entity_paths()]
+    def entities( self, quick=None ):
+        """Returns list of the Collection's Entity objects.
+        
+        >>> c = Collection.from_json('/tmp/ddr-testing-123')
+        >>> c.entities()
+        [<DDRLocalEntity ddr-testing-123-1>, <DDRLocalEntity ddr-testing-123-2>, ...]
+        
+        @param quick: Boolean List only titles and IDs
+        """
+        # empty class used for quick view
+        class ListEntity( object ):
+            def __repr__(self):
+                return "<DDRListEntity %s>" % (self.id)
+        entity_paths = []
+        if os.path.exists(self.files_path):
+            # TODO use cached list if available
+            for eid in os.listdir(self.files_path):
+                path = os.path.join(self.files_path, eid)
+                entity_paths.append(path)
+        entity_paths = natural_sort(entity_paths)
+        entities = []
+        for path in entity_paths:
+            if quick:
+                # fake Entity with just enough info for lists
+                entity_json_path = os.path.join(path,'entity.json')
+                if os.path.exists(entity_json_path):
+                    for line in read_json(entity_json_path).split('\n'):
+                        if '"title":' in line:
+                            e = ListEntity()
+                            e.id = e.uid = eid = os.path.basename(path)
+                            e.repo,e.org,e.cid,e.eid = eid.split('-')
+                            # make a miniature JSON doc out of just title line
+                            e.title = json.loads('{%s}' % line)['title']
+                            entities.append(e)
+            else:
+                entity = DDRLocalEntity.from_json(path)
+                for lv in entity.labels_values():
+                    if lv['label'] == 'title':
+                        entity.title = lv['value']
+                entities.append(entity)
+        return entities
     
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
@@ -883,12 +1091,6 @@ class Collection( object ):
                 self._status = status
         return self._status
     
-    def repo_synced( self ):     return dvcs.synced(self.repo_status())
-    def repo_ahead( self ):      return dvcs.ahead(self.repo_status())
-    def repo_behind( self ):     return dvcs.behind(self.repo_status())
-    def repo_diverged( self ):   return dvcs.diverged(self.repo_status())
-    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status())
-    
     def repo_annex_status( self ):
         """Get annex status of collection repo.
         """
@@ -897,6 +1099,12 @@ class Collection( object ):
             if astatus:
                 self._astatus = astatus
         return self._astatus
+    
+    def repo_synced( self ):     return dvcs.synced(self.repo_status())
+    def repo_ahead( self ):      return dvcs.ahead(self.repo_status())
+    def repo_behind( self ):     return dvcs.behind(self.repo_status())
+    def repo_diverged( self ):   return dvcs.diverged(self.repo_status())
+    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status())
 
 
 

@@ -12,7 +12,7 @@ setup(
     install_requires = ['nose'],
     packages = ['DDR', 'DDR.converters'],
     package_dir = {'DDR': 'DDR'},
-    package_data = {'DDR': ['*.tpl', 'templates/*',]},
+    package_data = {'DDR': ['*.tpl', 'models/*', 'templates/*',]},
     scripts = ['bin/ddr', 'bin/ddr-checkencoding', 'bin/ddrfilter', 'bin/ddrindex', 'bin/ddrmassupdate', 'bin/ddrpubcopy', 'bin/ddrdensho255fix'],
     name = 'ddr'
 )
