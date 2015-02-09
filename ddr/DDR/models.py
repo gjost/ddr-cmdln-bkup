@@ -35,6 +35,10 @@ def file_hash(path, algo='sha1'):
     f.close()
     return h.hexdigest()
 
+
+
+# metadata files: finding, reading, writing ----------------------------
+
 def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
     
@@ -305,6 +309,8 @@ def cmp_model_definition_fields(document_json, module):
 
 
 
+# IDs, paths -----------------------------------------------------------
+
 class Path( object ):
     path = None
     base_path = None
@@ -555,6 +561,9 @@ def model_fields( model ):
         return fields
     return []
 
+
+# module ---------------------------------------------------------------
+
 def module_path(module):
     """Returns path to the module source file (.py).
     """
@@ -624,6 +633,10 @@ def module_xml_function(module, function_name, tree, NAMESPACES, f, value):
         tree = function(tree, NAMESPACES, f, value)
     return tree
 
+
+
+# inheritance ----------------------------------------------------------
+
 def _inheritable_fields( MODEL_FIELDS ):
     """Returns a list of fields that can inherit or grant values.
     
@@ -647,6 +660,10 @@ def _inherit( parent, child ):
     for field in parent.inheritable_fields():
         if hasattr(parent, field) and hasattr(child, field):
             setattr(child, field, getattr(parent, field))
+
+
+
+# locking --------------------------------------------------------------
 
 def lock( lock_path, text ):
     """Writes lockfile to collection dir; complains if can't.
@@ -741,6 +758,9 @@ def locked( lock_path ):
         return text
     return False
 
+
+
+# objects --------------------------------------------------------------
 
 
 class Collection( object ):
