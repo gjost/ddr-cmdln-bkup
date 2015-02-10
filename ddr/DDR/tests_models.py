@@ -211,6 +211,11 @@ def test_id_from_path():
     assert models.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/') ==  None
     assert models.id_from_path('.../ddr-testing-123/something-else.json') ==  None
 
+def test_model_from_path():
+    assert models.model_from_path('.../ddr-testing-123/collection.json') == 'collection'
+    assert models.model_from_path('.../ddr-testing-123-1/entity.json') == 'entity'
+    assert models.model_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json') == 'file'
+
 MODELFROMDICT_NOID = {}
 MODELFROMDICT_FILE = {'path_rel':'this/is/a/path'}
 MODELFROMDICT_ENTITY = {'id': 'ddr-test-123-1'}
@@ -226,11 +231,6 @@ def test_model_from_dict():
     assert models.model_from_dict(MODELFROMDICT_ORG) == None
     assert models.model_from_dict(MODELFROMDICT_REPO) == None
 
-def test_model_from_path():
-    assert models.model_from_path('.../ddr-testing-123/collection.json') == 'collection'
-    assert models.model_from_path('.../ddr-testing-123-1/entity.json') == 'entity'
-    assert models.model_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json') == 'file'
-
 # TODO path_from_id
 
 def test_parent_id():
@@ -241,6 +241,8 @@ def test_parent_id():
     assert models.parent_id('ddr-testing-123-1-master-a1b2c3d4e5') == 'ddr-testing-123-1'
 
 # TODO model_fields
+# TODO module_path
+# TODO module_is_valid
 
 def test_module_function():
     module = models
@@ -248,10 +250,19 @@ def test_module_function():
     value = '.../ddr-test-123/collection.json'
     assert models.module_function(module, functionname, value) == 'ddr-test-123'
 
-# TODO module_path
-# TODO module_is_valid
-# TODO module_function
 # TODO module_xml_function
+
+def test_labels_values():
+    document = Document()
+    models.load_json(document, testmodule, TEST_DOCUMENT)
+    expected = [
+        {'value': u'ddr-test-123', 'label': 'ID'},
+        {'value': u'2014-09-19T03:14:59', 'label': 'Timestamp'},
+        {'value': 1, 'label': 'Status'},
+        {'value': u'TITLE', 'label': 'Title'},
+        {'value': u'DESCRIPTION', 'label': 'Description'}
+    ]
+    assert models.labels_values(document, testmodule) == expected
 
 MODEL_FIELDS_INHERITABLE = [
     {'name':'id',},
@@ -288,6 +299,7 @@ def test_locking():
     assert models.unlock(lock_path, text) == 'not locked'
     assert not os.path.exists(lock_path)
 
+
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
@@ -307,32 +319,22 @@ def test_Collection__init__():
     assert c.gitignore_path_rel == '.gitignore'
     # TODO assert c.git_url
 
+# TODO Collection.__repr__
+
 def test_Collection_path_absrel():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c._path_absrel('path/to/file') == '/tmp/ddr-testing-123/path/to/file'
     assert c._path_absrel('path/to/file', rel=True) == 'path/to/file'
 
-def test_Collection_entity_path():
-    c = models.Collection('/tmp/ddr-testing-123')
-    assert c.entity_path('11') == '/tmp/ddr-testing-123/files/11'
-
-def test_Collection_changelog():
-    c = models.Collection('/tmp/ddr-testing-123')
-    assert c.changelog() == '/tmp/ddr-testing-123/changelog is empty or missing'
-    # TODO test reading changelog
-
-# TODO Collection.control
-# TODO Collection.gitignore
-# TODO Collection.collections
-# TODO Collection.entities
-# TODO Collection.repo_fetch
-# TODO Collection.repo_status
-# TODO Collection.repo_synced
-# TODO Collection.repo_ahead
-# TODO Collection.repo_behind
-# TODO Collection.repo_diverged
-# TODO Collection.repo_conflicted
-# TODO Collection.repo_annex_status
+# TODO Collection.create
+# TODO Collection.from_json
+# TODO Collection.model_def_commits
+# TODO Collection.model_def_fields
+# TODO Collection.labels_values
+# TODO Collection.inheritable_fields
+# TODO Collection.load_json
+# TODO Collection.dump_json
+# TODO Collection.write_json
 
 # Collection.locking
 # Collection.unlock
@@ -358,6 +360,33 @@ def test_Collection_locking():
     assert not os.path.exists(c.lock_path)
     os.rmdir(c.path)
 
+def test_Collection_changelog():
+    c = models.Collection('/tmp/ddr-testing-123')
+    assert c.changelog() == '/tmp/ddr-testing-123/changelog is empty or missing'
+    # TODO test reading changelog
+
+# TODO Collection.control
+# TODO Collection.ead
+# TODO Collection.dump_ead
+# TODO Collection.gitignore
+# TODO Collection.collection_paths
+
+def test_Collection_entity_path():
+    c = models.Collection('/tmp/ddr-testing-123')
+    assert c.entity_path('11') == '/tmp/ddr-testing-123/files/11'
+
+# TODO Collection.entity_paths
+# TODO Collection.entities
+# TODO Collection.repo_fetch
+# TODO Collection.repo_status
+# TODO Collection.repo_annex_status
+# TODO Collection.repo_synced
+# TODO Collection.repo_ahead
+# TODO Collection.repo_behind
+# TODO Collection.repo_diverged
+# TODO Collection.repo_conflicted
+
+
 def test_Entity__init__():
     e = models.Entity('/tmp/ddr-testing-123/files/1')
     assert e.path == '/tmp/ddr-testing-123/files/1'
@@ -378,6 +407,16 @@ def test_Entity_path_absrel():
     e = models.Entity('/tmp/ddr-testing-123/files/1')
     assert e._path_absrel('filename') == '/tmp/ddr-testing-123/files/1/filename'
     assert e._path_absrel('filename', rel=True) == 'files/1/filename'
+
+# TODO Entity._path_absrel
+# TODO Entity.__repr__
+# TODO Entity.create
+# TODO Entity.from_json
+# TODO Entity.model_def_commits
+# TODO Entity.model_def_fields
+# TODO Entity.labels_values
+# TODO Entity.inherit
+# TODO Entity.inheritable_fields
 
 # Entity.locking
 # Entity.unlock
@@ -403,16 +442,55 @@ def test_Entity_locking():
     assert not os.path.exists(e.lock_path)
     os.rmdir(e.path)
 
+# TODO Entity.load_json
+# TODO Entity.dump_json
+# TODO Entity.write_json
+
 def test_Entity_changelog():
     e = models.Entity('/tmp/ddr-testing-123/files/1')
     assert e.changelog() == '/tmp/ddr-testing-123/files/1/changelog is empty or missing'
     # TODO test reading changelog
 
 # TODO Entity.control
-# TODO Entity.files
+# TODO Entity.mets
+# TODO Entity.dump_mets
+
 def test_Entity_checksum_algorithms():
     assert models.Entity.checksum_algorithms() == ['md5', 'sha1', 'sha256']
 
 # TODO Entity.checksums
+# TODO Entity.file_paths
+# TODO Entity.load_file_objects
+# TODO Entity.files_master
+# TODO Entity.files_mezzanine
+# TODO Entity.detect_file_duplicates
+# TODO Entity.rm_file_duplicates
+# TODO Entity.file
+# TODO Entity._addfile_log_path
+# TODO Entity.addfile_logger
+# TODO Entity.add_file
+# TODO Entity.add_file_commit
+# TODO Entity.add_access
 
-# TODO File.*
+
+# TODO File.__init__
+# TODO File.__repr__
+# TODO File.model_def_commits
+# TODO File.model_def_fields
+# TODO File.labels_values
+# TODO File.files_rel
+# TODO File.present
+# TODO File.access_present
+# TODO File.inherit
+# TODO File.from_json
+# TODO File.load_json
+# TODO File.dump_json
+# TODO File.write_json
+# TODO File.file_name
+# TODO File.set_path
+# TODO File.set_access
+# TODO File.file
+# TODO File.access_filename
+# TODO File.links_incoming
+# TODO File.links_outgoing
+# TODO File.links_all
