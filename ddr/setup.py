@@ -27,6 +27,8 @@ setup(
     scripts = [
         'bin/ddr',
         'bin/ddr-checkencoding',
+        'bin/ddr-export',
+        'bin/ddr-import',
         'bin/ddrfilter',
         'bin/ddrindex',
         'bin/ddrmassupdate',
