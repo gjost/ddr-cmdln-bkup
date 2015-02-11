@@ -359,6 +359,7 @@ class Path( object ):
     file_path = None
     filename = None
     ext = None
+    model = None
     object_type = None
     object_id = None
     collection_id = None
@@ -393,6 +394,7 @@ def dissect_path( path_abs ):
         else:
             p.object_id = os.path.basename(pathname)
         p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
+        p.model = p.object_type
         p.role = p.role.lower()
         p.file_id = p.object_id
         p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
@@ -411,6 +413,7 @@ def dissect_path( path_abs ):
         p.base_path = os.path.dirname(p.collection_path)
         p.object_id = os.path.basename(p.entity_path)
         p.object_type,p.repo,p.org,p.cid,p.eid = split_object_id(p.object_id)
+        p.model = p.object_type
         p.entity_id = p.object_id
         p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
         return p
@@ -426,6 +429,7 @@ def dissect_path( path_abs ):
         p.base_path = os.path.dirname(p.collection_path)
         p.object_id = os.path.basename(p.collection_path)
         p.object_type,p.repo,p.org,p.cid = split_object_id(p.object_id)
+        p.model = p.object_type
         p.collection_id = p.object_id
         return p
         
