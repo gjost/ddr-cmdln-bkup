@@ -713,13 +713,10 @@ def _child_jsons( path ):
     @param path: Absolute directory path.
     @return list of paths
     """
-    paths = []
-    r = envoy.run('find %s -name "*.json" ! -name ".git" -print' % path)
-    if not r.status_code:
-        for p in r.std_out.strip().split('\n'):
-            if os.path.dirname(p) != path:
-                paths.append(p)
-    return paths
+    return [
+        p for p in metadata_files(basedir=path, recursive=True)
+        if os.path.dirname(p) != path
+    ]
 
 def _selected_inheritables( inheritables, cleaned_data ):
     """Indicates which inheritable fields from the list were selected in the form.
@@ -745,6 +742,7 @@ def _selected_field_values( parent_object, inheritables ):
     
     @param parent_object
     @param inheritables
+    @returns: list of (fieldname,value) tuples
     """
     field_values = []
     for field in inheritables:
@@ -757,25 +755,22 @@ def _load_object( json_path ):
     
     @param json_path
     """
-    dirname = os.path.dirname(json_path)
-    basename = os.path.basename(json_path)
-    if ('master' in basename) or ('mezzanine' in basename):  # file
-        entity = Entity.from_json(os.path.dirname(dirname))
-        fname = os.path.splitext(basename)[0]
-        repo,org,cid,eid,role,sha1 = fname.split('-')
-        return entity.file(repo, org, cid, eid, role, sha1)
-    elif basename == 'entity.json':
-        return Entity.from_json(dirname)
-    elif basename == 'collection.json':
-        return Collection.from_json(dirname)
+    p = dissect_path(json_path)
+    if p.model == 'file':
+        entity = Entity.from_json(p.entity_path)
+        return entity.file(p.repo, p.org, p.cid, p.eid, p.role, p.sha1)
+    elif p.model == 'entity':
+        return Entity.from_json(p.entity_path)
+    elif p.model == 'collection':
+        return Collection.from_json(p.collection_path)
     return None
     
 def _update_inheritables( parent_object, objecttype, inheritables, cleaned_data ):
     """Update specified inheritable fields of child objects using form data.
     
-    @param parent_object: A Collection, Entity, or File
+    @param parent_object: Collection or Entity with values to be inherited.
     @param cleaned_data: Form cleaned_data from POST.
-    @returns: tuple containing list of changed object Ids and list of changed objects' JSON files.
+    @returns: tuple List of changed object Ids, list of changed objects' JSON files.
     """
     child_ids = []
     changed_files = []
@@ -1055,9 +1050,23 @@ class Collection( object ):
         return _inheritable_fields(collectionmodule.FIELDS )
 
     def selected_inheritables(self, cleaned_data ):
+        """Returns names of fields marked as inheritable in cleaned_data.
+        
+        Fields are considered selected if dict contains key/value pairs in the form
+        'FIELD_inherit':True.
+        
+        @param cleaned_data: dict Fieldname:value pairs.
+        @returns: list
+        """
         return _selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
+        """Update specified fields of child objects.
+        
+        @param inheritables: list Names of fields that shall be inherited.
+        @param cleaned_data: dict Fieldname:value pairs.
+        @returns: tuple [changed object Ids],[changed objects' JSON files]
+        """
         return _update_inheritables(self, 'collection', inheritables, cleaned_data)
     
     def load_json(self, json_text):
@@ -1384,9 +1393,23 @@ class Entity( object ):
         return _inheritable_fields(entitymodule.FIELDS)
     
     def selected_inheritables(self, cleaned_data ):
+        """Returns names of fields marked as inheritable in cleaned_data.
+        
+        Fields are considered selected if dict contains key/value pairs in the form
+        'FIELD_inherit':True.
+        
+        @param cleaned_data: dict Fieldname:value pairs.
+        @returns: list
+        """
         return _selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
+        """Update specified fields of child objects.
+        
+        @param inheritables: list Names of fields that shall be inherited.
+        @param cleaned_data: dict Fieldname:value pairs.
+        @returns: tuple [changed object Ids],[changed objects' JSON files]
+        """
         return _update_inheritables(self, 'entity', inheritables, cleaned_data)
     
     def inherit( self, parent ):
