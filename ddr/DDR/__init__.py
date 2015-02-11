@@ -8,32 +8,33 @@ import logging
 logger = logging.getLogger(__name__)
 import re
 
-
-CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
-
-import ConfigParser
-from datetime import datetime, timedelta
-import logging
-logger = logging.getLogger(__name__)
-import re
-
-
 class NoConfigError(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return repr(self.value)
 
+CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
 if not configs_read:
     raise NoConfigError('No config file!')
 
+INSTALL_PATH = config.get('cmdln','install_path')
+REPO_MODELS_PATH = config.get('cmdln','repo_models_path')
+MEDIA_BASE = config.get('cmdln','media_base')
+LOG_DIR = config.get('local', 'log_dir')
+
+TIME_FORMAT = config.get('cmdln','time_format')
+DATETIME_FORMAT = config.get('cmdln','datetime_format')
+
 ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
 ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
+ACCESS_FILE_GEOMETRY = config.get('cmdln','access_file_geometry')
 FACETS_PATH = config.get('cmdln','vocab_facets_path')
 MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
 TEMPLATE_EJSON = config.get('cmdln','template_ejson')
+TEMPLATE_EAD = config.get('cmdln','template_ead')
 TEMPLATE_METS = config.get('cmdln','template_mets')
 
 CGIT_URL = config.get('workbench','cgit_url')

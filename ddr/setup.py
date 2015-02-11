@@ -9,10 +9,31 @@ setup(
     download_url = 'https://github.com/densho/ddr-cmdln.git',
     author_email = 'geoffrey.jost@densho.org',
     version = '0.9-beta',
-    install_requires = ['nose'],
-    packages = ['DDR', 'DDR.converters'],
-    package_dir = {'DDR': 'DDR'},
-    package_data = {'DDR': ['*.tpl', 'templates/*',]},
-    scripts = ['bin/ddr', 'bin/ddr-checkencoding', 'bin/ddrfilter', 'bin/ddrindex', 'bin/ddrmassupdate', 'bin/ddrpubcopy', 'bin/ddrdensho255fix'],
+    install_requires = [
+        'nose'
+    ],
+    packages = [
+        'DDR',
+        'DDR.converters'
+    ],
+    package_dir = {
+        'DDR': 'DDR'
+    },
+    package_data = {'DDR': [
+        '*.tpl',
+        'models/*',
+        'templates/*',
+    ]},
+    scripts = [
+        'bin/ddr',
+        'bin/ddr-checkencoding',
+        'bin/ddr-export',
+        'bin/ddr-import',
+        'bin/ddrfilter',
+        'bin/ddrindex',
+        'bin/ddrmassupdate',
+        'bin/ddrpubcopy',
+        'bin/ddrdensho255fix',
+    ],
     name = 'ddr'
 )
