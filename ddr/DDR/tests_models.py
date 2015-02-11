@@ -272,10 +272,12 @@ MODEL_FIELDS_INHERITABLE = [
     {'name':'public', 'inheritable':True,},
     {'name':'title',},
 ]
-def test_inheritable_fields():
-    assert models._inheritable_fields(MODEL_FIELDS_INHERITABLE) == ['status','public']
+def test_Inheritance_inheritable_fields():
+    assert models.Inheritance.inheritable_fields(MODEL_FIELDS_INHERITABLE) == ['status','public']
 
-# TODO _inherit
+# TODO Inheritance_inherit
+# TODO Inheritance_selected_inheritables
+# TODO Inheritance_update_inheritables
 
 # lock
 # unlock

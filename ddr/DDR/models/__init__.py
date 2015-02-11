@@ -705,123 +705,119 @@ def labels_values(document, module):
 
 
 
-# inheritance ----------------------------------------------------------
+class Inheritance(object):
 
-def _child_jsons( path ):
-    """List all the .json files under path directory; excludes specified dir.
+    @staticmethod
+    def _child_jsons( path ):
+        """List all the .json files under path directory; excludes specified dir.
+        
+        @param path: Absolute directory path.
+        @return list of paths
+        """
+        return [
+            p for p in metadata_files(basedir=path, recursive=True)
+            if os.path.dirname(p) != path
+        ]
     
-    @param path: Absolute directory path.
-    @return list of paths
-    """
-    return [
-        p for p in metadata_files(basedir=path, recursive=True)
-        if os.path.dirname(p) != path
-    ]
-
-def _selected_inheritables( inheritables, cleaned_data ):
-    """Indicates which inheritable fields from the list were selected in the form.
+    @staticmethod
+    def _selected_field_values( parent_object, inheritables ):
+        """Gets list of selected inherited fieldnames and their values from the parent object
+        
+        @param parent_object
+        @param inheritables
+        @returns: list of (fieldname,value) tuples
+        """
+        field_values = []
+        for field in inheritables:
+            value = getattr(parent_object, field)
+            field_values.append( (field,value) )
+        return field_values
     
-    Selector fields are assumed to be BooleanFields named "FIELD_inherit".
+    @staticmethod
+    def inheritable_fields( MODEL_FIELDS ):
+        """Returns a list of fields that can inherit or grant values.
+        
+        Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
+        
+        @param MODEL_FIELDS
+        @returns: list
+        """
+        inheritable = []
+        for f in MODEL_FIELDS:
+            if f.get('inheritable', None):
+                inheritable.append(f['name'])
+        return inheritable
     
-    @param inheritables: List of field/attribute names.
-    @param cleaned_data: form.cleaned_data.
-    @return
-    """
-    fieldnames = {}
-    for field in inheritables:
-        fieldnames['%s_inherit' % field] = field
-    selected = []
-    if fieldnames:
-        for key in cleaned_data.keys():
-            if (key in fieldnames.keys()) and cleaned_data[key]:
-                selected.append(fieldnames[key])
-    return selected
-
-def _selected_field_values( parent_object, inheritables ):
-    """Gets list of selected inherited fieldnames and their values from the parent object
+    @staticmethod
+    def selected_inheritables( inheritables, cleaned_data ):
+        """Indicates which inheritable fields from the list were selected in the form.
+        
+        Selector fields are assumed to be BooleanFields named "FIELD_inherit".
+        
+        @param inheritables: List of field/attribute names.
+        @param cleaned_data: form.cleaned_data.
+        @return
+        """
+        fieldnames = {}
+        for field in inheritables:
+            fieldnames['%s_inherit' % field] = field
+        selected = []
+        if fieldnames:
+            for key in cleaned_data.keys():
+                if (key in fieldnames.keys()) and cleaned_data[key]:
+                    selected.append(fieldnames[key])
+        return selected
+        
+    @staticmethod
+    def update_inheritables( parent_object, objecttype, inheritables, cleaned_data ):
+        """Update specified inheritable fields of child objects using form data.
+        
+        @param parent_object: Collection or Entity with values to be inherited.
+        @param cleaned_data: Form cleaned_data from POST.
+        @returns: tuple List of changed object Ids, list of changed objects' JSON files.
+        """
+        child_ids = []
+        changed_files = []
+        # values of selected inheritable fields from parent
+        field_values = Inheritance._selected_field_values(parent_object, inheritables)
+        # load child objects and apply the change
+        if field_values:
+            for json_path in Inheritance._child_jsons(parent_object.path):
+                child = None
+                p = dissect_path(json_path)
+                if p.model == 'collection':
+                    child = Collection.from_json(p.collection_path)
+                elif p.model == 'entity':
+                    child = Entity.from_json(p.entity_path)
+                elif p.model == 'file':
+                    child = File.from_json(json_path)
+                if child:
+                    # set field if exists in child and doesn't already match parent value
+                    changed = False
+                    for field,value in field_values:
+                        if hasattr(child, field):
+                            existing_value = getattr(child,field)
+                            if existing_value != value:
+                                setattr(child, field, value)
+                                changed = True
+                    # write json and add to list of changed IDs/files
+                    if changed:
+                        child.write_json()
+                        if hasattr(child, 'id'):         child_ids.append(child.id)
+                        elif hasattr(child, 'basename'): child_ids.append(child.basename)
+                        changed_files.append(json_path)
+        return child_ids,changed_files
     
-    @param parent_object
-    @param inheritables
-    @returns: list of (fieldname,value) tuples
-    """
-    field_values = []
-    for field in inheritables:
-        value = getattr(parent_object, field)
-        field_values.append( (field,value) )
-    return field_values
-
-def _load_object( json_path ):
-    """Loads File, Entity, or Collection from JSON file
-    
-    @param json_path
-    """
-    p = dissect_path(json_path)
-    if p.model == 'file':
-        entity = Entity.from_json(p.entity_path)
-        return entity.file(p.repo, p.org, p.cid, p.eid, p.role, p.sha1)
-    elif p.model == 'entity':
-        return Entity.from_json(p.entity_path)
-    elif p.model == 'collection':
-        return Collection.from_json(p.collection_path)
-    return None
-    
-def _update_inheritables( parent_object, objecttype, inheritables, cleaned_data ):
-    """Update specified inheritable fields of child objects using form data.
-    
-    @param parent_object: Collection or Entity with values to be inherited.
-    @param cleaned_data: Form cleaned_data from POST.
-    @returns: tuple List of changed object Ids, list of changed objects' JSON files.
-    """
-    child_ids = []
-    changed_files = []
-    # values of selected inheritable fields from parent
-    field_values = _selected_field_values(parent_object, inheritables)
-    # load child objects and apply the change
-    if field_values:
-        for child_json in _child_jsons(parent_object.path):
-            child = _load_object(child_json)
-            if child:
-                # set field if exists in child and doesn't already match parent value
-                changed = False
-                for field,value in field_values:
-                    if hasattr(child, field):
-                        existing_value = getattr(child,field)
-                        if existing_value != value:
-                            setattr(child, field, value)
-                            changed = True
-                # write json and add to list of changed IDs/files
-                if changed:
-                    child.write_json()
-                    if hasattr(child, 'id'):         child_ids.append(child.id)
-                    elif hasattr(child, 'basename'): child_ids.append(child.basename)
-                    changed_files.append(child_json)
-    return child_ids,changed_files
-
-def _inheritable_fields( MODEL_FIELDS ):
-    """Returns a list of fields that can inherit or grant values.
-    
-    Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
-    
-    @param MODEL_FIELDS
-    @returns: list
-    """
-    inheritable = []
-    for f in MODEL_FIELDS:
-        if f.get('inheritable', None):
-            inheritable.append(f['name'])
-    return inheritable
-
-def _inherit( parent, child ):
-    """Set inheritable fields in child object with values from parent.
-    
-    @param parent: A webui.models.Collection or webui.models.Entity
-    @param child: A webui.models.Entity or webui.models.File
-    """
-    for field in parent.inheritable_fields():
-        if hasattr(parent, field) and hasattr(child, field):
-            setattr(child, field, getattr(parent, field))
-
-
+    @staticmethod
+    def inherit( parent, child ):
+        """Set inheritable fields in child object with values from parent.
+        
+        @param parent: A webui.models.Collection or webui.models.Entity
+        @param child: A webui.models.Entity or webui.models.File
+        """
+        for field in parent.inheritable_fields():
+            if hasattr(parent, field) and hasattr(child, field):
+                setattr(child, field, getattr(parent, field))
 
 # locking --------------------------------------------------------------
 
@@ -1047,7 +1043,7 @@ class Collection( object ):
         >>> c.inheritable_fields()
         ['status', 'public', 'rights']
         """
-        return _inheritable_fields(collectionmodule.FIELDS )
+        return Inheritance.inheritable_fields(collectionmodule.FIELDS )
 
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -1058,7 +1054,7 @@ class Collection( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: list
         """
-        return _selected_inheritables(self.inheritable_fields(), cleaned_data)
+        return Inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
         """Update specified fields of child objects.
@@ -1067,7 +1063,7 @@ class Collection( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: tuple [changed object Ids],[changed objects' JSON files]
         """
-        return _update_inheritables(self, 'collection', inheritables, cleaned_data)
+        return Inheritance.update_inheritables(self, 'collection', inheritables, cleaned_data)
     
     def load_json(self, json_text):
         """Populates Collection from JSON-formatted text.
@@ -1390,7 +1386,7 @@ class Entity( object ):
         return labels_values(self, entitymodule)
 
     def inheritable_fields( self ):
-        return _inheritable_fields(entitymodule.FIELDS)
+        return Inheritance.inheritable_fields(entitymodule.FIELDS)
     
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -1401,7 +1397,7 @@ class Entity( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: list
         """
-        return _selected_inheritables(self.inheritable_fields(), cleaned_data)
+        return Inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
         """Update specified fields of child objects.
@@ -1410,10 +1406,10 @@ class Entity( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: tuple [changed object Ids],[changed objects' JSON files]
         """
-        return _update_inheritables(self, 'entity', inheritables, cleaned_data)
+        return Inheritance.update_inheritables(self, 'entity', inheritables, cleaned_data)
     
     def inherit( self, parent ):
-        _inherit( parent, self )
+        Inheritance.inherit( parent, self )
     
     def lock( self, text ): return lock(self.lock_path, text)
     def unlock( self, text ): return unlock(self.lock_path, text)
@@ -2233,7 +2229,7 @@ class File( object ):
         return False
     
     def inherit( self, parent ):
-        _inherit( parent, self )
+        Inheritance.inherit( parent, self )
     
     @staticmethod
     def from_json(file_json):
