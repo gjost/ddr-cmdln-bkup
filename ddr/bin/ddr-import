@@ -177,8 +177,13 @@ def main():
     
     start = datetime.now()
     if model == 'entity':
+
+        collection_path = args.collection
+        # rm trailing slashes from dir
+        if collection_path[-1] == os.path.sep:
+            collection_path = collection_path[:-1]
+        collection_id = os.path.basename(collection_path)
         
-        collection_id = os.path.basename(args.collection)
         username,password = username_password(args)
         session = idservice.login(username, password)
 
