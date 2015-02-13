@@ -73,135 +73,199 @@ def test_load_json():
 # TODO prep_json
 # TODO from_json
 
+def test_Identity_dissect_path():
 
-def test_dissect_path():
-    c0 = models.dissect_path('/base/ddr-test-123/collection.json')
-    c1 = models.dissect_path('/base/ddr-test-123')
+    def match_fields(model, fields, objects):
+        """
+        Given a set of keys/values and a list of objects,
+        assert that all the objects have the same keys/values.
+        """
+        for key,val in fields:
+            values = []
+            for n,obj in enumerate(objects):
+                print(model,n,key,val)
+                v = getattr(obj, key, 'None')
+                print(v)
+                if v not in values:
+                    values.append(v)
+            assert len(values) == 1
+        
+    c0 = models.Identity.dissect_path('/base/ddr-test-123/collection.json')
+    c1 = models.Identity.dissect_path('/base/ddr-test-123')
+    cfields = [
+        #('path', None),     # These values are the input of Path, will be unique.
+        #('path_abs', None), #
+        ('base_path', '/base'),
+        ('git_path', '/base/ddr-test-123/.git'),
+        ('annex_path', '/base/ddr-test-123/.git/annex'),
+        ('gitignore_path', '/base/ddr-test-123/.gitignore'),
+        ('collection_path', '/base/ddr-test-123/collection.json'),
+        ('entity_path', None),
+        ('file_path', None),
+        ('access_path', None),
+        ('json_path', '/base/ddr-test-123/collection.json'),
+        ('changelog_path', '/base/ddr-test-123/changelog'),
+        ('control_path', '/base/ddr-test-123/control'),
+        ('entities_path', '/base/ddr-test-123/files'),
+        ('files_path', '/base/ddr-test-123/files'),
+        ('file_path_rel', None),
+        ('access_path_rel', None),
+        ('json_path_rel', 'collection.json'),
+        ('changelog_path_rel', 'changelog'),
+        ('control_path_rel', 'control'),
+        ('entities_path_rel', 'files'),
+        ('files_path_rel', 'files'),
+        ('object_id', 'ddr-test-123'),
+        ('object_type', 'collection'),
+        ('model', 'collection'),
+        ('repo', 'ddr'),
+        ('org', 'test'),
+        ('cid', '123'),
+        ('eid', None),
+        ('role', None),
+        ('sha1', None),
+        ('file_id', None),
+        ('entity_id', None),
+        ('collection_id', 'ddr-test-123'),
+        ('parent_id', 'ddr-test'),
+    ]
     assert c0
     assert c1
-    assert c0.base_path == c1.base_path
-    assert c0.collection_path == c1.collection_path
-    assert c0.entity_path == c1.entity_path
-    assert c0.object_type == c1.object_type
-    assert c0.object_id == c1.object_id
-    assert c0.repo == c1.repo
-    assert c0.org == c1.org
-    assert c0.cid == c1.cid
-    assert c0.eid == c1.eid
-    assert c0.base_path == '/base'
-    assert c0.collection_path == '/base/ddr-test-123'
-    assert c0.object_type == 'collection'
-    assert c0.object_id == 'ddr-test-123'
-    assert c0.repo == 'ddr'
-    assert c0.org == 'test'
-    assert c0.cid == '123'
-    assert c0.eid == None
-    assert c0.role == None
-    assert c0.sha1 == None
-    assert c0.file_id == None
-    assert c0.entity_id == None
-    assert c0.collection_id == 'ddr-test-123'
+    #for key,val in cfields.iteritems():
+    #    print(key,val)
+    #    assert getattr(c0,key,None) == getattr(c1,key,None) == val
+    match_fields('collection', cfields, [c0, c1])
     
-    e0 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/entity.json')
-    e1 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files')
-    e2 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1')
+    e0 = models.Identity.dissect_path('/base/ddr-test-123/files/ddr-test-123-45/entity.json')
+    e1 = models.Identity.dissect_path('/base/ddr-test-123/files/ddr-test-123-45/files')
+    e2 = models.Identity.dissect_path('/base/ddr-test-123/files/ddr-test-123-45')
+    efields = [
+        #('path', None),     # These values are the input of Path, will be unique.
+        #('path_abs', None), #
+        ('base_path', '/base'),
+        ('git_path', '/base/ddr-test-123/.git'),
+        ('annex_path', '/base/ddr-test-123/.git/annex'),
+        ('gitignore_path', '/base/ddr-test-123/.gitignore'),
+        ('collection_path', '/base/ddr-test-123'),
+        ('entity_path', '/base/ddr-test-123/files/ddr-test-123-45'),
+        ('file_path', None),
+        ('access_path', None),
+        ('json_path', '/base/ddr-test-123/files/ddr-test-123-45/entity.json'),
+        ('changelog_path', '/base/ddr-test-123/files/ddr-test-123-45/changelog'),
+        ('control_path', '/base/ddr-test-123/files/ddr-test-123-45/control'),
+        ('entities_path', None),
+        ('file_path_rel', None),
+        ('access_path_rel', None),
+        ('files_path', '/base/ddr-test-123/files/ddr-test-123-45/files'),
+        ('json_path_rel', 'files/ddr-test-123-45/entity.json'),
+        ('changelog_path_rel', 'files/ddr-test-123-45/changelog'),
+        ('control_path_rel', 'files/ddr-test-123-45/control'),
+        ('entities_path_rel', None),
+        ('files_path_rel', 'files/ddr-test-123-45/files'),
+        ('object_id', 'ddr-test-123'),
+        ('object_type', 'entity'),
+        ('model', 'entity'),
+        ('repo', 'ddr'),
+        ('org', 'test'),
+        ('cid', '123'),
+        ('eid', '45'),
+        ('role', None),
+        ('sha1', None),
+        ('file_id', None),
+        ('entity_id', 'ddr-test-123-45'),
+        ('collection_id', 'ddr-test-123'),
+        ('parent_id', 'ddr-test-123'),
+    ]
     assert e0
     assert e1
     assert e2
-    assert e0.base_path == e1.base_path == e2.base_path
-    assert e0.collection_path == e1.collection_path == e2.collection_path
-    assert e0.entity_path == e1.entity_path == e2.entity_path
-    assert e0.object_type == e1.object_type == e2.object_type
-    assert e0.object_id == e1.object_id == e2.object_id
-    assert e0.repo == e1.repo == e2.repo
-    assert e0.org == e1.org == e2.org
-    assert e0.cid == e1.cid == e2.cid
-    assert e0.eid == e1.eid == e2.eid
-    assert e0.base_path == '/base'
-    assert e0.collection_path == '/base/ddr-test-123'
-    assert e0.entity_path == '/base/ddr-test-123/files/ddr-test-123-1'
-    assert e0.object_type == 'entity'
-    assert e0.object_id == 'ddr-test-123-1'
-    assert e0.repo == 'ddr'
-    assert e0.org == 'test'
-    assert e0.cid == '123'
-    assert e0.eid == '1'
-    assert e0.role == None
-    assert e0.sha1 == None
-    assert e0.file_id == None
-    assert e0.entity_id == 'ddr-test-123-1'
-    assert e0.collection_id == 'ddr-test-123'
+    #for key,val in efields.iteritems():
+    #    assert getattr(e0,key) == getattr(e1,key) == getattr(e2,key) == val
+    match_fields('entity', efields, [e0, e1, e2])
+
     
-    f0 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc-a.jpg')
-    f1 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc.json')
-    f2 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc.jpg')
-    f3 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc.pdf')
-    f4 = models.dissect_path('/base/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-abc')
+    f0 = models.Identity.dissect_path('/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc.jpg')
+    #'/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc-a.jpg')
+    #'/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc.json')
+    #'/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc')
     assert f0
-    assert f1
-    assert f2
-    assert f3
-    assert f4
-    assert f0.base_path == f1.base_path == f2.base_path == f3.base_path == f4.base_path
-    assert f0.collection_path == f1.collection_path == f2.collection_path == f3.collection_path == f4.collection_path
-    assert f0.entity_path == f1.entity_path == f2.entity_path == f3.entity_path == f4.entity_path
-    assert f0.object_type == f1.object_type == f2.object_type == f3.object_type == f4.object_type
-    assert f0.object_id == f1.object_id == f2.object_id == f3.object_id == f4.object_id
-    assert f0.repo == f1.repo == f2.repo == f3.repo == f4.repo
-    assert f0.org == f1.org == f2.org == f3.org == f4.org
-    assert f0.cid == f1.cid == f2.cid == f3.cid == f4.cid
-    assert f0.eid == f1.eid == f2.eid == f3.eid == f4.eid
-    assert f0.role == f1.role == f2.role == f3.role == f4.role
-    assert f0.sha1 == f1.sha1 == f2.sha1 == f3.sha1 == f4.sha1
-    assert f0.base_path == '/base'
-    assert f0.collection_path == '/base/ddr-test-123'
-    assert f0.entity_path == '/base/ddr-test-123/files/ddr-test-123-1'
-    assert f0.object_type == 'file'
-    assert f0.object_id == 'ddr-test-123-1-master-abc'
-    assert f0.repo == 'ddr'
-    assert f0.org == 'test'
-    assert f0.cid == '123'
-    assert f0.eid == '1'
-    assert f0.role == 'master'
-    assert f0.sha1 == 'abc'
-    assert f0.file_id == 'ddr-test-123-1-master-abc'
-    assert f0.entity_id == 'ddr-test-123-1'
-    assert f0.collection_id == 'ddr-test-123'
-
-def test_make_object_id():
-    assert models.make_object_id('file','ddr','test','123','1','role','a1') == 'ddr-test-123-1-role-a1'
-    assert models.make_object_id('entity','ddr','test','123','1') == 'ddr-test-123-1'
-    assert models.make_object_id('collection','ddr','test','123') == 'ddr-test-123'
-    assert models.make_object_id('organization','ddr','test') == 'ddr-test'
-    assert models.make_object_id('org','ddr','test') == 'ddr-test'
-    assert models.make_object_id('repository','ddr') == 'ddr'
-    assert models.make_object_id('repo','ddr') == 'ddr'
-    # edge cases
-    assert models.make_object_id('repo','ddr','test','123','1','role','a1') == 'ddr'
+    #assert f1
+    #assert f2
+    #assert f3
+    #assert f4
+    ffields = [
+        #('path', None),     # These values are the input of Path, will be unique.
+        #('path_abs', None), #
+        ('base_path', '/base'),
+        ('git_path', '/base/ddr-test-123/.git'),
+        ('annex_path', '/base/ddr-test-123/.git/annex'),
+        ('gitignore_path', '/base/ddr-test-123/.gitignore'),
+        ('collection_path', '/base/ddr-test-123'),
+        ('entity_path', '/base/ddr-test-123/files/ddr-test-123-45'),
+        ('file_path', '/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc.jpg'),
+        ('access_path', '/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc-a.jpg'),
+        ('json_path', '/base/ddr-test-123/files/ddr-test-123-45/files/ddr-test-123-45-master-abc.json'),
+        ('changelog_path', None),
+        ('control_path', None),
+        ('entities_path', None),
+        ('files_path', None),
+        ('file_path_rel', 'files/ddr-test-123-45/files/ddr-test-123-45-master-abc.jpg'),
+        ('access_path_rel', 'files/ddr-test-123-45/files/ddr-test-123-45-master-abc.jpg'),
+        ('json_path_rel', 'files/ddr-test-123-45/files/ddr-test-123-45-master-abc.json'),
+        ('changelog_path_rel', None),
+        ('control_path_rel', None),
+        ('entities_path_rel', None),
+        ('files_path_rel', None),
+        ('object_id', 'ddr-test-123-45-master-abc'),
+        ('object_type', 'file'),
+        ('model', 'entity'),
+        ('repo', 'ddr'),
+        ('org', 'test'),
+        ('cid', '123'),
+        ('eid', '45'),
+        ('role', 'master'),
+        ('sha1', 'abc'),
+        ('file_id', 'ddr-test-123-45-master-abc'),
+        ('entity_id', 'ddr-test-123-45'),
+        ('collection_id', 'ddr-test-123'),
+        ('parent_id', 'ddr-test-123-45'),
+    ]
+    match_fields('file', ffields, [f0])  # , f1, f2, f3, f4, f5
+    
+def test_Identity_make_object_id():
+    assert models.Identity.make_object_id('file','ddr','test','123','1','role','a1') == 'ddr-test-123-1-role-a1'
+    assert models.Identity.make_object_id('entity','ddr','test','123','1') == 'ddr-test-123-1'
+    assert models.Identity.make_object_id('collection','ddr','test','123') == 'ddr-test-123'
+    assert models.Identity.make_object_id('organization','ddr','test') == 'ddr-test'
+    assert models.Identity.make_object_id('org','ddr','test') == 'ddr-test'
+    assert models.Identity.make_object_id('repository','ddr') == 'ddr'
+    assert models.Identity.make_object_id('repo','ddr') == 'ddr'
+    # edge cases 
+    assert models.Identity.make_object_id('repo','ddr','test','123','1','role','a1') == 'ddr'
     # mistakes
-    assert models.make_object_id('file','ddr') == None
-    assert models.make_object_id('badmodel','ddr','test','123','1','role','a1') == None
+    assert models.Identity.make_object_id('file','ddr') == None
+    assert models.Identity.make_object_id('badmodel','ddr','test','123','1','role','a1') == None
 
-def test_split_object_id():
-    assert models.split_object_id('ddr-test-123-1-role-a1') == ['file', 'ddr','test','123','1','role','a1']
-    assert models.split_object_id('ddr-test-123-1') == ['entity', 'ddr','test','123','1']
-    assert models.split_object_id('ddr-test-123') == ['collection', 'ddr','test','123']
-    assert models.split_object_id('ddr-test-123-1-role-a1-xx') == None
-    assert models.split_object_id('ddr-test-123-1-role') == None
-    assert models.split_object_id('ddr-test') == None
-    assert models.split_object_id('ddr') == None
+def test_Identity_split_object_id():
+    assert models.Identity.split_object_id('ddr-test-123-1-role-a1') == ['file', 'ddr','test','123','1','role','a1']
+    assert models.Identity.split_object_id('ddr-test-123-1') == ['entity', 'ddr','test','123','1']
+    assert models.Identity.split_object_id('ddr-test-123') == ['collection', 'ddr','test','123']
+    assert models.Identity.split_object_id('ddr-test-123-1-role-a1-xx') == None
+    assert models.Identity.split_object_id('ddr-test-123-1-role') == ['file partial', 'ddr','test','123','1','role']
+    assert models.Identity.split_object_id('ddr-test') == ['organization', 'ddr','test']
+    assert models.Identity.split_object_id('ddr') == ['repository', 'ddr']
 
-def test_id_from_path():
-    assert models.id_from_path('.../ddr-testing-123/collection.json') == 'ddr-testing-123'
-    assert models.id_from_path('.../ddr-testing-123-1/entity.json') == 'ddr-testing-123-1'
-    assert models.id_from_path('.../ddr-testing-123-1-master-a1.json') == 'ddr-testing-123-1-master-a1'
-    assert models.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/') ==  None
-    assert models.id_from_path('.../ddr-testing-123/something-else.json') ==  None
+def test_Identity_id_from_path():
+    assert models.Identity.id_from_path('.../ddr-testing-123/collection.json') == 'ddr-testing-123'
+    assert models.Identity.id_from_path('.../ddr-testing-123-1/entity.json') == 'ddr-testing-123-1'
+    assert models.Identity.id_from_path('.../ddr-testing-123-1-master-a1.json') == 'ddr-testing-123-1-master-a1'
+    assert models.Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/') ==  None
+    assert models.Identity.id_from_path('.../ddr-testing-123/something-else.json') ==  None
 
-def test_model_from_path():
-    assert models.model_from_path('.../ddr-testing-123/collection.json') == 'collection'
-    assert models.model_from_path('.../ddr-testing-123-1/entity.json') == 'entity'
-    assert models.model_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json') == 'file'
+def test_Identity_model_from_path():
+    assert models.Identity.model_from_path('.../ddr-testing-123/collection.json') == 'collection'
+    assert models.Identity.model_from_path('.../ddr-testing-123-1/entity.json') == 'entity'
+    assert models.Identity.model_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json') == 'file'
 
 MODELFROMDICT_NOID = {}
 MODELFROMDICT_FILE = {'path_rel':'this/is/a/path'}
@@ -210,22 +274,22 @@ MODELFROMDICT_COLL = {'id': 'ddr-test-123'}
 MODELFROMDICT_ORG = {'id': 'ddr-test'}
 MODELFROMDICT_REPO = {'id': 'ddr'}
 
-def test_model_from_dict():
-    assert models.model_from_dict(MODELFROMDICT_NOID) == None
-    assert models.model_from_dict(MODELFROMDICT_FILE) == 'file'
-    assert models.model_from_dict(MODELFROMDICT_ENTITY) == 'entity'
-    assert models.model_from_dict(MODELFROMDICT_COLL) == 'collection'
-    assert models.model_from_dict(MODELFROMDICT_ORG) == None
-    assert models.model_from_dict(MODELFROMDICT_REPO) == None
+def test_Identity_model_from_dict():
+    assert models.Identity.model_from_dict(MODELFROMDICT_NOID) == None
+    assert models.Identity.model_from_dict(MODELFROMDICT_FILE) == 'file'
+    assert models.Identity.model_from_dict(MODELFROMDICT_ENTITY) == 'entity'
+    assert models.Identity.model_from_dict(MODELFROMDICT_COLL) == 'collection'
+    assert models.Identity.model_from_dict(MODELFROMDICT_ORG) == None
+    assert models.Identity.model_from_dict(MODELFROMDICT_REPO) == None
 
-# TODO path_from_id
+# TODO Identity_path_from_id
 
-def test_parent_id():
-    assert models.parent_id('ddr') == None
-    assert models.parent_id('ddr-testing') == 'ddr'
-    assert models.parent_id('ddr-testing-123') == 'ddr-testing'
-    assert models.parent_id('ddr-testing-123-1') == 'ddr-testing-123'
-    assert models.parent_id('ddr-testing-123-1-master-a1b2c3d4e5') == 'ddr-testing-123-1'
+def test_Identity_parent_id():
+    assert models.Identity.parent_id('ddr') == None
+    assert models.Identity.parent_id('ddr-testing') == 'ddr'
+    assert models.Identity.parent_id('ddr-testing-123') == 'ddr-testing'
+    assert models.Identity.parent_id('ddr-testing-123-1') == 'ddr-testing-123'
+    assert models.Identity.parent_id('ddr-testing-123-1-master-a1b2c3d4e5') == 'ddr-testing-123-1'
 
 def test_Module_path():
     class TestModule(object):

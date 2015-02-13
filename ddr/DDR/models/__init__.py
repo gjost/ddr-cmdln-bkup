@@ -152,7 +152,7 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
     keys = []
     while json_paths:
         path = json_paths.pop()
-        model,repo,org,cid,eid,role,sha1 = split_object_id(id_from_path(path))
+        model,repo,org,cid,eid,role,sha1 = Identity.split_object_id(Identity.id_from_path(path))
         sort = 0
         with open(path, 'r') as f:
             for line in f.readlines():
@@ -302,302 +302,366 @@ def from_json(model, json_path):
     return document
 
 
-# IDs, paths -----------------------------------------------------------
-
-
-
 class Path( object ):
-    path = None
+    pass
 
-def dissect_path( path_abs ):
-    """Slices up an absolute path and extracts as much as it can.
-    
-    TODO use caching to speed this up
-    
-    @param path_abs: absolute path to object json file.
-    @returns: object
-    """
-    # remove trailing slash if this is a directory
-    if path_abs[-1] == os.path.sep:
-        path_abs = path_abs[:-1]
+class Identity(object):
 
-    model = None
-    if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
-        model = 'file'
-    elif ('entity.json' in path_abs) or ('files' in path_abs):
-        model = 'entity'
-    elif ('collection.json' in path_abs) or (not 'files' in path_abs):
-        model = 'collection'
-    
-    p = None
-    if model == 'file':
-        # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
-        # /basepath/collection_id/files/entity_id/files/file_id.ext
-        # /basepath/collection_id/files/entity_id/files/file_id.json
-        # /basepath/collection_id/files/entity_id/files/file_id
-        ACCESS_FILE_STUB = '%s%s' % (ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION)
+    @staticmethod
+    def dissect_path( path_abs ):
+        """Slices up an absolute path and extracts as much as it can.
+        
+        TODO use caching to speed this up
+        
+        @param path_abs: absolute path to object json file.
+        @returns: Identifier object
+        """
         p = Path()
         p.path = path_abs
+        p.path_abs = path_abs
+        FIELDS = [
+            'base_path', 'git_path', 'annex_path', 'gitignore_path',
+            'collection_path', 'entity_path', 'file_path', 'access_path',
+            'json_path', 'changelog_path', 'control_path', 'entities_path',
+            'files_path', 'file_path_rel', 'access_path_rel', 'json_path_rel',
+            'changelog_path_rel', 'control_path_rel', 'entities_path_rel',
+            'files_path_rel', 'object_id', 'object_type', 'model',
+            'repo', 'org', 'cid', 'eid', 'role', 'sha1',
+            'file_id', 'entity_id', 'collection_id', 'parent_id',
+        ]
+        for f in FIELDS:
+            setattr(p, f, None)
         
-        if ('.json' in path_abs):
-            # the *.json file
-            p.json_path = path_abs
-            # figure out original file path
-            for fp in glob.glob('%s*' % os.path.splitext(path_abs)[0]):
-                if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
-                    p.file_path = fp
-        elif os.path.splitext(path_abs)[1]:
-            # file_id with extension
-            p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
-            p.file_path = path_abs
-        elif not os.path.splitext(path_abs)[1]:
-            # file_id with no extension
-            p.json_path = '%s.json' % path_abs
-            # figure out original file path
-            for fp in glob.glob('%s*' % path_abs):
-                if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
-                    p.file_path = fp
-        p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+        # remove trailing slash if this is a directory
+        if path_abs[-1] == os.path.sep:
+            path_abs = path_abs[:-1]
         
-        p.entity_path = os.path.dirname(os.path.dirname(p.path))
-        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
-        p.base_path = os.path.dirname(p.collection_path)
+        model = None
+        if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
+            model = 'file'
+        elif ('entity.json' in path_abs) or ('files' in path_abs):
+            model = 'entity'
+        elif ('collection.json' in path_abs) or (not 'files' in path_abs):
+            model = 'collection'
         
-        p.file_path_rel = p.file_path.replace(p.base_path, '')
-        p.access_path_rel = p.access_path.replace(p.base_path, '')
-        p.json_path_rel = p.json_path.replace(p.base_path, '')
+        if model == 'file':
+            # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
+            # /basepath/collection_id/files/entity_id/files/file_id.ext
+            # /basepath/collection_id/files/entity_id/files/file_id.json
+            # /basepath/collection_id/files/entity_id/files/file_id
+            ACCESS_FILE_STUB = '%s%s' % (ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION)
+            
+            which = 'unknown'
+            if   os.path.splitext(path_abs)[1]:     which = 'file'   # file_id with extension
+            elif ('.json' in path_abs):             which = 'json'   # the *.json file
+            elif ACCESS_FILE_STUB in path_abs:      which = 'access' # access file
+            elif not os.path.splitext(path_abs)[1]: which = 'noext'  # file_id with no extension
+            
+            def find_file_path(pattern):
+                # figure out original file path
+                for fp in glob.glob(pattern):
+                    if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
+                        return fp
+                return None
+                
+            if which == 'file':
+                p.file_path = path_abs
+                p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
+                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+            
+            elif which == 'json':
+                p.json_path = path_abs
+                pattern = os.path.splitext(path_abs)[0]
+                p.file_path = find_file_path(pattern)
+                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+            
+            elif which == 'access':
+                p.access_path = p.path_abs
+                pattern = '%s*' % path_abs.replace(ACCESS_FILE_STUB,'')
+                p.file_path = find_file_path(pattern)
+                p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
+            
+            elif which == 'noext':
+                p.json_path = '%s.json' % path_abs
+                pattern = '%s*' % path_abs
+                p.file_path = find_file_path(pattern)
+                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+            
+            p.entity_path = os.path.dirname(os.path.dirname(p.path))
+            p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+            p.base_path = os.path.dirname(p.collection_path)
+
+            p.file_path_rel = p.file_path.replace(p.base_path, '')
+            p.access_path_rel = p.access_path.replace(p.base_path, '')
+            p.json_path_rel = p.json_path.replace(p.base_path, '')
+            
+            p.git_path = os.path.join(p.collection_path, '.git')
+            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+            
+            pathname,ext = os.path.splitext(path_abs)
+            if ext and (pathname[-2:] == '-a'):
+                p.object_id = os.path.basename(pathname[:-2])
+            else:
+                p.object_id = os.path.basename(pathname)
+            
+            p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
+            p.model = p.object_type
+            p.role = p.role.lower()
+            
+            p.file_id = Identity.make_object_id('file', p.repo,p.org,p.cid,p.eid,p.role,p.sha1)
+            p.entity_id = Identity.make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+            p.collection_id = Identity.make_object_id('collection', p.repo,p.org,p.cid)
+            p.parent_id = p.entity_id
         
-        p.git_path = os.path.join(p.collection_path, '.git')
-        p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
-        p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+        elif model == 'entity':
+            # /basepath/collection_id/files/entity_id/entity.json
+            if (os.path.basename(path_abs) == 'entity.json'):
+                p.entity_path = os.path.dirname(path_abs)
+                p.json_path = path_abs
+            elif (os.path.basename(path_abs) == 'files'):
+                p.entity_path = os.path.dirname(path_abs)
+                p.json_path = os.path.join(p.entity_path, 'entity.json')
+            else:
+                p.entity_path = path_abs
+                p.json_path = os.path.join(path_abs, 'entity.json')
+            
+            p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+            p.base_path = os.path.dirname(p.collection_path)
+            
+            p.git_path = os.path.join(p.collection_path, '.git')
+            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+            # these are for the entity not the collection
+            p.changelog_path = os.path.join(p.entity_path, 'changelog')
+            p.control_path = os.path.join(p.entity_path, 'control')
+            p.files_path = os.path.join(p.entity_path, 'files')
+    
+            p.changelog_path_rel = p.changelog_path.replace(p.base_path, '')
+            p.control_path_rel = p.control_path.replace(p.base_path, '')
+            p.files_path_rel = p.files_path.replace(p.base_path, '')
+            
+            p.object_id = os.path.basename(p.entity_path)
+            
+            p.object_type,p.repo,p.org,p.cid,p.eid = Identity.split_object_id(p.object_id)
+            p.model = p.object_type
+            
+            p.entity_id = Identity.make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+            p.collection_id = Identity.make_object_id('collection', p.repo,p.org,p.cid)
+            p.parent_id = p.collection_id
         
-        pathname,ext = os.path.splitext(path_abs)
-        if ext and (pathname[-2:] == '-a'):
-            p.object_id = os.path.basename(pathname[:-2])
+        elif model == 'collection':
+            if (os.path.basename(path_abs) == 'collection.json'):
+                p.collection_path = os.path.dirname(path_abs)
+                p.json_path = path_abs
+            else:
+                p.collection_path = path_abs
+                p.json_path = os.path.join(path_abs, 'collection.json')
+            
+            p.base_path = os.path.dirname(p.collection_path)
+            
+            p.git_path = os.path.join(p.collection_path, '.git')
+            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+            p.changelog_path = os.path.join(p.collection_path, 'changelog')
+            p.control_path = os.path.join(p.collection_path, 'control')
+            p.entities_path = os.path.join(p.collection_path, 'files')
+            
+            p.object_id = os.path.basename(p.collection_path)
+            
+            p.object_type,p.repo,p.org,p.cid = Identity.split_object_id(p.object_id)
+            p.model = p.object_type
+            
+            p.collection_id = p.object_id
+        
+        return p
+    
+    @staticmethod
+    def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
+        if   (model == 'file') and repo and org and cid and eid and role and sha1:
+            return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
+        elif (model == 'entity') and repo and org and cid and eid:
+            return '%s-%s-%s-%s' % (repo, org, cid, eid)
+        elif (model == 'collection') and repo and org and cid:
+            return '%s-%s-%s' % (repo, org, cid)
+        elif (model in ['org', 'organization']) and repo and org:
+            return '%s-%s' % (repo, org)
+        elif (model in ['repo', 'repository']) and repo:
+            return repo
+        return None
+    
+    @staticmethod
+    def split_object_id( object_id=None ):
+        """Very naive function that splits an object ID into its parts
+        TODO make sure it's actually an object ID first!
+        """
+        if object_id and isinstance(object_id, basestring):
+            parts = object_id.strip().split('-')
+            if len(parts) == 6:
+                parts.insert(0, 'file')
+                return parts
+            elif len(parts) == 5:
+                # file ID without the SHA1 hash; used to mark new files in batch CSV
+                parts.insert(0, 'file partial')
+                return parts
+            elif len(parts) == 4:
+                parts.insert(0, 'entity')
+                return parts
+            elif len(parts) == 3:
+                parts.insert(0, 'collection')
+                return parts
+            elif len(parts) == 2:
+                parts.insert(0, 'organization')
+                return parts
+            elif len(parts) == 1:
+                parts.insert(0, 'repository')
+                return parts
+        return None
+    
+    @staticmethod
+    def id_from_path( path ):
+        """Extract ID from path.
+        
+        >>> Identity.id_from_path('.../ddr-testing-123/collection.json')
+        'ddr-testing-123'
+        >>> Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
+        'ddr-testing-123-1'
+        >>> Identity.d_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
+        'ddr-testing-123-1-master-a1b2c3d4e5.json'
+        >>> Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
+        None
+        >>> Identity.id_from_path('.../ddr-testing-123/something-else.json')
+        None
+        
+        @param path: absolute or relative path to a DDR metadata file
+        @returns: DDR object ID
+        """
+        object_id = None
+        model = Identity.model_from_path(path)
+        if model == 'collection': return os.path.basename(os.path.dirname(path))
+        elif model == 'entity': return os.path.basename(os.path.dirname(path))
+        elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
+        return None
+    
+    @staticmethod
+    def model_from_path( path ):
+        """Guess model from the path.
+        
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
+        'collection'
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
+        'entity'
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
+        'file'
+        
+        @param path: absolute or relative path to metadata JSON file.
+        @returns: model
+        """
+        if 'collection.json' in path: return 'collection'
+        elif 'entity.json' in path: return 'entity'
+        elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
+        return None
+    
+    @staticmethod
+    def model_from_dict( data ):
+        """Guess model by looking in dict for object_id or path_rel
+        """
+        if data.get('path_rel',None):
+            return 'file'
+        object_id = data.get('id', '')
+        LEGAL_LENGTHS = [
+            1, # repository   (ddr)
+            2, # organization (ddr-testing)
+            3, # collection   (ddr-testing-123)
+            4, # entity       (ddr-testing-123-1)
+            6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
+        ]
+        parts = object_id.split('-')
+        len_parts = len(parts)
+        if (len_parts in LEGAL_LENGTHS):
+            if   len_parts == 6: return 'file'
+            elif len_parts == 4: return 'entity'
+            elif len_parts == 3: return 'collection'
+            #elif len_parts == 2: return 'organization'
+            #elif len_parts == 1: return 'repository'
+        return None
+    
+    @staticmethod
+    def path_from_id( object_id, base_dir='' ):
+        """Return's path to object* given the object ID and (optional) base_dir.
+        
+        * Does not append 'entity.json' or file extension.
+        
+        @param object_id:
+        @param base_dir: Absolute path, with no trailing slash.
+        @returns: Relative path or (if base_dir) absolute path
+        """
+        path = None
+        repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
+        parts = Identity.split_object_id(object_id)
+        model = parts[0]
+        base = '%s/' % base_dir
+        if model == 'collection':
+            repo = parts[1]; org = parts[2]; cid = parts[3]
+            path = '%s%s-%s-%s' % (
+                base, repo,org,cid)
+        elif model == 'entity':
+            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
+            path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
+                base, repo,org,cid, repo,org,cid,eid)
+        elif model == 'file':
+            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
+            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
+                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
+        return path
+    
+    @staticmethod
+    def json_path_from_dir(model, path):
+        """Given path to collection/entity dir, return path to .json
+        
+        >>> Identity.json_path_from_dir('collection', '/path/ddr-test-123')
+        '/path/ddr-test-123/collection.json'
+        >>> Identity.json_path_from_dir('entity', '/path/ddr-test-123/files//ddr-test-123-45')
+        '/path/ddr-test-123/files//ddr-test-123-45/entity.json'
+        >>> Identity.json_path_from_dir('entity', 'files/ddr-test-123-45')
+        'files/ddr-test-123-45/entity.json'
+        
+        @param model: 'collection' or 'entity'
+        @param path: Absolute or relative path to collection/entity dir
+        """
+        if model == 'collection':
+            json_path = os.path.join(path, 'collection.json')
+        elif model == 'entity':
+            json_path = os.path.join(path, 'entity.json')
+        elif model == 'file':
+            json_path = '%s.json' % path
         else:
-            p.object_id = os.path.basename(pathname)
-        
-        p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
-        p.model = p.object_type
-        p.role = p.role.lower()
-        
-        p.file_id = make_object_id('file', p.repo,p.org,p.cid,p.eid,p.role,p.sha1)
-        p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
-        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
-        p.parent_id = p.entity_id
+            raise Exception('Unrecognized model: "%s"' % model)
+        return json_path
     
-    elif model == 'entity':
-        # /basepath/collection_id/files/entity_id/entity.json
-        p = Path()
-        p.path = path_abs
-        if (os.path.basename(path_abs) == 'entity.json'):
-            p.entity_path = os.path.dirname(path_abs)
-            p.json_path = path_abs
-        else:
-            p.entity_path = path_abs
-            p.json_path = os.path.join(path_abs, 'entity.json')
+    @staticmethod
+    def parent_id( object_id ):
+        """Given a DDR object ID, returns the parent object ID.
         
-        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
-        p.base_path = os.path.dirname(p.collection_path)
+        TODO not specific to elasticsearch - move this function so other modules can use
         
-        p.git_path = os.path.join(p.collection_path, '.git')
-        p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
-        p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
-        # these are for the entity not the collection
-        p.changelog_path = os.path.join(p.entity_path, 'changelog')
-        p.control_path = os.path.join(p.entity_path, 'control')
-        p.files_path = os.path.join(p.entity_path, 'files')
-
-        p.changelog_path_rel = p.changelog_path.replace(p.base_path, '')
-        p.control_path_rel = p.control_path.replace(p.base_path, '')
-        p.files_path_rel = p.files_path.replace(p.base_path, '')
-        
-        p.object_id = os.path.basename(p.entity_path)
-        
-        p.object_type,p.repo,p.org,p.cid,p.eid = split_object_id(p.object_id)
-        p.model = p.object_type
-        
-        p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
-        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
-        p.parent_id = p.collection_id
-    
-    elif model == 'collection':
-        p = Path()
-        p.path = path_abs
-        if (os.path.basename(path_abs) == 'collection.json'):
-            p.collection_path = os.path.dirname(path_abs)
-            p.json_path = path_abs
-        else:
-            p.collection_path = path_abs
-            p.json_path = os.path.join(path_abs, 'collection.json')
-        
-        p.base_path = os.path.dirname(p.collection_path)
-        
-        p.git_path = os.path.join(p.collection_path, '.git')
-        p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
-        p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
-        p.changelog_path = os.path.join(p.collection_path, 'changelog')
-        p.control_path = os.path.join(p.collection_path, 'control')
-        p.entities_path = os.path.join(p.collection_path, 'files')
-        
-        p.object_id = os.path.basename(p.collection_path)
-        
-        p.object_type,p.repo,p.org,p.cid = split_object_id(p.object_id)
-        p.model = p.object_type
-        
-        p.collection_id = p.object_id
-    
-    return p
-
-def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
-    if   (model == 'file') and repo and org and cid and eid and role and sha1:
-        return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
-    elif (model == 'entity') and repo and org and cid and eid:
-        return '%s-%s-%s-%s' % (repo, org, cid, eid)
-    elif (model == 'collection') and repo and org and cid:
-        return '%s-%s-%s' % (repo, org, cid)
-    elif (model in ['org', 'organization']) and repo and org:
-        return '%s-%s' % (repo, org)
-    elif (model in ['repo', 'repository']) and repo:
-        return repo
-    return None
-
-def split_object_id( object_id=None ):
-    """Very naive function that splits an object ID into its parts
-    TODO make sure it's actually an object ID first!
-    """
-    if object_id and isinstance(object_id, basestring):
-        parts = object_id.strip().split('-')
-        if len(parts) == 6:
-            parts.insert(0, 'file')
-            return parts
-        elif len(parts) == 5:
-            # file ID without the SHA1 hash; used to mark new files in batch CSV
-            parts.insert(0, 'file partial')
-            return parts
-        elif len(parts) == 4:
-            parts.insert(0, 'entity')
-            return parts
-        elif len(parts) == 3:
-            parts.insert(0, 'collection')
-            return parts
-    return None
-
-def id_from_path( path ):
-    """Extract ID from path.
-    
-    >>> _id_from_path('.../ddr-testing-123/collection.json')
-    'ddr-testing-123'
-    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'ddr-testing-123-1'
-    >>> _id_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'ddr-testing-123-1-master-a1b2c3d4e5.json'
-    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
-    None
-    >>> _id_from_path('.../ddr-testing-123/something-else.json')
-    None
-    
-    @param path: absolute or relative path to a DDR metadata file
-    @returns: DDR object ID
-    """
-    object_id = None
-    model = model_from_path(path)
-    if model == 'collection': return os.path.basename(os.path.dirname(path))
-    elif model == 'entity': return os.path.basename(os.path.dirname(path))
-    elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
-    return None
-
-def model_from_path( path ):
-    """Guess model from the path.
-    
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
-    'collection'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'entity'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'file'
-    
-    @param path: absolute or relative path to metadata JSON file.
-    @returns: model
-    """
-    if 'collection.json' in path: return 'collection'
-    elif 'entity.json' in path: return 'entity'
-    elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
-    return None
-
-def model_from_dict( data ):
-    """Guess model by looking in dict for object_id or path_rel
-    """
-    if data.get('path_rel',None):
-        return 'file'
-    object_id = data.get('id', '')
-    LEGAL_LENGTHS = [
-        1, # repository   (ddr)
-        2, # organization (ddr-testing)
-        3, # collection   (ddr-testing-123)
-        4, # entity       (ddr-testing-123-1)
-        6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
-    ]
-    parts = object_id.split('-')
-    len_parts = len(parts)
-    if (len_parts in LEGAL_LENGTHS):
-        if   len_parts == 6: return 'file'
-        elif len_parts == 4: return 'entity'
-        elif len_parts == 3: return 'collection'
-        #elif len_parts == 2: return 'organization'
-        #elif len_parts == 1: return 'repository'
-    return None
-
-def path_from_id( object_id, base_dir='' ):
-    """Return's path to object* given the object ID and (optional) base_dir.
-    
-    * Does not append 'entity.json' or file extension.
-    
-    @param object_id:
-    @param base_dir: Absolute path, with no trailing slash.
-    @returns: Relative path or (if base_dir) absolute path
-    """
-    path = None
-    repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
-    parts = split_object_id(object_id)
-    model = parts[0]
-    base = '%s/' % base_dir
-    if model == 'collection':
-        repo = parts[1]; org = parts[2]; cid = parts[3]
-        path = '%s%s-%s-%s' % (
-            base, repo,org,cid)
-    elif model == 'entity':
-        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
-        path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
-            base, repo,org,cid, repo,org,cid,eid)
-    elif model == 'file':
-        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
-        path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
-            base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
-    return path
-
-def parent_id( object_id ):
-    """Given a DDR object ID, returns the parent object ID.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    >>> _parent_id('ddr')
-    None
-    >>> _parent_id('ddr-testing')
-    'ddr'
-    >>> _parent_id('ddr-testing-123')
-    'ddr-testing'
-    >>> _parent_id('ddr-testing-123-1')
-    'ddr-testing-123'
-    >>> _parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
-    'ddr-testing-123-1'
-    """
-    parts = object_id.split('-')
-    if   len(parts) == 2: return '-'.join([ parts[0], ])
-    elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
-    elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
-    elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-    return None
+        >>> Identity.parent_id('ddr')
+        None
+        >>> Identity.parent_id('ddr-testing')
+        'ddr'
+        >>> Identity.parent_id('ddr-testing-123')
+        'ddr-testing'
+        >>> Identity.parent_id('ddr-testing-123-1')
+        'ddr-testing-123'
+        >>> Identity.parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
+        'ddr-testing-123-1'
+        """
+        parts = object_id.split('-')
+        if   len(parts) == 2: return '-'.join([ parts[0], ])
+        elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
+        elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
+        elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
+        return None
 
 
 class Module(object):
@@ -811,7 +875,7 @@ class Inheritance(object):
         if field_values:
             for json_path in Inheritance._child_jsons(parent_object.path):
                 child = None
-                p = dissect_path(json_path)
+                p = Identity.dissect_path(json_path)
                 if p.model == 'collection':
                     child = Collection.from_json(p.collection_path)
                 elif p.model == 'entity':
@@ -1004,7 +1068,7 @@ class Collection( object ):
             uid = os.path.basename(self.path)
         self.uid  = uid
         self.id = uid
-        self_model,self.repo,self.org,self.cid = split_object_id(uid)
+        self_model,self.repo,self.org,self.cid = Identity.split_object_id(uid)
         self.annex_path         = os.path.join(self.path, '.git', 'annex')
         self.annex_path_rel     = os.path.join('.git', 'annex')
         self.json_path          = self._path_absrel('collection.json')
@@ -1369,7 +1433,7 @@ class Entity( object ):
             uid = os.path.basename(self.path)
         self.uid = uid
         self.id = uid
-        self_model,self.repo,self.org,self.cid,self.eid = split_object_id(uid)
+        self_model,self.repo,self.org,self.cid,self.eid = Identity.split_object_id(uid)
         self.parent_uid = os.path.split(self.parent_path)[1]
         self.json_path          = self._path_absrel('entity.json')
         self.json_path_rel      = self._path_absrel('entity.json',rel=True)
@@ -2189,7 +2253,7 @@ class File( object ):
         # load JSON
         if self.path_abs:
             self.path = self.path_abs
-            p = dissect_path(self.path_abs)
+            p = Identity.dissect_path(self.path_abs)
             self.collection_path = p.collection_path
             self.entity_path = p.entity_path
             self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
