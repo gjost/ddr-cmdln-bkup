@@ -919,7 +919,7 @@ class Collection( object ):
     
     def __init__( self, path, uid=None ):
         """
-        >>> c = DDRLocalCollection('/tmp/ddr-testing-123')
+        >>> c = Collection('/tmp/ddr-testing-123')
         >>> c.uid
         'ddr-testing-123'
         >>> c.repo
@@ -977,12 +977,12 @@ class Collection( object ):
         
         Also sets initial field values if present.
         
-        >>> c = DDRLocalCollection.create('/tmp/ddr-testing-120')
+        >>> c = Collection.create('/tmp/ddr-testing-120')
         
         @param path: Absolute path to collection; must end in valid DDR collection id.
         @returns: Collection object
         """
-        collection = DDRLocalCollection(path)
+        collection = Collection(path)
         for f in collectionmodule.FIELDS:
             if hasattr(f, 'name') and hasattr(f, 'initial'):
                 setattr(collection, f['name'], f['initial'])
@@ -990,12 +990,12 @@ class Collection( object ):
     
     @staticmethod
     def from_json(collection_abs):
-        """Creates a DDRLocalCollection and populates with data from JSON file.
+        """Creates a Collection and populates with data from JSON file.
         
         @param collection_abs: Absolute path to collection directory.
-        @returns: DDRLocalCollection
+        @returns: Collection
         """
-        return from_json(DDRLocalCollection, os.path.join(collection_abs, 'collection.json'))
+        return from_json(Collection, os.path.join(collection_abs, 'collection.json'))
     
     def model_def_commits( self ):
         return Module(collectionmodule).cmp_model_definition_commits(self)
@@ -1164,7 +1164,7 @@ class Collection( object ):
         
         >>> c = Collection.from_json('/tmp/ddr-testing-123')
         >>> c.entities()
-        [<DDRLocalEntity ddr-testing-123-1>, <DDRLocalEntity ddr-testing-123-2>, ...]
+        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
         
         @param quick: Boolean List only titles and IDs
         """
@@ -1660,7 +1660,7 @@ class Entity( object ):
             log.not_ok(msg)
             raise Exception(msg)
         
-        log.ok('ddrlocal.models.DDRLocalEntity.add_file: START')
+        log.ok('DDR.models.Entity.add_file: START')
         log.ok('entity: %s' % self.id)
         log.ok('data: %s' % data)
         
@@ -1899,7 +1899,7 @@ class Entity( object ):
             log.not_ok(msg)
             raise Exception(msg)
         
-        log.ok('ddrlocal.models.DDRLocalEntity.add_access: START')
+        log.ok('DDR.models.Entity.add_access: START')
         log.ok('entity: %s' % self.id)
         log.ok('ddrfile: %s' % ddrfile)
         
@@ -1997,7 +1997,7 @@ class Entity( object ):
                 self.parent_path, self.id, git_files, annex_files,
                 agent=agent, entity=self)
             log.ok('status: %s' % status)
-            log.ok('ddrlocal.models.DDRLocalEntity.add_file: FINISHED')
+            log.ok('DDR.models.Entity.add_file: FINISHED')
         except:
             # COMMIT FAILED! try to pick up the pieces
             # print traceback to addfile log
@@ -2308,7 +2308,7 @@ class File( object ):
     def set_access( self, access_rel, entity=None ):
         """
         @param access_rel: path relative to entity files dir (ex: 'thisfile.ext')
-        @param entity: A DDRLocalEntity object (optional)
+        @param entity: A Entity object (optional)
         """
         self.access_rel = os.path.basename(access_rel)
         if entity:

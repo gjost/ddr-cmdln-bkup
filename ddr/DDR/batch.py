@@ -730,7 +730,7 @@ def load_file(collection_path, file_class, rowd):
     @param collection_path: Absolute path to collection
     @param file_class: subclass of DDRFile
     @param rowd: dict containing file fields:values
-    @returns: DDRLocalFile object
+    @returns: File object
     """
     if rowd.get('file_id',None):
         file_path = models.path_from_id(
@@ -751,11 +751,11 @@ def load_file(collection_path, file_class, rowd):
 def csvload_file(file_, module, field_names, rowd):
     """Loads file data from CSV row and convert to Python data
     
-    @param file_: DDRLocalFile object
+    @param file_: File object
     @param module: file_module
     @param field_names: list of field names
     @param rowd: dict containing file fields:values
-    @returns: DDRLocalFile object
+    @returns: File object
     """
     # run csvload_* functions on row data, set values
     file_.modified = 0
