@@ -5,6 +5,7 @@ for history prior to Feb 2015.
 """
 
 from datetime import datetime
+import glob
 import hashlib
 import json
 import logging
@@ -307,87 +308,146 @@ def from_json(model, json_path):
 
 class Path( object ):
     path = None
-    base_path = None
-    collection_path = None
-    entity_path = None
-    file_path = None
-    filename = None
-    ext = None
-    model = None
-    object_type = None
-    object_id = None
-    collection_id = None
-    entity_id = None
-    file_id = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
-    role = None
-    sha1 = None
 
 def dissect_path( path_abs ):
     """Slices up an absolute path and extracts as much as it can.
     
-    @param path_abs: An absolute file path.
+    TODO use caching to speed this up
+    
+    @param path_abs: absolute path to object json file.
     @returns: object
     """
+    # remove trailing slash if this is a directory
+    if path_abs[-1] == os.path.sep:
+        path_abs = path_abs[:-1]
+
+    model = None
     if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
+        model = 'file'
+    elif ('entity.json' in path_abs) or ('files' in path_abs):
+        model = 'entity'
+    elif ('collection.json' in path_abs) or (not 'files' in path_abs):
+        model = 'collection'
+    
+    p = None
+    if model == 'file':
         # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
         # /basepath/collection_id/files/entity_id/files/file_id.ext
         # /basepath/collection_id/files/entity_id/files/file_id.json
         # /basepath/collection_id/files/entity_id/files/file_id
+        ACCESS_FILE_STUB = '%s%s' % (ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION)
         p = Path()
         p.path = path_abs
-        p.entity_path = os.path.dirname(os.path.dirname(path_abs))
+        
+        if ('.json' in path_abs):
+            # the *.json file
+            p.json_path = path_abs
+            # figure out original file path
+            for fp in glob.glob('%s*' % os.path.splitext(path_abs)[0]):
+                if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
+                    p.file_path = fp
+        elif os.path.splitext(path_abs)[1]:
+            # file_id with extension
+            p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
+            p.file_path = path_abs
+        elif not os.path.splitext(path_abs)[1]:
+            # file_id with no extension
+            p.json_path = '%s.json' % path_abs
+            # figure out original file path
+            for fp in glob.glob('%s*' % path_abs):
+                if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
+                    p.file_path = fp
+        p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+        
+        p.entity_path = os.path.dirname(os.path.dirname(p.path))
         p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
         p.base_path = os.path.dirname(p.collection_path)
+        
+        p.file_path_rel = p.file_path.replace(p.base_path, '')
+        p.access_path_rel = p.access_path.replace(p.base_path, '')
+        p.json_path_rel = p.json_path.replace(p.base_path, '')
+        
+        p.git_path = os.path.join(p.collection_path, '.git')
+        p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+        p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+        
         pathname,ext = os.path.splitext(path_abs)
         if ext and (pathname[-2:] == '-a'):
             p.object_id = os.path.basename(pathname[:-2])
         else:
             p.object_id = os.path.basename(pathname)
+        
         p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
         p.model = p.object_type
         p.role = p.role.lower()
-        p.file_id = p.object_id
+        
+        p.file_id = make_object_id('file', p.repo,p.org,p.cid,p.eid,p.role,p.sha1)
         p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
         p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
-        return p
-        
-    elif ('entity.json' in path_abs) or ('files' in path_abs):
+        p.parent_id = p.entity_id
+    
+    elif model == 'entity':
         # /basepath/collection_id/files/entity_id/entity.json
         p = Path()
         p.path = path_abs
-        if (os.path.basename(path_abs) == 'entity.json') or (os.path.basename(path_abs) == 'files'):
+        if (os.path.basename(path_abs) == 'entity.json'):
             p.entity_path = os.path.dirname(path_abs)
+            p.json_path = path_abs
         else:
             p.entity_path = path_abs
+            p.json_path = os.path.join(path_abs, 'entity.json')
+        
         p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
         p.base_path = os.path.dirname(p.collection_path)
+        
+        p.git_path = os.path.join(p.collection_path, '.git')
+        p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+        p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+        # these are for the entity not the collection
+        p.changelog_path = os.path.join(p.entity_path, 'changelog')
+        p.control_path = os.path.join(p.entity_path, 'control')
+        p.files_path = os.path.join(p.entity_path, 'files')
+
+        p.changelog_path_rel = p.changelog_path.replace(p.base_path, '')
+        p.control_path_rel = p.control_path.replace(p.base_path, '')
+        p.files_path_rel = p.files_path.replace(p.base_path, '')
+        
         p.object_id = os.path.basename(p.entity_path)
+        
         p.object_type,p.repo,p.org,p.cid,p.eid = split_object_id(p.object_id)
         p.model = p.object_type
-        p.entity_id = p.object_id
-        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
-        return p
         
-    else:
-        # /basepath/collection_id/collection.json
+        p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
+        p.parent_id = p.collection_id
+    
+    elif model == 'collection':
         p = Path()
         p.path = path_abs
         if (os.path.basename(path_abs) == 'collection.json'):
             p.collection_path = os.path.dirname(path_abs)
+            p.json_path = path_abs
         else:
             p.collection_path = path_abs
+            p.json_path = os.path.join(path_abs, 'collection.json')
+        
         p.base_path = os.path.dirname(p.collection_path)
+        
+        p.git_path = os.path.join(p.collection_path, '.git')
+        p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+        p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+        p.changelog_path = os.path.join(p.collection_path, 'changelog')
+        p.control_path = os.path.join(p.collection_path, 'control')
+        p.entities_path = os.path.join(p.collection_path, 'files')
+        
         p.object_id = os.path.basename(p.collection_path)
+        
         p.object_type,p.repo,p.org,p.cid = split_object_id(p.object_id)
         p.model = p.object_type
-        p.collection_id = p.object_id
-        return p
         
-    return None
+        p.collection_id = p.object_id
+    
+    return p
 
 def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
     if   (model == 'file') and repo and org and cid and eid and role and sha1:
