@@ -15,6 +15,7 @@ from DDR import changelog
 from DDR import commands
 from DDR import dvcs
 from DDR import models
+from DDR.models import Module
 
 COLLECTION_FILES_PREFIX = 'files'
 
@@ -231,7 +232,7 @@ def dump_object(obj, module, field_names):
     @param field_names: 
     @returns: list of values
     """
-    # seealso ddrlocal.models.__init__.module_function()
+    # seealso DDR.models.Module.function
     values = []
     for field_name in field_names:
         value = ''
@@ -240,8 +241,7 @@ def dump_object(obj, module, field_names):
             val = obj.id
         elif hasattr(obj, field_name):
             # run csvdump_* functions on field data if present
-            val = models.module_function(
-                module,
+            val = Module(module).function(
                 'csvdump_%s' % field_name,
                 getattr(obj, field_name)
             )
@@ -461,13 +461,11 @@ def validate_row(module, headers, valid_values, rowd):
     """
     invalid = []
     for field in headers:
-        value = models.module_function(
-            module,
+        value = Module(module).function(
             'csvload_%s' % field,
             rowd[field]
         )
-        valid = models.module_function(
-            module,
+        valid = Module(module).function(
             'csvvalidate_%s' % field,
             [valid_values, value]
         )
@@ -538,8 +536,7 @@ def csvload_entity(entity, module, field_names, rowd):
     entity.modified = 0
     for field in field_names:
         oldvalue = getattr(entity, field, '')
-        value = models.module_function(
-            module,
+        value = Module(module).function(
             'csvload_%s' % field,
             rowd[field]
         )
@@ -764,8 +761,7 @@ def csvload_file(file_, module, field_names, rowd):
     file_.modified = 0
     for field in field_names:
         oldvalue = getattr(file_, field, '')
-        value = models.module_function(
-            module,
+        value = Module(module).function(
             'csvload_%s' % field,
             rowd[field]
         )

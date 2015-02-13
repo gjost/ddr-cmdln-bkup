@@ -182,7 +182,7 @@ def document_metadata(module, document_repo_path):
         'application': 'https://github.com/densho/ddr-cmdln.git',
         'app_commit': dvcs.latest_commit(INSTALL_PATH),
         'app_release': VERSION,
-        'models_commit': dvcs.latest_commit(module_path(module)),
+        'models_commit': dvcs.latest_commit(Module(module).path),
         'git_version': dvcs.git_version(document_repo_path),
     }
     return data
@@ -301,55 +301,9 @@ def from_json(model, json_path):
     return document
 
 
-
-# model definitions ----------------------------------------------------
-
-def cmp_model_definition_commits(document, module):
-    """Indicate document's model defs are newer or older than module's.
-    
-    Prepares repository and document/module commits to be compared
-    by DDR.dvcs.cmp_commits.  See that function for how to interpret
-    the results.
-    Note: if a document has no defs commit it is considered older
-    than the module.
-    
-    @param document: A Collection, Entity, or File object.
-    @param module: A collection, entity, or files module.
-    @returns: int
-    """
-    def parse(txt):
-        return txt.strip().split(' ')[0]
-    module_commit_raw = dvcs.latest_commit(module_path(module))
-    module_defs_commit = parse(module_commit_raw)
-    if not module_defs_commit:
-        return 128
-    doc_metadata = getattr(document, 'json_metadata', {})
-    document_commit_raw = doc_metadata.get('models_commit','')
-    document_defs_commit = parse(document_commit_raw)
-    if not document_defs_commit:
-        return -1
-    repo = dvcs.repository(module_path(module))
-    return dvcs.cmp_commits(repo, document_defs_commit, module_defs_commit)
-
-def cmp_model_definition_fields(document_json, module):
-    """Indicate whether module adds or removes fields from document
-    
-    @param document_json: Raw contents of document *.json file
-    @param module: A collection, entity, or files module.
-    @returns: list,list Lists of added,removed field names.
-    """
-    # First item in list is document metadata, everything else is a field.
-    document_fields = [field.keys()[0] for field in json.loads(document_json)[1:]]
-    module_fields = [field['name'] for field in getattr(module, 'FIELDS')]
-    # models.load_json() uses MODULE.FIELDS, so get list of fields
-    # directly from the JSON document.
-    added = [field for field in module_fields if field not in document_fields]
-    removed = [field for field in document_fields if field not in module_fields]
-    return added,removed
-
-
-
 # IDs, paths -----------------------------------------------------------
+
+
 
 class Path( object ):
     path = None
@@ -585,124 +539,137 @@ def parent_id( object_id ):
     elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
     return None
 
-def model_fields( model ):
-    """
-    THIS FUNCTION IS A PLACEHOLDER.
-    It's a step on the way to refactoring (COLLECTION|ENTITY|FILE)_FIELDS.
-    It gives ddr-public a way to know the order of fields until we have a better solution.
-    """
-    # TODO model .json files should live in /etc/ddr/models
-    if model in ['collection', 'entity', 'file']:
-        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
-        with open(json_path, 'r') as f:
-            data = json.loads(f.read())
-        fields = []
-        for field in data:
-            f = {'name':field['name'],}
-            if field.get('form',None) and field['form'].get('label',None):
-                f['label'] = field['form']['label']
-            fields.append(f)
-        return fields
-    return []
 
+class Module(object):
+    path = None
 
-# module ---------------------------------------------------------------
-
-def module_path(module):
-    """Returns path to the module source file (.py).
-    """
-    return module.__file__.replace('.pyc', '.py')
-
-def module_is_valid(module):
-    """Indicates whether this is a proper module
-
-    TODO determine required fields for models
-
-    @param module: The module in question
-    @returns: Boolean,str message
-    """
-    # Is the module located in a 'ddr' Repository repo?
-    # collection.__file__ == absolute path to the module
-    match = 'ddr/repo_models'
-    if not match in module.__file__:
-        return False,"Module %s not in 'ddr' Repository repo." % module.__name__
-    # is fields var present in module?
-    fields = getattr(module, 'FIELDS', None)
-    if not fields:
-        return False,'Module does not contain a FIELDS variable.'
-    # is fields var listy?
-    try:
-        len(fields)
-    except TypeError:
-        return False,'Module %s is not a list.' % fieldsname
-    # are there any fields?
-    if not len(fields):
-        return False,'Module %s is empty.' % fieldsname
-    return True,'ok'
-
-def module_function(module, function_name, value):
-    """If named function is present in module and callable, pass value to it and return result.
+    def __init__(self, module):
+        """
+        @param module: collection, entity, files model definitions module
+        """
+        self.module = module
+        self.path = self.module.__file__.replace('.pyc', '.py')
     
-    Among other things this may be used to prep data for display, prepare it
-    for editing in a form, or convert cleaned form data into Python data for
-    storage in objects.
+    def is_valid(self):
+        """Indicates whether this is a proper module
     
-    @param module: A Python module
-    @param function_name: Name of the function to be executed.
-    @param value: A single value to be passed to the function, or None.
-    @returns: Whatever the specified function returns.
-    """
-    if (function_name in dir(module)):
-        function = getattr(module, function_name)
-        value = function(value)
-    return value
-
-def module_xml_function(module, function_name, tree, NAMESPACES, f, value):
-    """If module function is present and callable, pass value to it and return result.
+        TODO determine required fields for models
     
-    Same as module_function() but with XML we need to pass namespaces lists to
-    the functions.
-    Used in dump_ead(), dump_mets().
+        @returns: Boolean,str message
+        """
+        # Is the module located in a 'ddr' Repository repo?
+        # collection.__file__ == absolute path to the module
+        match = 'ddr/repo_models'
+        if not match in self.module.__file__:
+            return False,"%s not in 'ddr' Repository repo." % self.module.__name__
+        # is fields var present in module?
+        fields = getattr(self.module, 'FIELDS', None)
+        if not fields:
+            return False,'%s has no FIELDS variable.' % self.module.__name__
+        # is fields var listy?
+        if not isinstance(fields, list):
+            return False,'%s.FIELDS is not a list.' % self.module.__name__
+        return True,'ok'
     
-    @param module: A Python module
-    @param function_name: Name of the function to be executed.
-    @param tree: An lxml tree object.
-    @param NAMESPACES: Dict of namespaces used in the XML document.
-    @param f: Field dict (from MODEL_FIELDS).
-    @param value: A single value to be passed to the function, or None.
-    @returns: Whatever the specified function returns.
-    """
-    if (function_name in dir(module)):
-        function = getattr(module, function_name)
-        tree = function(tree, NAMESPACES, f, value)
-    return tree
-
-def labels_values(document, module):
-    """Apply display_{field} functions to prep object data for the UI.
+    def function(self, function_name, value):
+        """If named function is present in module and callable, pass value to it and return result.
+        
+        Among other things this may be used to prep data for display, prepare it
+        for editing in a form, or convert cleaned form data into Python data for
+        storage in objects.
+        
+        @param function_name: Name of the function to be executed.
+        @param value: A single value to be passed to the function, or None.
+        @returns: Whatever the specified function returns.
+        """
+        if (function_name in dir(self.module)):
+            function = getattr(self.module, function_name)
+            value = function(value)
+        return value
     
-    Certain fields require special processing.  For example, structured data
-    may be rendered in a template to generate an HTML <ul> list.
-    If a "display_{field}" function is present in the ddrlocal.models.collection
-    module the contents of the field will be passed to it
+    def xml_function(self, function_name, tree, NAMESPACES, f, value):
+        """If module function is present and callable, pass value to it and return result.
+        
+        Same as Module.function but with XML we need to pass namespaces lists to
+        the functions.
+        Used in dump_ead(), dump_mets().
+        
+        @param function_name: Name of the function to be executed.
+        @param tree: An lxml tree object.
+        @param NAMESPACES: Dict of namespaces used in the XML document.
+        @param f: Field dict (from MODEL_FIELDS).
+        @param value: A single value to be passed to the function, or None.
+        @returns: Whatever the specified function returns.
+        """
+        if (function_name in dir(self.module)):
+            function = getattr(self.module, function_name)
+            tree = function(tree, NAMESPACES, f, value)
+        return tree
     
-    @param document: Collection, Entity, File document object
-    @param module: collection, entity, files model definitions module
-    @returns: list
-    """
-    lv = []
-    for f in module.FIELDS:
-        if hasattr(document, f['name']) and f.get('form',None):
-            key = f['name']
-            label = f['form']['label']
-            # run display_* functions on field data if present
-            value = module_function(
-                module,
-                'display_%s' % key,
-                getattr(document, f['name'])
-            )
-            lv.append( {'label':label, 'value':value,} )
-    return lv
-
+    def labels_values(self, document):
+        """Apply display_{field} functions to prep object data for the UI.
+        
+        Certain fields require special processing.  For example, structured data
+        may be rendered in a template to generate an HTML <ul> list.
+        If a "display_{field}" function is present in the ddrlocal.models.collection
+        module the contents of the field will be passed to it
+        
+        @param document: Collection, Entity, File document object
+        @returns: list
+        """
+        lv = []
+        for f in self.module.FIELDS:
+            if hasattr(document, f['name']) and f.get('form',None):
+                key = f['name']
+                label = f['form']['label']
+                # run display_* functions on field data if present
+                value = self.function(
+                    'display_%s' % key,
+                    getattr(document, f['name'])
+                )
+                lv.append( {'label':label, 'value':value,} )
+        return lv
+    
+    def cmp_model_definition_commits(self, document):
+        """Indicate document's model defs are newer or older than module's.
+        
+        Prepares repository and document/module commits to be compared
+        by DDR.dvcs.cmp_commits.  See that function for how to interpret
+        the results.
+        Note: if a document has no defs commit it is considered older
+        than the module.
+        
+        @param document: A Collection, Entity, or File object.
+        @returns: int
+        """
+        def parse(txt):
+            return txt.strip().split(' ')[0]
+        module_commit_raw = dvcs.latest_commit(self.path)
+        module_defs_commit = parse(module_commit_raw)
+        if not module_defs_commit:
+            return 128
+        doc_metadata = getattr(document, 'json_metadata', {})
+        document_commit_raw = doc_metadata.get('models_commit','')
+        document_defs_commit = parse(document_commit_raw)
+        if not document_defs_commit:
+            return -1
+        repo = dvcs.repository(self.path)
+        return dvcs.cmp_commits(repo, document_defs_commit, module_defs_commit)
+    
+    def cmp_model_definition_fields(self, document_json):
+        """Indicate whether module adds or removes fields from document
+        
+        @param document_json: Raw contents of document *.json file
+        @returns: list,list Lists of added,removed field names.
+        """
+        # First item in list is document metadata, everything else is a field.
+        document_fields = [field.keys()[0] for field in json.loads(document_json)[1:]]
+        module_fields = [field['name'] for field in getattr(self.module, 'FIELDS')]
+        # models.load_json() uses MODULE.FIELDS, so get list of fields
+        # directly from the JSON document.
+        added = [field for field in module_fields if field not in document_fields]
+        removed = [field for field in document_fields if field not in module_fields]
+        return added,removed
 
 
 class Inheritance(object):
@@ -1031,15 +998,15 @@ class Collection( object ):
         return from_json(DDRLocalCollection, os.path.join(collection_abs, 'collection.json'))
     
     def model_def_commits( self ):
-        return cmp_model_definition_commits(self, collectionmodule)
+        return Module(collectionmodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return cmp_model_definition_fields(read_json(self.json_path), collectionmodule)
+        return Module(collectionmodule).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return labels_values(self, collectionmodule)
+        return Module(collectionmodule).labels_values(self)
     
     def inheritable_fields( self ):
         """Returns list of Collection object's field names marked as inheritable.
@@ -1143,10 +1110,11 @@ class Collection( object ):
             if hasattr(self, f['name']):
                 value = getattr(self, key)
                 # run ead_* functions on field data if present
-                tree = module_xml_function(collectionmodule,
-                                           'ead_%s' % key,
-                                           tree, NAMESPACES, f,
-                                           value)
+                tree = Module(collectionmodule).xml_function(
+                    'ead_%s' % key,
+                    tree, NAMESPACES, f,
+                    value
+                )
         xml_pretty = etree.tostring(tree, pretty_print=True)
         with open(self.ead_path, 'w') as f:
             f.write(xml_pretty)
@@ -1380,15 +1348,15 @@ class Entity( object ):
         return from_json(Entity, os.path.join(entity_abs, 'entity.json'))
     
     def model_def_commits( self ):
-        return cmp_model_definition_commits(self, entitymodule)
+        return Module(entitymodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return cmp_model_definition_fields(read_json(self.json_path), entitymodule)
+        return Module(entitymodule).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return labels_values(self, entitymodule)
+        return Module(entitymodule).labels_values(self)
 
     def inheritable_fields( self ):
         return Inheritance.inheritable_fields(entitymodule.FIELDS)
@@ -1517,10 +1485,11 @@ class Entity( object ):
             if hasattr(self, f['name']):
                 value = getattr(self, f['name'])
                 # run mets_* functions on field data if present
-                tree = module_xml_function(entitymodule,
-                                           'mets_%s' % key,
-                                           tree, NAMESPACES, f,
-                                           value)
+                tree = Module(entitymodule).xml_function(
+                    'mets_%s' % key,
+                    tree, NAMESPACES, f,
+                    value
+                )
         xml_pretty = etree.tostring(tree, pretty_print=True)
         with open(self.mets_path, 'w') as f:
             f.write(xml_pretty)
@@ -2192,15 +2161,15 @@ class File( object ):
     # entities/files/???
     
     def model_def_commits( self ):
-        return cmp_model_definition_commits(self, filemodule)
+        return Module(filemodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return cmp_model_definition_fields(read_json(self.json_path), filemodule)
+        return Module(filemodule).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return labels_values(self, filemodule)
+        return Module(filemodule).labels_values(self)
     
     def files_rel( self, collection_path ):
         """Returns list of the file, its metadata JSON, and access file, relative to collection.

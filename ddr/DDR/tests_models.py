@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import os
 
 import models
@@ -71,21 +72,7 @@ def test_load_json():
 
 # TODO prep_json
 # TODO from_json
-# TODO cmp_model_definition_commits
 
-def test_cmp_model_definition_fields():
-    document = json.loads(TEST_DOCUMENT)
-    assert models.cmp_model_definition_fields(
-        json.dumps(document), testmodule) == ([],[])
-    
-    document.append( {'new': 'new field'} )
-    assert models.cmp_model_definition_fields(
-        json.dumps(document), testmodule) == (['new'],[])
-    
-    document.pop()
-    document.pop()
-    assert models.cmp_model_definition_fields(
-        json.dumps(document), testmodule) == ([],['description'])
 
 def test_dissect_path():
     c0 = models.dissect_path('/base/ddr-test-123/collection.json')
@@ -240,21 +227,61 @@ def test_parent_id():
     assert models.parent_id('ddr-testing-123-1') == 'ddr-testing-123'
     assert models.parent_id('ddr-testing-123-1-master-a1b2c3d4e5') == 'ddr-testing-123-1'
 
-# TODO model_fields
-# TODO module_path
-# TODO module_is_valid
+def test_Module_path():
+    class TestModule(object):
+        pass
+    
+    module = TestModule()
+    module.__file__ = '/var/www/media/base/ddr/repo_models/testmodule.pyc'
+    assert models.Module(module).path == '/var/www/media/base/ddr/repo_models/testmodule.py'
 
-def test_module_function():
-    module = models
-    functionname = 'id_from_path'
-    value = '.../ddr-test-123/collection.json'
-    assert models.module_function(module, functionname, value) == 'ddr-test-123'
+def test_Module_is_valid():
+    class TestModule0(object):
+        __name__ = 'TestModule0'
+        __file__ = ''
+    
+    class TestModule1(object):
+        __name__ = 'TestModule1'
+        __file__ = 'ddr/repo_models'
+    
+    class TestModule2(object):
+        __name__ = 'TestModule2'
+        __file__ = 'ddr/repo_models'
+        FIELDS = 'not a list'
+    
+    class TestModule3(object):
+        __name__ = 'TestModule3'
+        __file__ = 'ddr/repo_models'
+        FIELDS = ['fake fields']
 
-# TODO module_xml_function
+    assert models.Module(TestModule0()).is_valid() == (False,"TestModule0 not in 'ddr' Repository repo.")
+    assert models.Module(TestModule1()).is_valid() == (False,'TestModule1 has no FIELDS variable.')
+    assert models.Module(TestModule2()).is_valid() == (False,'TestModule2.FIELDS is not a list.')
+    assert models.Module(TestModule3()).is_valid() == (True,'ok')
 
-def test_labels_values():
-    document = Document()
-    models.load_json(document, testmodule, TEST_DOCUMENT)
+def test_Module_function():
+    class TestModule(object):
+        def hello(self, text):
+            return 'hello %s' % text
+    
+    module = TestModule()
+    module.__file__ = 'ddr/repo_models'
+    assert models.Module(module).function('hello', 'world') == 'hello world'
+
+# TODO Module_xml_function
+
+def test_Module_labels_values():
+    class TestModule(object):
+        __name__ = 'TestModule'
+        __file__ = 'ddr/repo_models'
+        FIELDS = ['fake fields']
+    
+    class TestDocument():
+        pass
+    
+    module = TestModule()
+    document = TestDocument()
+    models.load_json(document, module, TEST_DOCUMENT)
     expected = [
         {'value': u'ddr-test-123', 'label': 'ID'},
         {'value': u'2014-09-19T03:14:59', 'label': 'Timestamp'},
@@ -262,7 +289,30 @@ def test_labels_values():
         {'value': u'TITLE', 'label': 'Title'},
         {'value': u'DESCRIPTION', 'label': 'Description'}
     ]
-    assert models.labels_values(document, testmodule) == expected
+    assert models.Module(module).labels_values(document) == expected
+
+# TODO Module_cmp_model_definition_commits
+
+def test_Module_cmp_model_definition_fields():
+    document = json.loads(TEST_DOCUMENT)
+    module = TestModule()
+    module.__file__ = 'ddr/repo_models'
+    module.FIELDS = ['fake fields']
+    assert models.Module(module).cmp_model_definition_fields(
+        json.dumps(document)
+    ) == ([],[])
+    
+    document.append( {'new': 'new field'} )
+    assert models.Module(module).cmp_model_definition_fields(
+        json.dumps(document)
+    ) == (['new'],[])
+    
+    document.pop()
+    document.pop()
+    assert models.Module(module).cmp_model_definition_fields(
+        json.dumps(document)
+    ) == ([],['description'])
+
 
 MODEL_FIELDS_INHERITABLE = [
     {'name':'id',},
