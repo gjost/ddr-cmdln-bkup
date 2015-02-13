@@ -279,26 +279,27 @@ def test_Inheritance_inheritable_fields():
 # TODO Inheritance_selected_inheritables
 # TODO Inheritance_update_inheritables
 
-# lock
-# unlock
-# locked
+
+# Locking_lock
+# Locking_unlock
+# Locking_locked
 def test_locking():
     lock_path = '/tmp/test-lock-%s' % datetime.now().strftime('%Y%m%dT%H%M%S')
     text = 'we are locked. go away.'
     # before locking
-    assert models.locked(lock_path) == False
-    assert models.unlock(lock_path, text) == 'not locked'
+    assert models.Locking.locked(lock_path) == False
+    assert models.Locking.unlock(lock_path, text) == 'not locked'
     # locking
-    assert models.lock(lock_path, text) == 'ok'
+    assert models.Locking.lock(lock_path, text) == 'ok'
     # locked
-    assert models.locked(lock_path) == text
-    assert models.lock(lock_path, text) == 'locked'
-    assert models.unlock(lock_path, 'not the right text') == 'miss'
+    assert models.Locking.locked(lock_path) == text
+    assert models.Locking.lock(lock_path, text) == 'locked'
+    assert models.Locking.unlock(lock_path, 'not the right text') == 'miss'
     # unlocking
-    assert models.unlock(lock_path, text) == 'ok'
+    assert models.Locking.unlock(lock_path, text) == 'ok'
     # unlocked
-    assert models.locked(lock_path) == False
-    assert models.unlock(lock_path, text) == 'not locked'
+    assert models.Locking.locked(lock_path) == False
+    assert models.Locking.unlock(lock_path, text) == 'not locked'
     assert not os.path.exists(lock_path)
 
 
