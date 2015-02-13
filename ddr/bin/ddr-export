@@ -113,8 +113,8 @@ def make_paths(collection_path, model, ids):
     return paths
 
 def make_csv_path(collection_path, model):
-    cid = os.path.basename(collection_path).replace('/', '')
-    return os.path.join('/tmp', '%s-%s.csv' % (cid, model))
+    cpath = models.dissect_path(collection_path)
+    return os.path.join('/tmp', '%s-%s.csv' % (cpath.collection_id, model))
 
 def filter_paths(collection_path, model, pattern):
     """Get metadata paths containing a regex.

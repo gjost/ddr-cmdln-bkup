@@ -144,34 +144,6 @@ def read_csv(path):
             rows.append(row)
     return rows
 
-def make_entity_path(collection_path, entity_id):
-    """Returns path to entity directory.
-    
-    >>> cpath0 = '/var/www/media/base/ddr-test-123'
-    >>> eid0 = 'ddr-test-123-456'
-    >>> make_entity_path(cpath0, eid0)
-    '/var/www/media/base/ddr-test-123/files/ddr-test-123-456'
-    
-    @param collection_path: str
-    @param entity_id: str
-    @returns: str Absolute path to entity.
-    """
-    return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id)
-
-def make_entity_json_path(collection_path, entity_id):
-    """Returns path to entity JSON file.
-    
-    >>> cpath0 = '/var/www/media/base/ddr-test-123'
-    >>> eid0 = 'ddr-test-123-456'
-    >>> make_entity_json_path(cpath0, eid0)
-    '/var/www/media/base/ddr-test-123/files/ddr-test-123-456/entity.json'
-    
-    @param collection_path: str
-    @param entity_id: str
-    @returns: str Absolute path to entity JSON.
-    """
-    return os.path.join(collection_path, COLLECTION_FILES_PREFIX, entity_id, 'entity.json')
-
 
 # export ---------------------------------------------------------------
 
@@ -505,9 +477,10 @@ def load_entity(collection_path, class_, rowd):
     @param rowd:
     @returns: entity
     """
-    entity_uid = rowd['id']
-    entity_path = make_entity_path(collection_path, entity_uid)
-    entity_json_path = make_entity_json_path(collection_path, entity_uid)
+    cpath = models.dissect_path(collection_path)
+    entity_id = rowd['id']
+    entity_path = models.path_from_id(entity_id, cpath.base_path)
+    entity_json_path = models.json_path_from_dir('entity', entity_path)
     # update an existing entity
     if os.path.exists(entity_json_path):
         entity = class_.from_json(entity_path)
@@ -660,19 +633,18 @@ def test_entities(collection_path, class_, rowds):
     @returns: ok,bad
     """
     logging.info('Validating parent entities')
-    basedir = os.path.dirname(os.path.dirname(collection_path))
+    cpath = models.dissect_path(collection_path)
     # get unique entity_ids
     eids = []
     for rowd in rowds:
-        fid = models.split_object_id(rowd['file_id'])
-        model,repo,org,cid,eid = fid[:5]
-        entity_id = models.make_object_id('entity', repo,org,cid,eid)
+        file_id = models.split_object_id(rowd['file_id'])
+        entity_id = models.parent_id(file_id)
         eids.append(entity_id)
     # test-load the Entities
     entities = {}
     bad = []
     for entity_id in eids:
-        entity_path = make_entity_path(collection_path, entity_id)
+        entity_path = models.path_from_id(entity_id, cpath.base_path)
         # update an existing entity
         entity = None
         if os.path.exists(entity_path):
@@ -701,8 +673,9 @@ def test_new_files(csv_path, rowds):
     logging.info('Checking for new files')
     paths = []
     for rowd in rowds:
-        fid = models.split_object_id(rowd['file_id'])
-        if len(fid) == 6:
+        file_id = models.split_object_id(rowd['file_id'])
+        if len(file_id) == 6:
+            # files that exist in the same directory as .csv
             paths.append(os.path.join(
                 os.path.dirname(csv_path),
                 rowd['basename_orig']
@@ -738,7 +711,9 @@ def load_file(collection_path, file_class, rowd):
             os.path.dirname(collection_path)
         )
         if file_path:
-            file_path = file_path + '.json'
+            # make our own file.json_path
+            fpath = os.path.splitext(file_path)
+            file_path = models.json_path_from_dir('file', fpath[0])
     # update an existing file
     if file_path and os.path.exists(file_path):
         file_ = file_class.from_json(file_path)
@@ -859,7 +834,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         file_ = csvload_file(file_, module, field_names, rowd)
         if file_.exists:
             # update metadata
-            entity_id = models.id_from_path(os.path.join(file_.entity_path, 'entity.json'))
+            entity_id = models.parent_id(file_.id)
             entity = entities[entity_id]
             file_.write_json()
             git_files.append(file_.json_path_rel)
@@ -870,8 +845,8 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
             src_path = os.path.join(os.path.dirname(csv_path), rowd['basename_orig'])
             logging.info('    %s' % src_path)
             # have to make our own file_id/entity_id
-            model,repo,org,cid,eid,role = models.split_object_id(rowd['file_id'])
-            entity = entities[models.make_object_id('entity', repo,org,cid,eid)]
+            entity_id = models.parent_id(rowd['file_id'])
+            entity = entities[entity_id]
             logging.info('    log %s' % entity.addfile_logger().logpath)
             # add the file
             file_,filerepo,filelog = entity.add_file(
