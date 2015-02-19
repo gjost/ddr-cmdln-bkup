@@ -1791,7 +1791,8 @@ class Entity( object ):
             """Write to addfile log and raise an exception."""
             log.not_ok(msg)
             raise Exception(msg)
-        
+
+        log.ok('------------------------------------------------------------------------')
         log.ok('DDR.models.Entity.add_file: START')
         log.ok('entity: %s' % self.id)
         log.ok('data: %s' % data)
@@ -1938,19 +1939,24 @@ class Entity( object ):
         annex_files = [f.path_abs.replace('%s/' % f.collection_path, '')]
         if f.access_abs:
             annex_files.append(f.access_abs.replace('%s/' % f.collection_path, ''))
-        to_stage = len(git_files + annex_files)
+        repo = dvcs.repository(f.collection_path)
+        log.ok(repo)
+        # These vars will be used to determine if stage operation is successful.
+        # If called in batch operation there may already be staged files.
+        # stage_planned   Files added/modified by this function call
+        # stage_already   Files that were already staged
+        # stage_predicted List of staged files that should result from this operation.
+        # stage_new       Files that are being added.
+        stage_planned = git_files + annex_files
+        stage_already = dvcs.list_staged(repo)
+        stage_predicted = self._addfile_predict_staged(stage_already, stage_planned)
+        stage_new = [x for x in stage_planned if x not in stage_already]
+        log.ok('Staging %s files' % len(stage_planned))
         stage_ok = False
+        staged = []
         try:
-            repo = dvcs.repository(f.collection_path)
-            log.ok(repo)
-            log.ok('Staging %s files to the repo' % to_stage)
             dvcs.stage(repo, git_files, annex_files)
-            staged = len(dvcs.list_staged(repo))
-            if staged == to_stage:
-                log.ok('%s files staged' % staged)
-                stage_ok = True
-            else:
-                log.not_ok('%s files staged (should be %s)' % (staged, to_stage))
+            staged = dvcs.list_staged(repo)
         except:
             # FAILED! print traceback to addfile log
             entrails = traceback.format_exc().strip()
@@ -1958,10 +1964,20 @@ class Entity( object ):
             with open(self._addfile_log_path(), 'a') as f:
                 f.write(entrails)
         finally:
+            if len(staged) == len(stage_predicted):
+                log.ok('%s files staged (%s new, %s modified)' % (
+                    len(staged), len(stage_new), len(stage_already)))
+                stage_ok = True
+            else:
+                log.not_ok('%s new files staged (should be %s)' % (
+                    len(staged), len(stage_predicted)))
             if not stage_ok:
                 log.not_ok('File staging aborted. Cleaning up...')
                 # try to pick up the pieces
                 # mv files back to tmp_dir
+                # TODO Properly clean up git-annex-added files.
+                #      This clause moves the *symlinks* to annex files but leaves
+                #      the actual binaries in the .git/annex objects dir.
                 for tmp,dest in new_files:
                     log.not_ok('mv %s %s' % (dest,tmp))
                     os.rename(dest,tmp)
@@ -1971,6 +1987,22 @@ class Entity( object ):
         # IMPORTANT: Files are only staged! Be sure to commit!
         # IMPORTANT: changelog is not staged!
         return f,repo,log
+    
+    def _addfile_predict_staged(self, already, planned):
+        """Predict which files will be staged, accounting for modifications
+        
+        When running a batch import there will already be staged files when this function is called.
+        Some files to be staged will be modifications (e.g. entity.json).
+        Predicts the list of files that will be staged if this round of add_file succeeds.
+        how many files SHOULD be staged after we run this?
+        
+        @param already: list Files already staged.
+        @param planned: list Files to be added/modified in this operation.
+        @returns: list
+        """
+        additions = [path for path in planned if path not in already]
+        total = already + additions
+        return total
     
     def add_file_commit(self, file_, repo, log, git_name, git_mail, agent):
         staged = dvcs.list_staged(repo)
