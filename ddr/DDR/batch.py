@@ -637,8 +637,7 @@ def test_entities(collection_path, class_, rowds):
     # get unique entity_ids
     eids = []
     for rowd in rowds:
-        file_id = Identity.split_object_id(rowd['file_id'])
-        entity_id = Identity.parent_id(file_id)
+        entity_id = Identity.parent_id(rowd['file_id'])
         eids.append(entity_id)
     # test-load the Entities
     entities = {}
@@ -798,9 +797,13 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     """
     logging.info('-----------------------------------------------')
     csv_dir = os.path.dirname(csv_path)
+    cpath = Identity.dissect_path(collection_path)
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
+    if module.MODEL == 'file':
+        required_fields.append('file_id')
+        required_fields.append('basename_orig')
     valid_values = prep_valid_values(load_vocab_files(vocabs_path))
     # read entire file into memory
     logging.info('Reading %s' % csv_path)
@@ -829,13 +832,15 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         entity.changelog_updated = []
         entity.changelog_added = []
     for n,rowd in enumerate(rowds):
-        logging.info('| %s/%s - %s' % (n+1, len(rowds), rowd['file_id']))
-        file_ = load_file(collection_path, file_class, rowd)
-        file_ = csvload_file(file_, module, field_names, rowd)
+        logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['file_id']))
+        file_id = rowd['file_id']
+        fpath_abs = Identity.path_from_id(file_id, cpath.base_path)
+        role = Identity.split_object_id(file_id)[5]
+        file0 = load_file(collection_path, file_class, rowd)
+        file_ = csvload_file(file0, module, field_names, rowd)
+        entity = entities[Identity.parent_id(file_id)]
         if file_.exists:
             # update metadata
-            entity_id = Identity.parent_id(file_.id)
-            entity = entities[entity_id]
             file_.write_json()
             git_files.append(file_.json_path_rel)
             entity.changelog_updated.append(file_)
@@ -843,16 +848,12 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         else:
             # add new file
             src_path = os.path.join(os.path.dirname(csv_path), rowd['basename_orig'])
-            logging.info('    %s' % src_path)
-            # have to make our own file_id/entity_id
-            entity_id = Identity.parent_id(rowd['file_id'])
-            entity = entities[entity_id]
-            logging.info('    log %s' % entity.addfile_logger().logpath)
+            logging.info('| log: %s' % entity.addfile_logger().logpath)
+            logging.info('| %s' % src_path)
             # add the file
             file_,filerepo,filelog = entity.add_file(
                 src_path, role, rowd, git_name, git_mail, agent)
-            logging.info('  %s/%s - %s < %s' % (
-                n+1, len(rowds), file_.id, file_.basename_orig))
+            logging.info('| > %s' % file_.id)
             # file_add stages files, don't need to use git_add
             entity.changelog_added.append(file_)
     
