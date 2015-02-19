@@ -7,6 +7,19 @@
 description = """Imports DDR entities or files from CSV to the specified collection."""
 
 epilog = """
+Importing New Files
+
+* Export a blank files CSV file or copy the header from an existing file.
+* Note that entity and file CSVs have different headers!
+* Add information to the CSV file.
+* Put the CSV file and files to import into a directory with no subfolders.
+* This directory must be visible to the DDR app, e.g. a VirtualBox shared dir.
+* Run the ddr-import command:
+    $ ddr-import -u $USER -m $MAIL -U $USERNAME -P $PASSWORD /media/sf_ddrshared/ddr-test-123-files.csv /var/www/media/ddr/ddr-test-123/
+
+The following fields work differently when adding new files:
+* file_id: Desired file ID, minus the SHA1 hash (ex: "ddr-test-123-45-master").
+* basename_orig: The filename to import, with no path (ex: "my-file.jpg").
 """
 
 
