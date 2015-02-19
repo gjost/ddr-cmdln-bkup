@@ -351,6 +351,12 @@ class Identity(object):
             # /basepath/collection_id/files/entity_id/files/file_id
             ACCESS_FILE_STUB = '%s%s' % (ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION)
             
+            pathname,ext = os.path.splitext(path_abs)
+            if ext and (pathname[-2:] == '-a'):
+                p.object_id = os.path.basename(pathname[:-2])
+            else:
+                p.object_id = os.path.basename(pathname)
+            
             which = 'unknown'
             if   os.path.splitext(path_abs)[1]:     which = 'file'   # file_id with extension
             elif ('.json' in path_abs):             which = 'json'   # the *.json file
@@ -368,44 +374,41 @@ class Identity(object):
                 p.file_path = path_abs
                 p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
                 p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
             
             elif which == 'json':
                 p.json_path = path_abs
                 pattern = os.path.splitext(path_abs)[0]
                 p.file_path = find_file_path(pattern)
                 p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
             
             elif which == 'access':
                 p.access_path = p.path_abs
                 pattern = '%s*' % path_abs.replace(ACCESS_FILE_STUB,'')
                 p.file_path = find_file_path(pattern)
                 p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
             
             elif which == 'noext':
                 p.json_path = '%s.json' % path_abs
                 pattern = '%s*' % path_abs
                 p.file_path = find_file_path(pattern)
-                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+                p.access_path = '%s%s' % (p.file_path, ACCESS_FILE_STUB)
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
             
             p.entity_path = os.path.dirname(os.path.dirname(p.path))
             p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
             p.base_path = os.path.dirname(p.collection_path)
-
-            p.file_path_rel = p.file_path.replace(p.base_path, '')
-            p.access_path_rel = p.access_path.replace(p.base_path, '')
-            p.json_path_rel = p.json_path.replace(p.base_path, '')
+            
+            if p.file_path: p.file_path_rel = p.file_path.replace(p.base_path, '')
+            if p.access_path: p.access_path_rel = p.access_path.replace(p.base_path, '')
+            if p.json_path: p.json_path_rel = p.json_path.replace(p.base_path, '')
             
             p.git_path = os.path.join(p.collection_path, '.git')
             p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
             p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
             
-            pathname,ext = os.path.splitext(path_abs)
-            if ext and (pathname[-2:] == '-a'):
-                p.object_id = os.path.basename(pathname[:-2])
-            else:
-                p.object_id = os.path.basename(pathname)
-            
-            p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
             p.model = p.object_type
             p.role = p.role.lower()
             
@@ -609,6 +612,10 @@ class Identity(object):
             repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
             path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
                 base, repo,org,cid, repo,org,cid,eid)
+        elif model == 'file partial':
+            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]
+            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s' % (
+                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role)
         elif model == 'file':
             repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
             path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
@@ -660,6 +667,7 @@ class Identity(object):
         if   len(parts) == 2: return '-'.join([ parts[0], ])
         elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
         elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
+        elif len(parts) == 5: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
         elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
         return None
 
