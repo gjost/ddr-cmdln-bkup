@@ -5,6 +5,7 @@ for history prior to Feb 2015.
 """
 
 from datetime import datetime
+import glob
 import hashlib
 import json
 import logging
@@ -151,7 +152,7 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
     keys = []
     while json_paths:
         path = json_paths.pop()
-        model,repo,org,cid,eid,role,sha1 = split_object_id(id_from_path(path))
+        model,repo,org,cid,eid,role,sha1 = Identity.split_object_id(Identity.id_from_path(path))
         sort = 0
         with open(path, 'r') as f:
             for line in f.readlines():
@@ -182,7 +183,7 @@ def document_metadata(module, document_repo_path):
         'application': 'https://github.com/densho/ddr-cmdln.git',
         'app_commit': dvcs.latest_commit(INSTALL_PATH),
         'app_release': VERSION,
-        'models_commit': dvcs.latest_commit(module_path(module)),
+        'models_commit': dvcs.latest_commit(Module(module).path),
         'git_version': dvcs.git_version(document_repo_path),
     }
     return data
@@ -301,623 +302,722 @@ def from_json(model, json_path):
     return document
 
 
-
-# model definitions ----------------------------------------------------
-
-def cmp_model_definition_commits(document, module):
-    """Indicate document's model defs are newer or older than module's.
-    
-    Prepares repository and document/module commits to be compared
-    by DDR.dvcs.cmp_commits.  See that function for how to interpret
-    the results.
-    Note: if a document has no defs commit it is considered older
-    than the module.
-    
-    @param document: A Collection, Entity, or File object.
-    @param module: A collection, entity, or files module.
-    @returns: int
-    """
-    def parse(txt):
-        return txt.strip().split(' ')[0]
-    module_commit_raw = dvcs.latest_commit(module_path(module))
-    module_defs_commit = parse(module_commit_raw)
-    if not module_defs_commit:
-        return 128
-    doc_metadata = getattr(document, 'json_metadata', {})
-    document_commit_raw = doc_metadata.get('models_commit','')
-    document_defs_commit = parse(document_commit_raw)
-    if not document_defs_commit:
-        return -1
-    repo = dvcs.repository(module_path(module))
-    return dvcs.cmp_commits(repo, document_defs_commit, module_defs_commit)
-
-def cmp_model_definition_fields(document_json, module):
-    """Indicate whether module adds or removes fields from document
-    
-    @param document_json: Raw contents of document *.json file
-    @param module: A collection, entity, or files module.
-    @returns: list,list Lists of added,removed field names.
-    """
-    # First item in list is document metadata, everything else is a field.
-    document_fields = [field.keys()[0] for field in json.loads(document_json)[1:]]
-    module_fields = [field['name'] for field in getattr(module, 'FIELDS')]
-    # models.load_json() uses MODULE.FIELDS, so get list of fields
-    # directly from the JSON document.
-    added = [field for field in module_fields if field not in document_fields]
-    removed = [field for field in document_fields if field not in module_fields]
-    return added,removed
-
-
-
-# IDs, paths -----------------------------------------------------------
-
 class Path( object ):
+    pass
+
+class Identity(object):
+
+    @staticmethod
+    def dissect_path( path_abs ):
+        """Slices up an absolute path and extracts as much as it can.
+        
+        TODO use caching to speed this up
+        
+        @param path_abs: absolute path to object json file.
+        @returns: Identifier object
+        """
+        p = Path()
+        p.path = path_abs
+        p.path_abs = path_abs
+        FIELDS = [
+            'base_path', 'git_path', 'annex_path', 'gitignore_path',
+            'collection_path', 'entity_path', 'file_path', 'access_path',
+            'json_path', 'changelog_path', 'control_path', 'entities_path',
+            'files_path', 'file_path_rel', 'access_path_rel', 'json_path_rel',
+            'changelog_path_rel', 'control_path_rel', 'entities_path_rel',
+            'files_path_rel', 'object_id', 'object_type', 'model',
+            'repo', 'org', 'cid', 'eid', 'role', 'sha1',
+            'file_id', 'entity_id', 'collection_id', 'parent_id',
+        ]
+        for f in FIELDS:
+            setattr(p, f, None)
+        
+        # remove trailing slash if this is a directory
+        if path_abs[-1] == os.path.sep:
+            path_abs = path_abs[:-1]
+        
+        model = None
+        if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
+            model = 'file'
+        elif ('entity.json' in path_abs) or ('files' in path_abs):
+            model = 'entity'
+        elif ('collection.json' in path_abs) or (not 'files' in path_abs):
+            model = 'collection'
+        
+        if model == 'file':
+            # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
+            # /basepath/collection_id/files/entity_id/files/file_id.ext
+            # /basepath/collection_id/files/entity_id/files/file_id.json
+            # /basepath/collection_id/files/entity_id/files/file_id
+            ACCESS_FILE_STUB = '%s%s' % (ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION)
+            
+            pathname,ext = os.path.splitext(path_abs)
+            if ext and (pathname[-2:] == '-a'):
+                p.object_id = os.path.basename(pathname[:-2])
+            else:
+                p.object_id = os.path.basename(pathname)
+            
+            which = 'unknown'
+            if   os.path.splitext(path_abs)[1]:     which = 'file'   # file_id with extension
+            elif ('.json' in path_abs):             which = 'json'   # the *.json file
+            elif ACCESS_FILE_STUB in path_abs:      which = 'access' # access file
+            elif not os.path.splitext(path_abs)[1]: which = 'noext'  # file_id with no extension
+            
+            def find_file_path(pattern):
+                # figure out original file path
+                for fp in glob.glob(pattern):
+                    if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
+                        return fp
+                return None
+                
+            if which == 'file':
+                p.file_path = path_abs
+                p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
+                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
+            
+            elif which == 'json':
+                p.json_path = path_abs
+                pattern = os.path.splitext(path_abs)[0]
+                p.file_path = find_file_path(pattern)
+                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
+            
+            elif which == 'access':
+                p.access_path = p.path_abs
+                pattern = '%s*' % path_abs.replace(ACCESS_FILE_STUB,'')
+                p.file_path = find_file_path(pattern)
+                p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
+            
+            elif which == 'noext':
+                p.json_path = '%s.json' % path_abs
+                pattern = '%s*' % path_abs
+                p.file_path = find_file_path(pattern)
+                p.access_path = '%s%s' % (p.file_path, ACCESS_FILE_STUB)
+                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
+            
+            p.entity_path = os.path.dirname(os.path.dirname(p.path))
+            p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+            p.base_path = os.path.dirname(p.collection_path)
+            
+            if p.file_path: p.file_path_rel = p.file_path.replace(p.base_path, '')
+            if p.access_path: p.access_path_rel = p.access_path.replace(p.base_path, '')
+            if p.json_path: p.json_path_rel = p.json_path.replace(p.base_path, '')
+            
+            p.git_path = os.path.join(p.collection_path, '.git')
+            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+            
+            p.model = p.object_type
+            p.role = p.role.lower()
+            
+            p.file_id = Identity.make_object_id('file', p.repo,p.org,p.cid,p.eid,p.role,p.sha1)
+            p.entity_id = Identity.make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+            p.collection_id = Identity.make_object_id('collection', p.repo,p.org,p.cid)
+            p.parent_id = p.entity_id
+        
+        elif model == 'entity':
+            # /basepath/collection_id/files/entity_id/entity.json
+            if (os.path.basename(path_abs) == 'entity.json'):
+                p.entity_path = os.path.dirname(path_abs)
+                p.json_path = path_abs
+            elif (os.path.basename(path_abs) == 'files'):
+                p.entity_path = os.path.dirname(path_abs)
+                p.json_path = os.path.join(p.entity_path, 'entity.json')
+            else:
+                p.entity_path = path_abs
+                p.json_path = os.path.join(path_abs, 'entity.json')
+            
+            p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
+            p.base_path = os.path.dirname(p.collection_path)
+            
+            p.git_path = os.path.join(p.collection_path, '.git')
+            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+            # these are for the entity not the collection
+            p.changelog_path = os.path.join(p.entity_path, 'changelog')
+            p.control_path = os.path.join(p.entity_path, 'control')
+            p.files_path = os.path.join(p.entity_path, 'files')
+    
+            p.changelog_path_rel = p.changelog_path.replace(p.base_path, '')
+            p.control_path_rel = p.control_path.replace(p.base_path, '')
+            p.files_path_rel = p.files_path.replace(p.base_path, '')
+            
+            p.object_id = os.path.basename(p.entity_path)
+            
+            p.object_type,p.repo,p.org,p.cid,p.eid = Identity.split_object_id(p.object_id)
+            p.model = p.object_type
+            
+            p.entity_id = Identity.make_object_id('entity', p.repo,p.org,p.cid,p.eid)
+            p.collection_id = Identity.make_object_id('collection', p.repo,p.org,p.cid)
+            p.parent_id = p.collection_id
+        
+        elif model == 'collection':
+            if (os.path.basename(path_abs) == 'collection.json'):
+                p.collection_path = os.path.dirname(path_abs)
+                p.json_path = path_abs
+            else:
+                p.collection_path = path_abs
+                p.json_path = os.path.join(path_abs, 'collection.json')
+            
+            p.base_path = os.path.dirname(p.collection_path)
+            
+            p.git_path = os.path.join(p.collection_path, '.git')
+            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
+            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
+            p.changelog_path = os.path.join(p.collection_path, 'changelog')
+            p.control_path = os.path.join(p.collection_path, 'control')
+            p.entities_path = os.path.join(p.collection_path, 'files')
+            
+            p.object_id = os.path.basename(p.collection_path)
+            
+            p.object_type,p.repo,p.org,p.cid = Identity.split_object_id(p.object_id)
+            p.model = p.object_type
+            
+            p.collection_id = p.object_id
+        
+        return p
+    
+    @staticmethod
+    def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
+        if   (model == 'file') and repo and org and cid and eid and role and sha1:
+            return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
+        elif (model == 'entity') and repo and org and cid and eid:
+            return '%s-%s-%s-%s' % (repo, org, cid, eid)
+        elif (model == 'collection') and repo and org and cid:
+            return '%s-%s-%s' % (repo, org, cid)
+        elif (model in ['org', 'organization']) and repo and org:
+            return '%s-%s' % (repo, org)
+        elif (model in ['repo', 'repository']) and repo:
+            return repo
+        return None
+    
+    @staticmethod
+    def split_object_id( object_id=None ):
+        """Very naive function that splits an object ID into its parts
+        TODO make sure it's actually an object ID first!
+        """
+        if object_id and isinstance(object_id, basestring):
+            parts = object_id.strip().split('-')
+            if len(parts) == 6:
+                parts.insert(0, 'file')
+                return parts
+            elif len(parts) == 5:
+                # file ID without the SHA1 hash; used to mark new files in batch CSV
+                parts.insert(0, 'file partial')
+                return parts
+            elif len(parts) == 4:
+                parts.insert(0, 'entity')
+                return parts
+            elif len(parts) == 3:
+                parts.insert(0, 'collection')
+                return parts
+            elif len(parts) == 2:
+                parts.insert(0, 'organization')
+                return parts
+            elif len(parts) == 1:
+                parts.insert(0, 'repository')
+                return parts
+        return None
+    
+    @staticmethod
+    def id_from_path( path ):
+        """Extract ID from path.
+        
+        >>> Identity.id_from_path('.../ddr-testing-123/collection.json')
+        'ddr-testing-123'
+        >>> Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
+        'ddr-testing-123-1'
+        >>> Identity.d_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
+        'ddr-testing-123-1-master-a1b2c3d4e5.json'
+        >>> Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
+        None
+        >>> Identity.id_from_path('.../ddr-testing-123/something-else.json')
+        None
+        
+        @param path: absolute or relative path to a DDR metadata file
+        @returns: DDR object ID
+        """
+        object_id = None
+        model = Identity.model_from_path(path)
+        if model == 'collection': return os.path.basename(os.path.dirname(path))
+        elif model == 'entity': return os.path.basename(os.path.dirname(path))
+        elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
+        return None
+    
+    @staticmethod
+    def model_from_path( path ):
+        """Guess model from the path.
+        
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
+        'collection'
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
+        'entity'
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
+        'file'
+        
+        @param path: absolute or relative path to metadata JSON file.
+        @returns: model
+        """
+        if 'collection.json' in path: return 'collection'
+        elif 'entity.json' in path: return 'entity'
+        elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
+        return None
+    
+    @staticmethod
+    def model_from_dict( data ):
+        """Guess model by looking in dict for object_id or path_rel
+        """
+        if data.get('path_rel',None):
+            return 'file'
+        object_id = data.get('id', '')
+        LEGAL_LENGTHS = [
+            1, # repository   (ddr)
+            2, # organization (ddr-testing)
+            3, # collection   (ddr-testing-123)
+            4, # entity       (ddr-testing-123-1)
+            6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
+        ]
+        parts = object_id.split('-')
+        len_parts = len(parts)
+        if (len_parts in LEGAL_LENGTHS):
+            if   len_parts == 6: return 'file'
+            elif len_parts == 4: return 'entity'
+            elif len_parts == 3: return 'collection'
+            #elif len_parts == 2: return 'organization'
+            #elif len_parts == 1: return 'repository'
+        return None
+    
+    @staticmethod
+    def path_from_id( object_id, base_dir='' ):
+        """Return's path to object* given the object ID and (optional) base_dir.
+        
+        * Does not append 'entity.json' or file extension.
+        
+        @param object_id:
+        @param base_dir: Absolute path, with no trailing slash.
+        @returns: Relative path or (if base_dir) absolute path
+        """
+        path = None
+        repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
+        parts = Identity.split_object_id(object_id)
+        model = parts[0]
+        base = '%s/' % base_dir
+        if model == 'collection':
+            repo = parts[1]; org = parts[2]; cid = parts[3]
+            path = '%s%s-%s-%s' % (
+                base, repo,org,cid)
+        elif model == 'entity':
+            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
+            path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
+                base, repo,org,cid, repo,org,cid,eid)
+        elif model == 'file partial':
+            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]
+            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s' % (
+                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role)
+        elif model == 'file':
+            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
+            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
+                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
+        return path
+    
+    @staticmethod
+    def json_path_from_dir(model, path):
+        """Given path to collection/entity dir, return path to .json
+        
+        >>> Identity.json_path_from_dir('collection', '/path/ddr-test-123')
+        '/path/ddr-test-123/collection.json'
+        >>> Identity.json_path_from_dir('entity', '/path/ddr-test-123/files//ddr-test-123-45')
+        '/path/ddr-test-123/files//ddr-test-123-45/entity.json'
+        >>> Identity.json_path_from_dir('entity', 'files/ddr-test-123-45')
+        'files/ddr-test-123-45/entity.json'
+        
+        @param model: 'collection' or 'entity'
+        @param path: Absolute or relative path to collection/entity dir
+        """
+        if model == 'collection':
+            json_path = os.path.join(path, 'collection.json')
+        elif model == 'entity':
+            json_path = os.path.join(path, 'entity.json')
+        elif model == 'file':
+            json_path = '%s.json' % path
+        else:
+            raise Exception('Unrecognized model: "%s"' % model)
+        return json_path
+    
+    @staticmethod
+    def parent_id( object_id ):
+        """Given a DDR object ID, returns the parent object ID.
+        
+        TODO not specific to elasticsearch - move this function so other modules can use
+        
+        >>> Identity.parent_id('ddr')
+        None
+        >>> Identity.parent_id('ddr-testing')
+        'ddr'
+        >>> Identity.parent_id('ddr-testing-123')
+        'ddr-testing'
+        >>> Identity.parent_id('ddr-testing-123-1')
+        'ddr-testing-123'
+        >>> Identity.parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
+        'ddr-testing-123-1'
+        """
+        parts = object_id.split('-')
+        if   len(parts) == 2: return '-'.join([ parts[0], ])
+        elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
+        elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
+        elif len(parts) == 5: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
+        elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
+        return None
+
+
+class Module(object):
     path = None
-    base_path = None
-    collection_path = None
-    entity_path = None
-    file_path = None
-    filename = None
-    ext = None
-    model = None
-    object_type = None
-    object_id = None
-    collection_id = None
-    entity_id = None
-    file_id = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
-    role = None
-    sha1 = None
 
-def dissect_path( path_abs ):
-    """Slices up an absolute path and extracts as much as it can.
+    def __init__(self, module):
+        """
+        @param module: collection, entity, files model definitions module
+        """
+        self.module = module
+        self.path = self.module.__file__.replace('.pyc', '.py')
     
-    @param path_abs: An absolute file path.
-    @returns: object
-    """
-    if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
-        # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
-        # /basepath/collection_id/files/entity_id/files/file_id.ext
-        # /basepath/collection_id/files/entity_id/files/file_id.json
-        # /basepath/collection_id/files/entity_id/files/file_id
-        p = Path()
-        p.path = path_abs
-        p.entity_path = os.path.dirname(os.path.dirname(path_abs))
-        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
-        p.base_path = os.path.dirname(p.collection_path)
-        pathname,ext = os.path.splitext(path_abs)
-        if ext and (pathname[-2:] == '-a'):
-            p.object_id = os.path.basename(pathname[:-2])
-        else:
-            p.object_id = os.path.basename(pathname)
-        p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = split_object_id(p.object_id)
-        p.model = p.object_type
-        p.role = p.role.lower()
-        p.file_id = p.object_id
-        p.entity_id = make_object_id('entity', p.repo,p.org,p.cid,p.eid)
-        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
-        return p
+    def is_valid(self):
+        """Indicates whether this is a proper module
+    
+        TODO determine required fields for models
+    
+        @returns: Boolean,str message
+        """
+        # Is the module located in a 'ddr' Repository repo?
+        # collection.__file__ == absolute path to the module
+        match = 'ddr/repo_models'
+        if not match in self.module.__file__:
+            return False,"%s not in 'ddr' Repository repo." % self.module.__name__
+        # is fields var present in module?
+        fields = getattr(self.module, 'FIELDS', None)
+        if not fields:
+            return False,'%s has no FIELDS variable.' % self.module.__name__
+        # is fields var listy?
+        if not isinstance(fields, list):
+            return False,'%s.FIELDS is not a list.' % self.module.__name__
+        return True,'ok'
+    
+    def function(self, function_name, value):
+        """If named function is present in module and callable, pass value to it and return result.
         
-    elif ('entity.json' in path_abs) or ('files' in path_abs):
-        # /basepath/collection_id/files/entity_id/entity.json
-        p = Path()
-        p.path = path_abs
-        if (os.path.basename(path_abs) == 'entity.json') or (os.path.basename(path_abs) == 'files'):
-            p.entity_path = os.path.dirname(path_abs)
-        else:
-            p.entity_path = path_abs
-        p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
-        p.base_path = os.path.dirname(p.collection_path)
-        p.object_id = os.path.basename(p.entity_path)
-        p.object_type,p.repo,p.org,p.cid,p.eid = split_object_id(p.object_id)
-        p.model = p.object_type
-        p.entity_id = p.object_id
-        p.collection_id = make_object_id('collection', p.repo,p.org,p.cid)
-        return p
+        Among other things this may be used to prep data for display, prepare it
+        for editing in a form, or convert cleaned form data into Python data for
+        storage in objects.
         
-    else:
-        # /basepath/collection_id/collection.json
-        p = Path()
-        p.path = path_abs
-        if (os.path.basename(path_abs) == 'collection.json'):
-            p.collection_path = os.path.dirname(path_abs)
-        else:
-            p.collection_path = path_abs
-        p.base_path = os.path.dirname(p.collection_path)
-        p.object_id = os.path.basename(p.collection_path)
-        p.object_type,p.repo,p.org,p.cid = split_object_id(p.object_id)
-        p.model = p.object_type
-        p.collection_id = p.object_id
-        return p
+        @param function_name: Name of the function to be executed.
+        @param value: A single value to be passed to the function, or None.
+        @returns: Whatever the specified function returns.
+        """
+        if (function_name in dir(self.module)):
+            function = getattr(self.module, function_name)
+            value = function(value)
+        return value
+    
+    def xml_function(self, function_name, tree, NAMESPACES, f, value):
+        """If module function is present and callable, pass value to it and return result.
         
-    return None
-
-def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
-    if   (model == 'file') and repo and org and cid and eid and role and sha1:
-        return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
-    elif (model == 'entity') and repo and org and cid and eid:
-        return '%s-%s-%s-%s' % (repo, org, cid, eid)
-    elif (model == 'collection') and repo and org and cid:
-        return '%s-%s-%s' % (repo, org, cid)
-    elif (model in ['org', 'organization']) and repo and org:
-        return '%s-%s' % (repo, org)
-    elif (model in ['repo', 'repository']) and repo:
-        return repo
-    return None
-
-def split_object_id( object_id=None ):
-    """Very naive function that splits an object ID into its parts
-    TODO make sure it's actually an object ID first!
-    """
-    if object_id and isinstance(object_id, basestring):
-        parts = object_id.strip().split('-')
-        if len(parts) == 6:
-            parts.insert(0, 'file')
-            return parts
-        elif len(parts) == 5:
-            # file ID without the SHA1 hash; used to mark new files in batch CSV
-            parts.insert(0, 'file partial')
-            return parts
-        elif len(parts) == 4:
-            parts.insert(0, 'entity')
-            return parts
-        elif len(parts) == 3:
-            parts.insert(0, 'collection')
-            return parts
-    return None
-
-def id_from_path( path ):
-    """Extract ID from path.
+        Same as Module.function but with XML we need to pass namespaces lists to
+        the functions.
+        Used in dump_ead(), dump_mets().
+        
+        @param function_name: Name of the function to be executed.
+        @param tree: An lxml tree object.
+        @param NAMESPACES: Dict of namespaces used in the XML document.
+        @param f: Field dict (from MODEL_FIELDS).
+        @param value: A single value to be passed to the function, or None.
+        @returns: Whatever the specified function returns.
+        """
+        if (function_name in dir(self.module)):
+            function = getattr(self.module, function_name)
+            tree = function(tree, NAMESPACES, f, value)
+        return tree
     
-    >>> _id_from_path('.../ddr-testing-123/collection.json')
-    'ddr-testing-123'
-    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'ddr-testing-123-1'
-    >>> _id_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'ddr-testing-123-1-master-a1b2c3d4e5.json'
-    >>> _id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
-    None
-    >>> _id_from_path('.../ddr-testing-123/something-else.json')
-    None
+    def labels_values(self, document):
+        """Apply display_{field} functions to prep object data for the UI.
+        
+        Certain fields require special processing.  For example, structured data
+        may be rendered in a template to generate an HTML <ul> list.
+        If a "display_{field}" function is present in the ddrlocal.models.collection
+        module the contents of the field will be passed to it
+        
+        @param document: Collection, Entity, File document object
+        @returns: list
+        """
+        lv = []
+        for f in self.module.FIELDS:
+            if hasattr(document, f['name']) and f.get('form',None):
+                key = f['name']
+                label = f['form']['label']
+                # run display_* functions on field data if present
+                value = self.function(
+                    'display_%s' % key,
+                    getattr(document, f['name'])
+                )
+                lv.append( {'label':label, 'value':value,} )
+        return lv
     
-    @param path: absolute or relative path to a DDR metadata file
-    @returns: DDR object ID
-    """
-    object_id = None
-    model = model_from_path(path)
-    if model == 'collection': return os.path.basename(os.path.dirname(path))
-    elif model == 'entity': return os.path.basename(os.path.dirname(path))
-    elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
-    return None
-
-def model_from_path( path ):
-    """Guess model from the path.
+    def cmp_model_definition_commits(self, document):
+        """Indicate document's model defs are newer or older than module's.
+        
+        Prepares repository and document/module commits to be compared
+        by DDR.dvcs.cmp_commits.  See that function for how to interpret
+        the results.
+        Note: if a document has no defs commit it is considered older
+        than the module.
+        
+        @param document: A Collection, Entity, or File object.
+        @returns: int
+        """
+        def parse(txt):
+            return txt.strip().split(' ')[0]
+        module_commit_raw = dvcs.latest_commit(self.path)
+        module_defs_commit = parse(module_commit_raw)
+        if not module_defs_commit:
+            return 128
+        doc_metadata = getattr(document, 'json_metadata', {})
+        document_commit_raw = doc_metadata.get('models_commit','')
+        document_defs_commit = parse(document_commit_raw)
+        if not document_defs_commit:
+            return -1
+        repo = dvcs.repository(self.path)
+        return dvcs.cmp_commits(repo, document_defs_commit, module_defs_commit)
     
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
-    'collection'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
-    'entity'
-    >>> model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
-    'file'
-    
-    @param path: absolute or relative path to metadata JSON file.
-    @returns: model
-    """
-    if 'collection.json' in path: return 'collection'
-    elif 'entity.json' in path: return 'entity'
-    elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
-    return None
-
-def model_from_dict( data ):
-    """Guess model by looking in dict for object_id or path_rel
-    """
-    if data.get('path_rel',None):
-        return 'file'
-    object_id = data.get('id', '')
-    LEGAL_LENGTHS = [
-        1, # repository   (ddr)
-        2, # organization (ddr-testing)
-        3, # collection   (ddr-testing-123)
-        4, # entity       (ddr-testing-123-1)
-        6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
-    ]
-    parts = object_id.split('-')
-    len_parts = len(parts)
-    if (len_parts in LEGAL_LENGTHS):
-        if   len_parts == 6: return 'file'
-        elif len_parts == 4: return 'entity'
-        elif len_parts == 3: return 'collection'
-        #elif len_parts == 2: return 'organization'
-        #elif len_parts == 1: return 'repository'
-    return None
-
-def path_from_id( object_id, base_dir='' ):
-    """Return's path to object* given the object ID and (optional) base_dir.
-    
-    * Does not append 'entity.json' or file extension.
-    
-    @param object_id:
-    @param base_dir: Absolute path, with no trailing slash.
-    @returns: Relative path or (if base_dir) absolute path
-    """
-    path = None
-    repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
-    parts = split_object_id(object_id)
-    model = parts[0]
-    base = '%s/' % base_dir
-    if model == 'collection':
-        repo = parts[1]; org = parts[2]; cid = parts[3]
-        path = '%s%s-%s-%s' % (
-            base, repo,org,cid)
-    elif model == 'entity':
-        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
-        path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
-            base, repo,org,cid, repo,org,cid,eid)
-    elif model == 'file':
-        repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
-        path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
-            base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
-    return path
-
-def parent_id( object_id ):
-    """Given a DDR object ID, returns the parent object ID.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    >>> _parent_id('ddr')
-    None
-    >>> _parent_id('ddr-testing')
-    'ddr'
-    >>> _parent_id('ddr-testing-123')
-    'ddr-testing'
-    >>> _parent_id('ddr-testing-123-1')
-    'ddr-testing-123'
-    >>> _parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
-    'ddr-testing-123-1'
-    """
-    parts = object_id.split('-')
-    if   len(parts) == 2: return '-'.join([ parts[0], ])
-    elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
-    elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
-    elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-    return None
-
-def model_fields( model ):
-    """
-    THIS FUNCTION IS A PLACEHOLDER.
-    It's a step on the way to refactoring (COLLECTION|ENTITY|FILE)_FIELDS.
-    It gives ddr-public a way to know the order of fields until we have a better solution.
-    """
-    # TODO model .json files should live in /etc/ddr/models
-    if model in ['collection', 'entity', 'file']:
-        json_path = os.path.join(MODELS_DIR, '%s.json' % model)
-        with open(json_path, 'r') as f:
-            data = json.loads(f.read())
-        fields = []
-        for field in data:
-            f = {'name':field['name'],}
-            if field.get('form',None) and field['form'].get('label',None):
-                f['label'] = field['form']['label']
-            fields.append(f)
-        return fields
-    return []
+    def cmp_model_definition_fields(self, document_json):
+        """Indicate whether module adds or removes fields from document
+        
+        @param document_json: Raw contents of document *.json file
+        @returns: list,list Lists of added,removed field names.
+        """
+        # First item in list is document metadata, everything else is a field.
+        document_fields = [field.keys()[0] for field in json.loads(document_json)[1:]]
+        module_fields = [field['name'] for field in getattr(self.module, 'FIELDS')]
+        # models.load_json() uses MODULE.FIELDS, so get list of fields
+        # directly from the JSON document.
+        added = [field for field in module_fields if field not in document_fields]
+        removed = [field for field in document_fields if field not in module_fields]
+        return added,removed
 
 
-# module ---------------------------------------------------------------
+class Inheritance(object):
 
-def module_path(module):
-    """Returns path to the module source file (.py).
-    """
-    return module.__file__.replace('.pyc', '.py')
-
-def module_is_valid(module):
-    """Indicates whether this is a proper module
-
-    TODO determine required fields for models
-
-    @param module: The module in question
-    @returns: Boolean,str message
-    """
-    # Is the module located in a 'ddr' Repository repo?
-    # collection.__file__ == absolute path to the module
-    match = 'ddr/repo_models'
-    if not match in module.__file__:
-        return False,"Module %s not in 'ddr' Repository repo." % module.__name__
-    # is fields var present in module?
-    fields = getattr(module, 'FIELDS', None)
-    if not fields:
-        return False,'Module does not contain a FIELDS variable.'
-    # is fields var listy?
-    try:
-        len(fields)
-    except TypeError:
-        return False,'Module %s is not a list.' % fieldsname
-    # are there any fields?
-    if not len(fields):
-        return False,'Module %s is empty.' % fieldsname
-    return True,'ok'
-
-def module_function(module, function_name, value):
-    """If named function is present in module and callable, pass value to it and return result.
+    @staticmethod
+    def _child_jsons( path ):
+        """List all the .json files under path directory; excludes specified dir.
+        
+        @param path: Absolute directory path.
+        @return list of paths
+        """
+        return [
+            p for p in metadata_files(basedir=path, recursive=True)
+            if os.path.dirname(p) != path
+        ]
     
-    Among other things this may be used to prep data for display, prepare it
-    for editing in a form, or convert cleaned form data into Python data for
-    storage in objects.
+    @staticmethod
+    def _selected_field_values( parent_object, inheritables ):
+        """Gets list of selected inherited fieldnames and their values from the parent object
+        
+        @param parent_object
+        @param inheritables
+        @returns: list of (fieldname,value) tuples
+        """
+        field_values = []
+        for field in inheritables:
+            value = getattr(parent_object, field)
+            field_values.append( (field,value) )
+        return field_values
     
-    @param module: A Python module
-    @param function_name: Name of the function to be executed.
-    @param value: A single value to be passed to the function, or None.
-    @returns: Whatever the specified function returns.
-    """
-    if (function_name in dir(module)):
-        function = getattr(module, function_name)
-        value = function(value)
-    return value
-
-def module_xml_function(module, function_name, tree, NAMESPACES, f, value):
-    """If module function is present and callable, pass value to it and return result.
+    @staticmethod
+    def inheritable_fields( MODEL_FIELDS ):
+        """Returns a list of fields that can inherit or grant values.
+        
+        Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
+        
+        @param MODEL_FIELDS
+        @returns: list
+        """
+        inheritable = []
+        for f in MODEL_FIELDS:
+            if f.get('inheritable', None):
+                inheritable.append(f['name'])
+        return inheritable
     
-    Same as module_function() but with XML we need to pass namespaces lists to
-    the functions.
-    Used in dump_ead(), dump_mets().
+    @staticmethod
+    def selected_inheritables( inheritables, cleaned_data ):
+        """Indicates which inheritable fields from the list were selected in the form.
+        
+        Selector fields are assumed to be BooleanFields named "FIELD_inherit".
+        
+        @param inheritables: List of field/attribute names.
+        @param cleaned_data: form.cleaned_data.
+        @return
+        """
+        fieldnames = {}
+        for field in inheritables:
+            fieldnames['%s_inherit' % field] = field
+        selected = []
+        if fieldnames:
+            for key in cleaned_data.keys():
+                if (key in fieldnames.keys()) and cleaned_data[key]:
+                    selected.append(fieldnames[key])
+        return selected
+        
+    @staticmethod
+    def update_inheritables( parent_object, objecttype, inheritables, cleaned_data ):
+        """Update specified inheritable fields of child objects using form data.
+        
+        @param parent_object: Collection or Entity with values to be inherited.
+        @param cleaned_data: Form cleaned_data from POST.
+        @returns: tuple List of changed object Ids, list of changed objects' JSON files.
+        """
+        child_ids = []
+        changed_files = []
+        # values of selected inheritable fields from parent
+        field_values = Inheritance._selected_field_values(parent_object, inheritables)
+        # load child objects and apply the change
+        if field_values:
+            for json_path in Inheritance._child_jsons(parent_object.path):
+                child = None
+                p = Identity.dissect_path(json_path)
+                if p.model == 'collection':
+                    child = Collection.from_json(p.collection_path)
+                elif p.model == 'entity':
+                    child = Entity.from_json(p.entity_path)
+                elif p.model == 'file':
+                    child = File.from_json(json_path)
+                if child:
+                    # set field if exists in child and doesn't already match parent value
+                    changed = False
+                    for field,value in field_values:
+                        if hasattr(child, field):
+                            existing_value = getattr(child,field)
+                            if existing_value != value:
+                                setattr(child, field, value)
+                                changed = True
+                    # write json and add to list of changed IDs/files
+                    if changed:
+                        child.write_json()
+                        if hasattr(child, 'id'):         child_ids.append(child.id)
+                        elif hasattr(child, 'basename'): child_ids.append(child.basename)
+                        changed_files.append(json_path)
+        return child_ids,changed_files
     
-    @param module: A Python module
-    @param function_name: Name of the function to be executed.
-    @param tree: An lxml tree object.
-    @param NAMESPACES: Dict of namespaces used in the XML document.
-    @param f: Field dict (from MODEL_FIELDS).
-    @param value: A single value to be passed to the function, or None.
-    @returns: Whatever the specified function returns.
-    """
-    if (function_name in dir(module)):
-        function = getattr(module, function_name)
-        tree = function(tree, NAMESPACES, f, value)
-    return tree
-
-def labels_values(document, module):
-    """Apply display_{field} functions to prep object data for the UI.
-    
-    Certain fields require special processing.  For example, structured data
-    may be rendered in a template to generate an HTML <ul> list.
-    If a "display_{field}" function is present in the ddrlocal.models.collection
-    module the contents of the field will be passed to it
-    
-    @param document: Collection, Entity, File document object
-    @param module: collection, entity, files model definitions module
-    @returns: list
-    """
-    lv = []
-    for f in module.FIELDS:
-        if hasattr(document, f['name']) and f.get('form',None):
-            key = f['name']
-            label = f['form']['label']
-            # run display_* functions on field data if present
-            value = module_function(
-                module,
-                'display_%s' % key,
-                getattr(document, f['name'])
-            )
-            lv.append( {'label':label, 'value':value,} )
-    return lv
-
-
-
-# inheritance ----------------------------------------------------------
-
-def _child_jsons( path ):
-    """List all the .json files under path directory; excludes specified dir.
-    
-    @param path: Absolute directory path.
-    @return list of paths
-    """
-    return [
-        p for p in metadata_files(basedir=path, recursive=True)
-        if os.path.dirname(p) != path
-    ]
-
-def _selected_inheritables( inheritables, cleaned_data ):
-    """Indicates which inheritable fields from the list were selected in the form.
-    
-    Selector fields are assumed to be BooleanFields named "FIELD_inherit".
-    
-    @param inheritables: List of field/attribute names.
-    @param cleaned_data: form.cleaned_data.
-    @return
-    """
-    fieldnames = {}
-    for field in inheritables:
-        fieldnames['%s_inherit' % field] = field
-    selected = []
-    if fieldnames:
-        for key in cleaned_data.keys():
-            if (key in fieldnames.keys()) and cleaned_data[key]:
-                selected.append(fieldnames[key])
-    return selected
-
-def _selected_field_values( parent_object, inheritables ):
-    """Gets list of selected inherited fieldnames and their values from the parent object
-    
-    @param parent_object
-    @param inheritables
-    @returns: list of (fieldname,value) tuples
-    """
-    field_values = []
-    for field in inheritables:
-        value = getattr(parent_object, field)
-        field_values.append( (field,value) )
-    return field_values
-
-def _load_object( json_path ):
-    """Loads File, Entity, or Collection from JSON file
-    
-    @param json_path
-    """
-    p = dissect_path(json_path)
-    if p.model == 'file':
-        entity = Entity.from_json(p.entity_path)
-        return entity.file(p.repo, p.org, p.cid, p.eid, p.role, p.sha1)
-    elif p.model == 'entity':
-        return Entity.from_json(p.entity_path)
-    elif p.model == 'collection':
-        return Collection.from_json(p.collection_path)
-    return None
-    
-def _update_inheritables( parent_object, objecttype, inheritables, cleaned_data ):
-    """Update specified inheritable fields of child objects using form data.
-    
-    @param parent_object: Collection or Entity with values to be inherited.
-    @param cleaned_data: Form cleaned_data from POST.
-    @returns: tuple List of changed object Ids, list of changed objects' JSON files.
-    """
-    child_ids = []
-    changed_files = []
-    # values of selected inheritable fields from parent
-    field_values = _selected_field_values(parent_object, inheritables)
-    # load child objects and apply the change
-    if field_values:
-        for child_json in _child_jsons(parent_object.path):
-            child = _load_object(child_json)
-            if child:
-                # set field if exists in child and doesn't already match parent value
-                changed = False
-                for field,value in field_values:
-                    if hasattr(child, field):
-                        existing_value = getattr(child,field)
-                        if existing_value != value:
-                            setattr(child, field, value)
-                            changed = True
-                # write json and add to list of changed IDs/files
-                if changed:
-                    child.write_json()
-                    if hasattr(child, 'id'):         child_ids.append(child.id)
-                    elif hasattr(child, 'basename'): child_ids.append(child.basename)
-                    changed_files.append(child_json)
-    return child_ids,changed_files
-
-def _inheritable_fields( MODEL_FIELDS ):
-    """Returns a list of fields that can inherit or grant values.
-    
-    Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
-    
-    @param MODEL_FIELDS
-    @returns: list
-    """
-    inheritable = []
-    for f in MODEL_FIELDS:
-        if f.get('inheritable', None):
-            inheritable.append(f['name'])
-    return inheritable
-
-def _inherit( parent, child ):
-    """Set inheritable fields in child object with values from parent.
-    
-    @param parent: A webui.models.Collection or webui.models.Entity
-    @param child: A webui.models.Entity or webui.models.File
-    """
-    for field in parent.inheritable_fields():
-        if hasattr(parent, field) and hasattr(child, field):
-            setattr(child, field, getattr(parent, field))
+    @staticmethod
+    def inherit( parent, child ):
+        """Set inheritable fields in child object with values from parent.
+        
+        @param parent: A webui.models.Collection or webui.models.Entity
+        @param child: A webui.models.Entity or webui.models.File
+        """
+        for field in parent.inheritable_fields():
+            if hasattr(parent, field) and hasattr(child, field):
+                setattr(child, field, getattr(parent, field))
 
 
-
-# locking --------------------------------------------------------------
-
-def lock( lock_path, text ):
-    """Writes lockfile to collection dir; complains if can't.
+class Locking(object):
     
-    Celery tasks don't seem to know their own task_id, and there don't
-    appear to be any handlers that can be called just *before* a task
-    is fired. so it appears to be impossible for a task to lock itself.
+    @staticmethod
+    def lock( lock_path, text ):
+        """Writes lockfile to collection dir; complains if can't.
+        
+        Celery tasks don't seem to know their own task_id, and there don't
+        appear to be any handlers that can be called just *before* a task
+        is fired. so it appears to be impossible for a task to lock itself.
+        
+        This method should(?) be called immediately after starting the task:
+        >> result = collection_sync.apply_async((args...), countdown=2)
+        >> lock_status = collection.lock(result.task_id)
+        
+        >>> path = '/tmp/ddr-testing-123'
+        >>> os.mkdir(path)
+        >>> c = Collection(path)
+        >>> c.lock('abcdefg')
+        'ok'
+        >>> c.lock('abcdefg')
+        'locked'
+        >>> c.unlock('abcdefg')
+        'ok'
+        >>> os.rmdir(path)
+        
+        TODO return 0 if successful
+        
+        @param lock_path
+        @param text
+        @returns 'ok' or 'locked'
+        """
+        if os.path.exists(lock_path):
+            return 'locked'
+        with open(lock_path, 'w') as f:
+            f.write(text)
+        return 'ok'
     
-    This method should(?) be called immediately after starting the task:
-    >> result = collection_sync.apply_async((args...), countdown=2)
-    >> lock_status = collection.lock(result.task_id)
-    
-    >>> path = '/tmp/ddr-testing-123'
-    >>> os.mkdir(path)
-    >>> c = Collection(path)
-    >>> c.lock('abcdefg')
-    'ok'
-    >>> c.lock('abcdefg')
-    'locked'
-    >>> c.unlock('abcdefg')
-    'ok'
-    >>> os.rmdir(path)
-    
-    TODO return 0 if successful
-    
-    @param lock_path
-    @param text
-    @returns 'ok' or 'locked'
-    """
-    if os.path.exists(lock_path):
-        return 'locked'
-    with open(lock_path, 'w') as f:
-        f.write(text)
-    return 'ok'
-
-def unlock( lock_path, text ):
-    """Removes lockfile or complains if can't
-    
-    This method should be called by celery Task.after_return()
-    See "Abstract classes" section of http://celery.readthedocs.org/en/latest/userguide/tasks.html#custom-task-classes
-    
-    >>> path = '/tmp/ddr-testing-123'
-    >>> os.mkdir(path)
-    >>> c = Collection(path)
-    >>> c.lock('abcdefg')
-    'ok'
-    >>> c.unlock('xyz')
-    'task_id miss'
-    >>> c.unlock('abcdefg')
-    'ok'
-    >>> c.unlock('abcdefg')
-    'not locked'
-    >>> os.rmdir(path)
-    
-    TODO return 0 if successful
-    
-    @param lock_path
-    @param text
-    @returns 'ok', 'not locked', 'task_id miss', 'blocked'
-    """
-    if not os.path.exists(lock_path):
-        return 'not locked'
-    with open(lock_path, 'r') as f:
-        lockfile_text = f.read().strip()
-    if lockfile_text and (lockfile_text != text):
-        return 'miss'
-    os.remove(lock_path)
-    if os.path.exists(lock_path):
-        return 'blocked'
-    return 'ok'
-    
-def locked( lock_path ):
-    """Returns contents of lockfile if collection repo is locked, False if not
-    
-    >>> c = Collection('/tmp/ddr-testing-123')
-    >>> c.locked()
-    False
-    >>> c.lock('abcdefg')
-    'ok'
-    >>> c.locked()
-    'abcdefg'
-    >>> c.unlock('abcdefg')
-    'ok'
-    >>> c.locked()
-    False
-    
-    @param lock_path
-    """
-    if os.path.exists(lock_path):
+    @staticmethod
+    def unlock( lock_path, text ):
+        """Removes lockfile or complains if can't
+        
+        This method should be called by celery Task.after_return()
+        See "Abstract classes" section of
+        http://celery.readthedocs.org/en/latest/userguide/tasks.html#custom-task-classes
+        
+        >>> path = '/tmp/ddr-testing-123'
+        >>> os.mkdir(path)
+        >>> c = Collection(path)
+        >>> c.lock('abcdefg')
+        'ok'
+        >>> c.unlock('xyz')
+        'task_id miss'
+        >>> c.unlock('abcdefg')
+        'ok'
+        >>> c.unlock('abcdefg')
+        'not locked'
+        >>> os.rmdir(path)
+        
+        TODO return 0 if successful
+        
+        @param lock_path
+        @param text
+        @returns 'ok', 'not locked', 'task_id miss', 'blocked'
+        """
+        if not os.path.exists(lock_path):
+            return 'not locked'
         with open(lock_path, 'r') as f:
-            text = f.read().strip()
-        return text
-    return False
-
+            lockfile_text = f.read().strip()
+        if lockfile_text and (lockfile_text != text):
+            return 'miss'
+        os.remove(lock_path)
+        if os.path.exists(lock_path):
+            return 'blocked'
+        return 'ok'
+    
+    @staticmethod
+    def locked( lock_path ):
+        """Returns contents of lockfile if collection repo is locked, False if not
+        
+        >>> c = Collection('/tmp/ddr-testing-123')
+        >>> c.locked()
+        False
+        >>> c.lock('abcdefg')
+        'ok'
+        >>> c.locked()
+        'abcdefg'
+        >>> c.unlock('abcdefg')
+        'ok'
+        >>> c.locked()
+        False
+        
+        @param lock_path
+        """
+        if os.path.exists(lock_path):
+            with open(lock_path, 'r') as f:
+                text = f.read().strip()
+            return text
+        return False
+    
 
 
 # objects --------------------------------------------------------------
@@ -951,7 +1051,7 @@ class Collection( object ):
     
     def __init__( self, path, uid=None ):
         """
-        >>> c = DDRLocalCollection('/tmp/ddr-testing-123')
+        >>> c = Collection('/tmp/ddr-testing-123')
         >>> c.uid
         'ddr-testing-123'
         >>> c.repo
@@ -976,7 +1076,7 @@ class Collection( object ):
             uid = os.path.basename(self.path)
         self.uid  = uid
         self.id = uid
-        self_model,self.repo,self.org,self.cid = split_object_id(uid)
+        self_model,self.repo,self.org,self.cid = Identity.split_object_id(uid)
         self.annex_path         = os.path.join(self.path, '.git', 'annex')
         self.annex_path_rel     = os.path.join('.git', 'annex')
         self.json_path          = self._path_absrel('collection.json')
@@ -1009,12 +1109,12 @@ class Collection( object ):
         
         Also sets initial field values if present.
         
-        >>> c = DDRLocalCollection.create('/tmp/ddr-testing-120')
+        >>> c = Collection.create('/tmp/ddr-testing-120')
         
         @param path: Absolute path to collection; must end in valid DDR collection id.
         @returns: Collection object
         """
-        collection = DDRLocalCollection(path)
+        collection = Collection(path)
         for f in collectionmodule.FIELDS:
             if hasattr(f, 'name') and hasattr(f, 'initial'):
                 setattr(collection, f['name'], f['initial'])
@@ -1022,23 +1122,23 @@ class Collection( object ):
     
     @staticmethod
     def from_json(collection_abs):
-        """Creates a DDRLocalCollection and populates with data from JSON file.
+        """Creates a Collection and populates with data from JSON file.
         
         @param collection_abs: Absolute path to collection directory.
-        @returns: DDRLocalCollection
+        @returns: Collection
         """
-        return from_json(DDRLocalCollection, os.path.join(collection_abs, 'collection.json'))
+        return from_json(Collection, os.path.join(collection_abs, 'collection.json'))
     
     def model_def_commits( self ):
-        return cmp_model_definition_commits(self, collectionmodule)
+        return Module(collectionmodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return cmp_model_definition_fields(read_json(self.json_path), collectionmodule)
+        return Module(collectionmodule).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return labels_values(self, collectionmodule)
+        return Module(collectionmodule).labels_values(self)
     
     def inheritable_fields( self ):
         """Returns list of Collection object's field names marked as inheritable.
@@ -1047,7 +1147,7 @@ class Collection( object ):
         >>> c.inheritable_fields()
         ['status', 'public', 'rights']
         """
-        return _inheritable_fields(collectionmodule.FIELDS )
+        return Inheritance.inheritable_fields(collectionmodule.FIELDS )
 
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -1058,7 +1158,7 @@ class Collection( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: list
         """
-        return _selected_inheritables(self.inheritable_fields(), cleaned_data)
+        return Inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
         """Update specified fields of child objects.
@@ -1067,7 +1167,7 @@ class Collection( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: tuple [changed object Ids],[changed objects' JSON files]
         """
-        return _update_inheritables(self, 'collection', inheritables, cleaned_data)
+        return Inheritance.update_inheritables(self, 'collection', inheritables, cleaned_data)
     
     def load_json(self, json_text):
         """Populates Collection from JSON-formatted text.
@@ -1105,9 +1205,9 @@ class Collection( object ):
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
     
-    def lock( self, text ): return lock(self.lock_path, text)
-    def unlock( self, text ): return unlock(self.lock_path, text)
-    def locked( self ): return locked(self.lock_path)
+    def lock( self, text ): return Locking.lock(self.lock_path, text)
+    def unlock( self, text ): return Locking.unlock(self.lock_path, text)
+    def locked( self ): return Locking.locked(self.lock_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -1142,10 +1242,11 @@ class Collection( object ):
             if hasattr(self, f['name']):
                 value = getattr(self, key)
                 # run ead_* functions on field data if present
-                tree = module_xml_function(collectionmodule,
-                                           'ead_%s' % key,
-                                           tree, NAMESPACES, f,
-                                           value)
+                tree = Module(collectionmodule).xml_function(
+                    'ead_%s' % key,
+                    tree, NAMESPACES, f,
+                    value
+                )
         xml_pretty = etree.tostring(tree, pretty_print=True)
         with open(self.ead_path, 'w') as f:
             f.write(xml_pretty)
@@ -1195,7 +1296,7 @@ class Collection( object ):
         
         >>> c = Collection.from_json('/tmp/ddr-testing-123')
         >>> c.entities()
-        [<DDRLocalEntity ddr-testing-123-1>, <DDRLocalEntity ddr-testing-123-2>, ...]
+        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
         
         @param quick: Boolean List only titles and IDs
         """
@@ -1340,7 +1441,7 @@ class Entity( object ):
             uid = os.path.basename(self.path)
         self.uid = uid
         self.id = uid
-        self_model,self.repo,self.org,self.cid,self.eid = split_object_id(uid)
+        self_model,self.repo,self.org,self.cid,self.eid = Identity.split_object_id(uid)
         self.parent_uid = os.path.split(self.parent_path)[1]
         self.json_path          = self._path_absrel('entity.json')
         self.json_path_rel      = self._path_absrel('entity.json',rel=True)
@@ -1379,18 +1480,18 @@ class Entity( object ):
         return from_json(Entity, os.path.join(entity_abs, 'entity.json'))
     
     def model_def_commits( self ):
-        return cmp_model_definition_commits(self, entitymodule)
+        return Module(entitymodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return cmp_model_definition_fields(read_json(self.json_path), entitymodule)
+        return Module(entitymodule).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return labels_values(self, entitymodule)
+        return Module(entitymodule).labels_values(self)
 
     def inheritable_fields( self ):
-        return _inheritable_fields(entitymodule.FIELDS)
+        return Inheritance.inheritable_fields(entitymodule.FIELDS)
     
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -1401,7 +1502,7 @@ class Entity( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: list
         """
-        return _selected_inheritables(self.inheritable_fields(), cleaned_data)
+        return Inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
         """Update specified fields of child objects.
@@ -1410,14 +1511,14 @@ class Entity( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: tuple [changed object Ids],[changed objects' JSON files]
         """
-        return _update_inheritables(self, 'entity', inheritables, cleaned_data)
+        return Inheritance.update_inheritables(self, 'entity', inheritables, cleaned_data)
     
     def inherit( self, parent ):
-        _inherit( parent, self )
+        Inheritance.inherit( parent, self )
     
-    def lock( self, text ): return lock(self.lock_path, text)
-    def unlock( self, text ): return unlock(self.lock_path, text)
-    def locked( self ): return locked(self.lock_path)
+    def lock( self, text ): return Locking.lock(self.lock_path, text)
+    def unlock( self, text ): return Locking.unlock(self.lock_path, text)
+    def locked( self ): return Locking.locked(self.lock_path)
 
     def load_json(self, json_text):
         """Populate Entity data from JSON-formatted text.
@@ -1516,10 +1617,11 @@ class Entity( object ):
             if hasattr(self, f['name']):
                 value = getattr(self, f['name'])
                 # run mets_* functions on field data if present
-                tree = module_xml_function(entitymodule,
-                                           'mets_%s' % key,
-                                           tree, NAMESPACES, f,
-                                           value)
+                tree = Module(entitymodule).xml_function(
+                    'mets_%s' % key,
+                    tree, NAMESPACES, f,
+                    value
+                )
         xml_pretty = etree.tostring(tree, pretty_print=True)
         with open(self.mets_path, 'w') as f:
             f.write(xml_pretty)
@@ -1689,8 +1791,9 @@ class Entity( object ):
             """Write to addfile log and raise an exception."""
             log.not_ok(msg)
             raise Exception(msg)
-        
-        log.ok('ddrlocal.models.DDRLocalEntity.add_file: START')
+
+        log.ok('------------------------------------------------------------------------')
+        log.ok('DDR.models.Entity.add_file: START')
         log.ok('entity: %s' % self.id)
         log.ok('data: %s' % data)
         
@@ -1836,19 +1939,24 @@ class Entity( object ):
         annex_files = [f.path_abs.replace('%s/' % f.collection_path, '')]
         if f.access_abs:
             annex_files.append(f.access_abs.replace('%s/' % f.collection_path, ''))
-        to_stage = len(git_files + annex_files)
+        repo = dvcs.repository(f.collection_path)
+        log.ok(repo)
+        # These vars will be used to determine if stage operation is successful.
+        # If called in batch operation there may already be staged files.
+        # stage_planned   Files added/modified by this function call
+        # stage_already   Files that were already staged
+        # stage_predicted List of staged files that should result from this operation.
+        # stage_new       Files that are being added.
+        stage_planned = git_files + annex_files
+        stage_already = dvcs.list_staged(repo)
+        stage_predicted = self._addfile_predict_staged(stage_already, stage_planned)
+        stage_new = [x for x in stage_planned if x not in stage_already]
+        log.ok('Staging %s files' % len(stage_planned))
         stage_ok = False
+        staged = []
         try:
-            repo = dvcs.repository(f.collection_path)
-            log.ok(repo)
-            log.ok('Staging %s files to the repo' % to_stage)
             dvcs.stage(repo, git_files, annex_files)
-            staged = len(dvcs.list_staged(repo))
-            if staged == to_stage:
-                log.ok('%s files staged' % staged)
-                stage_ok = True
-            else:
-                log.not_ok('%s files staged (should be %s)' % (staged, to_stage))
+            staged = dvcs.list_staged(repo)
         except:
             # FAILED! print traceback to addfile log
             entrails = traceback.format_exc().strip()
@@ -1856,10 +1964,20 @@ class Entity( object ):
             with open(self._addfile_log_path(), 'a') as f:
                 f.write(entrails)
         finally:
+            if len(staged) == len(stage_predicted):
+                log.ok('%s files staged (%s new, %s modified)' % (
+                    len(staged), len(stage_new), len(stage_already)))
+                stage_ok = True
+            else:
+                log.not_ok('%s new files staged (should be %s)' % (
+                    len(staged), len(stage_predicted)))
             if not stage_ok:
                 log.not_ok('File staging aborted. Cleaning up...')
                 # try to pick up the pieces
                 # mv files back to tmp_dir
+                # TODO Properly clean up git-annex-added files.
+                #      This clause moves the *symlinks* to annex files but leaves
+                #      the actual binaries in the .git/annex objects dir.
                 for tmp,dest in new_files:
                     log.not_ok('mv %s %s' % (dest,tmp))
                     os.rename(dest,tmp)
@@ -1869,6 +1987,22 @@ class Entity( object ):
         # IMPORTANT: Files are only staged! Be sure to commit!
         # IMPORTANT: changelog is not staged!
         return f,repo,log
+    
+    def _addfile_predict_staged(self, already, planned):
+        """Predict which files will be staged, accounting for modifications
+        
+        When running a batch import there will already be staged files when this function is called.
+        Some files to be staged will be modifications (e.g. entity.json).
+        Predicts the list of files that will be staged if this round of add_file succeeds.
+        how many files SHOULD be staged after we run this?
+        
+        @param already: list Files already staged.
+        @param planned: list Files to be added/modified in this operation.
+        @returns: list
+        """
+        additions = [path for path in planned if path not in already]
+        total = already + additions
+        return total
     
     def add_file_commit(self, file_, repo, log, git_name, git_mail, agent):
         staged = dvcs.list_staged(repo)
@@ -1929,7 +2063,7 @@ class Entity( object ):
             log.not_ok(msg)
             raise Exception(msg)
         
-        log.ok('ddrlocal.models.DDRLocalEntity.add_access: START')
+        log.ok('DDR.models.Entity.add_access: START')
         log.ok('entity: %s' % self.id)
         log.ok('ddrfile: %s' % ddrfile)
         
@@ -2027,7 +2161,7 @@ class Entity( object ):
                 self.parent_path, self.id, git_files, annex_files,
                 agent=agent, entity=self)
             log.ok('status: %s' % status)
-            log.ok('ddrlocal.models.DDRLocalEntity.add_file: FINISHED')
+            log.ok('DDR.models.Entity.add_file: FINISHED')
         except:
             # COMMIT FAILED! try to pick up the pieces
             # print traceback to addfile log
@@ -2159,7 +2293,7 @@ class File( object ):
         # load JSON
         if self.path_abs:
             self.path = self.path_abs
-            p = dissect_path(self.path_abs)
+            p = Identity.dissect_path(self.path_abs)
             self.collection_path = p.collection_path
             self.entity_path = p.entity_path
             self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
@@ -2191,15 +2325,15 @@ class File( object ):
     # entities/files/???
     
     def model_def_commits( self ):
-        return cmp_model_definition_commits(self, filemodule)
+        return Module(filemodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return cmp_model_definition_fields(read_json(self.json_path), filemodule)
+        return Module(filemodule).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return labels_values(self, filemodule)
+        return Module(filemodule).labels_values(self)
     
     def files_rel( self, collection_path ):
         """Returns list of the file, its metadata JSON, and access file, relative to collection.
@@ -2233,7 +2367,7 @@ class File( object ):
         return False
     
     def inherit( self, parent ):
-        _inherit( parent, self )
+        Inheritance.inherit( parent, self )
     
     @staticmethod
     def from_json(file_json):
@@ -2338,7 +2472,7 @@ class File( object ):
     def set_access( self, access_rel, entity=None ):
         """
         @param access_rel: path relative to entity files dir (ex: 'thisfile.ext')
-        @param entity: A DDRLocalEntity object (optional)
+        @param entity: A Entity object (optional)
         """
         self.access_rel = os.path.basename(access_rel)
         if entity:

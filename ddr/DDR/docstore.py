@@ -39,6 +39,7 @@ import os
 from elasticsearch import Elasticsearch
 
 from DDR import natural_sort
+from DDR.models import Identity
 from DDR import models
 
 from DDR import MAPPINGS_PATH
@@ -704,7 +705,7 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
             data[k] = v
     
     document_id = None
-    model = models.model_from_dict(data)
+    model = Identity.model_from_dict(data)
     if model in ['collection', 'entity']:
         if not (data and data.get('id', None)):
             return {'status':2, 'response':'no id'}
@@ -725,14 +726,6 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
         data['id'] = filename
         data['title'] = label
         document_id = data['id']
-    # separate fields for pieces of ID
-    id_parts = data['id'].split('-')
-    if model in ['repo','organization','collection','entity','file']: data['repo'] = id_parts[0]
-    if model in ['organization','collection','entity','file']: data['org'] = id_parts[1]
-    if model in ['collection','entity','file']: data['cid'] = int(id_parts[2])
-    if model in ['entity','file']: data['eid'] = int(id_parts[3])
-    if model in ['file']: data['role'] = id_parts[4]
-    if model in ['file']: data['sha1'] = id_parts[5]
     # additional_fields
     for key,val in additional_fields.iteritems():
         data[key] = val
@@ -975,7 +968,7 @@ def delete( hosts, index, document_id, recursive=False ):
     @param document_id:
     @param recursive: True or False
     """
-    model = models.split_object_id(document_id)[0]
+    model = Identity.split_object_id(document_id)[0]
     es = _get_connection(hosts)
     if recursive:
         if model == 'collection': doc_type = 'collection,entity,file'
@@ -1050,7 +1043,7 @@ def _parents_status( paths ):
             parents[o.pop('id')] = o
     return parents
 
-def _file_parent_ids( model, path ):
+def _file_parent_ids( path ):
     """Calculate the parent IDs of an entity or file from the filename.
     
     TODO not specific to elasticsearch - move this function so other modules can use
@@ -1062,23 +1055,15 @@ def _file_parent_ids( model, path ):
     >>> _file_parent_ids('file', '.../ddr-testing-123-1-master-a1b2c3d4e5.json')
     ['ddr-testing-123', 'ddr-testing-123-1']
     
-    @param model
     @param path: absolute or relative path to metadata JSON file.
     @returns: parent_ids
     """
-    parent_ids = []
-    if model == 'file':
-        fname = os.path.basename(path)
-        file_id = os.path.splitext(fname)[0]
-        repo,org,cid,eid,role,sha1 = file_id.split('-')
-        parent_ids.append( '-'.join([repo,org,cid])     ) # collection
-        parent_ids.append( '-'.join([repo,org,cid,eid]) ) # entity
-    elif model == 'entity':
-        entity_dir = os.path.dirname(path)
-        entity_id = os.path.basename(entity_dir)
-        repo,org,cid,eid = entity_id.split('-')
-        parent_ids.append( '-'.join([repo,org,cid]) )     # collection
-    return parent_ids
+    p = Identity.dissect_path(path)
+    if p.model == 'file':
+        return [p.collection_id, p.entity_id]
+    elif p.model == 'entity':
+        return [p.collection_id]
+    return []
 
 def _publishable_or_not( paths, parents ):
     """Determines which paths represent publishable paths and which do not.
@@ -1090,11 +1075,10 @@ def _publishable_or_not( paths, parents ):
     successful_paths = []
     bad_paths = []
     for path in paths:
-        model = models.model_from_path(path)
         # see if item's parents are incomplete or nonpublic
         # TODO Bad! Bad! Generalize this...
         UNPUBLISHABLE = []
-        parent_ids = _file_parent_ids(model, path)
+        parent_ids = _file_parent_ids(path)
         for parent_id in parent_ids:
             parent = parents.get(parent_id, {})
             for x in parent.itervalues():
@@ -1118,11 +1102,9 @@ def _has_access_file( path, suffix='-a.jpg' ):
     @param suffix: Suffix that is applied to File ID to get access file.
     @returns: True,False
     """
-    base,ext = os.path.splitext(path)
-    if ext == '.json':
-        access = base + suffix
-        if os.path.exists(access) or os.path.islink(access):
-            return True
+    fp = Identity.dissect_path(path)
+    if os.path.exists(fp.access_path) or os.path.islink(fp.access_path):
+        return True
     return False
 
 def _store_signature_file( signatures, path, model, master_substitute ):
@@ -1131,7 +1113,8 @@ def _store_signature_file( signatures, path, model, master_substitute ):
     IMPORTANT: remember to change 'zzzzzz' back to 'master'
     """
     if _has_access_file(path):
-        thumbfile = models.id_from_path(path)
+        # TODO Identity.dissect_path
+        thumbfile = Identity.id_from_path(path)
         # replace 'master' with something so mezzanine wins in sort
         thumbfile_mezzfirst = thumbfile.replace('master', master_substitute)
         repo,org,cid,eid,role,sha1 = thumbfile.split('-')
@@ -1168,7 +1151,7 @@ def _choose_signatures( paths ):
     SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
     signature_files = {}
     for path in paths:
-        model = models.model_from_path(path)
+        model = Identity.model_from_path(path)
         if model == 'file':
             # decide whether to store this as a collection/entity signature
             _store_signature_file(signature_files, path, model, SIGNATURE_MASTER_SUBSTITUTE)
@@ -1238,9 +1221,9 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     
     successful = 0
     for path in successful_paths:
-        model = models.model_from_path(path)
-        object_id = models.id_from_path(path)
-        parent_id = models.parent_id(object_id)
+        model = Identity.model_from_path(path)
+        object_id = Identity.id_from_path(path)
+        parent_id = Identity.parent_id(object_id)
         
         publicfields = []
         if public and model:
