@@ -22,13 +22,29 @@ def find_version(*file_paths):
 long_description = read('README.rst')
 
 setup(
-    description = 'ddr-cmdln',
-    author = 'Geoffrey Jost',
-    version = find_version('DDR', '__init__.py'),
     url = 'https://github.com/densho/ddr-cmdln/',
     download_url = 'https://github.com/densho/ddr-cmdln.git',
-    author_email = 'geoffrey.jost@densho.org',
+    name = 'ddr-cmdln',
+    description = 'ddr-cmdln',
     long_description = long_description,
+    version = find_version('DDR', '__init__.py'),
+    #license = 'TBD',
+    author = 'Geoffrey Jost',
+    author_email = 'geoffrey.jost@densho.org',
+    platforms = 'Linux',
+    classifiers = [  # https://pypi.python.org/pypi?:action=list_classifiers
+        'Development Status :: 4 - Beta',
+        'Natural Language :: English',
+        'Environment :: Console',
+        'Intended Audience :: Other Audience',
+        #'License :: OSI Approved :: TBD',
+        'Natural Language :: English',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
+        'Topic :: Other/Nonlisted Topic',
+        'Topic :: Sociology :: History',
+    ],
     install_requires = [
         'nose'
     ],
@@ -36,6 +52,7 @@ setup(
         'DDR',
         'DDR.converters'
     ],
+    include_package_data = True,
     package_dir = {
         'DDR': 'DDR'
     },
@@ -55,5 +72,4 @@ setup(
         'bin/ddrpubcopy',
         'bin/ddrdensho255fix',
     ],
-    name = 'ddr'
 )
