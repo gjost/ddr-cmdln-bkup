@@ -442,7 +442,7 @@ def cgit_collection_title(repo, session, timeout=5):
     logging.debug(url)
     try:
         r = session.get(url, timeout=timeout)
-        logging.debug(str(r.status_code))
+        logging.debug(unicode(r.status_code))
     except requests.ConnectionError:
         r = None
         title = '[ConnectionError]'

@@ -141,7 +141,7 @@ def main():
         print '%s%s' % (
             prefix,
             ','.join([
-                str(args.collection_id), str(len(paths)), str(len(defects)), str(elapsed)
+                unicode(args.collection_id), unicode(len(paths)), unicode(len(defects)), unicode(elapsed)
             ])
         )
     elif args.json:
@@ -149,7 +149,7 @@ def main():
             'collection id': args.collection_id,
             'files': len(paths),
             'defects': len(defects),
-            'elapsed': str(elapsed),
+            'elapsed': unicode(elapsed),
             }
         print '%s%s' % (
             prefix,

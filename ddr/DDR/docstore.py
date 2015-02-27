@@ -505,13 +505,13 @@ def _clean_controlled_vocab( data ):
     @returns: list of ID strings
     """
     if isinstance(data, int):
-        data = str(data)
+        data = unicode(data)
     if isinstance(data, basestring):
         data = [data]
     cleaned = []
     for x in data:
-        if not isinstance(x, basestring):
-            x = str(x)
+        if not isinstance(x, unicode):
+            x = unicode(x)
         if ('[' in x) and (']' in x):
             y = x.split('[')[1].split(']')[0] 
         else:

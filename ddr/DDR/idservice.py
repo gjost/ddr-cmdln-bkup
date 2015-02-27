@@ -271,7 +271,7 @@ def entities_next(session, repo, org, cid, num_ids=1):
     @param num_ids: int The number of new IDs requested.
     @returns: list of entity_ids or debugging info.
     """
-    new_ids_url = WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',str(cid))
+    new_ids_url = WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',unicode(cid))
     csrf_token_url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
     tag_class = ['td', 'eid']
     return _objects_next(
