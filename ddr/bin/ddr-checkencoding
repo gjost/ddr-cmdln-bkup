@@ -28,6 +28,7 @@ import sys
 import chardet
 import git
 
+from DDR import batch
 from DDR import models
 from DDR import CONFIG_FILES, NoConfigError
 
@@ -36,16 +37,28 @@ configs_read = config.read(CONFIG_FILES)
 if not configs_read:
     raise NoConfigError('No config file!')
 
+REPO_MODELS_PATH = config.get('cmdln','repo_models_path')
+if REPO_MODELS_PATH not in sys.path:
+    sys.path.append(REPO_MODELS_PATH)
+
+try:
+    from repo_models import collection as collectionmodule
+    from repo_models import entity as entitymodule
+    from repo_models import files as filemodule
+except ImportError:
+    raise Exception("Could not load repo_models. No Store mounted, no 'ddr' repository, no valid repo_models in 'ddr' repo, or possibly an error in the repo_model module code.")
+
 
 def out(verbose, text):
     if verbose:
         print(text)
 
-def clone(url, destpath):
+def clone(url, destpath, verbose=False):
     """
     @param url: 
     @param destpath: 
     """
+    out(verbose, 'git clone %s %s' % (url, destpath))
     return git.Repo.clone_from(url, destpath)
 
 def clean(repo_path):
@@ -54,26 +67,103 @@ def clean(repo_path):
     """
     shutil.rmtree(repo_path)
 
-def analyze_files(repo_path, verbose=False):
-    paths = models.metadata_files(repo_path, recursive=True)
+def read_file(path, verbose=False):
+    """Read file in UTF-8 strict, complain if error
+    
+    open with utf-8 strict
+    
+    @param path: str
+    @param verbose: boolean
+    @returns: exit_code,text
+    """
+    exit_code = 0
+    text = None
+    try:
+        text = models.read_json(path)
+    except:
+        # TODO print traceback
+        exit_code = 1
+        raw = models.read_text_unsafe(path)
+        guess = chardet.detect(raw)
+        if verbose:
+            print('|         %s' % (guess))
+    return exit_code,text
+
+def load_object(model, path, json_text):
+    if model == 'collection':
+        o = models.Collection(os.path.dirname(path))
+    elif model == 'entity':
+        o = models.Entity(os.path.dirname(path))
+    elif model == 'file':
+        o = models.File(path_abs=path)
+    o.load_json(json_text)
+    return o
+    
+def write_file_tmp(obj, path, verbose=False):
+    exit_code = 0
+    try:
+        json_text = obj.dump_json()
+        models.write_text(json_text, path)
+    except:
+        # TODO print traceback
+        exit_code = 1
+    return exit_code
+    
+def write_line_csv(module, headers, obj, path, verbose=False):
+    exit_code = 0
+    try:
+        field_names = headers[module.MODEL]
+        row = batch.dump_object(obj, module, field_names)
+        batch.write_csv(path, field_names, [row])
+    except:
+        # TODO print traceback
+        exit_code = 1
+    return exit_code
+
+def analyze_files(modules, module_fields, paths, verbose=False):
     defects = []
-    for path in paths:
-        bad = 0
-        try:
-            with codecs.open(path, 'r', encoding='utf-8', errors='strict') as f:
-                text = f.read()
-        except:
-            bad += 1
+    for n,path in enumerate(paths):
+        out(verbose, '%s/%s %s' % (n,len(paths),path))
+        object_id = models.Identity.id_from_path(path)
+        model = models.Identity.model_from_path(path)
+        # try to READ file
+        exit0,json_text = read_file(path, verbose)
+        # load
+        obj = None
+        if not exit0:
+            obj = load_object(model, path, json_text)
+        # try to write file
+        exit1 = None
+        if obj and not exit0:
+            path_tmp = '%s-tmp.json' % os.path.splitext(path)[0]
+            exit1 = write_file_tmp(obj, path_tmp, verbose)
+        # try to write csv
+        exit2 = None
+        if obj and not (exit0 or exit1):
+            module = modules[model]
+            headers = module_fields[model]
+            path_csv = '%s.csv' % os.path.splitext(path)[0]
+            exit2 = write_line_csv(module, headers, obj, path_csv, verbose)
+        if exit0 or exit1 or exit2:
             defects.append(path)
-            with open(path, 'r') as f:
-                text = f.read()
-            guess = chardet.detect(text)
-            if verbose:
-                print('\n| %s %s' % (path, guess))
-        if (not bad) and verbose:
-            sys.stdout.write('.')
-    if len(paths) and verbose:
-        print('')
+    return defects
+
+def analyze(repo_path, verbose=False):
+    modules = {
+        'collection': collectionmodule,
+        'entity': entitymodule,
+        'file': filemodule,
+    }
+    module_fields = {
+        'collection': batch.module_field_names(modules['collection']),
+        'entity': batch.module_field_names(modules['entity']),
+        'file': batch.module_field_names(modules['file']),
+    }
+    out(verbose, 'Finding metadata files')
+    paths = models.metadata_files(repo_path, recursive=True)
+    out(verbose, '%s files' % len(paths))
+    out(verbose, 'Analyzing files')
+    defects = analyze_files(modules, module_fields, paths, verbose)
     return paths,defects
 
 
@@ -114,23 +204,18 @@ def main():
     
     out(args.verbose, args.collection_id)
     
-    start = datetime.now()
-    out(args.verbose, start)
-    
     url = args.repo_url_pattern.replace('REPO', args.collection_id)
     repo_path = args.dest_dir.replace('REPO', args.collection_id)
     
-    out(args.verbose, repo_path)
-    out(args.verbose, 'clone %s %s' % (url, repo_path))
+    start = datetime.now()
+    out(args.verbose, start)
     
-    repo = clone(url, repo_path)
-    
+    repo = clone(url, repo_path, args.verbose)
     out(args.verbose, repo)
     
-    paths,defects = analyze_files(repo_path, args.verbose)
+    paths,defects = analyze(repo_path, args.verbose)
     
     out(args.verbose, 'cleaning up')
-    
     clean(repo_path)
     
     end = datetime.now()
