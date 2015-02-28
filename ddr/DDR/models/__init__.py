@@ -4,6 +4,7 @@ NOTE: Much of the code in this module used to be in ddr-local
 for history prior to Feb 2015.
 """
 
+import codecs
 from datetime import datetime
 import glob
 import hashlib
@@ -188,24 +189,45 @@ def document_metadata(module, document_repo_path):
     }
     return data
 
-def read_json(path):
-    """Read text file; make sure text is in UTF-8.
+def read_text(path):
+    """Read text file with strict UTF-8 decoding.
     
     @param path: str Absolute path to file.
     @returns: unicode
     """
-    # TODO use codecs.open utf-8
+    with codecs.open(path, 'r', encoding='utf-8', errors='strict') as f:
+        text = f.read()
+    return text
+
+def write_text(text, path):
+    """Write text to file with strict UTF-8 encoding.
+    
+    @param text: unicode
+    @param path: str Absolute path to file.
+    """
+    with codecs.open(path, 'w', encoding='utf-8', errors='strict') as f:
+        f.write(text)
+
+def read_json(path):
+    """Read text file without UTF-8 decoding.
+    
+    @param path: str Absolute path to file.
+    @returns: unicode
+    """
+    # TODO switch unsafe read_json to utf-8/strict read_text
+    logging.error('DDR.models.read_json IS DEPRECATED--use DDR.models.read_text')
     with open(path, 'r') as f:
         text = f.read()
     return text
 
 def write_json(text, path):
-    """Write text to UTF-8 file.
+    """Write text to file without UTF-8 encoding
     
     @param text: unicode
     @param path: str Absolute path to file.
     """
-    # TODO use codecs.open utf-8
+    # TODO switch unsafe write_json to utf-8/strict write_text
+    logging.error('DDR.models.write_json IS DEPRECATED--use DDR.models.write_text')
     with open(path, 'w') as f:
         f.write(text)
 
