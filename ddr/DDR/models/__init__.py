@@ -1391,8 +1391,7 @@ class EntityAddFileLogger():
         @returns log: A text file.
         """
         entry = '[{}] {} - {}\n'.format(datetime.now().isoformat('T'), ok, msg)
-        with open(self.logpath, 'a') as f:
-            f.write(entry)
+        fileio.append_raw(entry, self.logpath)
     
     def ok(self, msg): self.entry('ok', msg)
     def not_ok(self, msg): self.entry('not ok', msg)
@@ -1960,8 +1959,7 @@ class Entity( object ):
             # FAILED! print traceback to addfile log
             entrails = traceback.format_exc().strip()
             log.not_ok(entrails)
-            with open(self._addfile_log_path(), 'a') as f:
-                f.write(entrails)
+            fileio.append_raw(entrails, self._addfile_log_path())
         finally:
             if len(staged) == len(stage_predicted):
                 log.ok('%s files staged (%s new, %s modified)' % (
@@ -2164,8 +2162,9 @@ class Entity( object ):
         except:
             # COMMIT FAILED! try to pick up the pieces
             # print traceback to addfile log
-            with open(self._addfile_log_path(), 'a') as f:
-                traceback.print_exc(file=f)
+            entrails = traceback.format_exc().strip()
+            log.not_ok(entrails)
+            fileio.append_raw(entrails, self._addfile_log_path())
             # mv files back to tmp_dir
             log.not_ok('status: %s' % status)
             log.not_ok('Cleaning up...')

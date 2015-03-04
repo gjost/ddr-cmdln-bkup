@@ -156,7 +156,6 @@ def write_changelog_entry(path, messages, user, email, timestamp=None):
         preexisting = os.path.getsize(path)
     except:
         preexisting = False
-    with open(path, 'a') as f:
-        if preexisting:
-            f.write('\n')
-        f.write(entry)
+    if preexisting:
+        entry = '\n%s' % entry
+    fileio.append_raw(entry, path)

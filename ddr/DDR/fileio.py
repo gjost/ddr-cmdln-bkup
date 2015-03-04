@@ -58,3 +58,12 @@ def readlines_raw(path):
     with open(path, 'r') as f:
         lines = [line.strip() for line in f.readlines()]
     return lines
+
+def append_raw(text, path):
+    """Append the text to the file without UTF-8 encoding.
+    
+    @param text: unicode
+    @param path: str Absolute path to file.
+    """
+    with open(path, 'a') as f:
+         f.write(text)
