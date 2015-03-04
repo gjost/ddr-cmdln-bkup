@@ -29,6 +29,7 @@ import chardet
 import git
 
 from DDR import batch
+from DDR import fileio
 from DDR import models
 from DDR import CONFIG_FILES, NoConfigError
 
@@ -79,11 +80,11 @@ def read_file(path, verbose=False):
     exit_code = 0
     text = None
     try:
-        text = models.read_json(path)
+        text = fileio.read(path)
     except:
         # TODO print traceback
         exit_code = 1
-        raw = models.read_text_unsafe(path)
+        raw = fileio.read_raw(path)
         guess = chardet.detect(raw)
         if verbose:
             print('|         %s' % (guess))
@@ -103,7 +104,7 @@ def write_file_tmp(obj, path, verbose=False):
     exit_code = 0
     try:
         json_text = obj.dump_json()
-        models.write_text(json_text, path)
+        fileio.write_text(json_text, path)
     except:
         # TODO print traceback
         exit_code = 1

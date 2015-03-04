@@ -1,3 +1,5 @@
+# coding: utf-8
+
 """
 NOTE: Much of the code in this module used to be in ddr-local
 (ddr-local/ddrlocal/ddrlocal/models/__init__.py).  Please refer to that project
@@ -29,6 +31,7 @@ from DDR import format_json, natural_order_string, natural_sort
 from DDR import changelog
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
+from DDR import fileio
 from DDR import imaging
 from DDR.models.xml import EAD, METS
 #from DDR import commands
@@ -189,48 +192,6 @@ def document_metadata(module, document_repo_path):
     }
     return data
 
-def read_text(path):
-    """Read text file with strict UTF-8 decoding.
-    
-    @param path: str Absolute path to file.
-    @returns: unicode
-    """
-    with codecs.open(path, 'r', encoding='utf-8', errors='strict') as f:
-        text = f.read()
-    return text
-
-def write_text(text, path):
-    """Write text to file with strict UTF-8 encoding.
-    
-    @param text: unicode
-    @param path: str Absolute path to file.
-    """
-    with codecs.open(path, 'w', encoding='utf-8', errors='strict') as f:
-        f.write(text)
-
-def read_json(path):
-    """Read text file without UTF-8 decoding.
-    
-    @param path: str Absolute path to file.
-    @returns: unicode
-    """
-    # TODO switch unsafe read_json to utf-8/strict read_text
-    logging.error('DDR.models.read_json IS DEPRECATED--use DDR.models.read_text')
-    with open(path, 'r') as f:
-        text = f.read()
-    return text
-
-def write_json(text, path):
-    """Write text to file without UTF-8 encoding
-    
-    @param text: unicode
-    @param path: str Absolute path to file.
-    """
-    # TODO switch unsafe write_json to utf-8/strict write_text
-    logging.error('DDR.models.write_json IS DEPRECATED--use DDR.models.write_text')
-    with open(path, 'w') as f:
-        f.write(text)
-
 def load_json(document, module, json_text):
     """Populates object from JSON-formatted text.
     
@@ -317,7 +278,7 @@ def from_json(model, json_path):
     if os.path.exists(json_path):
         document = model(os.path.dirname(json_path))
         document_uid = document.id  # save this just in case
-        document.load_json(read_json(json_path))
+        document.load_json(fileio.read_raw(json_path))
         if not document.id:
             # id gets overwritten if document.json is blank
             document.id = document_uid
@@ -1180,7 +1141,7 @@ class Collection( object ):
         return Module(collectionmodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(collectionmodule).cmp_model_definition_fields(read_json(self.json_path))
+        return Module(collectionmodule).cmp_model_definition_fields(fileio.read_raw(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -1250,7 +1211,7 @@ class Collection( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_raw(self.dump_json(doc_metadata=True), self.json_path)
     
     def lock( self, text ): return Locking.lock(self.lock_path, text)
     def unlock( self, text ): return Locking.unlock(self.lock_path, text)
@@ -1364,7 +1325,7 @@ class Collection( object ):
                 # fake Entity with just enough info for lists
                 entity_json_path = os.path.join(path,'entity.json')
                 if os.path.exists(entity_json_path):
-                    for line in read_json(entity_json_path).split('\n'):
+                    for line in fileio.readlines_raw(entity_json_path):
                         if '"title":' in line:
                             e = ListEntity()
                             e.id = e.uid = eid = os.path.basename(path)
@@ -1530,7 +1491,7 @@ class Entity( object ):
         return Module(entitymodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(entitymodule).cmp_model_definition_fields(read_json(self.json_path))
+        return Module(entitymodule).cmp_model_definition_fields(fileio.read_raw(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -1619,7 +1580,7 @@ class Entity( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_raw(self.dump_json(doc_metadata=True), self.json_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -1726,7 +1687,7 @@ class Entity( object ):
             if f and f.get('path_rel',None):
                 path_abs = os.path.join(self.files_path, f['path_rel'])
                 file_ = File(path_abs=path_abs)
-                file_.load_json(read_json(file_.json_path))
+                file_.load_json(fileio.read_raw(file_.json_path))
                 self._file_objects.append(file_)
         # keep track of how many times this gets loaded...
         self._file_objects_loaded = self._file_objects_loaded + 1
@@ -1932,13 +1893,13 @@ class Entity( object ):
         log.ok('Writing file metadata')
         tmp_file_json = os.path.join(tmp_dir, os.path.basename(f.json_path))
         log.ok(tmp_file_json)
-        write_json(f.dump_json(), tmp_file_json)
+        fileio.write_raw(f.dump_json(), tmp_file_json)
         if not os.path.exists(tmp_file_json):
             crash('Could not write file metadata %s' % tmp_file_json)
         log.ok('Writing entity metadata')
         tmp_entity_json = os.path.join(tmp_dir, os.path.basename(self.json_path))
         log.ok(tmp_entity_json)
-        write_json(self.dump_json(), tmp_entity_json)
+        fileio.write_raw(self.dump_json(), tmp_entity_json)
         if not os.path.exists(tmp_entity_json):
             crash('Could not write entity metadata %s' % tmp_entity_json)
         
@@ -2155,7 +2116,7 @@ class Entity( object ):
         log.ok('Writing file metadata')
         tmp_file_json = os.path.join(tmp_dir, os.path.basename(f.json_path))
         log.ok(tmp_file_json)
-        write_json(f.dump_json(), tmp_file_json)
+        fileio.write_raw(f.dump_json(), tmp_file_json)
         if not os.path.exists(tmp_file_json):
             crash('Could not write file metadata %s' % tmp_file_json)
         
@@ -2375,7 +2336,7 @@ class File( object ):
         return Module(filemodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(filemodule).cmp_model_definition_fields(read_json(self.json_path))
+        return Module(filemodule).cmp_model_definition_fields(fileio.read_raw(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -2435,7 +2396,7 @@ class File( object ):
         file_ = None
         if os.path.exists(file_abs) or os.path.islink(file_abs):
             file_ = File(path_abs=file_abs)
-            file_.load_json(read_json(file_.json_path))
+            file_.load_json(fileio.read_raw(file_.json_path))
         return file_
     
     def load_json(self, json_text):
@@ -2465,7 +2426,7 @@ class File( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_raw(self.dump_json(doc_metadata=True), self.json_path)
     
     @staticmethod
     def file_name( entity, path_abs, role, sha1=None ):
@@ -2560,7 +2521,7 @@ class File( object ):
         if r.std_out:
             jsons = r.std_out.strip().split('\n')
         for filename in jsons:
-            data = json.loads(read_json(filename))
+            data = json.loads(fileio.read_raw(filename))
             path_rel = None
             for field in data:
                 if field.get('path_rel',None):
