@@ -4,6 +4,7 @@ import os
 
 from dateutil import parser
 
+from DDR import fileio
 
 
 SAMPLE_OLD_CHANGELOG = """* Added entity file files/ddr-testing-160-1-master-c703e5ece1-a.jpg
@@ -102,8 +103,7 @@ def read_changelog(path):
     @param path: Absolute path to changelog file.
     @returns list of entry dicts
     """
-    with open(path, 'r') as f:
-        log = f.read()
+    log = fileio.read_raw(path)
     return read_entries(log)
 
 def make_entry(messages, user, mail, timestamp=None):
@@ -133,10 +133,7 @@ CHANGELOG_TEMPLATE    = os.path.join(TEMPLATE_PATH, 'changelog.tpl')
 CHANGELOG_DATE_FORMAT = os.path.join(TEMPLATE_PATH, 'changelog-date.tpl')
 
 def load_template(filename):
-    template = ''
-    with open(filename, 'r') as f:
-        template = f.read()
-    return template
+    return fileio.read_raw(filename)
 
 def write_changelog_entry(path, messages, user, email, timestamp=None):
     logging.debug('    write_changelog_entry({})'.format(path))

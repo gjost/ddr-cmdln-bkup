@@ -57,6 +57,7 @@ import git
 
 from DDR import CONFIG_FILES, NoConfigError
 from DDR import docstore
+from DDR import fileio
 from DDR import models
 
 config = ConfigParser.ConfigParser()
@@ -222,8 +223,8 @@ def main():
     # call selected function
     exit = 0
     if args.cmd == 'post':
-        with open(args.path, 'r') as f:
-            document = json.loads(f.read())
+        raw_text = fileio.read_raw(args.path)
+        document = json.loads(raw_text)
         msg = docstore.post(hosts, args.index, document)
         print(msg)
     elif args.cmd == 'get':

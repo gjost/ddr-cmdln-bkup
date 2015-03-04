@@ -5,6 +5,7 @@ import os
 from lxml import etree
 
 from DDR import TEMPLATE_EAD, TEMPLATE_METS
+from DDR import fileio
 
 
 NAMESPACES = {
@@ -25,9 +26,7 @@ NSMAP = {None : NAMESPACES['mets'],}
 
 
 def load_template(filename):
-    template = ''
-    with open(filename, 'r') as f:
-        template = f.read()
+    template = fileio.read_raw(filename)
     return template
 
 
@@ -52,20 +51,17 @@ class EAD( object ):
     def create( path ):
         logger.debug('    EAD.create({})'.format(path))
         t = load_template(TEMPLATE_EAD)
-        with open(path, 'w') as f:
-            f.write(t)
+        fileio.write_raw(t, path)
     
     def read( self ):
         #logger.debug('    EAD.read({})'.format(self.filename))
-        with open(self.filename, 'r') as f:
-            self.xml = f.read()
-            self.tree = etree.fromstring(self.xml)
+        self.xml = fileio.read_raw(self.filename)
+        self.tree = etree.fromstring(self.xml)
     
     def write( self ):
         logger.debug('    EAD.write({})'.format(self.filename))
         xml = etree.tostring(self.tree, pretty_print=True)
-        with open(self.filename, 'w') as f:
-            f.write(xml)
+        fileio.write_raw(xml, self.filename)
     
     def update_dsc( self, collection ):
         """Repopulates <ead><dsc> based on collection.entities().
@@ -124,20 +120,17 @@ class METS( object ):
     def create( path ):
         logger.debug('    METS.create({})'.format(path))
         t = load_template(TEMPLATE_METS)
-        with open(path, 'w') as f:
-            f.write(t)
+        fileio.write_raw(t, path)
     
     def read( self ):
         #logger.debug('    METS.read({})'.format(self.filename))
-        with open(self.filename, 'r') as f:
-            self.xml = f.read()
-            self.tree = etree.fromstring(self.xml)
+        self.xml = fileio.read_raw(self.filename)
+        self.tree = etree.fromstring(self.xml)
     
     def write( self ):
         logger.debug('    METS.write({})'.format(self.filename))
         xml = etree.tostring(self.tree, pretty_print=True)
-        with open(self.filename, 'w') as f:
-            f.write(xml)
+        fileio.write_raw(xml, self.filename)
     
     def update_filesec( self, entity ):
         """Repopulates <mets:mets><mets:fileSec> based on entity files.

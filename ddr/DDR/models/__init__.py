@@ -111,8 +111,8 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
     CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
     paths = []
     if os.path.exists(CACHE_PATH) and not force_read:
-        with open(CACHE_PATH, 'r') as f:
-            paths = [line.strip() for line in f.readlines() if '#' not in line]
+        lines = fileio.readlines_raw(CACHE_PATH)
+        paths = [line.strip() for line in lines if '#' not in line]
     else:
         excludes = ['.git', 'tmp', '*~']
         if recursive:
@@ -158,10 +158,9 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
         path = json_paths.pop()
         model,repo,org,cid,eid,role,sha1 = Identity.split_object_id(Identity.id_from_path(path))
         sort = 0
-        with open(path, 'r') as f:
-            for line in f.readlines():
-                if 'sort' in line:
-                    sort = line.split(':')[1].replace('"','').strip()
+        for line in fileio.readlines_raw(path):
+            if 'sort' in line:
+                sort = line.split(':')[1].replace('"','').strip()
         if rank == 'eid-sort-role':
             key = '-'.join([eid,sort,role,sha1])
         elif rank == 'role-eid-sort':
@@ -960,8 +959,7 @@ class Locking(object):
         """
         if os.path.exists(lock_path):
             return 'locked'
-        with open(lock_path, 'w') as f:
-            f.write(text)
+        fileio.write_raw(text, lock_path)
         return 'ok'
     
     @staticmethod
@@ -993,8 +991,7 @@ class Locking(object):
         """
         if not os.path.exists(lock_path):
             return 'not locked'
-        with open(lock_path, 'r') as f:
-            lockfile_text = f.read().strip()
+        lockfile_text = fileio.read_raw(lock_path).strip()
         if lockfile_text and (lockfile_text != text):
             return 'miss'
         os.remove(lock_path)
@@ -1021,8 +1018,7 @@ class Locking(object):
         @param lock_path
         """
         if os.path.exists(lock_path):
-            with open(lock_path, 'r') as f:
-                text = f.read().strip()
+            text = fileio.read_raw(lock_path).strip()
             return text
         return False
     
@@ -1219,7 +1215,7 @@ class Collection( object ):
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
-            return open(self.changelog_path, 'r').read()
+            return fileio.read_raw(self.changelog_path)
         return '%s is empty or missing' % self.changelog_path
     
     def control( self ):
@@ -1256,17 +1252,14 @@ class Collection( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        with open(self.ead_path, 'w') as f:
-            f.write(xml_pretty)
+        fileio.write_raw(xml_pretty, self.ead_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
-            with open(GITIGNORE_TEMPLATE, 'r') as fr:
-                gt = fr.read()
-            with open(self.gitignore_path, 'w') as fw:
-                fw.write(gt)
-        with open(self.gitignore_path, 'r') as f:
-            return f.read()
+            fileio.write_raw(
+                fileio.read_raw(GITIGNORE_TEMPLATE),
+                self.gitignore_path)
+        return fileio.read_raw(self.gitignore_path)
     
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
@@ -1407,8 +1400,7 @@ class EntityAddFileLogger():
     def log(self):
         log = ''
         if os.path.exists(self.logpath):
-            with open(self.logpath, 'r') as f:
-                log = f.read()
+            log = fileio.read_raw(self.logpath)
         return log
 
 class Entity( object ):
@@ -1584,7 +1576,7 @@ class Entity( object ):
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
-            return open(self.changelog_path, 'r').read()
+            return fileio.read_raw(self.changelog_path)
         return '%s is empty or missing' % self.changelog_path
     
     def control( self ):
@@ -1631,8 +1623,7 @@ class Entity( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        with open(self.mets_path, 'w') as f:
-            f.write(xml_pretty)
+        fileio.write_raw(xml_pretty, self.mets_path)
     
     @staticmethod
     def checksum_algorithms():
@@ -2312,8 +2303,8 @@ class File( object ):
             if self.json_path_rel[0] == '/':
                 self.json_path_rel = self.json_path_rel[1:]
             ## TODO seriously, do we need this?
-            #with open(self.json_path, 'r') as f:
-            #    self.load_json(f.read())
+            #raw_text = fileio.read_raw(self.json_path)
+            #self.load_json(raw_text)
             access_abs = None
             if self.access_rel and self.entity_path:
                 access_abs = os.path.join(self.entity_files_path, self.access_rel)

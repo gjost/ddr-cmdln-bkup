@@ -12,6 +12,7 @@ import git
 import requests
 
 from DDR import CGIT_URL
+from DDR import fileio
 from DDR import storage
 
 
@@ -662,8 +663,7 @@ def merge_add( repo, file_path_rel ):
     """
     # check for merge conflict markers
     file_path_abs = os.path.join(repo_path, file_path_rel)
-    with open(file_path_abs, 'r') as f:
-        txt = f.read()
+    txt = fileio.read_raw(file_path_abs)
     if (MERGE_MARKER_START in txt) or (MERGE_MARKER_MID in txt) or (MERGE_MARKER_END in txt):
         return 'ERROR: file still contains merge conflict markers'
     repo.git.add(file_path_rel)

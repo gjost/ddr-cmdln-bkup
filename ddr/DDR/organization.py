@@ -8,6 +8,7 @@ import re
 import envoy
 import git
 
+from DDR import fileio
 
 
 DRIVE_FILE_FIELDS = 'id,level'
@@ -105,10 +106,9 @@ def group_repo_level( path, repo_basename ):
     @return level
     """
     level = 'unknown'
-    with open(path,'r') as f:
-        for line in f.readlines():
-            if repo_basename in line:
-                level = line.split(',')[1].strip()
+    for line in fileio.readlines_raw(path):
+        if repo_basename in line:
+            level = line.split(',')[1].strip()
     return level
 
 def repo_level( repo_path, level=None ):

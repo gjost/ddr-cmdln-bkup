@@ -53,6 +53,7 @@ import envoy
 import git
 
 from DDR import CONFIG_FILES, NoConfigError
+from DDR import fileio
 
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
@@ -218,9 +219,8 @@ def is_publishable( json_path ):
     @param path: Absolute path to *.json file.
     @returns: True or False
     """
-    data = None
-    with open(json_path, 'r') as f:
-        data = json.loads(f.read())
+    raw_text = fileio.read_raw(json_path)
+    data = json.loads(raw_text)
     if data:
         public = False
         completed = False
@@ -244,9 +244,8 @@ def is_publishable_file( json_path ):
     @param path: Absolute path to *.json file.
     @returns: True or False
     """
-    data = None
-    with open(json_path, 'r') as f:
-        data = json.loads(f.read())
+    raw_text = fileio.read_raw(json_path)
+    data = json.loads(raw_text)
     if data:
         public = False
         for field in data:

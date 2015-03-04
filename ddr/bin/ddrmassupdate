@@ -38,6 +38,7 @@ import sys
 
 import envoy
 
+from DDR import fileio
 
 METADATA_FILES_REGEX = {
     'collection': re.compile('collection.json'),
@@ -105,14 +106,13 @@ def write_json(data, path):
     ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
     """
     json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
-    with open(path, 'w') as f:
-        f.write(json_pretty)
+    fileio.write_raw(json_pretty)
 
 def update_file(json_path, field_name, new_value):
     """Updates specified field in json file with a value and saves.
     """
-    with open(json_path, 'r') as f:
-        data = json.loads(f.read())
+    raw_text = fileio.read_raw(json_path)
+    data = json.loads(raw_text)
     
     for field in data:
         fname = field.keys()[0]

@@ -14,6 +14,7 @@ from DDR import natural_sort
 from DDR import changelog
 from DDR import commands
 from DDR import dvcs
+from DDR import fileio
 from DDR import models
 from DDR.models import Identity, Module
 
@@ -106,8 +107,7 @@ def write_csv(path, headers, rows):
     ...     ['ddr-test-124', 'thing 2', 'still nothing'],
     ... ]
     >>> batch.write_csv(path, headers, rows)
-    >>> with open(path, 'r') as f:
-    ...    f.read()
+    >>> csv = fileio.read_raw(path)
     '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
     
     @param path: Absolute path to CSV file
@@ -125,8 +125,7 @@ def read_csv(path):
     
     >>> path = '/tmp/batch-test_write_csv.csv'
     >>> csv_file = '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
-    >>> with open(path, 'w') as f:
-    ...    f.write(csv_file)
+    >>> fileio.write_raw(csv_file)
     >>> batch.read_csv(path)
     [
         ['id', 'title', 'description'],
@@ -307,8 +306,7 @@ def load_vocab_files(vocabs_path):
             json_paths.append(path)
     files = []
     for path in json_paths:
-        with codecs.open(path, 'r', 'utf-8') as f:
-            files.append(f.read())
+        files.append(fileio.read(path))
     return files
 
 def prep_valid_values(json_texts):

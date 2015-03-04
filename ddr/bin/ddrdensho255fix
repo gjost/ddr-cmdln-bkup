@@ -39,6 +39,8 @@ import os
 
 import envoy
 
+from DDR import fileio
+
 
 def dtfmt(dt):
     """Consistent date format.
@@ -99,8 +101,7 @@ def write_json(data, path):
     ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
     """
     json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
-    with open(path, 'w') as f:
-        f.write(json_pretty)
+    fileio.write_raw(json_pretty)
 
 
 def exists( path_abs ):
@@ -120,8 +121,8 @@ def confirm_moved( src_rel, dest_rel ):
 def confirm_file_metadata( json_abs_fixed, file_rel_fixed, accs_rel_fixed ):
     file_confirmed = False
     accs_confirmed = False
-    with open(json_abs_fixed, 'r') as f:
-        data = json.loads(f.read())
+    raw_text = fileio.read_raw(json_abs_fixed)
+    data = json.loads(raw_text)
     for field in data:
         if (field.keys()[0] == 'path_rel')   and (field['path_rel'] == file_rel_fixed): file_confirmed = True
         if (field.keys()[0] == 'access_rel') and (field['access_rel'] == accs_rel_fixed): accs_confirmed = True
@@ -180,8 +181,8 @@ def update_files( collection_abs, entity_files_rel, path_rel, LOG ):
     json_moved = confirm_moved(json_rel, json_rel_fixed)
 
     def write_file_metadata( json_abs_fixed, file_base_fixed, accs_base_fixed ):
-        with open(json_abs_fixed, 'r') as f2:
-            filedata = json.loads(f2.read())
+        raw_text = fileio.read_raw(json_abs_fixed)
+        filedata = json.loads(raw_text)
         for field in filedata:
             if field.keys()[0] == 'path_rel':   field['path_rel']   = file_base_fixed
             if field.keys()[0] == 'access_rel': field['access_rel'] = accs_base_fixed
@@ -210,8 +211,8 @@ def update_files( collection_abs, entity_files_rel, path_rel, LOG ):
 
 def update_entity( entity_json_abs, path_rel_orig, path_rel_fixed, LOG ):
     logprint(LOG, 'update_entity: %s' % entity_json_abs)
-    with open(entity_json_abs, 'r') as fr:
-        data = json.loads(fr.read())
+    raw_text = fileio.read_raw(entity_json_abs)
+    data = json.loads(raw_text)
     for field in data:
         if field.keys()[0] == 'files':
             for file in field['files']:
@@ -221,8 +222,7 @@ def update_entity( entity_json_abs, path_rel_orig, path_rel_fixed, LOG ):
 
 def confirm_entity_metadata( entity_json_abs, path_rel_fixed, LOG ):
     print('looking for "%s"' % path_rel_fixed)
-    with open(entity_json_abs, 'r') as fr:
-        lines = fr.readlines()
+    lines = fileio.readlines_raw(entity_json_abs)
     for line in lines:
         if path_rel_fixed in line:
             return True
@@ -268,8 +268,8 @@ def main():
         # load entity json
         entity = None
         entity_files = []
-        with open(entity_json_abs, 'r') as f:
-            entity = json.loads(f.read())
+        raw_text = fileio.read_raw(entity_json_abs)
+        entity = json.loads(raw_text)
         
         # update the actual files and file metadata
         entity_files = None

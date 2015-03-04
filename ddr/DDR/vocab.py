@@ -100,6 +100,7 @@ import urlparse
 from dateutil import parser
 
 from DDR import format_json
+from DDR import fileio
 
 
 CSV_HEADERS = [
@@ -247,12 +248,11 @@ class Index( object ):
         extension = os.path.splitext(path)[1]
         if not extension in ['.json', '.csv']:
             raise Exception('Index.read only reads .json and .csv files.')
+        raw_text = fileio.read_raw(path)
         if extension.lower() == '.json':
-            with open(path, 'r') as f:
-                self.load_json(f.read())
+            self.load_json(raw_text)
         elif extension.lower() == '.csv':
-            with open(path, 'r') as f:
-                self.load_csv(f.read(), delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+            self.load_csv(raw_text, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
     
     def write( self, path, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
         """Write to the specified file (.json or .csv).
@@ -266,11 +266,11 @@ class Index( object ):
         if not extension in ['.json', '.csv']:
             raise Exception('Index.read only writes .json and .csv files.')
         if extension.lower() == '.json':
-            with open(path, 'w') as f:
-                f.write(self.dump_json())
+            text = self.dump_json()
         elif extension.lower() == '.csv':
-            with open(path, 'w') as f:
-                f.write(self.dump_csv(delimiter=delimiter, quotechar=quotechar, quoting=quoting))
+            text = self.dump_csv(delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+        fileio.write_raw(text, path)
+        
             
     def load_json( self, text ):
         """Load terms from a JSON file.
