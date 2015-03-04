@@ -256,15 +256,24 @@ def test_Identity_split_object_id():
     assert models.Identity.split_object_id('ddr') == ['repository', 'ddr']
 
 def test_Identity_id_from_path():
+    # collection
+    assert models.Identity.id_from_path('.../ddr-testing-123') == 'ddr-testing-123'
+    assert models.Identity.id_from_path('.../ddr-testing-123/') == 'ddr-testing-123'
     assert models.Identity.id_from_path('.../ddr-testing-123/collection.json') == 'ddr-testing-123'
-    assert models.Identity.id_from_path('.../ddr-testing-123-1/entity.json') == 'ddr-testing-123-1'
+    # entity
+    assert models.Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1') == 'ddr-testing-123-1'
+    assert models.Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/') == 'ddr-testing-123-1'
+    assert models.Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json') == 'ddr-testing-123-1'
+    # file
     assert models.Identity.id_from_path('.../ddr-testing-123-1-master-a1.json') == 'ddr-testing-123-1-master-a1'
-    assert models.Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/') ==  None
     assert models.Identity.id_from_path('.../ddr-testing-123/something-else.json') ==  None
 
 def test_Identity_model_from_path():
+    assert models.Identity.model_from_path('.../ddr-testing-123') == 'collection'
+    assert models.Identity.model_from_path('.../ddr-testing-123/') == 'collection'
     assert models.Identity.model_from_path('.../ddr-testing-123/collection.json') == 'collection'
-    assert models.Identity.model_from_path('.../ddr-testing-123-1/entity.json') == 'entity'
+    assert models.Identity.model_from_path('.../ddr-testing-123/files/ddr-testing-123-1') == 'entity'
+    assert models.Identity.model_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json') == 'entity'
     assert models.Identity.model_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json') == 'file'
 
 MODELFROMDICT_NOID = {}

@@ -561,19 +561,35 @@ class Identity(object):
         @param path: absolute or relative path to a DDR metadata file
         @returns: DDR object ID
         """
+        # rm trailing slash
+        if path[-1] == os.sep:
+            path = path[:-1]
         object_id = None
         model = Identity.model_from_path(path)
-        if model == 'collection': return os.path.basename(os.path.dirname(path))
-        elif model == 'entity': return os.path.basename(os.path.dirname(path))
-        elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
+        if model == 'collection':
+            if 'collection.json' in path:
+                return os.path.basename(os.path.dirname(path))
+            else:
+                return os.path.split(path)[1]
+        elif model == 'entity':
+            if 'entity.json' in path:
+                return os.path.basename(os.path.dirname(path))
+            else:
+                return os.path.split(path)[1]
+        elif model == 'file':
+            return os.path.splitext(os.path.basename(path))[0]
         return None
     
     @staticmethod
     def model_from_path( path ):
         """Guess model from the path.
         
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123')
+        'collection'
         >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
         'collection'
+        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1')
+        'entity'
         >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
         'entity'
         >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
@@ -582,9 +598,18 @@ class Identity(object):
         @param path: absolute or relative path to metadata JSON file.
         @returns: model
         """
+        # rm trailing slash
+        if path[-1] == os.sep:
+            path = path[:-1]
+        # metadata file paths
         if 'collection.json' in path: return 'collection'
         elif 'entity.json' in path: return 'entity'
         elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
+        # directories
+        basename = os.path.basename(path)
+        parts = Identity.split_object_id(basename)
+        if parts[0] in MODELS:
+            return parts[0]
         return None
     
     @staticmethod
