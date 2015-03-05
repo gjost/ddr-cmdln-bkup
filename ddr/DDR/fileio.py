@@ -1,4 +1,5 @@
 import codecs
+import ConfigParser
 
 
 def read(path):
@@ -76,3 +77,22 @@ def append_raw(text, path):
     """
     with open(path, 'a') as f:
          f.write(text)
+
+def read_config_raw(paths):
+    """Reads .ini file without UTF-8 decoding(?).
+    
+    @param paths: list of absolute paths.
+    @returns: ConfigParser object
+    """
+    config = ConfigParser.ConfigParser()
+    config.read(paths)
+    return config
+
+def write_config_raw(config, path):
+    """Writes .ini file without UTF-8 encoding.
+    
+    @param config: ConfigParser object
+    @param path: Absolute path to write.
+    """
+    with open(path, 'wb') as f:
+        config.write(f)

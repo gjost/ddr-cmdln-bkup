@@ -37,8 +37,7 @@ class ControlFile( object ):
     
     def write( self ):
         logging.debug('    ControlFile.write({})'.format(self.path))
-        with open(self.path, 'w') as cfile:
-            self._config.write(cfile)
+        fileio.write_config_raw(self._config, self.path)
 
 
 class CollectionControlFile( ControlFile ):

@@ -135,9 +135,7 @@ def read_mrconfig( path ):
     @param path: Absolute path to .mrconfig file.
     @returns: ConfigParser object
     """
-    config = ConfigParser.ConfigParser()
-    config.readfp(open(path))
-    return config
+    return fileio.read_config_raw(path)
 
 def make_mrconfig( defaults, repos, server, base_path='' ):
     """Makes an .mrconfig file.
@@ -170,8 +168,7 @@ def write_mrconfig( mrconfig, path ):
     @param mrconfig: A ConfigParser object
     @param path: Absolute path to write.
     """
-    with open(path, 'wb') as f:
-        mrconfig.write(f)
+    fileio.write_config_raw(mrconfig, path)
 
 def repo_annex_get(repo_path, level):
     """Runs annex-get commands appropriate to this repo's level.
