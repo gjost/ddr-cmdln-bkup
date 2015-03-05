@@ -1,6 +1,16 @@
 import codecs
 import ConfigParser
+import csv
+import sys
+import unicodecsv
 
+csv.field_size_limit(sys.maxsize)  # Some files' XMP data is wayyyyyy too big
+CSV_DELIMITER = ','
+CSV_QUOTECHAR = '"'
+CSV_QUOTING = csv.QUOTE_ALL
+
+
+# utf-8/strict
 
 def read(path):
     """Read text file with strict UTF-8 decoding.
@@ -21,6 +31,42 @@ def write(text, path):
     with codecs.open(path, 'w', encoding='utf-8', errors='strict') as f:
         f.write(text)
 
+def read_csv(path):
+    """Read CSV file with UTF-8/strict decoding, return list of rows.
+    
+    @param path: str Absolute path to file.
+    @returns: list of rows
+    """
+    rows = []
+    with codecs.open(path, 'rU', 'utf-8') as f:  # the 'U' is for universal-newline mode
+        reader = unicodecsv.reader(
+            f,
+            delimiter=fileio.CSV_DELIMITER,
+            quoting=fileio.CSV_QUOTING,
+            quotechar=fileio.CSV_QUOTECHAR,
+        )
+        rows = [row for row in reader]
+    return rows
+
+def write_csv(rows, path):
+    """Write list of rows to CSV file with UTF-8/strict encoding.
+    
+    @param: list of rows
+    @param path: str Absolute path to file.
+    """
+    with codecs.open(path, 'wb', 'utf-8') as f:
+        writer = unicodecsv.writer(
+            f,
+            delimiter=CSV_DELIMITER,
+            quoting=CSV_QUOTING,
+            quotechar=CSV_QUOTECHAR,
+        )
+        for row in rows:
+            writer.writerow(row)
+
+
+# utf-8/replace
+
 def read_replace(path):
     """Read text file with UTF-8/xmlcharrefreplace.
     
@@ -30,6 +76,9 @@ def read_replace(path):
     with codecs.open(path, 'r', encoding='utf-8', errors='xmlcharrefreplace') as f:
         text = f.read()
     return text
+
+
+# raw -- unsafe!
 
 def read_raw(path):
     """Read text file without UTF-8 decoding.
@@ -77,6 +126,29 @@ def append_raw(text, path):
     """
     with open(path, 'a') as f:
          f.write(text)
+
+def read_csv_raw(path):
+    """Read CSV file without UTF-8 decoding, return list of rows.
+    
+    @param path: str Absolute path to file.
+    @returns: list of rows
+    """
+    rows = []
+    with open(path, 'rb') as f:
+        reader = csv.reader(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR)
+        rows = [row for row in reader]
+    return rows
+
+def write_csv_raw(rows, path):
+    """Write list of rows to CSV file without UTF-8 encoding.
+    
+    @param: list of rows
+    @param path: str Absolute path to file.
+    """
+    with open(path, 'wb') as f:
+        writer = csv.writer(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING)
+        for row in rows:
+            writer.writerow(row)
 
 def read_config_raw(paths):
     """Reads .ini file without UTF-8 decoding(?).

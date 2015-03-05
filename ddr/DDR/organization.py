@@ -1,5 +1,4 @@
 import ConfigParser
-import csv
 import logging
 logger = logging.getLogger(__name__)
 import os
@@ -12,10 +11,6 @@ from DDR import fileio
 
 
 DRIVE_FILE_FIELDS = 'id,level'
-
-CSV_DELIMITER = ','
-CSV_QUOTECHAR = '"'
-CSV_QUOTING = csv.QUOTE_MINIMAL
 
 LEVELS = ['meta', 'access', 'all']
 
@@ -81,22 +76,15 @@ def read_group_file( path ):
     @param path: Absolute path to group file.
     @returns: List of dicts (id, level)
     """
-    repos = []
-    with open(path, 'rb') as f:
-        reader = csv.reader(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR)
-        for id,level in reader:
-            repos.append({'id':id, 'level':level})
-    return repos
+    return [{'id':id, 'level':level} for id,level in fileio.read_csv_raw(path)]
 
 def write_group_file( repos, path=None ):
     """
     @param repos: List of dicts (id, level)
     @param path: (optional) Absolute path to group file.
     """
-    with open(path, 'wb') as f:
-        writer = csv.writer(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING)
-        for r in repos:
-            writer.writerow(r['id'], r['level'])
+    rows = [ [repo['id'],repo['level']] for repo in repos]
+    fileio.write_csv_raw(rows, path)
 
 def group_repo_level( path, repo_basename ):
     """Get level for the specified repo from group file.

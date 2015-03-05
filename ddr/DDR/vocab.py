@@ -90,7 +90,6 @@ and reimported from CSV.::
     >>> index.path_choices()
 """
 
-import csv
 from datetime import datetime
 import json
 import os
@@ -114,9 +113,6 @@ CSV_HEADERS = [
     'created',
     'modified',
 ]
-CSV_DELIMITER = ','
-CSV_QUOTECHAR = '"'
-CSV_QUOTING = csv.QUOTE_MINIMAL
 
 TIMESTAMP_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
@@ -236,25 +232,22 @@ class Index( object ):
             term.path = self._path(term)
             #term.format = self._format(term)
     
-    def read( self, path, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+    def read( self, path ):
         """Read from the specified file (.json or .csv).
         
         @param path: Absolute path to file; must be .json or .csv.
-        @param delimiter: Only used for CSV files.
-        @param quotechar: Only used for CSV files.
-        @param quoting: Only used for CSV files.
         @returns: Index object with terms
         """
         extension = os.path.splitext(path)[1]
         if not extension in ['.json', '.csv']:
             raise Exception('Index.read only reads .json and .csv files.')
-        raw_text = fileio.read_raw(path)
         if extension.lower() == '.json':
+            raw_text = fileio.read_raw(path)
             self.load_json(raw_text)
         elif extension.lower() == '.csv':
-            self.load_csv(raw_text, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+            self.load_csv(path)
     
-    def write( self, path, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+    def write( self, path ):
         """Write to the specified file (.json or .csv).
         
         @param path: Absolute path to file; must be .json or .csv.
@@ -267,10 +260,9 @@ class Index( object ):
             raise Exception('Index.read only writes .json and .csv files.')
         if extension.lower() == '.json':
             text = self.dump_json()
+            fileio.write_raw(text, path)
         elif extension.lower() == '.csv':
-            text = self.dump_csv(delimiter=delimiter, quotechar=quotechar, quoting=quoting)
-        fileio.write_raw(text, path)
-        
+            text = self.dump_csv(path)
             
     def load_json( self, text ):
         """Load terms from a JSON file.
@@ -336,7 +328,7 @@ class Index( object ):
                 uris.append(urlparse.urlparse(url).path)
         return uris
     
-    def load_csv( self, text, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+    def load_csv( self, path ):
         """Load terms from a CSV file.
         
             id, topics
@@ -345,16 +337,12 @@ class Index( object ):
             id,_title,title,parent_id,weight,encyc_urls,description,created,modified
             120,"Activism and involvement [120]","Activism and involvement",0,0,"","","1969-12-31T00:00:00-0800","1969-12-31T00:00:00-0800"
 
-        @param text: str Raw contents of CSV file
-        @param delimiter
-        @param quotechar
-        @param quoting
+        @param path: str Absolute path to file
         @returns: Index object with terms
         """
-        pseudofile = StringIO.StringIO(text)
-        reader = csv.reader(pseudofile, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         terms = []
-        for n,row in enumerate(reader):
+        rows = fileio.read_csv_raw(path)
+        for n,row in enumerate(rows):
             if (n == 0): self.id = row[1].strip()
             elif (n == 1): self.title = row[1].strip()
             elif (n == 2): self.description = row[1].strip()
@@ -395,26 +383,22 @@ class Index( object ):
         }
         return format_json(data)
     
-    def dump_csv( self, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING ):
+    def dump_csv( self, path ):
         """Write terms to a CSV file.
         
-        @param delimiter
-        @param quotechar
-        @param quoting
-        @returns: CSV formatted text
+        @param path: str Absolute path to file
         """
-        output = StringIO.StringIO()
-        writer = csv.writer(output, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+        rows = []
         # metadata
-        writer.writerow(['id', self.id])
-        writer.writerow(['title', self.title])
-        writer.writerow(['description', self.description])
+        rows.append(['id', self.id])
+        rows.append(['title', self.title])
+        rows.append(['description', self.description])
         # headers
-        writer.writerow(CSV_HEADERS)
+        rows.append(CSV_HEADERS)
         # terms
         for term in self.terms():
-            writer.writerow(term.csv())
-        return output.getvalue()
+            rows.append(term.csv())
+        fileio.write_csv_raw(rows, path)
     
     def dump_graphviz( self, term_len=50 ):
         """Dumps contents of index to a Graphviz file.
