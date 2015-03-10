@@ -315,24 +315,19 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     # add files and commit
     repo = commit_files(repo, commit_message, git_files, [])
     # master branch should be created by this point
-    # git annex init
+    
+    # git annex init and sync
     logging.debug('    git annex init')
     repo.git.annex('init')
     if os.path.exists(os.path.join(collection.path, '.git', 'annex')):
         logging.debug('    .git/annex/ OK')
     else:
         logging.error('    .git/annex/ IS MISSING!')
+    # git annex sync
+    repo.git.annex('sync')
     
-    # this little dance is necessary for some reason -- see notes
-    logging.debug('    pushing master')
-    repo.git.push('origin', 'master')
-    logging.debug('    OK')
-    repo.git.checkout('git-annex')
-    logging.debug('    pushing git-annex')
-    repo.git.push('origin', 'git-annex')
-    logging.debug('    OK')
-    repo.git.checkout('master')
     dvcs.set_annex_description(repo)
+    
     return 0,'ok'
 
 
@@ -454,30 +449,9 @@ def sync(user_name, user_mail, collection_path):
     dvcs.set_annex_description(repo)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
-    # fetch
-    repo.git.fetch('origin')
-    # pull on master,git-annex branches 
-    logging.debug('    git pull origin master')
-    repo.git.checkout('master')
-    repo.git.pull('origin', 'master')
-    logging.debug('    OK')
-    logging.debug('    git pull origin git-annex')
-    repo.git.checkout('git-annex')
-    repo.git.pull('origin', 'git-annex')
-    logging.debug('    OK')
-    # push on git-annex,master branches
-    logging.debug('    git push origin git-annex')
-    repo.git.checkout('git-annex')
-    repo.git.push('origin', 'git-annex')
-    logging.debug('    OK')
-    logging.debug('    git push origin master')
-    repo.git.checkout('master')
-    repo.git.push('origin', 'master')
-    logging.debug('    OK')
-    # git annex sync
-    logging.debug('    git annex sync')
+    logging.debug('git annex sync')
     repo.git.annex('sync')
-    logging.debug('    OK')
+    logging.debug('OK')
     return 0,'ok'
 
 
