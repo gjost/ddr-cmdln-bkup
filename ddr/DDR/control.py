@@ -13,7 +13,7 @@ ENTITY_CONTROL_TEMPLATE     = os.path.join(TEMPLATE_PATH, 'entity_control.tpl' )
 
 
 def load_template(filename):
-    template = fileio.read_raw(filename)
+    template = fileio.read(filename)
     return template
 
 
@@ -37,7 +37,7 @@ class ControlFile( object ):
     
     def write( self ):
         logging.debug('    ControlFile.write({})'.format(self.path))
-        fileio.write_config_raw(self._config, self.path)
+        fileio.write_config(self._config, self.path)
 
 
 class CollectionControlFile( ControlFile ):
@@ -53,7 +53,7 @@ class CollectionControlFile( ControlFile ):
     def create( path, collection_uid ):
         logging.debug('    CollectionControlFile.create({})'.format(path))
         t = load_template(COLLECTION_CONTROL_TEMPLATE)
-        fileio.write_raw(t.format(cid=collection_uid), path)
+        fileio.write(t.format(cid=collection_uid), path)
     
     def update_checksums( self, collection ):
         self._config.remove_section('Entities')
@@ -78,7 +78,7 @@ class EntityControlFile( ControlFile ):
     def create( path, collection_uid, entity_uid ):
         logging.debug('    EntityControlFile.create({})'.format(path))
         t = load_template(ENTITY_CONTROL_TEMPLATE)
-        fileio.write_raw(t.format(cid=collection_uid, eid=entity_uid), path)
+        fileio.write(t.format(cid=collection_uid, eid=entity_uid), path)
     
     CHECKSUMS = ['sha1', 'sha256', 'files']
     def update_checksums( self, entity ):

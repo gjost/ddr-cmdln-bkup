@@ -111,7 +111,7 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
     CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
     paths = []
     if os.path.exists(CACHE_PATH) and not force_read:
-        lines = fileio.readlines_raw(CACHE_PATH)
+        lines = fileio.readlines(CACHE_PATH)
         paths = [line.strip() for line in lines if '#' not in line]
     else:
         excludes = ['.git', 'tmp', '*~']
@@ -158,7 +158,7 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
         path = json_paths.pop()
         model,repo,org,cid,eid,role,sha1 = Identity.split_object_id(Identity.id_from_path(path))
         sort = 0
-        for line in fileio.readlines_raw(path):
+        for line in fileio.readlines(path):
             if 'sort' in line:
                 sort = line.split(':')[1].replace('"','').strip()
         if rank == 'eid-sort-role':
@@ -277,7 +277,7 @@ def from_json(model, json_path):
     if os.path.exists(json_path):
         document = model(os.path.dirname(json_path))
         document_uid = document.id  # save this just in case
-        document.load_json(fileio.read_raw(json_path))
+        document.load_json(fileio.read(json_path))
         if not document.id:
             # id gets overwritten if document.json is blank
             document.id = document_uid
@@ -959,7 +959,7 @@ class Locking(object):
         """
         if os.path.exists(lock_path):
             return 'locked'
-        fileio.write_raw(text, lock_path)
+        fileio.write(text, lock_path)
         return 'ok'
     
     @staticmethod
@@ -991,7 +991,7 @@ class Locking(object):
         """
         if not os.path.exists(lock_path):
             return 'not locked'
-        lockfile_text = fileio.read_raw(lock_path).strip()
+        lockfile_text = fileio.read(lock_path).strip()
         if lockfile_text and (lockfile_text != text):
             return 'miss'
         os.remove(lock_path)
@@ -1018,7 +1018,7 @@ class Locking(object):
         @param lock_path
         """
         if os.path.exists(lock_path):
-            text = fileio.read_raw(lock_path).strip()
+            text = fileio.read(lock_path).strip()
             return text
         return False
     
@@ -1077,8 +1077,8 @@ class Collection( object ):
         self.path_rel = os.path.split(self.path)[1]
         self.root = os.path.split(self.path)[0]
         if not uid:
-            uid = os.path.basename(self.path)
-        self.uid  = uid
+            uid = unicode(os.path.basename(self.path))
+        self.uid = uid
         self.id = uid
         self_model,self.repo,self.org,self.cid = Identity.split_object_id(uid)
         self.annex_path         = os.path.join(self.path, '.git', 'annex')
@@ -1137,7 +1137,7 @@ class Collection( object ):
         return Module(collectionmodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(collectionmodule).cmp_model_definition_fields(fileio.read_raw(self.json_path))
+        return Module(collectionmodule).cmp_model_definition_fields(fileio.read(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -1207,7 +1207,7 @@ class Collection( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        fileio.write_raw(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write(self.dump_json(doc_metadata=True), self.json_path)
     
     def lock( self, text ): return Locking.lock(self.lock_path, text)
     def unlock( self, text ): return Locking.unlock(self.lock_path, text)
@@ -1215,7 +1215,7 @@ class Collection( object ):
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
-            return fileio.read_raw(self.changelog_path)
+            return fileio.read(self.changelog_path)
         return '%s is empty or missing' % self.changelog_path
     
     def control( self ):
@@ -1252,14 +1252,14 @@ class Collection( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        fileio.write_raw(xml_pretty, self.ead_path)
+        fileio.write(xml_pretty, self.ead_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
-            fileio.write_raw(
-                fileio.read_raw(GITIGNORE_TEMPLATE),
+            fileio.write(
+                fileio.read(GITIGNORE_TEMPLATE),
                 self.gitignore_path)
-        return fileio.read_raw(self.gitignore_path)
+        return fileio.read(self.gitignore_path)
     
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
@@ -1318,7 +1318,7 @@ class Collection( object ):
                 # fake Entity with just enough info for lists
                 entity_json_path = os.path.join(path,'entity.json')
                 if os.path.exists(entity_json_path):
-                    for line in fileio.readlines_raw(entity_json_path):
+                    for line in fileio.readlines(entity_json_path):
                         if '"title":' in line:
                             e = ListEntity()
                             e.id = e.uid = eid = os.path.basename(path)
@@ -1391,7 +1391,7 @@ class EntityAddFileLogger():
         @returns log: A text file.
         """
         entry = '[{}] {} - {}\n'.format(datetime.now().isoformat('T'), ok, msg)
-        fileio.append_raw(entry, self.logpath)
+        fileio.append(entry, self.logpath)
     
     def ok(self, msg): self.entry('ok', msg)
     def not_ok(self, msg): self.entry('not ok', msg)
@@ -1399,7 +1399,7 @@ class EntityAddFileLogger():
     def log(self):
         log = ''
         if os.path.exists(self.logpath):
-            log = fileio.read_raw(self.logpath)
+            log = fileio.read(self.logpath)
         return log
 
 class Entity( object ):
@@ -1437,7 +1437,7 @@ class Entity( object ):
         self.root = os.path.split(self.parent_path)[0]
         self.path_rel = self.path.replace('%s/' % self.root, '')
         if not uid:
-            uid = os.path.basename(self.path)
+            uid = unicode(os.path.basename(self.path))
         self.uid = uid
         self.id = uid
         self_model,self.repo,self.org,self.cid,self.eid = Identity.split_object_id(uid)
@@ -1482,7 +1482,7 @@ class Entity( object ):
         return Module(entitymodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(entitymodule).cmp_model_definition_fields(fileio.read_raw(self.json_path))
+        return Module(entitymodule).cmp_model_definition_fields(fileio.read(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -1571,11 +1571,11 @@ class Entity( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        fileio.write_raw(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write(self.dump_json(doc_metadata=True), self.json_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
-            return fileio.read_raw(self.changelog_path)
+            return fileio.read(self.changelog_path)
         return '%s is empty or missing' % self.changelog_path
     
     def control( self ):
@@ -1622,7 +1622,7 @@ class Entity( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        fileio.write_raw(xml_pretty, self.mets_path)
+        fileio.write(xml_pretty, self.mets_path)
     
     @staticmethod
     def checksum_algorithms():
@@ -1677,7 +1677,7 @@ class Entity( object ):
             if f and f.get('path_rel',None):
                 path_abs = os.path.join(self.files_path, f['path_rel'])
                 file_ = File(path_abs=path_abs)
-                file_.load_json(fileio.read_raw(file_.json_path))
+                file_.load_json(fileio.read(file_.json_path))
                 self._file_objects.append(file_)
         # keep track of how many times this gets loaded...
         self._file_objects_loaded = self._file_objects_loaded + 1
@@ -1883,13 +1883,13 @@ class Entity( object ):
         log.ok('Writing file metadata')
         tmp_file_json = os.path.join(tmp_dir, os.path.basename(f.json_path))
         log.ok(tmp_file_json)
-        fileio.write_raw(f.dump_json(), tmp_file_json)
+        fileio.write(f.dump_json(), tmp_file_json)
         if not os.path.exists(tmp_file_json):
             crash('Could not write file metadata %s' % tmp_file_json)
         log.ok('Writing entity metadata')
         tmp_entity_json = os.path.join(tmp_dir, os.path.basename(self.json_path))
         log.ok(tmp_entity_json)
-        fileio.write_raw(self.dump_json(), tmp_entity_json)
+        fileio.write(self.dump_json(), tmp_entity_json)
         if not os.path.exists(tmp_entity_json):
             crash('Could not write entity metadata %s' % tmp_entity_json)
         
@@ -1959,7 +1959,7 @@ class Entity( object ):
             # FAILED! print traceback to addfile log
             entrails = traceback.format_exc().strip()
             log.not_ok(entrails)
-            fileio.append_raw(entrails, self._addfile_log_path())
+            fileio.append(entrails, self._addfile_log_path())
         finally:
             if len(staged) == len(stage_predicted):
                 log.ok('%s files staged (%s new, %s modified)' % (
@@ -2105,7 +2105,7 @@ class Entity( object ):
         log.ok('Writing file metadata')
         tmp_file_json = os.path.join(tmp_dir, os.path.basename(f.json_path))
         log.ok(tmp_file_json)
-        fileio.write_raw(f.dump_json(), tmp_file_json)
+        fileio.write(f.dump_json(), tmp_file_json)
         if not os.path.exists(tmp_file_json):
             crash('Could not write file metadata %s' % tmp_file_json)
         
@@ -2164,7 +2164,7 @@ class Entity( object ):
             # print traceback to addfile log
             entrails = traceback.format_exc().strip()
             log.not_ok(entrails)
-            fileio.append_raw(entrails, self._addfile_log_path())
+            fileio.append(entrails, self._addfile_log_path())
             # mv files back to tmp_dir
             log.not_ok('status: %s' % status)
             log.not_ok('Cleaning up...')
@@ -2302,7 +2302,7 @@ class File( object ):
             if self.json_path_rel[0] == '/':
                 self.json_path_rel = self.json_path_rel[1:]
             ## TODO seriously, do we need this?
-            #raw_text = fileio.read_raw(self.json_path)
+            #raw_text = fileio.read(self.json_path)
             #self.load_json(raw_text)
             access_abs = None
             if self.access_rel and self.entity_path:
@@ -2326,7 +2326,7 @@ class File( object ):
         return Module(filemodule).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(filemodule).cmp_model_definition_fields(fileio.read_raw(self.json_path))
+        return Module(filemodule).cmp_model_definition_fields(fileio.read(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -2386,7 +2386,7 @@ class File( object ):
         file_ = None
         if os.path.exists(file_abs) or os.path.islink(file_abs):
             file_ = File(path_abs=file_abs)
-            file_.load_json(fileio.read_raw(file_.json_path))
+            file_.load_json(fileio.read(file_.json_path))
         return file_
     
     def load_json(self, json_text):
@@ -2416,7 +2416,7 @@ class File( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        fileio.write_raw(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write(self.dump_json(doc_metadata=True), self.json_path)
     
     @staticmethod
     def file_name( entity, path_abs, role, sha1=None ):
@@ -2511,7 +2511,7 @@ class File( object ):
         if r.std_out:
             jsons = r.std_out.strip().split('\n')
         for filename in jsons:
-            data = json.loads(fileio.read_raw(filename))
+            data = json.loads(fileio.read(filename))
             path_rel = None
             for field in data:
                 if field.get('path_rel',None):

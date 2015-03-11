@@ -103,7 +103,7 @@ def read_changelog(path):
     @param path: Absolute path to changelog file.
     @returns list of entry dicts
     """
-    log = fileio.read_raw(path)
+    log = fileio.read(path)
     return read_entries(log)
 
 def make_entry(messages, user, mail, timestamp=None):
@@ -133,7 +133,7 @@ CHANGELOG_TEMPLATE    = os.path.join(TEMPLATE_PATH, 'changelog.tpl')
 CHANGELOG_DATE_FORMAT = os.path.join(TEMPLATE_PATH, 'changelog-date.tpl')
 
 def load_template(filename):
-    return fileio.read_raw(filename)
+    return fileio.read(filename)
 
 def write_changelog_entry(path, messages, user, email, timestamp=None):
     logging.debug('    write_changelog_entry({})'.format(path))
@@ -158,4 +158,4 @@ def write_changelog_entry(path, messages, user, email, timestamp=None):
         preexisting = False
     if preexisting:
         entry = '\n%s' % entry
-    fileio.append_raw(entry, path)
+    fileio.append(entry, path)

@@ -246,7 +246,7 @@ def _make_mappings( mappings_path, index, models_dir ):
     @param models_dir: Absolute path to directory containing model files
     @return: List of mappings dicts.
     """
-    raw_text = fileio.read_raw(mappings_path)
+    raw_text = fileio.read(mappings_path)
     mappings = json.loads(raw_text)
     if 'documents' in index:
         ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
@@ -254,7 +254,7 @@ def _make_mappings( mappings_path, index, models_dir ):
             model = mapping.keys()[0]
             json_path = os.path.join(models_dir, '%s.json' % model)
             if os.path.exists(json_path):
-                raw_text = fileio.read_raw(json_path)
+                raw_text = fileio.read(json_path)
                 data = json.loads(raw_text)
                 for field in data:
                     fname = field['name']
@@ -317,7 +317,7 @@ def put_facets( hosts, index, path=FACETS_PATH ):
     for facet_json in os.listdir(FACETS_PATH):
         facet = facet_json.split('.')[0]
         srcpath = os.path.join(path, facet_json)
-        raw_text = fileio.read_raw(srcpath)
+        raw_text = fileio.read(srcpath)
         data = json.loads(raw_text.strip())
         status = es.index(index=index, doc_type='facet', id=facet, body=data)
         statuses.append(status)
@@ -390,7 +390,7 @@ def repo( hosts, index, path ):
     """Add or update base repository metadata.
     """
     # get and validate file
-    body = fileio.read_raw(path)
+    body = fileio.read(path)
     data = json.loads(body)
     if (not (data.get('id') and  data.get('repo'))) or (data.get('org')):
         raise Exception('Data file is not well-formed.')
@@ -405,7 +405,7 @@ def org( hosts, index, path, remove=False):
     """Add/update or remove organization metadata.
     """
     # get and validate file
-    body = fileio.read_raw(path)
+    body = fileio.read(path)
     data = json.loads(body)
     if (not (data.get('id') and  data.get('repo') and  data.get('org'))):
         raise Exception('Data file is not well-formed.')
@@ -991,7 +991,7 @@ def _model_fields( basedir, model_names ):
     models = {}
     for model_name in model_names:
         json_path = os.path.join(basedir, '%s.json' % model_name)
-        raw_text = fileio.read_raw(json_path)
+        raw_text = fileio.read(json_path)
         data = json.loads(raw_text)
         models[model_name] = data
     return models
@@ -1029,7 +1029,7 @@ def _parents_status( paths ):
         p = {'id':None,
              'public':None,
              'status':None,}
-        raw_text = fileio.read_raw(path)
+        raw_text = fileio.read(path)
         data = json.loads(raw_text)
         for field in data:
             fname = field.keys()[0]
@@ -1122,7 +1122,7 @@ def _store_signature_file( signatures, path, model, master_substitute ):
         # # nifty little bit of code that extracts the sort field from file.json
         # import re
         # sort = ''
-        # for line in fileio.readlines_raw(path):
+        # for line in fileio.readlines(path):
         #     if '"sort":' in line:
         #         sort = re.findall('\d+', line)[0]
         
@@ -1164,7 +1164,7 @@ def _choose_signatures( paths ):
 def load_document_json( json_path, model, object_id ):
     """Load object from JSON and add some essential fields.
     """
-    raw_text = fileio.read_raw(json_path)
+    raw_text = fileio.read(json_path)
     document = json.loads(raw_text)
     if model == 'file':
         document.append( {'id':object_id} )

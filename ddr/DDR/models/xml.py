@@ -26,7 +26,7 @@ NSMAP = {None : NAMESPACES['mets'],}
 
 
 def load_template(filename):
-    template = fileio.read_raw(filename)
+    template = fileio.read(filename)
     return template
 
 
@@ -51,17 +51,17 @@ class EAD( object ):
     def create( path ):
         logger.debug('    EAD.create({})'.format(path))
         t = load_template(TEMPLATE_EAD)
-        fileio.write_raw(t, path)
+        fileio.write(t, path)
     
     def read( self ):
         #logger.debug('    EAD.read({})'.format(self.filename))
-        self.xml = fileio.read_raw(self.filename)
+        self.xml = fileio.read(self.filename)
         self.tree = etree.fromstring(self.xml)
     
     def write( self ):
         logger.debug('    EAD.write({})'.format(self.filename))
         xml = etree.tostring(self.tree, pretty_print=True)
-        fileio.write_raw(xml, self.filename)
+        fileio.write(xml, self.filename)
     
     def update_dsc( self, collection ):
         """Repopulates <ead><dsc> based on collection.entities().
@@ -120,7 +120,7 @@ class METS( object ):
     def create( path ):
         logger.debug('    METS.create({})'.format(path))
         t = load_template(TEMPLATE_METS)
-        fileio.write_raw(t, path)
+        fileio.write(t, path)
     
     def read( self ):
         #logger.debug('    METS.read({})'.format(self.filename))
@@ -130,7 +130,7 @@ class METS( object ):
     def write( self ):
         logger.debug('    METS.write({})'.format(self.filename))
         xml = etree.tostring(self.tree, pretty_print=True)
-        fileio.write_raw(xml, self.filename)
+        fileio.write(xml, self.filename)
     
     def update_filesec( self, entity ):
         """Repopulates <mets:mets><mets:fileSec> based on entity files.

@@ -242,7 +242,7 @@ class Index( object ):
         if not extension in ['.json', '.csv']:
             raise Exception('Index.read only reads .json and .csv files.')
         if extension.lower() == '.json':
-            raw_text = fileio.read_raw(path)
+            raw_text = fileio.read(path)
             self.load_json(raw_text)
         elif extension.lower() == '.csv':
             self.load_csv(path)
@@ -260,7 +260,7 @@ class Index( object ):
             raise Exception('Index.read only writes .json and .csv files.')
         if extension.lower() == '.json':
             text = self.dump_json()
-            fileio.write_raw(text, path)
+            fileio.write(text, path)
         elif extension.lower() == '.csv':
             text = self.dump_csv(path)
             
@@ -341,7 +341,7 @@ class Index( object ):
         @returns: Index object with terms
         """
         terms = []
-        rows = fileio.read_csv_raw(path)
+        rows = fileio.read_csv(path)
         for n,row in enumerate(rows):
             if (n == 0): self.id = row[1].strip()
             elif (n == 1): self.title = row[1].strip()
@@ -398,7 +398,7 @@ class Index( object ):
         # terms
         for term in self.terms():
             rows.append(term.csv())
-        fileio.write_csv_raw(rows, path)
+        fileio.write_csv(rows, path)
     
     def dump_graphviz( self, term_len=50 ):
         """Dumps contents of index to a Graphviz file.

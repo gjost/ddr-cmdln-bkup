@@ -76,7 +76,7 @@ def read_group_file( path ):
     @param path: Absolute path to group file.
     @returns: List of dicts (id, level)
     """
-    return [{'id':id, 'level':level} for id,level in fileio.read_csv_raw(path)]
+    return [{'id':id, 'level':level} for id,level in fileio.read_csv(path)]
 
 def write_group_file( repos, path=None ):
     """
@@ -84,7 +84,7 @@ def write_group_file( repos, path=None ):
     @param path: (optional) Absolute path to group file.
     """
     rows = [ [repo['id'],repo['level']] for repo in repos]
-    fileio.write_csv_raw(rows, path)
+    fileio.write_csv(rows, path)
 
 def group_repo_level( path, repo_basename ):
     """Get level for the specified repo from group file.
@@ -94,7 +94,7 @@ def group_repo_level( path, repo_basename ):
     @return level
     """
     level = 'unknown'
-    for line in fileio.readlines_raw(path):
+    for line in fileio.readlines(path):
         if repo_basename in line:
             level = line.split(',')[1].strip()
     return level
@@ -123,7 +123,7 @@ def read_mrconfig( path ):
     @param path: Absolute path to .mrconfig file.
     @returns: ConfigParser object
     """
-    return fileio.read_config_raw(path)
+    return fileio.read_config(path)
 
 def make_mrconfig( defaults, repos, server, base_path='' ):
     """Makes an .mrconfig file.
@@ -156,7 +156,7 @@ def write_mrconfig( mrconfig, path ):
     @param mrconfig: A ConfigParser object
     @param path: Absolute path to write.
     """
-    fileio.write_config_raw(mrconfig, path)
+    fileio.write_config(mrconfig, path)
 
 def repo_annex_get(repo_path, level):
     """Runs annex-get commands appropriate to this repo's level.
