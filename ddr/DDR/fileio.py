@@ -31,6 +31,34 @@ def write(text, path):
     with codecs.open(path, 'w', encoding='utf-8', errors='strict') as f:
         f.write(text)
 
+def readlines(path):
+    """Read text file with strict UTF-8 decoding, split into lines.
+    
+    @param path: str Absolute path to file.
+    @returns: list of unicodes
+    """
+    with codecs.open(path, 'r', encoding='utf-8', errors='strict') as f:
+        lines = [line.strip() for line in f.readlines()]
+    return lines
+
+def writelines(text, path):
+    """Write lines of text to file with strict UTF-8 encoding.
+    
+    @param text: list of unicode
+    @param path: str Absolute path to file.
+    """
+    with codecs.open(path, 'w', encoding='utf-8', errors='strict') as f:
+        f.writelines(lines)
+
+def append(text, path):
+    """Append text to file with strict UTF-8 encoding.
+    
+    @param text: unicode
+    @param path: str Absolute path to file.
+    """
+    with codecs.open(path, 'a', encoding='utf-8', errors='strict') as f:
+        f.write(text)
+
 def read_csv(path):
     """Read CSV file with UTF-8/strict decoding, return list of rows.
     
@@ -38,12 +66,13 @@ def read_csv(path):
     @returns: list of rows
     """
     rows = []
-    with codecs.open(path, 'rU', 'utf-8') as f:  # the 'U' is for universal-newline mode
+    # the 'U' is for universal-newline mode
+    with codecs.open(path, 'rU', encoding='utf-8', errors='strict') as f:
         reader = unicodecsv.reader(
             f,
-            delimiter=fileio.CSV_DELIMITER,
-            quoting=fileio.CSV_QUOTING,
-            quotechar=fileio.CSV_QUOTECHAR,
+            delimiter=CSV_DELIMITER,
+            quoting=CSV_QUOTING,
+            quotechar=CSV_QUOTECHAR,
         )
         rows = [row for row in reader]
     return rows
@@ -54,7 +83,7 @@ def write_csv(rows, path):
     @param: list of rows
     @param path: str Absolute path to file.
     """
-    with codecs.open(path, 'wb', 'utf-8') as f:
+    with codecs.open(path, 'w', encoding='utf-8', errors='strict') as f:
         writer = unicodecsv.writer(
             f,
             delimiter=CSV_DELIMITER,
@@ -63,6 +92,31 @@ def write_csv(rows, path):
         )
         for row in rows:
             writer.writerow(row)
+
+def read_config(paths):
+    """Reads .ini file with UTF-8/strict decoding.
+    
+    @param paths: list of absolute paths.
+    @returns: ConfigParser object
+    """
+    config = ConfigParser.ConfigParser()
+    # first available path
+    path = None
+    for p in paths.reverse():
+        if os.path.exists(p):
+            path = p
+    f = codecs.open(path, 'r', encoding='utf-8', errors='strict')
+    config.read(f)
+    return config
+
+def write_config(config, path):
+    """Writes .ini file with UTF-8/strict encoding.
+    
+    @param config: ConfigParser object
+    @param path: Absolute path to write.
+    """
+    with codecs.open(path, 'wb', encoding='utf-8', errors='strict') as f:
+        config.write(f)
 
 
 # utf-8/replace
