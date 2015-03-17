@@ -1,4 +1,4 @@
-VERSION = '0.9.2-beta'
+VERSION = '0.9.3-beta'
 CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
 
 class NoConfigError(Exception):
