@@ -147,6 +147,7 @@ def set_alias( hosts, alias, index, remove=False ):
     @param index: Name of the alias' target index.
     @param remove: boolean
     """
+    logger.debug('set_alias(%s, %s, %s, %s)' % (hosts, alias, index, remove))
     alias = make_index_name(alias)
     index = make_index_name(index)
     es = _get_connection(hosts)

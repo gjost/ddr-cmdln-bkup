@@ -114,7 +114,7 @@ def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
     NOTE: Separated from .drive_label() for easier testing.
     """
-    if storagetype == 'removable':
+    if storagetype in ['mounted', 'removable']:
         label = mountpath.replace('/media/', '')
         if label:
             return label
@@ -163,10 +163,16 @@ def _guess_storage_type( mountpath ):
     """Guess storage type based on output of mount_path().
     NOTE: Separated from .storage_type() for easier testing.
     """
+    # see if any labels of removable devices appear in mountpath
+    labels = [ r['label'] for r in removables() if r.get('label', None) ]
+    mp_has_removable_label = [True for label in labels if label in mountpath]
+    
     if mountpath == '/':
         return 'internal'
-    elif '/media' in mountpath:
+    elif ('/media' in mountpath) and mp_has_removable_label:
         return 'removable'
+    elif '/media' in mountpath:
+        return 'mounted'
     return 'unknown'
     
 def storage_type( path ):
@@ -178,7 +184,7 @@ def storage_type( path ):
     m = mount_path(path)
     return _guess_storage_type(m)
 
-def storage_status( path ):
+def status( path ):
     """Indicates status of storage path.
     
     If the VM gets paused/saved
@@ -205,7 +211,7 @@ def _parse_diskspace( df_h_stdout, mountpath ):
         if (path in mountpath) and (path != '/'):
             fs = {'size': parts[1],
                   'used': parts[2],
-                  'total': parts[3],
+                  'avail': parts[3],
                   'percent': parts[4].replace('%',''),
                   'mount': parts[5],}
     return fs

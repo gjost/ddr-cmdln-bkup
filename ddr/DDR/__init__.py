@@ -1,4 +1,4 @@
-VERSION = '0.9.1-beta'
+VERSION = '0.9.3-beta'
 
 
 import ConfigParser
