@@ -1,3 +1,5 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 
 import envoy
@@ -15,10 +17,12 @@ def mount( device_file, label ):
     """
     mount_path = None
     cmd = 'pmount --read-write --umask 022 {} {}'.format(device_file, label)
+    logger.debug(cmd)
     r = envoy.run(cmd, timeout=60)
     for d in removables_mounted():
         if label in d['mountpath']:
             mount_path = d['mountpath']
+    logger.debug('mount_path: %s' % mount_path)
     return mount_path
 
 def umount( device_file ):
@@ -31,6 +35,7 @@ def umount( device_file ):
     """
     unmounted = 'error'
     cmd = 'pumount {}'.format(device_file)
+    logger.debug(cmd)
     r = envoy.run(cmd, timeout=60)
     in_removables = False
     for d in removables_mounted():
@@ -38,6 +43,7 @@ def umount( device_file ):
             in_removables = True
     if not in_removables:
         unmounted = 'unmounted'
+    logger.debug(unmounted)
     return unmounted
 
 def remount( device_file, label ):
