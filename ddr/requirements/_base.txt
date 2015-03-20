@@ -10,6 +10,7 @@ python-dateutil==2.2      # BSD       python-dateutil (1.5+dfsg-0.1)   python-da
 elasticsearch==1.2.0      # Apache    n/a                              n/a                            y
 envoy==0.0.3              # MIT       n/a                              n/a                            y
 GitPython==0.3.2.RC1      # BSD       python-git (0.3.2~RC1-1)         python-git (0.3.2~RC1-3)       NO
+psutil==2.2.1             # BSD                                                                       y
 python-xmp-toolkit==2.0.1 # New BSD   n/a                              (sid) python-libxmp (v?)       y
 lxml==3.3.5               # BSD       python-lxml (2.3.2-1+deb7u1)     python-lxml (3.3.5-1+b1)       y
 pytz==2014.4              # MIT       python-tz (2012c-1)              python-tz (2012c-1)            y

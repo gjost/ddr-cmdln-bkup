@@ -1,6 +1,7 @@
 import os
 
 import envoy
+import psutil
 
 
 def mount( device_file, label ):
@@ -201,29 +202,10 @@ def status( path ):
         return 'unmounted'
     return 'unknown'
 
-def _parse_diskspace( df_h_stdout, mountpath ):
-    fs = None
-    for line in df_h_stdout.strip().split('\n'):
-        while line.find('  ') > -1:
-            line = line.replace('  ', ' ')
-        parts = line.split(' ')
-        path = parts[5]
-        if (path in mountpath) and (path != '/'):
-            fs = {'size': parts[1],
-                  'used': parts[2],
-                  'avail': parts[3],
-                  'percent': parts[4].replace('%',''),
-                  'mount': parts[5],}
-    return fs
-
 def disk_space( mountpath ):
-    """Returns disk space info for the mounted drive.
+    """Returns disk usage in bytes for the mounted drive.
     
-    Uses 'df -h' on the back-end.
-        Filesystem  Size  Used  Avail  Use%  Mounted on
-    TODO Make this work on drives with spaces in their name!
+    @param mountpath
+    @returns: OrderedDict total, used, free, percent
     """
-    if mount_path:
-        r = envoy.run('df -h')
-        return _parse_diskspace(r.std_out, mountpath)
-    return None
+    return psutil.disk_usage(mountpath)._asdict()
