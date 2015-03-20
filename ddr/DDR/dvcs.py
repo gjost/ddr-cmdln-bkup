@@ -321,6 +321,38 @@ def annex_whereis_file(repo, file_path_rel):
     print('----------')
     return _parse_annex_whereis(stdout)
 
+def annex_trim(repo, confirmed=False):
+    """Drop full-size binaries from a repository.
+    
+    @param repo: A GitPython Repo object
+    @param confirmed: boolean Yes I really want to do this
+    @returns: {keep,drop,dropped} lists of file paths
+    """
+    logging.debug('annex_trim(%s, confirmed=%s)' % (repo, confirmed))
+    # Keep access files, HTML files, and PDFs.
+    KEEP_SUFFIXES = ['-a.jpg', '.htm', '.html', '.pdf']
+    annex_file_paths = repo.git.annex('find').split('\n')
+    keep = []
+    drop = []
+    for path_rel in annex_file_paths:
+        if [True for suffix.lower() in KEEP_SUFFIXES if suffix in path_rel]:
+            keep.append(path_rel)
+        else:
+            drop.append(path_rel)
+    dropped = []
+    for path_rel in drop:
+        logging.debug(path_rel)
+        if confirmed:
+            p = drop.remove(path_rel)
+            repo.git.annex('drop', '--force', p)
+            dropped.append(p)
+    return {
+        'keep':keep,
+        'drop':drop,
+        'dropped':dropped,
+    }
+    
+
 def _gitolite_info_authorized(gitolite_out):
     """Parse Gitolite server response, indicate whether user is authorized
     
