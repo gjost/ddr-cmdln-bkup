@@ -39,51 +39,6 @@ def device_actions(device):
     state = ''.join(state)
     return DEVICE_STATES[devicetype][state]
 
-def mount( device_file, label ):
-    """Mounts specified device at the label; returns mount_path.
-    
-    TODO FIX THIS HORRIBLY UNSAFE COMMAND!!!
-    
-    @param device_file: Device file (ex: '/dev/sdb1')
-    @param label: Human-readable name of the drive (ex: 'mydrive')
-    @return: Mount path (ex: '/media/mydrive')
-    """
-    mount_path = None
-    cmd = 'pmount --read-write --umask 022 {} {}'.format(device_file, label)
-    logger.debug(cmd)
-    r = envoy.run(cmd, timeout=60)
-    for d in removables_mounted():
-        if label in d['mountpath']:
-            mount_path = d['mountpath']
-    logger.debug('mount_path: %s' % mount_path)
-    return mount_path
-
-def umount( device_file ):
-    """Unmounts device at device_file.
-    
-    TODO FIX THIS HORRIBLY UNSAFE COMMAND!!!
-    
-    @param device_file: Device file (ex: '/dev/sdb1')
-    @return: True/False
-    """
-    unmounted = 'error'
-    cmd = 'pumount {}'.format(device_file)
-    logger.debug(cmd)
-    r = envoy.run(cmd, timeout=60)
-    in_removables = False
-    for d in removables_mounted():
-        if device_file in d['devicefile']:
-            in_removables = True
-    if not in_removables:
-        unmounted = 'unmounted'
-    logger.debug(unmounted)
-    return unmounted
-
-def remount( device_file, label ):
-    unmounted = umount(device_file)
-    mount_path = mount(device_file, label)
-    return mount_path
-
 def _parse_removables(udisks_dump_stdout, symlink=None):
     """Parse the output of 'udisks --dump'
     NOTE: Separated from .removables() for easier testing.
@@ -201,6 +156,51 @@ def removables_mounted():
         for p in psutil.disk_partitions()
         if '/media' in p.mountpoint
     ]
+
+def mount( device_file, label ):
+    """Mounts specified device at the label; returns mount_path.
+    
+    TODO FIX THIS HORRIBLY UNSAFE COMMAND!!!
+    
+    @param device_file: Device file (ex: '/dev/sdb1')
+    @param label: Human-readable name of the drive (ex: 'mydrive')
+    @return: Mount path (ex: '/media/mydrive')
+    """
+    mount_path = None
+    cmd = 'pmount --read-write --umask 022 {} {}'.format(device_file, label)
+    logger.debug(cmd)
+    r = envoy.run(cmd, timeout=60)
+    for d in removables_mounted():
+        if label in d['mountpath']:
+            mount_path = d['mountpath']
+    logger.debug('mount_path: %s' % mount_path)
+    return mount_path
+
+def umount( device_file ):
+    """Unmounts device at device_file.
+    
+    TODO FIX THIS HORRIBLY UNSAFE COMMAND!!!
+    
+    @param device_file: Device file (ex: '/dev/sdb1')
+    @return: True/False
+    """
+    unmounted = 'error'
+    cmd = 'pumount {}'.format(device_file)
+    logger.debug(cmd)
+    r = envoy.run(cmd, timeout=60)
+    in_removables = False
+    for d in removables_mounted():
+        if device_file in d['devicefile']:
+            in_removables = True
+    if not in_removables:
+        unmounted = 'unmounted'
+    logger.debug(unmounted)
+    return unmounted
+
+def remount( device_file, label ):
+    unmounted = umount(device_file)
+    mount_path = mount(device_file, label)
+    return mount_path
 
 def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
