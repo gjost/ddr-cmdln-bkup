@@ -25,7 +25,7 @@ DEVICE_STATES = {
 
 
 def device_actions(device):
-    """Given device from removables(), return possible actions.
+    """Given device from devices(), return possible actions.
     
     @param device: dict
     @returns: list
@@ -39,9 +39,9 @@ def device_actions(device):
     state = ''.join(state)
     return DEVICE_STATES[devicetype][state]
 
-def _parse_removables(udisks_dump_stdout, symlink=None):
+def _parse_udisks(udisks_dump_stdout, symlink=None):
     """Parse the output of 'udisks --dump'
-    NOTE: Separated from .removables() for easier testing.
+    NOTE: Separated from .devices() for easier testing.
     NOTE: This is probably unique to VirtualBox!
     
     @param udisks_dump_stdout: str Output of "udisks --dump".
@@ -125,7 +125,7 @@ def _parse_removables(udisks_dump_stdout, symlink=None):
         device['actions'] = device_actions(device)
     return devices
 
-def removables(symlink=None):
+def devices(symlink=None):
     """List removable drives whether or not they are attached.
     
     This is basically a wrapper around "udisks --dump" that looks for
@@ -133,7 +133,7 @@ def removables(symlink=None):
     Requires the udisks package (sudo apt-get install udisks).
     TODO Switch to udiskie? https://github.com/coldfix/udiskie
     
-    >> removables()
+    >> devices()
     [
         {'devicetype': 'usb', fstype': 'ntfs', 'devicefile': '/dev/sdb1', 'label': 'USBDRIVE1', mountpath:'...', 'mounted':1, 'linked':True},
         {'device_type': 'vhd', fs_type': 'ext3', 'devicefile': '/dev/sdb2', 'label': 'USBDRIVE2', mountpath:'...', 'mounted':0, 'linked':True}
@@ -142,9 +142,9 @@ def removables(symlink=None):
     @return: list of dicts containing attribs of devices
     """
     r = envoy.run('udisks --dump', timeout=2)
-    return _parse_removables(r.std_out, symlink=symlink)
+    return _parse_udisks(r.std_out, symlink=symlink)
 
-def removables_mounted():
+def mounted_devices():
     """List mounted and accessible removable drives.
     
     Note: this is different from base_path!
@@ -170,7 +170,7 @@ def mount( device_file, label ):
     cmd = 'pmount --read-write --umask 022 {} {}'.format(device_file, label)
     logger.debug(cmd)
     r = envoy.run(cmd, timeout=60)
-    for d in removables_mounted():
+    for d in mounted_devices():
         if label in d['mountpath']:
             mount_path = d['mountpath']
     logger.debug('mount_path: %s' % mount_path)
@@ -188,11 +188,11 @@ def umount( device_file ):
     cmd = 'pumount {}'.format(device_file)
     logger.debug(cmd)
     r = envoy.run(cmd, timeout=60)
-    in_removables = False
-    for d in removables_mounted():
+    mounted = False
+    for d in mounted_devices():
         if device_file in d['devicefile']:
-            in_removables = True
-    if not in_removables:
+            mounted = True
+    if not mounted:
         unmounted = 'unmounted'
     logger.debug(unmounted)
     return unmounted
@@ -261,7 +261,7 @@ def device_type( path ):
     @returns: str 'usb', 'vhd', or 'unknown'
     """
     mountpath = mount_path(path)
-    for device in removables():
+    for device in devices():
         if device.get('mountpath',None) == mountpath:
             return device['device_type']
     return 'unknown'

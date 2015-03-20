@@ -118,13 +118,13 @@ def commit_files(repo, message, git_files=[], annex_files=[]):
 
 #@command
 @local_only
-def removables():
-    return 0,storage.removables()
+def devices():
+    return 0,storage.devices()
 
 #@command
 @local_only
-def removables_mounted():
-    return 0,storage.removables_mounted()
+def mounted_devices():
+    return 0,storage.mounted_devices()
 
 @command
 @local_only
