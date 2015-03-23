@@ -64,6 +64,7 @@ setup(
     scripts = [
         'bin/ddr',
         'bin/ddr-checkencoding',
+        'bin/ddr-checkbinaries',
         'bin/ddr-export',
         'bin/ddr-import',
         'bin/ddrfilter',

@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+#
+# This file is part of ddr-cmdln/ddr
+#
+#
+
+description = """Checks collection repository for files that don't match hashes in metadata."""
+
+epilog = """
+Example:
+    $ ddr-checkbinaries /var/www/media/base/ddr-testing-141
+"""
+
+import argparse
+import os
+
+from DDR import models
+
+ALGORITHMS = ['md5', 'sha1', 'sha256']
+
+
+def check_file(json_path, verbose=False):
+    f = models.File.from_json(json_path)
+
+    if not os.path.exists(f.path_abs):
+        result = ['missing', f.path_abs]
+        print result
+        return result
+    
+    mismatches = []
+    md5 = models.file_hash(f.path_abs, 'md5')
+    if not (md5 == f.md5):
+        mismatches.append['md5']
+    sha1 = models.file_hash(f.path_abs, 'sha1')
+    if not (sha1 == f.sha1):
+        mismatches.append['sha1']
+    sha256 = models.file_hash(f.path_abs, 'sha256')
+    if not (sha256 == f.sha256):
+        mismatches.append['sha256']
+    # SHA256 hash from the git-annex filename
+    annex_sha256 = os.path.basename(os.path.realpath(f.path_abs)).split('--')[1]
+    if not (sha256 == annex_sha256):
+        mismatches.append['annex_sha256']
+    
+    if mismatches:
+        mismatches.append(json_path)
+        print mismatches
+    
+    return mismatches
+    
+def check_files(filepaths, verbose=False):
+    hits = []
+    for json_path in filepaths:
+        mismatches = check_file(json_path)
+        if mismatches:
+            hits.append(mismatches)
+    return hits
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description=description, epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('repo', help='Absolute path to collection repository.')
+    parser.add_argument(
+        '-v', '--verbose', action='store_const', const=1,
+        help='Print lots of output.')
+    
+    args = parser.parse_args()
+    
+    filepaths = models.metadata_files(args.repo, recursive=1, model='file', force_read=True)
+    hits = check_files(filepaths, verbose=False)
+
+
+if __name__ == '__main__':
+    main()
