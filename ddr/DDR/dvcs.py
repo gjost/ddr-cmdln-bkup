@@ -335,7 +335,7 @@ def annex_trim(repo, confirmed=False):
     keep = []
     drop = []
     for path_rel in annex_file_paths:
-        if [True for suffix.lower() in KEEP_SUFFIXES if suffix in path_rel]:
+        if [True for suffix in KEEP_SUFFIXES if suffix.lower() in path_rel]:
             keep.append(path_rel)
         else:
             drop.append(path_rel)
