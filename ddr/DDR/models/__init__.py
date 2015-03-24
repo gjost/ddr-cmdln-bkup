@@ -46,6 +46,12 @@ except ImportError:
     from DDR.models import entitymodule
     from DDR.models import filemodule
 
+MODULES = [
+    collectionmodule,
+    entitymodule,
+    filemodule,
+]
+
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(INSTALL_PATH, 'ddr', 'DDR', 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
