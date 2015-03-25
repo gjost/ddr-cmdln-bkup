@@ -9,12 +9,11 @@ PATH = '/var/www/media/base/ddr-densho-2'
 PATH = '/var/www/media/base/ddr-densho-10'
 
 HOSTS = [{'host':'192.168.56.120', 'port':9200}]
-INDEX = 'documents0'
-PATH = '/var/www/media/base'
+INDEX = 'dev'
+PATH = '/var/www/media/ddr'
 
-import os
-from DDR import models
 from DDR import docstore
+from DDR import models
 
 docstore.delete_index(HOSTS, INDEX)
 
@@ -23,7 +22,13 @@ docstore.create_index(HOSTS, INDEX)
 docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH, models.MODELS_DIR)
 docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
 
+# Delete a collection
 docstore.delete(HOSTS, INDEX, os.path.basename(PATH), recursive=True)
+
+# Repository, organization metadata
+docstore.post_json(HOSTS, INDEX, 'repo', 'ddr', '%s/ddr/repository.json' % PATH)
+# Do this once per organization.
+docstore.post_json(HOSTS, INDEX, 'org', 'REPO-ORG', '%s/REPO-ORG/organization.json' % PATH)
 
 docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 
@@ -737,6 +742,21 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
         return es.index(index=index, doc_type=model, id=document_id, body=data)
     return {'status':4, 'response':'unknown problem'}
 
+def post_json( hosts, index, doc_type, document_id, path ):
+    """POST the specified JSON document as-is.
+    
+    @param hosts: list of dicts containing host information.
+    @param index: Name of the target index.
+    @param doc_type: str
+    @param document_id: str
+    @param path: Absolute path to JSON document.
+    @returns: dict Status info.
+    """
+    logger.debug('post_json(%s, %s, %s, %s, %s)' % (hosts, index, doc_type, document_id, path))
+    with open(path, 'r') as f:
+        json_text = f.read()
+    es = _get_connection(hosts)
+    return es.index(index=index, doc_type=doc_type, id=document_id, body=json_text)
 
 def exists( hosts, index, model, document_id ):
     """
