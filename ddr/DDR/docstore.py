@@ -979,7 +979,7 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
             body=body,
             sort=sort_cleaned,
             size=size,
-            fields=fields,
+            _source_include=fields,
         )
     else:
         results = es.search(
@@ -988,7 +988,7 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
             body=body,
             sort=sort_cleaned,
             size=size,
-            fields=fields,
+            _source_include=fields,
         )
     return results
 
