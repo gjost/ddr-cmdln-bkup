@@ -317,7 +317,12 @@ def put_facets( hosts, index, path=FACETS_PATH ):
     return statuses
 
 def list_facets( path=FACETS_PATH ):
-    return [filename.replace('.json', '') for filename in os.listdir(path)]
+    facets = []
+    for filename in os.listdir(path):
+        fn,ext = os.path.splitext(filename)
+        if ext and (ext == '.json'):
+            facets.append(fn)
+    return facets
 
 def facet_terms( hosts, index, facet, order='term', all_terms=True, model=None ):
     """Gets list of terms for the facet.
