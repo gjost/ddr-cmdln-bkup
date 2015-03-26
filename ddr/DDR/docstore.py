@@ -26,9 +26,9 @@ docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
 docstore.delete(HOSTS, INDEX, os.path.basename(PATH), recursive=True)
 
 # Repository, organization metadata
-docstore.post_json(HOSTS, INDEX, 'repo', 'ddr', '%s/ddr/repository.json' % PATH)
+docstore.post_json(HOSTS, INDEX, 'repository', 'ddr', '%s/ddr/repository.json' % PATH)
 # Do this once per organization.
-docstore.post_json(HOSTS, INDEX, 'org', 'REPO-ORG', '%s/REPO-ORG/organization.json' % PATH)
+docstore.post_json(HOSTS, INDEX, 'organization', 'REPO-ORG', '%s/REPO-ORG/organization.json' % PATH)
 
 docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 
@@ -216,14 +216,14 @@ def delete_index( hosts, index ):
 
 # Each item in this list is a mapping dict in the format ElasticSearch requires.
 # Mappings for each type have to be uploaded individually (I think).
-def _make_mappings( mappings_path, index, models_dir ):
-    """Takes MAPPINGS and adds field properties from MODEL_FIELDS
+def _make_mappings( mappings ):
+    """Takes MAPPINGS and adds field properties from module.FIELDS['elasticsearch']
     
     Returns a nice list of mapping dicts.
     
-    DDR mappings are constructed from the model files in ddr-cmdln/ddr/DDR/models/*.json.  The mappings function looks at each field in each model file and constructs a mapping using the contents of FIELD['elasticsearch']['properties'].
+    DDR mappings are constructed from 'elasticsearch' var for each field in the FIELDS list in the (collection/entity/file)module in the 'ddr' repo.
     
-    MODEL.json should be formatted thusly:
+    Module.FIELDS should be formatted thusly:
         {
             "group": "",
             "name": "record_created",
@@ -246,37 +246,27 @@ def _make_mappings( mappings_path, index, models_dir ):
     ['elasticsearch']['properties']
     The contents of this field will be inserted directly into the mappings document.  See ElasticSearch documentation for more information: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping.html
     
-    @param mappings_path: Absolute path to JSON mappings file
-    @param index: Name of the target index.
-    @param models_dir: Absolute path to directory containing model files
+    @param mappings: data structure from loading mappings.json
     @return: List of mappings dicts.
     """
-    with open(mappings_path, 'r') as f:
-        mappings = json.loads(f.read())
-    if 'documents' in index:
-        ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
-        for mapping in mappings['documents']:
-            model = mapping.keys()[0]
-            json_path = os.path.join(models_dir, '%s.json' % model)
-            if os.path.exists(json_path):
-                with open(json_path, 'r') as f:
-                    data = json.loads(f.read())
-                for field in data:
-                    fname = field['name']
-                    mapping[model]['properties'][fname] = field['elasticsearch']['properties']
-                # mappings for parent_id, etc
-                if model == 'collection':
-                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                elif model == 'entity':
-                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                    mapping[model]['properties']['collection_id'] = ID_PROPERTIES
-                elif model == 'file':
-                    mapping[model]['properties']['parent_id'] = ID_PROPERTIES
-                    mapping[model]['properties']['collection_id'] = ID_PROPERTIES
-                    mapping[model]['properties']['entity_id'] = ID_PROPERTIES
+    ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
+    for mapping in mappings['documents']:
+        model = mapping.keys()[0]
+        module = models.MODULES[model]
+        for field in module.FIELDS:
+            fname = field['name']
+            mapping[model]['properties'][fname] = field['elasticsearch']['properties']
+        # mappings for parent_id, etc
+        if model == 'collection':
+            mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+        elif model == 'entity':
+            mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+            mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+        elif model == 'file':
+            mapping[model]['properties']['parent_id'] = ID_PROPERTIES
+            mapping[model]['properties']['collection_id'] = ID_PROPERTIES
+            mapping[model]['properties']['entity_id'] = ID_PROPERTIES
         return mappings
-    elif 'meta' in index:
-        return mappings['meta']
     return []
 
 def put_mappings( hosts, index, mappings_path, models_dir ):
@@ -290,11 +280,9 @@ def put_mappings( hosts, index, mappings_path, models_dir ):
     @returns: JSON dict with status code and response
     """
     logger.debug('put_mappings(%s, %s, %s, %s)' % (hosts, index, mappings_path, models_dir))
-    mappings_list = []
-    if 'documents' in index:
-        mappings_list = _make_mappings(mappings_path, index, models_dir)['documents']
-    elif 'meta' in index:
-        mappings_list = _make_mappings(mappings_path, index, models_dir)
+    with open(mappings_path, 'r') as f:
+        mappings = json.loads(f.read())
+    mappings_list = _make_mappings(mappings)['documents']
     statuses = []
     es = _get_connection(hosts)
     for mapping in mappings_list:
@@ -489,7 +477,7 @@ def _filter_payload( data, public_fields ):
             fieldname = field.keys()[0]
             if fieldname not in public_fields:
                 data.remove(field)
-                print('removed %s' % fieldname)
+                logging.debug('removed %s' % fieldname)
 
 def _clean_controlled_vocab( data ):
     """Extract topics IDs from textual control-vocab texts.
@@ -670,6 +658,23 @@ def _clean_payload( data ):
             # rm null or empty fields
             _clean_dict(field)
 
+def _add_id_parts( data ):
+    """Add parts of id (e.g. repo, org, cid) to document as separate fields.
+    
+    >>> data = {'id'}
+    >>> _add_id_parts(data)
+    >>> data
+    {'id':'ddr-test-123', 'repo':'ddr', 'org':'test', 'cid':'123', ...}
+    """
+    oid = Identity.split_object_id(data['id'])
+    model = oid.pop(0)
+    # TODO what are we gonna do when there are multiple layers of entities?
+    # TODO n-layer, DRV
+    partnames = ['repo', 'org', 'cid', 'eid', 'role', 'sha1']
+    for n,partname in enumerate(partnames):
+        if len(oid) > n:
+            data[partname] = oid[n]
+
 def post( hosts, index, document, public_fields=[], additional_fields={}, private_ok=False ):
     """Add a new document to an index or update an existing one.
     
@@ -733,6 +738,7 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
         data['title'] = label
         document_id = data['id']
     # additional_fields
+    _add_id_parts(data)
     for key,val in additional_fields.iteritems():
         data[key] = val
     logger.debug('document_id %s' % document_id)
@@ -1003,33 +1009,17 @@ def delete( hosts, index, document_id, recursive=False ):
 
 # index ----------------------------------------------------------------
 
-def _model_fields( basedir, model_names ):
-    """Loads models *.json files and returns as a dict
-    
-    @param basedir: Absolute path to directory containing model files
-    @param model_names: List of model names
-    @return: Dict of models
-    """
-    models = {}
-    for model_name in model_names:
-        json_path = os.path.join(basedir, '%s.json' % model_name)
-        with open(json_path, 'r') as f:
-            data = json.loads(f.read())
-        models[model_name] = data
-    return models
-
-def _public_fields( modelfields ):
+def _public_fields():
     """Lists public fields for each model
     
     IMPORTANT: Adds certain dynamically-created fields
     
-    @param modelfields: Output of _model_fields
     @returns: Dict
     """
     public_fields = {}
-    for model in modelfields.keys():
+    for model,module in models.MODULES.iteritems():
         mfields = []
-        for field in modelfields[model]:
+        for field in module.FIELDS:
             if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None):
                 mfields.append(field['name'])
         public_fields[model] = mfields
@@ -1096,6 +1086,7 @@ def _publishable_or_not( paths, parents ):
     successful_paths = []
     bad_paths = []
     for path in paths:
+        model = Identity.model_from_path(path)
         # see if item's parents are incomplete or nonpublic
         # TODO Bad! Bad! Generalize this...
         UNPUBLISHABLE = []
@@ -1214,8 +1205,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     """
     logger.debug('index(%s, %s, %s)' % (hosts, index, path))
     
-    modelsfields = _model_fields(models_dir, models.MODELS)
-    public_fields = _public_fields(modelsfields)
+    public_fields = _public_fields()
     
     # process a single file if requested
     if os.path.isfile(path):
