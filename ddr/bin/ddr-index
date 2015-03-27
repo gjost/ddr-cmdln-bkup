@@ -9,7 +9,7 @@ description = """Tools for managing DDR metadata in ElasticSearch."""
 subparser_title = """Subcommands"""
 subparser_description = """Additional help is available for each of the following subcommands.
 Example:
-    $ ddrindex status --help
+    $ ddr-index status --help
 """
 subparser_help = ''
 
@@ -17,36 +17,36 @@ epilog = """
 Example usage:
 
     # Create and delete indexes
-    $ ddrindex create -H localhost:9200 -i documents
-    $ ddrindex remove -H localhost:9200 -i documents
+    $ ddr-index create -H localhost:9200 -i documents
+    $ ddr-index remove -H localhost:9200 -i documents
     
     # Add/update mappings
-    $ ddrindex mappings -H localhost:9200 -i documents /var/www/media/base/ddr/docstore/mappings.json
+    $ ddr-index mappings -H localhost:9200 -i documents /var/www/media/base/ddr/docstore/mappings.json
     
     # Add/update facets
-    $ ddrindex facets -H localhost:9200 -i documents /var/www/media/base/ddr/vocab/
+    $ ddr-index facets -H localhost:9200 -i documents /var/www/media/base/ddr/vocab/
 
     # Add/update base repository info:
-    $ ddrindex repo -H localhost:9200 -i documents /var/www/media/base/REPO/repository.json
+    $ ddr-index repo -H localhost:9200 -i documents /var/www/media/base/REPO/repository.json
 
     # Add or remove metadata for organizations:
-    $ ddrindex org -H localhost:9200 -i documents /var/www/media/base/REPO-ORG/organization.json
-    $ ddrindex org -H localhost:9200 -i documents --remove /var/www/media/base/REPO-ORG/organization.json
+    $ ddr-index org -H localhost:9200 -i documents /var/www/media/base/REPO-ORG/organization.json
+    $ ddr-index org -H localhost:9200 -i documents --remove /var/www/media/base/REPO-ORG/organization.json
     
     # Index a collection for ddr-local
-    $ ddrindex index -H localhost:9200 -i documents --recursive /var/www/media/base/ddr-testing-123
+    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/base/ddr-testing-123
     
     # Index a whole directory of collections for ddr-local
-    $ ddrindex index -H localhost:9200 -i documents --recursive /var/www/media/base
+    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/base
     
     # Index a whole directory of collections for ddr-public
-    $ ddrindex index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/base
+    $ ddr-index index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/base
 
 Note: You can set environment variables got HOSTS and INDEX.:
 
     $ export DDR_ES_HOSTS=localhost:9200
     $ export DDR_ES_INDEX=dev
-    """
+"""
 
 
 import argparse

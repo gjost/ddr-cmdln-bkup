@@ -68,7 +68,7 @@ setup(
         'bin/ddr-export',
         'bin/ddr-import',
         'bin/ddrfilter',
-        'bin/ddrindex',
+        'bin/ddr-index',
         'bin/ddrmassupdate',
         'bin/ddrpubcopy',
         'bin/ddrdensho255fix',
