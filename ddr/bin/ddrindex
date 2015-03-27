@@ -17,30 +17,35 @@ epilog = """
 Example usage:
 
     # Create and delete indexes
-    $ ddrindex index -H localhost:9200 -i documents --create
-    $ ddrindex index -H localhost:9200 -i documents --remove
+    $ ddrindex create -H localhost:9200 -i documents
+    $ ddrindex remove -H localhost:9200 -i documents
     
     # Add/update mappings
-    $ ddrindex mappings -H localhost:9200 -i documents -p /var/www/media/base/ddr/docstore/mappings.json
+    $ ddrindex mappings -H localhost:9200 -i documents /var/www/media/base/ddr/docstore/mappings.json
     
     # Add/update facets
-    $ ddrindex facets -H localhost:9200 -i documents -p /var/www/media/base/ddr/vocab/
+    $ ddrindex facets -H localhost:9200 -i documents /var/www/media/base/ddr/vocab/
 
     # Add/update base repository info:
-    $ ddrindex repo -H localhost:9200 -i documents -p /var/www/media/base/REPO/repository.json
+    $ ddrindex repo -H localhost:9200 -i documents /var/www/media/base/REPO/repository.json
 
     # Add or remove metadata for organizations:
-    $ ddrindex org -H localhost:9200 -i documents -p /var/www/media/base/REPO-ORG/organization.json
-    $ ddrindex org -H localhost:9200 -i documents -p /var/www/media/base/REPO-ORG/organization.json --remove
+    $ ddrindex org -H localhost:9200 -i documents /var/www/media/base/REPO-ORG/organization.json
+    $ ddrindex org -H localhost:9200 -i documents --remove /var/www/media/base/REPO-ORG/organization.json
     
     # Index a collection for ddr-local
-    $ ddrindex index -H localhost:9200 -i documents -p /var/www/media/base/ddr-testing-123 --recursive
+    $ ddrindex index -H localhost:9200 -i documents --recursive /var/www/media/base/ddr-testing-123
     
     # Index a whole directory of collections for ddr-local
-    $ ddrindex index -H localhost:9200 -i documents -p /var/www/media/base --recursive
+    $ ddrindex index -H localhost:9200 -i documents --recursive /var/www/media/base
     
     # Index a whole directory of collections for ddr-public
-    $ ddrindex index -H localhost:9200 -i documents -p /var/www/media/base --recursive --newstyle
+    $ ddrindex index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/base
+
+Note: You can set environment variables got HOSTS and INDEX.:
+
+    $ export DDR_ES_HOSTS=localhost:9200
+    $ export DDR_ES_INDEX=dev
     """
 
 
@@ -96,6 +101,16 @@ def make_hosts( text ):
 
 
 def main():
+    
+    # look for HOSTS and INDEX in environment
+    if 'DDR_ES_HOSTS' in os.environ:
+        hostsarg = { 'default': os.environ['DDR_ES_HOSTS'] }
+    else:
+        hostsarg = { 'required': True }
+    if 'DDR_ES_INDEX' in os.environ:
+        indexarg = { 'default': os.environ['DDR_ES_INDEX'] }
+    else:
+        indexarg = { 'required': True }
 
     formatter = argparse.RawDescriptionHelpFormatter
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
@@ -109,6 +124,8 @@ def main():
     
 #    post_descr,post_epilog = split_docstring(docstore.post)
 #    get_descr,get_epilog = split_docstring(docstore.get)
+    create_descr,create_epilog = split_docstring(docstore.index)
+    remove_descr,remove_epilog = split_docstring(docstore.index)
     index_descr,index_epilog = split_docstring(docstore.index)
     alias_descr,alias_epilog = split_docstring(docstore.set_alias)
     mappings_descr,mappings_epilog = split_docstring(docstore.put_mappings)
@@ -120,6 +137,8 @@ def main():
     
 #    post_parser = subparsers.add_parser('post', description=post_descr, epilog=post_epilog, formatter_class=formatter,)
 #    get_parser = subparsers.add_parser('get', description=get_descr, epilog=get_epilog, formatter_class=formatter,)
+    create_parser = subparsers.add_parser('create', description=create_descr, epilog=create_epilog, formatter_class=formatter,)
+    remove_parser = subparsers.add_parser('remove', description=remove_descr, epilog=remove_epilog, formatter_class=formatter,)
     index_parser = subparsers.add_parser('index', description=index_descr, epilog=index_epilog, formatter_class=formatter,)
     alias_parser = subparsers.add_parser('alias', description=alias_descr, epilog=alias_epilog, formatter_class=formatter,)
     mappings_parser = subparsers.add_parser('mappings', description=mappings_descr, epilog=mappings_epilog, formatter_class=formatter,)
@@ -131,6 +150,8 @@ def main():
     
 #    post_parser.set_defaults(func=docstore.post)
 #    get_parser.set_defaults(func=docstore.get)
+    create_parser.set_defaults(func=docstore.create_index)
+    remove_parser.set_defaults(func=docstore.delete_index)
     index_parser.set_defaults(func=docstore.index)
     alias_parser.set_defaults(func=docstore.set_alias)
     mappings_parser.set_defaults(func=docstore.put_mappings)
@@ -153,59 +174,67 @@ def main():
 #    get_parser.add_argument('-m', '--model', required=True, help='model.')
 #    get_parser.add_argument('-I', '--id', required=True, help='ID.')
     
+    create_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    create_parser.add_argument('-l', '--log', help='Log file..')
+    create_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    create_parser.add_argument('-i', '--index', help='index.', **indexarg)
+    
+    remove_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    remove_parser.add_argument('-l', '--log', help='Log file..')
+    remove_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    remove_parser.add_argument('-i', '--index', help='index.', **indexarg)
+    
     index_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     index_parser.add_argument('-l', '--log', help='Log file..')
-    index_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    index_parser.add_argument('-i', '--index', required=True, help='index.')
-    index_parser.add_argument('-p', '--path', help='Absolute path to directory containing metadata file(s).')
+    index_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    index_parser.add_argument('-i', '--index', help='index.', **indexarg)
     index_parser.add_argument('-r', '--recursive', action='store_true', help='Recurse into subdirectories.')
     index_parser.add_argument('-P', '--public', action='store_true', help='For publication (fields not marked public will be omitted.')
-    index_parser.add_argument('-C', '--create', action='store_true', help='Create a new index.')
-    index_parser.add_argument('-R', '--remove', action='store_true', help='Remove the index.')
+    index_parser.add_argument('path', help='Absolute path to directory containing metadata file(s).')
     
     alias_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     alias_parser.add_argument('-l', '--log', help='Log file..')
-    alias_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    alias_parser.add_argument('-i', '--index', required=True, help='Name of index.')
+    alias_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    alias_parser.add_argument('-i', '--index', help='Name of index.', **indexarg)
     alias_parser.add_argument('-a', '--alias', help='Alias.')
     alias_parser.add_argument('-R', '--remove', action='store_true', help='Remove the alias.')
     
     mappings_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     mappings_parser.add_argument('-l', '--log', help='Log file..')
-    mappings_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    mappings_parser.add_argument('-i', '--index', required=True, help='index.')
-    mappings_parser.add_argument('-p', '--path', required=True, help='Absolute path to mappings.json file.')
+    mappings_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    mappings_parser.add_argument('-i', '--index', help='index.', **indexarg)
+    mappings_parser.add_argument('path', help='Absolute path to mappings.json file.')
     
     facets_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     facets_parser.add_argument('-l', '--log', help='Log file..')
-    facets_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    facets_parser.add_argument('-i', '--index', required=True, help='index.')
-    facets_parser.add_argument('-p', '--path', required=True, help='Absolute path to facets directory.')
+    facets_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    facets_parser.add_argument('-i', '--index', help='index.', **indexarg)
+    facets_parser.add_argument('path', help='Absolute path to facets directory.')
     
     exists_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     exists_parser.add_argument('-l', '--log', help='Log file..')
-    exists_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    exists_parser.add_argument('-i', '--index', required=True, help='index.')
+    exists_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    exists_parser.add_argument('-i', '--index', help='index.', **indexarg)
     exists_parser.add_argument('-m', '--model', required=True, help='model.')
     exists_parser.add_argument('-I', '--id', required=True, help='Document ID.')
     
     repo_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     repo_parser.add_argument('-l', '--log', help='Log file..')
-    repo_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    repo_parser.add_argument('-i', '--index', required=True, help='index.')
-    repo_parser.add_argument('-p', '--path', required=True, help='Absolute path to repository.json file.')
+    repo_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    repo_parser.add_argument('-i', '--index', help='index.', **indexarg)
+    repo_parser.add_argument('path', help='Absolute path to repository.json file.')
     
     org_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     org_parser.add_argument('-l', '--log', help='Log file..')
-    org_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    org_parser.add_argument('-i', '--index', required=True, help='index.')
-    org_parser.add_argument('-p', '--path', required=True, help='Absolute path to organization.json file.')
+    org_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    org_parser.add_argument('-i', '--index', help='index.', **indexarg)
     org_parser.add_argument('-R', '--remove', action='store_true', help='Remove the organization.')
+    org_parser.add_argument('path', help='Absolute path to organization.json file.')
     
     delete_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     delete_parser.add_argument('-l', '--log', help='Log file..')
-    delete_parser.add_argument('-H', '--host', required=True, help='Hostname and port (HOST:PORT).')
-    delete_parser.add_argument('-i', '--index', required=True, help='index.')
+    delete_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    delete_parser.add_argument('-i', '--index', help='index.', **indexarg)
     delete_parser.add_argument('-I', '--id', required=True, help='Document ID.')
     delete_parser.add_argument('-r', '--recursive', action='store_true', help='Delete children of this document.')
     
@@ -229,9 +258,9 @@ def main():
     elif args.cmd == 'get':
         msg = docstore.get(hosts, args.index, args.model, args.id)
         print(msg)
-    elif args.cmd == 'index' and args.create:
+    elif args.cmd == 'create':
         results = docstore.create_index(hosts, args.index)
-    elif args.cmd == 'index' and args.remove:
+    elif args.cmd == 'remove':
         results = docstore.delete_index(hosts, args.index)
     elif args.cmd == 'index':
         start = datetime.now()
