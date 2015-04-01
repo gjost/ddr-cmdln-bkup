@@ -699,7 +699,6 @@ def is_clone(path1, path2, n=5):
     @param n
     @returns 1 (is a clone), 0 (not a clone), or -1 (unknown)
     """
-    print('is_clone(%s, %s, %s)' % (path1, path2, n))
     if is_local(path2):
         def get(path):
             try:
@@ -714,8 +713,6 @@ def is_clone(path1, path2, n=5):
         log1 = get(path1)
         log2 = get(path2)
         if log1 and log2:
-            print('len(log1) %s' % len(log1))
-            print('len(log2) %s' % len(log2))
             if (log1 == log2):
                 return 1
             else:
