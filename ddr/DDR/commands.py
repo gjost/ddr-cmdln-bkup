@@ -307,19 +307,24 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     # add files and commit
     repo = commit_files(repo, commit_message, git_files, [])
     # master branch should be created by this point
-    
-    # git annex init and sync
+    # git annex init
     logging.debug('    git annex init')
     repo.git.annex('init')
     if os.path.exists(os.path.join(collection.path, '.git', 'annex')):
         logging.debug('    .git/annex/ OK')
     else:
         logging.error('    .git/annex/ IS MISSING!')
-    # git annex sync
-    repo.git.annex('sync')
+    
+    # manual version of git-annex-sync - see notes for DDR.commands.sync.
+    logging.debug('git push %s git-annex' % GIT_REMOTE_NAME)
+    repo.git.checkout('git-annex')
+    repo.git.push(GIT_REMOTE_NAME, 'git-annex')
+    logging.debug('git push %s master' % GIT_REMOTE_NAME)
+    repo.git.checkout('master')
+    repo.git.push(GIT_REMOTE_NAME, 'master')
+    logging.debug('OK')
     
     dvcs.set_annex_description(repo)
-    
     return 0,'ok'
 
 
@@ -416,18 +421,22 @@ def update(user_name, user_mail, collection_path, updated_files, agent=''):
 @command
 @requires_network
 def sync(user_name, user_mail, collection_path):
-    """Command-line function for git pull/push to workbench server, git-annex sync
+    """Sync repo with bare clone on hub server; replaces git-annex-sync.
     
-    Pulls changes from and pushes changes to the workbench server.
-
-    For this to work properly with Gitolite, it's necessary to push/pull
-    on both the master AND git-annex branches.
-    Sequence:
-    - fetch
-    - pull on master,git-annex branches
-    - push on git-annex,master branches
+    Git-annex has a "sync" command for communicating annex changes between
+    repositories, but it is designed to be used between non-bare repositories.
+    Normally Git does not support pushing to non-bare repositories, and
+    git-annex does some trickery involving "synced/BRANCH" branches to make
+    this work.
+    Reference: http://git-annex.branchable.com/sync/
     
-    TODO This assumes that origin is the workbench server...
+    When git-annex-sync is used between a non-bare repo and a bare repo
+    (e.g. between a local repo and our hub server running Gitolite),
+    the "synced/master" branches do not get merged in to master and syncing
+    no longer works.  Therefore it is necessary to sync manually.
+    
+    If you think you want to use git-annex-sync, remember that we tried this
+    in commit 1857a7aa3f and it did not work and we reverted to manual syncing.
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
@@ -435,14 +444,30 @@ def sync(user_name, user_mail, collection_path):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
-    
     repo = dvcs.repository(collection.path, user_name, user_mail)
-    repo.git.checkout('master')
+    logging.debug('repo: %s' % repo)
     dvcs.set_annex_description(repo)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
-    logging.debug('git annex sync')
-    repo.git.annex('sync')
+    # list remotes
+    logging.debug('remotes')
+    for remote in dvcs.remotes(collection_path):
+        logging.debug('- %s %s' % (remote['name'], remote['url']))
+    # pull
+    logging.debug('git pull %s master' % GIT_REMOTE_NAME)
+    repo.git.checkout('master')
+    repo.git.pull(GIT_REMOTE_NAME, 'master')
+    logging.debug('git pull %s git-annex' % GIT_REMOTE_NAME)
+    repo.git.checkout('git-annex')
+    repo.git.pull(GIT_REMOTE_NAME, 'git-annex')
+    #logging.debug('OK')
+    # push
+    logging.debug('git pull %s git-annex' % GIT_REMOTE_NAME)
+    repo.git.checkout('git-annex')
+    repo.git.push(GIT_REMOTE_NAME, 'git-annex')
+    logging.debug('git pull %s master' % GIT_REMOTE_NAME)
+    repo.git.checkout('master')
+    repo.git.push(GIT_REMOTE_NAME, 'master')
     logging.debug('OK')
     return 0,'ok'
 
