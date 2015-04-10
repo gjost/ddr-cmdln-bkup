@@ -1,7 +1,161 @@
+import logging
+logger = logging.getLogger(__name__)
 import os
 
 import envoy
+import psutil
 
+DEVICE_TYPES = ['vhd', 'usb']
+
+DEVICE_STATES = {
+    'vhd': {
+        '--': [],
+        'm-': ['link'],
+        'ml': ['unlink'],
+        '-l': ['unlink'],
+    },
+    'usb': {
+        '--': ['mount'],
+        'm-': ['unmount','link'],
+        'ml': ['unmount','unlink'],
+        '-l': ['unlink'],
+    },
+    'unknown': {}
+}
+
+
+def device_actions(device):
+    """Given device from devices(), return possible actions.
+    
+    @param device: dict
+    @returns: list
+    """
+    devicetype = device['devicetype']
+    state = []
+    if device['mounted']: state.append('m')
+    else:                 state.append('-')
+    if device['linked']:  state.append('l')
+    else:                 state.append('-')
+    state = ''.join(state)
+    return DEVICE_STATES[devicetype][state]
+
+def _parse_udisks(udisks_dump_stdout, symlink=None):
+    """Parse the output of 'udisks --dump'
+    NOTE: Separated from .devices() for easier testing.
+    NOTE: This is probably unique to VirtualBox!
+    
+    @param udisks_dump_stdout: str Output of "udisks --dump".
+    @param symlink: str Absolute path to MEDIA_BASE symlink.
+    @returns: list of dicts containing device info.
+    """
+    chunks = udisks_dump_stdout.split('========================================================================\n')
+    udisks_dump_stdout = None
+    # get sdb* devices (sdb1, sdb2, etc)
+    sdchunks = []
+    NUMBRS = [c for c in '0123456789']
+    for c in chunks:
+        if ('sdb' in c) or ('sdc' in c) or ('sdd' in c):
+            lines = c.split('\n')
+            if lines[0][-1] in NUMBRS:
+                sdchunks.append(c)
+    chunks = c = None
+    # grab the interesting data for each device
+    # IMPORTANT: spaces are removed from these labels when they are assigned!!!
+    devices = []
+    INTERESTING = [
+        'device-file', 'mount paths', 'label', 'is mounted', 'type',
+        'native-path', 'by-id',
+    ]
+    for c in sdchunks:
+        device = {
+            'devicetype':'unknown',
+            'mounted':False,
+            'linked':False
+        }
+        for l in c.split('\n'):
+            if ':' in l:
+                k,v = l.split(':', 1)
+                k = k.strip()
+                v = v.strip()
+                if (k in INTERESTING) and v and (not k in device.keys()):
+                    device[k] = v
+        devices.append(device)
+    sdchunks = c = None
+    # rm spaces and dashes
+    RENAME_FIELDS = {
+        'device-file': 'devicefile',
+        'mount paths': 'mountpath',
+        'is mounted': 'mounted',
+        'type': 'fstype',
+    }
+    for device in devices:
+        for keyfrom,keyto in RENAME_FIELDS.iteritems():
+            if device.get(keyfrom,None):
+                device[keyto] = device.pop(keyfrom)
+    # I like ints
+    INTEGERS = ['mounted', 'linked']
+    for device in devices:
+        for field in INTEGERS:
+            if device.get(field, None):
+                device[field] = int(device[field])
+    # interpret device type
+    for device in devices:
+        # HDD
+        if ('harddisk' in device['by-id'].lower()):
+            device['devicetype'] = 'vhd'
+            device['label'] = device['mountpath'].replace('/media/', '')
+        # USB
+        elif 'usb' in device['native-path'].lower():
+            device['devicetype'] = 'usb'
+        device.pop('by-id')
+        device.pop('native-path')
+    # collections directory
+    for device in devices:
+        if device.get('mountpath', None):
+            device['basepath'] = os.path.join(device['mountpath'], 'ddr')
+    # is device the target of symlink?
+    if symlink:
+        target = os.path.realpath(symlink)
+        for device in devices:
+            device['linked'] = 0
+            if device.get('mountpath', None) and (device['mountpath'] in target):
+                device['linked'] = 1
+    # what actions are possible from this state?
+    for device in devices:
+        device['actions'] = device_actions(device)
+    return devices
+
+def devices(symlink=None):
+    """List removable drives whether or not they are attached.
+    
+    This is basically a wrapper around "udisks --dump" that looks for
+    "/dev/sd*" devices and extracts certain info.
+    Requires the udisks package (sudo apt-get install udisks).
+    TODO Switch to udiskie? https://github.com/coldfix/udiskie
+    
+    >> devices()
+    [
+        {'devicetype': 'usb', fstype': 'ntfs', 'devicefile': '/dev/sdb1', 'label': 'USBDRIVE1', mountpath:'...', 'mounted':1, 'linked':True},
+        {'device_type': 'vhd', fs_type': 'ext3', 'devicefile': '/dev/sdb2', 'label': 'USBDRIVE2', mountpath:'...', 'mounted':0, 'linked':True}
+    ]
+    
+    @return: list of dicts containing attribs of devices
+    """
+    r = envoy.run('udisks --dump', timeout=2)
+    return _parse_udisks(r.std_out, symlink=symlink)
+
+def mounted_devices():
+    """List mounted and accessible removable drives.
+    
+    Note: this is different from base_path!
+    
+    @return: List of dicts containing attribs of devices
+    """
+    return [
+        {'devicefile':p.device, 'mountpath':p.mountpoint,}
+        for p in psutil.disk_partitions()
+        if '/media' in p.mountpoint
+    ]
 
 def mount( device_file, label ):
     """Mounts specified device at the label; returns mount_path.
@@ -14,10 +168,12 @@ def mount( device_file, label ):
     """
     mount_path = None
     cmd = 'pmount --read-write --umask 022 {} {}'.format(device_file, label)
+    logger.debug(cmd)
     r = envoy.run(cmd, timeout=60)
-    for d in removables_mounted():
+    for d in mounted_devices():
         if label in d['mountpath']:
             mount_path = d['mountpath']
+    logger.debug('mount_path: %s' % mount_path)
     return mount_path
 
 def umount( device_file ):
@@ -30,85 +186,21 @@ def umount( device_file ):
     """
     unmounted = 'error'
     cmd = 'pumount {}'.format(device_file)
+    logger.debug(cmd)
     r = envoy.run(cmd, timeout=60)
-    in_removables = False
-    for d in removables_mounted():
+    mounted = False
+    for d in mounted_devices():
         if device_file in d['devicefile']:
-            in_removables = True
-    if not in_removables:
+            mounted = True
+    if not mounted:
         unmounted = 'unmounted'
+    logger.debug(unmounted)
     return unmounted
 
 def remount( device_file, label ):
     unmounted = umount(device_file)
     mount_path = mount(device_file, label)
     return mount_path
-
-def _parse_removables( udisks_dump_stdout ):
-    """Parse the output of 'udisks --dump'
-    NOTE: Separated from .removables() for easier testing.
-    """
-    d = []
-    sdchunks = []
-    chunks = udisks_dump_stdout.split('========================================================================\n')
-    # get sdb* devices (sdb1, sdb2, etc)
-    for c in chunks:
-        if ('sdb' in c) or ('sdc' in c) or ('sdd' in c):
-            lines = c.split('\n')
-            numbrs = ['0','1','2','3','4','5','6','7','8','9',]
-            if lines[0][-1] in numbrs:
-                sdchunks.append(c)
-    # grab the interesting data for each device
-    # IMPORTANT: spaces are removed from these labels when they are assigned!!!
-    interesting = ['devicefile', 'isreadonly', 'ismounted', 'mountpaths', 'type', 'uuid', 'label',]
-    for c in sdchunks:
-        attribs = {}
-        for l in c.split('\n'):
-            if ':' in l:
-                k,v = l.split(':', 1)
-                k = k.strip().replace('-','').replace(' ','')
-                v = v.strip()
-                if (k in interesting) and v and (not k in attribs.keys()):
-                    attribs[k] = v
-        d.append(attribs)
-    return d
-
-def removables():
-    """List removable drives whether or not they are attached.
-    
-    This is basically a wrapper around "udisks --dump" that looks for
-    "/dev/sdb*" devices and extracts certain info.
-    Requires the udisks package (sudo apt-get install udisks).
-    
-    >> removables()
-    [{'device-file': '/dev/sdb1', 'type': 'ntfs', 'uuid': '1A2B3C4D5E6F7G89', 'label': 'USBDRIVE1'}, {'device-file': '/dev/sdb2', 'type': 'ntfs', 'uuid':  '98G7F6E5D4C3B2A1', 'label': 'USBDRIVE2'}]
-    
-    @return: list of dicts containing attribs of devices
-    """
-    r = envoy.run('udisks --dump', timeout=2)
-    return _parse_removables(r.std_out)
-
-def _parse_removables_mounted( df_h_stdout ):
-    d = []
-    for l in df_h_stdout.split('\n'):
-        if (l.find('/dev/sd') > -1) and (l.find('/media') > -1):
-            attrs = {'devicefile':l.split()[0], 'mountpath':l.split()[-1],}
-            if is_writable(attrs['mountpath']):
-                d.append(attrs)
-    return d
-
-def removables_mounted():
-    """List mounted and accessible removable drives.
-    
-    This is basically a wrapper around df:
-    $ df -h
-    ...
-    /dev/sdc1               466G   76G  391G  17% /media/WD5000BMV-2
-    
-    @return: List of dicts containing attribs of devices
-    """
-    r = envoy.run('df -h', timeout=2)
-    return _parse_removables_mounted(r.std_out)
 
 def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
@@ -159,30 +251,20 @@ def mount_path( path ):
         return os.sep
     return mount_path(p1)
 
-def _guess_storage_type( mountpath ):
-    """Guess storage type based on output of mount_path().
-    NOTE: Separated from .storage_type() for easier testing.
-    """
-    # see if any labels of removable devices appear in mountpath
-    labels = [ r['label'] for r in removables() if r.get('label', None) ]
-    mp_has_removable_label = [True for label in labels if label in mountpath]
-    
-    if mountpath == '/':
-        return 'internal'
-    elif ('/media' in mountpath) and mp_has_removable_label:
-        return 'removable'
-    elif '/media' in mountpath:
-        return 'mounted'
-    return 'unknown'
-    
-def storage_type( path ):
+def device_type( path ):
     """Indicates whether path points to internal drive, removable storage, etc.
+    
+    Per Filesystem Hierarchy Standard v2.3, /media is the mount point for
+    removeable media.
+    
+    @param path: str A file path
+    @returns: str 'usb', 'vhd', or 'unknown'
     """
-    # get mount pount for path
-    # get label for mount at that path
-    # 
-    m = mount_path(path)
-    return _guess_storage_type(m)
+    mountpath = mount_path(path)
+    for device in devices():
+        if device.get('mountpath',None) == mountpath:
+            return device['device_type']
+    return 'unknown'
 
 def status( path ):
     """Indicates status of storage path.
@@ -201,29 +283,10 @@ def status( path ):
         return 'unmounted'
     return 'unknown'
 
-def _parse_diskspace( df_h_stdout, mountpath ):
-    fs = None
-    for line in df_h_stdout.strip().split('\n'):
-        while line.find('  ') > -1:
-            line = line.replace('  ', ' ')
-        parts = line.split(' ')
-        path = parts[5]
-        if (path in mountpath) and (path != '/'):
-            fs = {'size': parts[1],
-                  'used': parts[2],
-                  'avail': parts[3],
-                  'percent': parts[4].replace('%',''),
-                  'mount': parts[5],}
-    return fs
-
 def disk_space( mountpath ):
-    """Returns disk space info for the mounted drive.
+    """Returns disk usage in bytes for the mounted drive.
     
-    Uses 'df -h' on the back-end.
-        Filesystem  Size  Used  Avail  Use%  Mounted on
-    TODO Make this work on drives with spaces in their name!
+    @param mountpath
+    @returns: OrderedDict total, used, free, percent
     """
-    if mount_path:
-        r = envoy.run('df -h')
-        return _parse_diskspace(r.std_out, mountpath)
-    return None
+    return psutil.disk_usage(mountpath)._asdict()

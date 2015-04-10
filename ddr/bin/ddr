@@ -16,7 +16,7 @@ from DDR.commands import status, annex_status
 from DDR.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from DDR.commands import annex_push, annex_pull
 from DDR.commands import sync_group
-from DDR.commands import removables, removables_mounted, mount_point, mount, umount, storage_status
+from DDR.commands import devices, mounted_devices, mount_point, mount, umount, storage_status
 
 
 config = ConfigParser.ConfigParser()
@@ -250,15 +250,15 @@ Example:
     parser_syncgrp.add_argument('-B', '--rembase', required=True, help='Absolute path to dir containing remote repos from POV of local base dir.')
     parser_syncgrp.add_argument('-N', '--remname', required=True, help='Remote name.')
 
-    # removables
-    parser_remo = subparsers.add_parser('removables', formatter_class=formatter,)
-    parser_remo.set_defaults(func=removables)
+    # devices
+    parser_remo = subparsers.add_parser('devices', formatter_class=formatter,)
+    parser_remo.set_defaults(func=devices)
     parser_remo.add_argument('-l', '--log', help='Log file..')
     parser_remo.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
 
     # mounted
     parser_mntd = subparsers.add_parser('mounted', formatter_class=formatter,)
-    parser_mntd.set_defaults(func=removables_mounted)
+    parser_mntd.set_defaults(func=mounted_devices)
     parser_mntd.add_argument('-l', '--log', help='Log file..')
     parser_mntd.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
 
@@ -338,11 +338,11 @@ Example:
     elif args.cmd == 'pull':     exit,msg = annex_pull(args.collection, args.file)
     elif args.cmd == 'syncgrp':
         exit,msg = sync_group(args.groupfile, args.locbase, args.locname, args.rembase, args.remname)
-    elif args.cmd == 'removables':
-        exit,msg = removables()
+    elif args.cmd == 'devices':
+        exit,msg = devices()
         print(msg)
     elif args.cmd == 'mounted':
-        exit,msg = removables_mounted()
+        exit,msg = mounted_devices()
         print(msg)
     elif args.cmd == 'mountpoint':
         exit,msg = mount_point(args.path)
