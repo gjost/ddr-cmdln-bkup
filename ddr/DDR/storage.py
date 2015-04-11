@@ -5,6 +5,8 @@ import os
 import envoy
 import psutil
 
+from DDR import MEDIA_BASE
+
 DEVICE_TYPES = ['vhd', 'usb']
 
 DEVICE_STATES = {
@@ -201,6 +203,46 @@ def remount( device_file, label ):
     unmounted = umount(device_file)
     mount_path = mount(device_file, label)
     return mount_path
+
+def link(target):
+    """Create symlink to Store from MEDIA_BASE.
+    
+    @param target: absolute path to link target
+    """
+    link = MEDIA_BASE
+    link_parent = os.path.split(link)[0]
+    logger.debug('link: %s -> %s' % (link, target))
+    if target and link and link_parent:
+        s = []
+        if os.path.exists(target):          s.append('1')
+        else:                               s.append('0')
+        if os.path.exists(link_parent):     s.append('1')
+        else:                               s.append('0')
+        if os.access(link_parent, os.W_OK): s.append('1')
+        else:                               s.append('0')
+        s = ''.join(s)
+        logger.debug('s: %s' % s)
+        if s == '111':
+            logger.debug('symlink target=%s, link=%s' % (target, link))
+            os.symlink(target, link)
+
+def unlink():
+    """Remove symlink to Store from MEDIA_BASE.
+    """
+    link = MEDIA_BASE
+    s = []
+    if os.path.exists(link):     s.append('1')
+    else:                        s.append('0')
+    if os.path.islink(link):     s.append('1')
+    else:                        s.append('0')
+    if os.access(link, os.W_OK): s.append('1')
+    else:                        s.append('0')
+    codes = ''.join(s)
+    if codes in ['111', '010']:
+        logger.debug('removing %s (-> %s): %s' % (link, os.path.realpath(link), codes))
+        os.remove(link)
+    else:
+        logger.debug('could not remove %s (-> %s): %s' % (link, os.path.realpath(link), codes))
 
 def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
