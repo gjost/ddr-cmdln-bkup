@@ -41,6 +41,28 @@ def device_actions(device):
     state = ''.join(state)
     return DEVICE_STATES[devicetype][state]
 
+def list_nfs(df_T_stdout):
+    """List mounted NFS volumes.
+    
+    @param df_T_stdout: str Output of "df -T".
+    @returns: list of dicts containing device info.
+    """
+    cleaned = []
+    lines = df_T_stdout.strip().split('\n')
+    for line in lines:
+        if 'nfs' in line:
+            while '  ' in line:
+                line = line.replace('  ', ' ')
+            parts = line.split(' ')
+            data = {
+                'devicefile': parts[0],
+                'mountpath': parts[-1],
+                'mounted': os.path.exists(parts[-1]),
+                'fstype': parts[1],
+            }
+            cleaned.append(data)
+    return cleaned
+
 def _parse_udisks(udisks_dump_stdout, symlink=None):
     """Parse the output of 'udisks --dump'
     NOTE: Separated from .devices() for easier testing.
