@@ -156,7 +156,7 @@ def nfs_devices(df_T_stdout):
             devices.append(device)
     return devices
 
-def find_dirs_with_file(base, marker, levels=2, excludes=['.git']):
+def find_store_dirs(base, marker, levels=2, excludes=['.git']):
     """Find dirs containing the specified file
     
     @param base: str Base directory.
@@ -198,7 +198,7 @@ def local_stores(devices, levels=3, symlink=None):
             stores.append(device)
         elif device.get('mountpath'):
             # find directories containing 'ddr' repositories.
-            storedirs = find_dirs_with_file(
+            storedirs = find_store_dirs(
                 device['mountpath'], 'repository.json',
                 levels=2, excludes=['.git']
             )
@@ -226,11 +226,11 @@ def nfs_stores(devices, levels=3, symlink=None):
     stores = []
     for device in devices:
         # find directories containing 'ddr' repositories.
-        sdirs = find_dirs_with_file(
+        storedirs = find_store_dirs(
             device['mountpath'], 'repository.json',
             levels=levels, excludes=['.git']
         )
-        for sdir in sdirs:
+        for sdir in storedirs:
             d = deepcopy(device)
             d['basepath'] = sdir
             d['label'] = d['basepath']
