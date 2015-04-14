@@ -156,9 +156,10 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     ]
     for c in sdchunks:
         device = {
-            'devicetype':'unknown',
-            'mounted':False,
-            'linked':False
+            'devicetype': 'unknown',
+            'mounted': False,
+            'linked': False,
+            'actions': [],
         }
         for l in c.split('\n'):
             if ':' in l:
@@ -204,17 +205,36 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     for device in devices:
         if device.get('mountpath', None):
             device['basepath'] = os.path.join(device['mountpath'], 'ddr')
-    # is device the target of symlink?
-    if symlink:
-        target = os.path.realpath(symlink)
-        for device in devices:
-            device['linked'] = 0
-            if device.get('mountpath', None) and (device['mountpath'] in target):
-                device['linked'] = 1
-    # what actions are possible from this state?
+
+    
+    target = os.path.realpath(symlink)
+    stores = []
     for device in devices:
-        device['actions'] = device_actions(device)
-    return devices
+        
+        if not device.get('mounted'):
+            # unmounted devices are added... so we can mount them
+            device['actions'] = device_actions(device)
+            stores.append(device)
+        
+        elif device.get('mountpath'):
+            # find directories containing 'ddr' repositories.
+            storedirs = find_dirs_with_file(
+                device['mountpath'], 'repository.json',
+                levels=2, excludes=['.git']
+            )
+            for sdir in storedirs:
+                d = deepcopy(device)
+                d['basepath'] = sdir
+                d['label'] = d['basepath']
+                # is device the target of symlink?
+                if symlink and target:
+                    if d.get('basepath') and (d['basepath'] == target):
+                        d['linked'] = 1
+                # what actions are possible from this state?
+                d['actions'] = device_actions(d)
+                stores.append(d)
+
+    return stores
 
 def devices(symlink=None):
     """List removable drives whether or not they are attached.
