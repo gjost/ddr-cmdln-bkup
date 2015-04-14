@@ -1,6 +1,8 @@
+from copy import deepcopy
 import logging
 logger = logging.getLogger(__name__)
 import os
+import shlex
 
 import envoy
 import psutil
@@ -22,6 +24,12 @@ DEVICE_STATES = {
         'ml': ['unmount','unlink'],
         '-l': ['unlink'],
     },
+    'nfs': {
+        '--': [],
+        'm-': ['link'],
+        'ml': ['unlink'],
+        '-l': ['unlink'],
+    },
     'unknown': {}
 }
 
@@ -41,27 +49,78 @@ def device_actions(device):
     state = ''.join(state)
     return DEVICE_STATES[devicetype][state]
 
-def list_nfs(df_T_stdout):
+def find_dirs_with_file(base, marker, levels=2, excludes=['.git']):
+    """Find dirs containing the specified file
+    
+    @param base: str Base directory.
+    @param marker: str Look for dirs containing this file.
+    @param levels: int Only descend this many levels (default 2).
+    @param excludes: list Directories to exclude.
+    """
+    hits = []
+    for root, dirs, files in os.walk(base):
+        for x in excludes:
+            if x in dirs:
+                dirs.remove(x)
+        if (marker in files):
+            hits.append(root)
+        depth = len(os.path.relpath(root, start=base).split(os.sep))
+        if (depth >= levels) or (marker in files):
+            # don't go any further down
+            del dirs[:]
+    return hits
+
+def nfs_devices(df_T_stdout):
     """List mounted NFS volumes.
     
     @param df_T_stdout: str Output of "df -T".
     @returns: list of dicts containing device info.
     """
-    cleaned = []
-    lines = df_T_stdout.strip().split('\n')
-    for line in lines:
+    devices = []
+    for line in df_T_stdout.strip().split('\n'):
         if 'nfs' in line:
-            while '  ' in line:
-                line = line.replace('  ', ' ')
-            parts = line.split(' ')
-            data = {
+            parts = shlex.split(line)
+            device = {
+                'devicetype': 'nfs',
                 'devicefile': parts[0],
+                'label': parts[0],
                 'mountpath': parts[-1],
-                'mounted': os.path.exists(parts[-1]),
                 'fstype': parts[1],
+                'basepath': None,
+                'linked': 0,
+                'actions': [],
             }
-            cleaned.append(data)
-    return cleaned
+            device['mounted'] = os.path.exists(device['mountpath'])
+            devices.append(device)
+    return devices
+
+def nfs_stores(devices, levels=3, symlink=None):
+    """List Stores under NFS basepath.
+    
+    @param devices: list Output of nfs_devices().
+    @param levels: int Limit how far down in the filesystem to look.
+    @param symlink: str (optional) BASE_PATH symlink.
+    """
+    target = os.path.realpath(symlink)
+    stores = []
+    for device in devices:
+        # find directories containing 'ddr' repositories.
+        hits = find_dirs_with_file(
+            device['mountpath'], 'repository.json',
+            levels=levels, excludes=['.git']
+        )
+        for hit in hits:
+            d = deepcopy(device)
+            d['basepath'] = hit
+            d['label'] = d['basepath']
+            # is device the target of symlink?
+            if symlink and target:
+                if d.get('basepath') and (d['basepath'] == target):
+                    d['linked'] = 1
+            # what actions are possible from this state?
+            d['actions'] = device_actions(d)
+            stores.append(d)
+    return stores
 
 def _parse_udisks(udisks_dump_stdout, symlink=None):
     """Parse the output of 'udisks --dump'
@@ -127,7 +186,10 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
         # HDD
         if ('harddisk' in device['by-id'].lower()):
             device['devicetype'] = 'vhd'
-            device['label'] = device['mountpath'].replace('/media/', '')
+            if device['mounted']:
+                device['label'] = device['mountpath'].replace('/media/', '')
+            else:
+                device['label'] = device['devicefile']
         # USB
         elif 'usb' in device['native-path'].lower():
             device['devicetype'] = 'usb'
@@ -165,8 +227,16 @@ def devices(symlink=None):
     
     @return: list of dicts containing attribs of devices
     """
-    r = envoy.run('udisks --dump', timeout=2)
-    return _parse_udisks(r.std_out, symlink=symlink)
+    # NFS shares
+    nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
+    nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
+    # HDD and USB devices
+    removables = _parse_udisks(
+        envoy.run('udisks --dump', timeout=2).std_out,
+        symlink=symlink)
+    #
+    devices = removables + nfsstores
+    return devices
 
 def mounted_devices():
     """List mounted and accessible removable drives.
