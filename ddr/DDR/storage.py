@@ -78,6 +78,9 @@ def find_dirs_with_file(base, marker, levels=2, excludes=['.git']):
 def nfs_devices(df_T_stdout):
     """List mounted NFS volumes.
     
+    NFS shares mounted like this for testing:
+        $ sudo mount -v -t nfs -o rw,nosuid qml:/srv/www /mnt/qml
+    
     @param df_T_stdout: str Output of "df -T".
     @returns: list of dicts containing device info.
     """
