@@ -1,14 +1,18 @@
+from copy import deepcopy
 import logging
 logger = logging.getLogger(__name__)
 import os
+import shlex
 
 import envoy
 import psutil
 
-DEVICE_TYPES = ['vhd', 'usb']
+from DDR import MEDIA_BASE
+
+DEVICE_TYPES = ['hdd', 'usb']
 
 DEVICE_STATES = {
-    'vhd': {
+    'hdd': {
         '--': [],
         'm-': ['link'],
         'ml': ['unlink'],
@@ -18,6 +22,12 @@ DEVICE_STATES = {
         '--': ['mount'],
         'm-': ['unmount','link'],
         'ml': ['unmount','unlink'],
+        '-l': ['unlink'],
+    },
+    'nfs': {
+        '--': [],
+        'm-': ['link'],
+        'ml': ['unlink'],
         '-l': ['unlink'],
     },
     'unknown': {}
@@ -39,13 +49,13 @@ def device_actions(device):
     state = ''.join(state)
     return DEVICE_STATES[devicetype][state]
 
-def _parse_udisks(udisks_dump_stdout, symlink=None):
+def local_devices(udisks_dump_stdout):
     """Parse the output of 'udisks --dump'
+    
     NOTE: Separated from .devices() for easier testing.
     NOTE: This is probably unique to VirtualBox!
     
     @param udisks_dump_stdout: str Output of "udisks --dump".
-    @param symlink: str Absolute path to MEDIA_BASE symlink.
     @returns: list of dicts containing device info.
     """
     chunks = udisks_dump_stdout.split('========================================================================\n')
@@ -68,9 +78,10 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     ]
     for c in sdchunks:
         device = {
-            'devicetype':'unknown',
-            'mounted':False,
-            'linked':False
+            'devicetype': 'unknown',
+            'mounted': False,
+            'linked': False,
+            'actions': [],
         }
         for l in c.split('\n'):
             if ':' in l:
@@ -102,8 +113,11 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     for device in devices:
         # HDD
         if ('harddisk' in device['by-id'].lower()):
-            device['devicetype'] = 'vhd'
-            device['label'] = device['mountpath'].replace('/media/', '')
+            device['devicetype'] = 'hdd'
+            if device['mounted']:
+                device['label'] = device['mountpath'].replace('/media/', '')
+            else:
+                device['label'] = device['devicefile']
         # USB
         elif 'usb' in device['native-path'].lower():
             device['devicetype'] = 'usb'
@@ -113,17 +127,125 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     for device in devices:
         if device.get('mountpath', None):
             device['basepath'] = os.path.join(device['mountpath'], 'ddr')
-    # is device the target of symlink?
-    if symlink:
-        target = os.path.realpath(symlink)
-        for device in devices:
-            device['linked'] = 0
-            if device.get('mountpath', None) and (device['mountpath'] in target):
-                device['linked'] = 1
-    # what actions are possible from this state?
+    # remove unmounted HDDs - These are unmountable under VirtualBox.
     for device in devices:
-        device['actions'] = device_actions(device)
+        if (device['devicetype'] == 'hdd') and (not device['mounted']):
+            devices.remove(device)
     return devices
+
+def nfs_devices(df_T_stdout):
+    """List mounted NFS volumes.
+    
+    NFS shares mounted like this for testing:
+        $ sudo mount -v -t nfs -o rw,nosuid qml:/srv/www /mnt/qml
+    
+    @param df_T_stdout: str Output of "df -T".
+    @returns: list of dicts containing device info.
+    """
+    devices = []
+    for line in df_T_stdout.strip().split('\n'):
+        if 'nfs' in line:
+            parts = shlex.split(line)
+            device = {
+                'devicetype': 'nfs',
+                'devicefile': parts[0],
+                'label': parts[0],
+                'mountpath': parts[-1],
+                'fstype': parts[1],
+                'basepath': None,
+                'linked': 0,
+                'actions': [],
+            }
+            device['mounted'] = os.path.exists(device['mountpath'])
+            devices.append(device)
+    return devices
+
+def find_store_dirs(base, marker, levels=2, excludes=['.git']):
+    """Find dirs containing the specified file
+    
+    @param base: str Base directory.
+    @param marker: str Look for dirs containing this file.
+    @param levels: int Only descend this many levels (default 2).
+    @param excludes: list Directories to exclude.
+    """
+    hits = []
+    for root, dirs, files in os.walk(base):
+        for x in excludes:
+            if x in dirs:
+                dirs.remove(x)
+        if (marker in files):
+            hits.append(root)
+        depth = len(os.path.relpath(root, start=base).split(os.sep))
+        if (depth >= levels) or (marker in files):
+            # don't go any further down
+            del dirs[:]
+    sdirs = []
+    for h in hits:
+        d = os.path.dirname(h)
+        if d not in sdirs:
+            sdirs.append(d)
+    return sdirs
+
+def local_stores(devices, levels=3, symlink=None):
+    """List Stores on local devices (HDD, USB).
+    
+    @param devices: list Output of local_devices().
+    @param levels: int Limit how far down in the filesystem to look.
+    @param symlink: str (optional) BASE_PATH symlink.
+    """
+    target = os.path.realpath(symlink)
+    stores = []
+    for device in devices:
+        if not device.get('mounted'):
+            # unmounted devices are added... so we can mount them
+            device['actions'] = device_actions(device)
+            stores.append(device)
+        elif device.get('mountpath'):
+            # find directories containing 'ddr' repositories.
+            storedirs = find_store_dirs(
+                device['mountpath'], 'repository.json',
+                levels=2, excludes=['.git']
+            )
+            for sdir in storedirs:
+                d = deepcopy(device)
+                d['basepath'] = sdir
+                d['label'] = d['basepath']
+                # is device the target of symlink?
+                if symlink and target:
+                    if d.get('basepath') and (d['basepath'] == target):
+                        d['linked'] = 1
+                # what actions are possible from this state?
+                d['actions'] = device_actions(d)
+                stores.append(d)
+    return stores
+
+def nfs_stores(devices, levels=3, symlink=None):
+    """List Stores under NFS basepath.
+    
+    @param devices: list Output of nfs_devices().
+    @param levels: int Limit how far down in the filesystem to look.
+    @param symlink: str (optional) BASE_PATH symlink.
+    """
+    target = os.path.realpath(symlink)
+    stores = []
+    for device in devices:
+        # find directories containing 'ddr' repositories.
+        storedirs = find_store_dirs(
+            device['mountpath'], 'repository.json',
+            levels=levels, excludes=['.git']
+        )
+        for sdir in storedirs:
+            d = deepcopy(device)
+            d['basepath'] = sdir
+            d['label'] = d['basepath']
+            # is device the target of symlink?
+            if symlink and target:
+                if d.get('basepath') and (d['basepath'] == target):
+                    d['linked'] = 1
+            # what actions are possible from this state?
+            d['actions'] = device_actions(d)
+            stores.append(d)
+    return stores
 
 def devices(symlink=None):
     """List removable drives whether or not they are attached.
@@ -136,13 +258,23 @@ def devices(symlink=None):
     >> devices()
     [
         {'devicetype': 'usb', fstype': 'ntfs', 'devicefile': '/dev/sdb1', 'label': 'USBDRIVE1', mountpath:'...', 'mounted':1, 'linked':True},
-        {'device_type': 'vhd', fs_type': 'ext3', 'devicefile': '/dev/sdb2', 'label': 'USBDRIVE2', mountpath:'...', 'mounted':0, 'linked':True}
+        {'device_type': 'hdd', fs_type': 'ext3', 'devicefile': '/dev/sdb2', 'label': 'USBDRIVE2', mountpath:'...', 'mounted':0, 'linked':True}
     ]
     
     @return: list of dicts containing attribs of devices
     """
-    r = envoy.run('udisks --dump', timeout=2)
-    return _parse_udisks(r.std_out, symlink=symlink)
+    # HDD and USB devices
+    localdevices = local_devices(envoy.run('udisks --dump', timeout=2).std_out)
+    localstores = local_stores(localdevices, levels=3, symlink=symlink)
+    # NFS shares
+    nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
+    nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
+    # sort by label
+    devices = sorted(
+        localstores + nfsstores,
+        key=lambda device: device['label']
+    )
+    return devices
 
 def mounted_devices():
     """List mounted and accessible removable drives.
@@ -202,6 +334,39 @@ def remount( device_file, label ):
     mount_path = mount(device_file, label)
     return mount_path
 
+def link(target):
+    """Create symlink to Store from MEDIA_BASE.
+    
+    @param target: absolute path to link target
+    """
+    link = MEDIA_BASE
+    link_parent = os.path.split(link)[0]
+    logger.debug('link: %s -> %s' % (link, target))
+    if target and link and link_parent:
+        s = []
+        if os.path.exists(target):          s.append('1')
+        else:                               s.append('0')
+        if os.path.exists(link_parent):     s.append('1')
+        else:                               s.append('0')
+        if os.access(link_parent, os.W_OK): s.append('1')
+        else:                               s.append('0')
+        s = ''.join(s)
+        logger.debug('s: %s' % s)
+        if s == '111':
+            logger.debug('symlink target=%s, link=%s' % (target, link))
+            os.symlink(target, link)
+
+def unlink():
+    """Remove symlink to Store from MEDIA_BASE.
+    """
+    if os.path.exists(MEDIA_BASE):
+        target = os.path.realpath(MEDIA_BASE)
+        logger.debug('rm %s (-> %s)' % (MEDIA_BASE, target))
+        os.remove(MEDIA_BASE)
+        logger.debug('%s exists: %s' % (MEDIA_BASE, os.path.exists(MEDIA_BASE)))
+    else:
+        logger.debug('%s not there!' % MEDIA_BASE)
+
 def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
     NOTE: Separated from .drive_label() for easier testing.
@@ -250,21 +415,6 @@ def mount_path( path ):
     if p1 == '':
         return os.sep
     return mount_path(p1)
-
-def device_type( path ):
-    """Indicates whether path points to internal drive, removable storage, etc.
-    
-    Per Filesystem Hierarchy Standard v2.3, /media is the mount point for
-    removeable media.
-    
-    @param path: str A file path
-    @returns: str 'usb', 'vhd', or 'unknown'
-    """
-    mountpath = mount_path(path)
-    for device in devices():
-        if device.get('mountpath',None) == mountpath:
-            return device['device_type']
-    return 'unknown'
 
 def status( path ):
     """Indicates status of storage path.
