@@ -269,8 +269,11 @@ def devices(symlink=None):
     # NFS shares
     nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
     nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
-    #
-    devices = localstores + nfsstores
+    # sort by label
+    devices = sorted(
+        localstores + nfsstores,
+        key=lambda device: device['label']
+    )
     return devices
 
 def mounted_devices():
