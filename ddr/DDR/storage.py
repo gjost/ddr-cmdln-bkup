@@ -403,21 +403,6 @@ def mount_path( path ):
         return os.sep
     return mount_path(p1)
 
-def device_type( path ):
-    """Indicates whether path points to internal drive, removable storage, etc.
-    
-    Per Filesystem Hierarchy Standard v2.3, /media is the mount point for
-    removeable media.
-    
-    @param path: str A file path
-    @returns: str Device type or 'unknown'
-    """
-    mountpath = mount_path(path)
-    for device in devices():
-        if device.get('mountpath',None) == mountpath:
-            return device['device_type']
-    return 'unknown'
-
 def status( path ):
     """Indicates status of storage path.
     
