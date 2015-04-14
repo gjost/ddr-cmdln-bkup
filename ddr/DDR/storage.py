@@ -346,20 +346,10 @@ def link(target):
 def unlink():
     """Remove symlink to Store from MEDIA_BASE.
     """
-    link = MEDIA_BASE
-    s = []
-    if os.path.exists(link):     s.append('1')
-    else:                        s.append('0')
-    if os.path.islink(link):     s.append('1')
-    else:                        s.append('0')
-    if os.access(link, os.W_OK): s.append('1')
-    else:                        s.append('0')
-    codes = ''.join(s)
-    if codes in ['111', '010']:
-        logger.debug('removing %s (-> %s): %s' % (link, os.path.realpath(link), codes))
-        os.remove(link)
-    else:
-        logger.debug('could not remove %s (-> %s): %s' % (link, os.path.realpath(link), codes))
+    target = os.path.realpath(MEDIA_BASE)
+    if os.path.exists(MEDIA_BASE):
+        logger.debug('removing %s (-> %s)' % (MEDIA_BASE, target))
+        os.remove(MEDIA_BASE)
 
 def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
