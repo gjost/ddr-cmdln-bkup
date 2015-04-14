@@ -9,10 +9,10 @@ import psutil
 
 from DDR import MEDIA_BASE
 
-DEVICE_TYPES = ['vhd', 'usb']
+DEVICE_TYPES = ['hdd', 'usb']
 
 DEVICE_STATES = {
-    'vhd': {
+    'hdd': {
         '--': [],
         'm-': ['link'],
         'ml': ['unlink'],
@@ -185,7 +185,7 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     for device in devices:
         # HDD
         if ('harddisk' in device['by-id'].lower()):
-            device['devicetype'] = 'vhd'
+            device['devicetype'] = 'hdd'
             if device['mounted']:
                 device['label'] = device['mountpath'].replace('/media/', '')
             else:
@@ -222,7 +222,7 @@ def devices(symlink=None):
     >> devices()
     [
         {'devicetype': 'usb', fstype': 'ntfs', 'devicefile': '/dev/sdb1', 'label': 'USBDRIVE1', mountpath:'...', 'mounted':1, 'linked':True},
-        {'device_type': 'vhd', fs_type': 'ext3', 'devicefile': '/dev/sdb2', 'label': 'USBDRIVE2', mountpath:'...', 'mounted':0, 'linked':True}
+        {'device_type': 'hdd', fs_type': 'ext3', 'devicefile': '/dev/sdb2', 'label': 'USBDRIVE2', mountpath:'...', 'mounted':0, 'linked':True}
     ]
     
     @return: list of dicts containing attribs of devices
@@ -392,7 +392,7 @@ def device_type( path ):
     removeable media.
     
     @param path: str A file path
-    @returns: str 'usb', 'vhd', or 'unknown'
+    @returns: str Device type or 'unknown'
     """
     mountpath = mount_path(path)
     for device in devices():
