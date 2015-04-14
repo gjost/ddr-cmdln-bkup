@@ -68,7 +68,12 @@ def find_dirs_with_file(base, marker, levels=2, excludes=['.git']):
         if (depth >= levels) or (marker in files):
             # don't go any further down
             del dirs[:]
-    return hits
+    sdirs = []
+    for h in hits:
+        d = os.path.dirname(h)
+        if d not in sdirs:
+            sdirs.append(d)
+    return sdirs
 
 def nfs_devices(df_T_stdout):
     """List mounted NFS volumes.
@@ -105,13 +110,13 @@ def nfs_stores(devices, levels=3, symlink=None):
     stores = []
     for device in devices:
         # find directories containing 'ddr' repositories.
-        hits = find_dirs_with_file(
+        sdirs = find_dirs_with_file(
             device['mountpath'], 'repository.json',
             levels=levels, excludes=['.git']
         )
-        for hit in hits:
+        for sdir in sdirs:
             d = deepcopy(device)
-            d['basepath'] = hit
+            d['basepath'] = sdir
             d['label'] = d['basepath']
             # is device the target of symlink?
             if symlink and target:
