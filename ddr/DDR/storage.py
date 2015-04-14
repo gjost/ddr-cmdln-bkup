@@ -49,87 +49,6 @@ def device_actions(device):
     state = ''.join(state)
     return DEVICE_STATES[devicetype][state]
 
-def find_dirs_with_file(base, marker, levels=2, excludes=['.git']):
-    """Find dirs containing the specified file
-    
-    @param base: str Base directory.
-    @param marker: str Look for dirs containing this file.
-    @param levels: int Only descend this many levels (default 2).
-    @param excludes: list Directories to exclude.
-    """
-    hits = []
-    for root, dirs, files in os.walk(base):
-        for x in excludes:
-            if x in dirs:
-                dirs.remove(x)
-        if (marker in files):
-            hits.append(root)
-        depth = len(os.path.relpath(root, start=base).split(os.sep))
-        if (depth >= levels) or (marker in files):
-            # don't go any further down
-            del dirs[:]
-    sdirs = []
-    for h in hits:
-        d = os.path.dirname(h)
-        if d not in sdirs:
-            sdirs.append(d)
-    return sdirs
-
-def nfs_devices(df_T_stdout):
-    """List mounted NFS volumes.
-    
-    NFS shares mounted like this for testing:
-        $ sudo mount -v -t nfs -o rw,nosuid qml:/srv/www /mnt/qml
-    
-    @param df_T_stdout: str Output of "df -T".
-    @returns: list of dicts containing device info.
-    """
-    devices = []
-    for line in df_T_stdout.strip().split('\n'):
-        if 'nfs' in line:
-            parts = shlex.split(line)
-            device = {
-                'devicetype': 'nfs',
-                'devicefile': parts[0],
-                'label': parts[0],
-                'mountpath': parts[-1],
-                'fstype': parts[1],
-                'basepath': None,
-                'linked': 0,
-                'actions': [],
-            }
-            device['mounted'] = os.path.exists(device['mountpath'])
-            devices.append(device)
-    return devices
-
-def nfs_stores(devices, levels=3, symlink=None):
-    """List Stores under NFS basepath.
-    
-    @param devices: list Output of nfs_devices().
-    @param levels: int Limit how far down in the filesystem to look.
-    @param symlink: str (optional) BASE_PATH symlink.
-    """
-    target = os.path.realpath(symlink)
-    stores = []
-    for device in devices:
-        # find directories containing 'ddr' repositories.
-        sdirs = find_dirs_with_file(
-            device['mountpath'], 'repository.json',
-            levels=levels, excludes=['.git']
-        )
-        for sdir in sdirs:
-            d = deepcopy(device)
-            d['basepath'] = sdir
-            d['label'] = d['basepath']
-            # is device the target of symlink?
-            if symlink and target:
-                if d.get('basepath') and (d['basepath'] == target):
-                    d['linked'] = 1
-            # what actions are possible from this state?
-            d['actions'] = device_actions(d)
-            stores.append(d)
-    return stores
-
 def local_devices(udisks_dump_stdout):
     """Parse the output of 'udisks --dump'
     
@@ -210,6 +129,59 @@ def local_devices(udisks_dump_stdout):
             device['basepath'] = os.path.join(device['mountpath'], 'ddr')
     return devices
 
+def nfs_devices(df_T_stdout):
+    """List mounted NFS volumes.
+    
+    NFS shares mounted like this for testing:
+        $ sudo mount -v -t nfs -o rw,nosuid qml:/srv/www /mnt/qml
+    
+    @param df_T_stdout: str Output of "df -T".
+    @returns: list of dicts containing device info.
+    """
+    devices = []
+    for line in df_T_stdout.strip().split('\n'):
+        if 'nfs' in line:
+            parts = shlex.split(line)
+            device = {
+                'devicetype': 'nfs',
+                'devicefile': parts[0],
+                'label': parts[0],
+                'mountpath': parts[-1],
+                'fstype': parts[1],
+                'basepath': None,
+                'linked': 0,
+                'actions': [],
+            }
+            device['mounted'] = os.path.exists(device['mountpath'])
+            devices.append(device)
+    return devices
+
+def find_dirs_with_file(base, marker, levels=2, excludes=['.git']):
+    """Find dirs containing the specified file
+    
+    @param base: str Base directory.
+    @param marker: str Look for dirs containing this file.
+    @param levels: int Only descend this many levels (default 2).
+    @param excludes: list Directories to exclude.
+    """
+    hits = []
+    for root, dirs, files in os.walk(base):
+        for x in excludes:
+            if x in dirs:
+                dirs.remove(x)
+        if (marker in files):
+            hits.append(root)
+        depth = len(os.path.relpath(root, start=base).split(os.sep))
+        if (depth >= levels) or (marker in files):
+            # don't go any further down
+            del dirs[:]
+    sdirs = []
+    for h in hits:
+        d = os.path.dirname(h)
+        if d not in sdirs:
+            sdirs.append(d)
+    return sdirs
+
 def local_stores(devices, levels=3, symlink=None):
     """List Stores on local devices (HDD, USB).
     
@@ -243,6 +215,34 @@ def local_stores(devices, levels=3, symlink=None):
                 stores.append(d)
     return stores
 
+def nfs_stores(devices, levels=3, symlink=None):
+    """List Stores under NFS basepath.
+    
+    @param devices: list Output of nfs_devices().
+    @param levels: int Limit how far down in the filesystem to look.
+    @param symlink: str (optional) BASE_PATH symlink.
+    """
+    target = os.path.realpath(symlink)
+    stores = []
+    for device in devices:
+        # find directories containing 'ddr' repositories.
+        sdirs = find_dirs_with_file(
+            device['mountpath'], 'repository.json',
+            levels=levels, excludes=['.git']
+        )
+        for sdir in sdirs:
+            d = deepcopy(device)
+            d['basepath'] = sdir
+            d['label'] = d['basepath']
+            # is device the target of symlink?
+            if symlink and target:
+                if d.get('basepath') and (d['basepath'] == target):
+                    d['linked'] = 1
+            # what actions are possible from this state?
+            d['actions'] = device_actions(d)
+            stores.append(d)
+    return stores
+
 def devices(symlink=None):
     """List removable drives whether or not they are attached.
     
@@ -259,12 +259,12 @@ def devices(symlink=None):
     
     @return: list of dicts containing attribs of devices
     """
-    # NFS shares
-    nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
-    nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
     # HDD and USB devices
     localdevices = local_devices(envoy.run('udisks --dump', timeout=2).std_out)
     localstores = local_stores(localdevices, levels=3, symlink=symlink)
+    # NFS shares
+    nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
+    nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
     #
     devices = localstores + nfsstores
     return devices
