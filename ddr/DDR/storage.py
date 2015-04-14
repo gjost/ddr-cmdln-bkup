@@ -127,6 +127,10 @@ def local_devices(udisks_dump_stdout):
     for device in devices:
         if device.get('mountpath', None):
             device['basepath'] = os.path.join(device['mountpath'], 'ddr')
+    # remove unmounted HDDs - These are unmountable under VirtualBox.
+    for device in devices:
+        if (device['devicetype'] == 'hdd') and (not device['mounted']):
+            devices.remove(device)
     return devices
 
 def nfs_devices(df_T_stdout):
