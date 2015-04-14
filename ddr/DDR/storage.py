@@ -130,13 +130,13 @@ def nfs_stores(devices, levels=3, symlink=None):
             stores.append(d)
     return stores
 
-def _parse_udisks(udisks_dump_stdout, symlink=None):
+def local_devices(udisks_dump_stdout):
     """Parse the output of 'udisks --dump'
+    
     NOTE: Separated from .devices() for easier testing.
     NOTE: This is probably unique to VirtualBox!
     
     @param udisks_dump_stdout: str Output of "udisks --dump".
-    @param symlink: str Absolute path to MEDIA_BASE symlink.
     @returns: list of dicts containing device info.
     """
     chunks = udisks_dump_stdout.split('========================================================================\n')
@@ -208,17 +208,22 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
     for device in devices:
         if device.get('mountpath', None):
             device['basepath'] = os.path.join(device['mountpath'], 'ddr')
+    return devices
 
+def local_stores(devices, levels=3, symlink=None):
+    """List Stores on local devices (HDD, USB).
     
+    @param devices: list Output of local_devices().
+    @param levels: int Limit how far down in the filesystem to look.
+    @param symlink: str (optional) BASE_PATH symlink.
+    """
     target = os.path.realpath(symlink)
     stores = []
     for device in devices:
-        
         if not device.get('mounted'):
             # unmounted devices are added... so we can mount them
             device['actions'] = device_actions(device)
             stores.append(device)
-        
         elif device.get('mountpath'):
             # find directories containing 'ddr' repositories.
             storedirs = find_dirs_with_file(
@@ -236,7 +241,6 @@ def _parse_udisks(udisks_dump_stdout, symlink=None):
                 # what actions are possible from this state?
                 d['actions'] = device_actions(d)
                 stores.append(d)
-
     return stores
 
 def devices(symlink=None):
@@ -259,11 +263,10 @@ def devices(symlink=None):
     nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
     nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
     # HDD and USB devices
-    removables = _parse_udisks(
-        envoy.run('udisks --dump', timeout=2).std_out,
-        symlink=symlink)
+    localdevices = local_devices(envoy.run('udisks --dump', timeout=2).std_out)
+    localstores = local_stores(localdevices, levels=3, symlink=symlink)
     #
-    devices = removables + nfsstores
+    devices = localstores + nfsstores
     return devices
 
 def mounted_devices():
