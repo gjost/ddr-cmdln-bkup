@@ -79,8 +79,10 @@ def local_devices(udisks_dump_stdout):
     for c in sdchunks:
         device = {
             'devicetype': 'unknown',
-            'mounted': False,
-            'linked': False,
+            'mounted': 0,
+            'mounting': 0,
+            'mountpath': '',
+            'linked': 0,
             'actions': [],
         }
         for l in c.split('\n'):
@@ -131,6 +133,16 @@ def local_devices(udisks_dump_stdout):
     for device in devices:
         if (device['devicetype'] == 'hdd') and (not device['mounted']):
             devices.remove(device)
+    # While device is being mounted
+    # - udisks --dump will list device as unmounted with no mountpath
+    # - psutils will show a 'mount' process for the device/mountpath
+    procs = [p for p in psutil.process_iter() if 'mount' in p.name()]
+    for device in devices:
+        if (not device['mounted']) and (not device['mountpath']):
+            for proc in procs:
+                for chunk in proc.cmdline():
+                    if device['label'] in chunk:
+                        device['mounting'] = 1
     return devices
 
 def nfs_devices(df_T_stdout):
