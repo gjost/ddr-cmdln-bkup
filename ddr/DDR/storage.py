@@ -357,15 +357,15 @@ def link(target):
             os.symlink(target, link)
 
 def unlink():
-    """Remove symlink to Store from MEDIA_BASE.
+    """Remove MEDIA_BASE symlink.
     """
-    if os.path.exists(MEDIA_BASE):
-        target = os.path.realpath(MEDIA_BASE)
-        logger.debug('rm %s (-> %s)' % (MEDIA_BASE, target))
+    target = os.path.realpath(MEDIA_BASE)
+    logger.debug('rm %s (-> %s)' % (MEDIA_BASE, target))
+    try:
         os.remove(MEDIA_BASE)
-        logger.debug('%s exists: %s' % (MEDIA_BASE, os.path.exists(MEDIA_BASE)))
-    else:
-        logger.debug('%s not there!' % MEDIA_BASE)
+        logger.debug('ok')
+    except OSError:
+        pass
 
 def _make_drive_label( storagetype, mountpath ):
     """Make a drive label based on inputs.
