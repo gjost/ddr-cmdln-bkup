@@ -1,0 +1,603 @@
+#!/usr/bin/env python
+
+#
+# ddr-backup
+#
+
+description = """Backs up repositories and entire Stores using rsync."""
+
+epilog = """Examples:
+
+    # Back up specified repositories:
+    $ ddr-backup gjost@pnr:/media/ddrstore/ddr /tmp/backups/ -c ddr-test-123,ddr-test-248
+
+    # Back up all repositories in a remote directory:
+    $ ddr-backup gjost@pnr:/media/ddrstore/ddr/ /tmp/backups/
+
+    # Back up all repositories in a local directory:
+    $ ddr-backup /media/ddrstore/ddr/ /tmp/backups/
+
+IMPORTANT: ddr-backup does not ask for passwords. If SOURCE is a remote system you must use an SSH key.
+
+Repositories are copied one at a time.  Files in each repository are copied in stages, in a certain order designed to prevent data loss in the event the repository is modified during the copy.
+IMPORTANT: This script *copies* the repositories, it does not *clone* them.
+
+NOTE: Copies only the .git/ directories from repositories.  Uncommitted files in repositories' working directories are not copied.
+
+TODO Rules for pulling in contents of working directories if requested.
+TODO Rules for excluding annex binaries if requested.
+"""
+
+"""
+TESTING
+
+Back up a single repository::
+
+    $ ddr-backup gjost@pnr:/media/ddrstore/ddr /tmp/backups/ -c ddr-testing-141
+
+Verify integrity of backups::
+
+    $ cd /tmp/backups/ddr-test-123/
+    $ git fsck
+    Checking object directories: 100% (256/256), done.
+    Checking objects: 100% (1121/1121), done.
+    $ git annex fsck
+    $
+
+Clone from backup::
+
+    $ git clone /tmp/backups/ddr-test-123/ /tmp/ddr-test-123
+    Cloning into '/tmp/ddr-test-123'...
+    done.
+    $ cd /tmp/ddr-test-123/
+
+Verify integrity of clone::
+
+    $ git fsck
+    Checking object directories: 100% (256/256), done.
+    Checking objects: 100% (1683/1683), done.
+    dangling commit 427d0f13ce24569e674d5803a39c386e6c50b1a4
+    $ git annex fsck
+    (merging origin/git-annex into git-annex...)
+    (Recording state in git...)
+    fsck files/ddr-test-123-1/files/ddr-test-123-1-master-a1b2c3d4e5-a.jpg ok
+    fsck files/ddr-test-123-1/files/ddr-test-123-1-master-a1b2c3d4e5.pdf ok
+    fsck files/ddr-test-123-1/files/ddr-test-123-1-master-e0d2c4b6a8-a.jpg ok
+    ...
+
+Confirm that original repo is not in this repo's remotes::
+
+    $ git remote -v
+    origin	/tmp/backups/ddr-test-123/ (fetch)
+    origin	/tmp/backups/ddr-test-123/ (push)
+
+Initialize annex dir and get files::
+
+    $ git annex init
+    init  ok
+    (Recording state in git...)
+    $ git annex get .
+    get files/ddr-test-123-1/files/ddr-test-123-1-master-a1b2c3d4e5-a.jpg (from origin...) ok
+    get files/ddr-test-123-1/files/ddr-test-123-1-master-a1b2c3d4e5.pdf (from origin...) ok
+    get files/ddr-test-123-1/files/ddr-test-123-1-master-e0d2c4b6a8-a.jpg (from origin...) ok
+    ...
+    (Recording state in git...)
+
+Compare original with the clone from backup::
+
+    GJOST@SRC$ du -s /media/ddrstore/ddr/ddr-testing-141/
+    128400	/media/ddrstore/ddr/ddr-testing-141/
+     
+    GJOST@DEST$ du -s /tmp/ddr-testing-141/
+    128700	/tmp/ddr-testing-141/
+"""
+
+
+import argparse
+from datetime import datetime
+import logging
+import os
+import subprocess
+import sys
+import traceback
+
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
+#LOGGING_FILE = config.get('local','log_file')
+LOGGING_FILE = '/tmp/ddrbackup.log'
+
+logging.basicConfig(
+    format=LOGGING_FORMAT,
+    datefmt=LOGGING_DATEFMT,
+    level=logging.DEBUG,
+    filename=LOGGING_FILE
+)
+
+def logprint(level, msg, pr=True, lg=True):
+    if lg:
+        if   level == 'DEBUG': logging.debug(msg)
+        elif level == 'INFO':  logging.info(msg)
+        elif level == 'ERROR': logging.error(msg)
+    if pr:
+        now = datetime.now().strftime(LOGGING_DATEFMT)
+        print(' '.join([now, level, msg]))
+
+
+# Contents of a Git repository must be transferred in a specific order to avoid.
+# http://joeyh.name/blog/entry/difficulties_in_backing_up_live_git_repositories/
+RSYNC_SEQUENCE = []
+
+# Sync git-annex objects first since they are the largest.
+# Git annex index and journal files will be copied in this pass but will be
+# copied again if they change in the interim.
+# Compression is enabled during this phase.
+RSYNC_SEQUENCE.append({
+    'keyword': 'annex',
+    'description': 'annex objects',
+    'compress': True,
+    'rules': {
+        'single': [
+            '+ /*.git',
+            '+ /*.git/annex',
+            '+ /*.git/annex/**',
+        ],
+        'multi': [
+            '+ /*/',
+            '+ /*/*.git',
+            '+ /*/*.git/annex',
+            '+ /*/*.git/annex/**',
+        ]
+    }
+})
+
+# Sync all auxiliary repository data. This includes files and directories like
+# HEAD, audit_log, config, description, info/, etc. No refs or object data
+# should be transferred here.
+# Git-annex index, journal, .lck, and tmp/ files are transferred at this time
+# but annex/objects are not.
+RSYNC_SEQUENCE.append({
+    'keyword': 'auxiliary',
+    'description': 'auxiliary files',
+    'compress': True,
+    'rules': {
+        'single': [
+            '+ /*.git',
+            '- /*.git/annex/objects',
+            '- /*.git/logs',
+            '- /*.git/objects',
+            '- /*.git/packed-refs',
+            '- /*.git/refs',
+            '+ /*.git/**',
+        ],
+        'multi': [
+            '+ /*/',
+            '+ /*/*.git',
+            '- /*/*.git/annex/objects',
+            '- /*/*.git/logs',
+            '- /*/*.git/objects',
+            '- /*/*.git/packed-refs',
+            '- /*/*.git/refs',
+            '+ /*/*.git/**',
+        ]
+    }
+})
+
+# Sync packed refs files. This is performed before sync'ing loose refs since
+# loose refs trump packed-refs information.
+RSYNC_SEQUENCE.append({
+    'keyword': 'packedrefs',
+    'description': 'packed-refs files',
+    'compress': True,
+    'rules': {
+        'single': [
+            '+ /*.git',
+            '+ /*.git/packed-refs',
+        ],
+        'multi': [
+            '+ /*/',
+            '+ /*/*.git',
+            '+ /*/*.git/packed-refs',
+        ]
+    }
+})
+
+# Sync loose refs and reflogs. This must be performed before object data is
+# transferred to ensure that all referenced objects are included.
+RSYNC_SEQUENCE.append({
+    'keyword': 'refsreflogs',
+    'description': 'refs and reflogs',
+    'compress': True,
+    'rules': {
+        'single': [
+            '+ /*.git',
+            '+ /*.git/logs',
+            '+ /*.git/logs/**',
+            '+ /*.git/refs',
+            '+ /*.git/refs/**',
+        ],
+        'multi': [
+            '+ /*/',
+            '+ /*/*.git',
+            '+ /*/*.git/logs',
+            '+ /*/*.git/logs/**',
+            '+ /*/*.git/refs',
+            '+ /*/*.git/refs/**',
+        ]
+    }
+})
+
+# Sync git objects and pack files. Compression is disabled during this phase
+# since these files are already well compressed.
+RSYNC_SEQUENCE.append({
+    'keyword': 'objectspacks',
+    'description': 'objects and packs',
+    'compress': False,
+    'rules': {
+        'single': [
+            '+ /*.git',
+            '+ /*.git/objects',
+            '+ /*.git/objects/**',
+        ],
+        'multi': [
+            '+ /*/',
+            '+ /*/*.git',
+            '+ /*/*.git/objects',
+            '+ /*/*.git/objects/**',
+        ]
+    }
+})
+
+def rules_filename(select, keyword):
+    return os.path.join('/tmp', 'ddrbackup-%s-%s.rules' % (select, keyword))
+    
+def write_rules_files(rsync_seq, rules_select, dest_dir='/tmp'):
+    """write rules files to /tmp/
+    """
+    bad = []
+    for step in rsync_seq:
+        filename = rules_filename(rules_select, step['keyword'])
+        logprint('DEBUG', 'Writing %s' % step['description'])
+        text = '\n'.join(step['rules'][rules_select])
+        with open(filename, 'w') as f:
+            f.write(text)
+        if not os.path.exists(filename):
+            bad.append(filename)
+    if bad:
+        raise Exception('Error: Could not write rsync rules files.')
+
+# Repository data is transferred from the source to the backup directory in
+# several passes.  A set of rsync filter rules is provided for each pass.
+# For each pass, all files are excluded except for those in the rules file.
+# The order of the --include and --exclude args is significant.
+RSYNC_CMD = 'rsync ' \
+            '{flags} ' \
+            '--include-from={rules_file} ' \
+            '--exclude=* ' \
+            '{source} ' \
+            '{destination}'
+
+
+def shell_command(cmd, error_title='Error'):
+    """
+    @param cmd: str or list The command to perform.
+    @param error_title: str Message to print to logs if there's an Exception.
+    """
+    try:
+        proc = subprocess.Popen(
+            cmd, shell=True,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE
+        )
+        return_code = proc.wait()
+        stdout = proc.stdout.read().strip()
+        stderr = proc.stderr.read().strip()
+    except:
+        return_code = 1
+        stdout = None
+        stderr = None
+        logprint(
+            'ERROR',
+            '%s\n' % error_title +
+            '----------\n' +
+            traceback.format_exc().strip() +
+            '\n----------'
+        )
+        sys.exit(1)
+    if stdout:
+        for line in stdout.split('\n'):
+            logprint('DEBUG', 'stdout| %s' % line.strip(), pr=False)
+    if stderr:
+        for line in stderr.split('\n'):
+            logprint('ERROR', 'STDERR| %s' % line.strip())
+    return return_code,stdout,stderr
+
+def list_local_repository_dirs(path):
+    """Lists directories that contain
+    """
+    return sorted([
+        d
+        for d in os.listdir(path)
+        if ('.git' in d)
+        or ('.git' in os.listdir( os.path.join(path, d) ))
+    ])
+
+def list_remote_repository_dirs(remote, source_dir, cmd_path='/usr/local/src/ddr-cmdln/ddr/bin/ddr-backup'):
+    """Gets list of Git repository dirs in source_dir on the remote server.
+    
+    NOTE: requires an instance of ddr-backup be installed at {path}.
+    
+    @param remote: str Username/hostname used to connect to remote system (SSH).
+    @param source_dir: str Absolute path to source_dir on remote system.
+    @param cmd_path: str Absolute path to command on remote system.
+    @returns: list of directory names
+    """
+    cmd = 'ssh %s %s -l %s .' % (remote, cmd_path, source_dir)
+    return_code,stdout,stderr = shell_command(cmd, 'Error on remote system')
+    if stderr:
+        sys.exit(1)
+    return stdout.split('\n')
+
+def list_repository_dirs(collections, source_remote, source_path):
+    """Gets list of Git repository dirs from args or from local or remote system.
+    
+    @param collections: str args.collections
+    @param source_remote: str
+    @param source_path: str
+    """
+    # gather list of Git repositories to back up
+    git_repo_dirs = []
+    if collections:
+        # from -c/--collections arg
+        git_repo_dirs = collections.strip().split(',')
+    elif source_remote:
+        # from source directory remote system
+        git_repo_dirs = list_remote_repository_dirs(source_remote, source_path)
+    else:
+        # from local source directory
+        git_repo_dirs = list_local_repository_dirs(source_path)
+    return git_repo_dirs
+
+def make_backups_dir(base_dir):
+    """
+    mkdir BACKUPSTORE/in-progress/
+    """
+    logprint('INFO', 'Backups dir %s' % base_dir)
+    path = os.path.join(base_dir, 'in-progress/')
+    if not os.path.exists(path):
+        logprint('INFO', path)
+        os.makedirs(path)
+    return path
+    raise Exception('Could not make backups dir: %s' % path)
+
+#def host_check(remote):
+#    logprint('INFO', 'Checking host %s' % remote)
+#    assert False
+#    if host_online:
+#        return True
+#    raise Exception('Error: Remove host %s is not online.' % host)
+
+#def get_source_collections(remote, source_dir):
+#    remote = '%s:%s' % (remote, source_dir)
+#    logprint('INFO', 'Getting list of collections in %s' % remote)
+#    assert False
+#    cids = []
+#    if collection_ids:
+#        return cids
+#    raise Exception('Error: Could not get list of collections.')
+
+#def incomplete_marker(backups_dir):
+#    return os.path.join(backups_dir, 'incomplete')
+
+#def set_incomplete(backups_dir):
+#    path = incomplete_marker(backups_dir)
+#    with open(path, 'w') as f:
+#        f.write(datetime.now().strftime(LOGGING_DATEFMT))
+
+#def unset_incomplete(backups_dir):
+#    path = incomplete_marker(backups_dir)
+#    if os.path.exists(path):
+#        os.remove(path)
+
+#def make_backup_dir(backups_dir, repo_dir, timestamp):
+#    """
+#    mkdir BACKUPSTORE/in-progress/YYYYMMDD-HHMMSS-REPO-ORG-CID/
+#    """
+#    assert False
+
+#def lock_remote_collection(repo_dir):
+#    logprint('INFO', 'Lock remote repo %s' % repo_dir)
+#    assert False
+#    logprint('INFO', 'Remote repo locked')
+
+#def unlock_remote_collection(repo_dir):
+#    logprint('INFO', 'Unlock remote repo %s' % repo_dir)
+#    assert False
+#    logprint('INFO', 'Remote repo unlocked')
+
+def rsync_flags(step, verbose):
+    flags = ['-', 'a']
+    if verbose:
+        flags.append('v')
+    if step['compress']:
+        flags.append('z')
+    return ''.join(flags)
+
+def check_source_dest_dirs(source, destination):
+    # make sure source dir HAS trailing slash
+    if not (source[-1] == '/'):
+        source = '%s/' % source
+    # make sure source dir DOES NOT HAVE trailing slash
+    if (destination[-1] == '/'):
+        destination = destination[:-1]
+    return source,destination
+
+def transfer(source, destination, rsync_seq, single_multi, verbose=False):
+    """Perform rsync and log stdout,stderr.
+    
+    @param source: str Source arg
+    @param destination: str Destination arg
+    @param rsync_seq: list RSYNC_SEQUENCE
+    @param single_multi: str 'single' or 'multi'
+    @param verbose: boolean
+    @returns: None
+    """
+    source,destination = check_source_dest_dirs(source, destination)
+    logprint('DEBUG', 'source      %s' % source)
+    logprint('DEBUG', 'destination %s' % destination)
+    for step in rsync_seq:
+        if verbose:
+            logprint('DEBUG', '', pr=False)
+        logprint('DEBUG', 'Transferring %s...' % step['description'])
+        cmd = RSYNC_CMD.format(
+            flags=rsync_flags(step, verbose),
+            rules_file=rules_filename(single_multi, step['keyword']),
+            source=source,
+            destination=destination
+        )
+        if verbose:
+            logprint('DEBUG', cmd, pr=False)
+        return_code,stdout,stderr = shell_command(cmd, 'Error during transfer')
+
+def fsck_single(path):
+    """fsck a single repository
+    
+    @param path: str Absolute path to repository.
+    @returns: str Error message, if any
+    """
+    logprint('DEBUG', '', pr=False)
+    logprint('DEBUG', 'Checking repository integrity...')
+    cmd = 'cd %s; git fsck' % (path)
+    return_code,stdout,stderr = shell_command(cmd, 'Shell error')
+    if stdout or stderr:
+        return '\n'.join([path, stdout, stderr])
+    return None
+
+def fsck_multi(destination):
+    """git-fsck all the repos
+    """
+    problems = []
+    for d in os.listdir(destination):
+        path = os.path.join(destination, d)
+        feedback = fsck_single(path)
+        if feedback:
+            problems.append(feedback)
+    return problems
+
+#def move_previous():
+#    """
+#    Move previous backup from BACKUPSTORE/REPO-ORG-CID to BACKUPSTORE/old/REPO-ORG-CID_YYYYMMDD-HHMMSS
+#    """
+#    assert False
+#    return True
+
+#def move_current():
+#    """
+#    Move current backup from BACKUPSTORE/in-progress/REPO-ORG-CID_YYYYMMDD-HHMMSS to BACKUPSTORE/REPO-ORG-CID
+#    """
+#    assert False
+#    return True
+
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description=description,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        'source',
+        help='Source directory. May include USER@HOST:PORT. See rsync docs.'
+    )
+    parser.add_argument(
+        'destination',
+        help='Destination directory. Must be local. See rsync docs.'
+    )
+    parser.add_argument(
+        '-c', '--collections',
+        help='Collection ID(s), comma-separated.')
+    parser.add_argument(
+        '-l', '--listrepos', action='store_const', const=1,
+        help='List repository directories under SOURCE. Used internally to list repositories in a directory on a remote system.')
+    parser.add_argument(
+        '-v', '--verbose', action='store_const', const=1,
+        help='Print lots of output.')
+    args = parser.parse_args()
+
+    # if args.listrepos just print and quit
+    if args.listrepos and os.path.exists(args.source):
+        # print one per line
+        for d in list_local_repository_dirs(args.source):
+            print(d)
+        sys.exit(0)
+    
+    logprint('INFO', '========================================================================')
+    
+    if ':' in args.source:
+        source_remote,source_path = args.source.strip().split(':')
+    else:
+        source_remote = ''
+        source_path = args.source
+    logprint('DEBUG', source_remote)
+    logprint('DEBUG', source_path)
+    
+    started = datetime.now()
+    logprint('INFO', 'Starting backup at %s' % started)
+    
+    backups_dir = make_backups_dir(args.destination)
+    
+    #if source_remote:
+    #    host_online = host_check(args.remote)
+    
+    git_repo_dirs = list_repository_dirs(args.collections, source_remote, source_path)
+    
+    #set_incomplete(backups_dir)
+    
+    if git_repo_dirs:
+        # rsync list of repositories individually
+        rules = write_rules_files(RSYNC_SEQUENCE, 'single', '/tmp')
+        xferred = []
+        xferred_errs = []
+        for repo_dir in git_repo_dirs:
+            logprint('INFO', '- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+            logprint('INFO', repo_dir)
+            source = os.path.join(args.source, repo_dir)
+            destination = os.path.join(args.destination, repo_dir)
+            #locked = lock_remote_collection(repo_dir)
+            transfer(source, destination, RSYNC_SEQUENCE, 'single', args.verbose)
+            #unlocked = unlock_remote_collection(repo_dir)
+            fsck_errors = fsck_single(destination)
+            if fsck_errors:
+                xferred_errs.append((repo_dir, fsck_errors))
+            else:
+                xferred.append(repo_dir)
+        logprint('INFO', '----- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -')
+        logprint('INFO', '%s repositories backed up' % len(xferred))
+        if xferred_errs:
+            logprint('ERROR', '%s had errors:' % len(xferred_errs))
+        else:
+            logprint('INFO', 'no errors')
+        if xferred_errs:
+            for repo_dir,fsck_errors in xferred_errs:
+                logprint('ERROR', fsck_errors)
+    
+    else:
+        # rsync directory full of repositories
+        rules = write_rules_files(RSYNC_SEQUENCE, 'multi', '/tmp')
+        logprint('INFO', '-----------------------------------------------------------------------')
+        source = args.source
+        destination = args.destination
+        transfer(source, destination, RSYNC_SEQUENCE, 'multi', args.verbose)
+        fsck_multi(destination)
+    
+    #unset_incomplete(backups_dir)
+    
+    finished = datetime.now()
+    elapsed = finished - started
+    logprint('INFO', 'Finished')
+    logprint('INFO', 'Elapsed: %s' % (elapsed))
+
+
+if __name__ == '__main__':
+    main()
