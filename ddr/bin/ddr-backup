@@ -21,7 +21,6 @@ Repositories are copied one at a time.  Files in each repository are copied in s
 IMPORTANT: This script *copies* the repositories, it does not *clone* them.
 
 NOTE: Copies only the .git/ directories from repositories.  Uncommitted files in repositories' working directories are not copied.
-NOTE: Depends on Envoy and GitPython.
 
 TODO Rules for pulling in contents of working directories if requested.
 TODO Rules for excluding annex binaries if requested.
@@ -96,10 +95,9 @@ import argparse
 from datetime import datetime
 import logging
 import os
+import subprocess
 import sys
-
-import envoy
-import git
+import traceback
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
@@ -277,6 +275,40 @@ RSYNC_CMD = 'rsync ' \
             '{destination}'
 
 
+def shell_command(cmd, error_title='Error'):
+    """
+    @param cmd: str or list The command to perform.
+    @param error_title: str Message to print to logs if there's an Exception.
+    """
+    try:
+        proc = subprocess.Popen(
+            cmd, shell=True,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE
+        )
+        return_code = proc.wait()
+        stdout = proc.stdout.read().strip()
+        stderr = proc.stderr.read().strip()
+    except:
+        return_code = 1
+        stdout = None
+        stderr = None
+        logprint(
+            'ERROR',
+            '%s\n' % error_title +
+            '----------\n' +
+            traceback.format_exc().strip() +
+            '\n----------'
+        )
+        sys.exit(1)
+    if stdout:
+        for line in stdout.split('\n'):
+            logprint('DEBUG', 'stdout| %s' % line.strip(), pr=False)
+    if stderr:
+        for line in stderr.split('\n'):
+            logprint('ERROR', 'STDERR| %s' % line.strip())
+    return return_code,stdout,stderr
+
 def list_local_repository_dirs(path):
     """Lists directories that contain
     """
@@ -297,15 +329,11 @@ def list_remote_repository_dirs(remote, source_dir, cmd_path='/usr/local/src/ddr
     @param cmd_path: str Absolute path to command on remote system.
     @returns: list of directory names
     """
-    cmd = "ssh %s '%s -l %s .'" % (remote, cmd_path, source_dir)
-    logprint('DEBUG', cmd)
-    r = envoy.run(cmd)
-    if r.status_code:
-        logprint('ERROR', 'Error on remote system:')
-        for line in r.std_err.strip().split('\n'):
-            logprint('ERROR', '| %s' % line)
+    cmd = 'ssh %s %s -l %s .' % (remote, cmd_path, source_dir)
+    return_code,stdout,stderr = shell_command(cmd, 'Error on remote system')
+    if stderr:
         sys.exit(1)
-    return r.std_out.strip().split('\n')
+    return stdout.split('\n')
 
 def list_repository_dirs(collections, source_remote, source_path):
     """Gets list of Git repository dirs from args or from local or remote system.
@@ -426,36 +454,21 @@ def transfer(source, destination, rsync_seq, single_multi, verbose=False):
         )
         if verbose:
             logprint('DEBUG', cmd, pr=False)
-        r = envoy.run(cmd)
-        stdout = r.std_out.strip()
-        stderr = r.std_err.strip()
-        if stdout:
-            for line in stdout.split('\n'):
-                logprint('DEBUG', '| %s' % line, pr=False)
-        if stderr:
-            for line in stderr.split('\n'):
-                logprint('ERROR', '| %s' % line)
+        return_code,stdout,stderr = shell_command(cmd, 'Error during transfer')
 
 def fsck_single(path):
     """fsck a single repository
+    
+    @param path: str Absolute path to repository.
+    @returns: str Error message, if any
     """
     logprint('DEBUG', '', pr=False)
     logprint('DEBUG', 'Checking repository integrity...')
-    try:
-        repo = git.Repo(path)
-    except git.exc.InvalidGitRepositoryError:
-        repo = None
-        logprint('ERROR', '%s is not a repo' % path)
-    feedback = None
-    if repo:
-        logprint('DEBUG', 'git fsck %s' % repo)
-        feedback = repo.git.fsck()
-        if feedback:
-            for line in feedback.strip().split('\n'):
-                logprint('DEBUG', '| %s' % line)
-        else:
-            logprint('DEBUG', 'git fsck ok')
-    return feedback
+    cmd = 'cd %s; git fsck' % (path)
+    return_code,stdout,stderr = shell_command(cmd, 'Shell error')
+    if stdout or stderr:
+        return '\n'.join([path, stdout, stderr])
+    return None
 
 def fsck_multi(destination):
     """git-fsck all the repos
@@ -565,7 +578,6 @@ def main():
             logprint('INFO', 'no errors')
         if xferred_errs:
             for repo_dir,fsck_errors in xferred_errs:
-                logprint('ERROR', repo_dir)
                 logprint('ERROR', fsck_errors)
     
     else:
