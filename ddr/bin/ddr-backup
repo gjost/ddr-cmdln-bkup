@@ -6,18 +6,20 @@
 
 description = """Backs up repositories and entire Stores using rsync."""
 
-epilog = """
-Back up specified repositories:
+epilog = """Examples:
+
+    # Back up specified repositories:
     $ ddr-backup gjost@pnr:/media/ddrstore/ddr /tmp/backups/ -c ddr-test-123,ddr-test-248
 
-Back up all repositories in a remote directory:
+    # Back up all repositories in a remote directory:
     $ ddr-backup gjost@pnr:/media/ddrstore/ddr/ /tmp/backups/
 
-Back up all repositories in a local directory:
+    # Back up all repositories in a local directory:
     $ ddr-backup /media/ddrstore/ddr/ /tmp/backups/
 
-Repositories are copied one at a time.  Files in each repository are copied in stages, in a certain order designed to prevent data loss in the event the repository is modified during the copy.
+IMPORTANT: ddr-backup does not ask for passwords. If SOURCE is a remote system you must use an SSH key.
 
+Repositories are copied one at a time.  Files in each repository are copied in stages, in a certain order designed to prevent data loss in the event the repository is modified during the copy.
 IMPORTANT: This script *copies* the repositories, it does not *clone* them.
 
 NOTE: Copies only the .git/ directories from repositories.  Uncommitted files in repositories' working directories are not copied.
