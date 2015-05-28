@@ -16,6 +16,15 @@ MODELS = [
     'repository',   # required
 ]
 
+# Models that are part of collection repositories. Repository and organizations
+# are above the level of the collection and are thus excluded.
+COLLECTION_MODELS = [
+    'file',
+    'file-role',
+    'entity',
+    'collection',   # required
+]
+
 # Models that can contain other models.
 CONTAINERS = [
     'file-role',
@@ -261,15 +270,16 @@ class Identifier(object):
         return "<Identifier %s>" % (self.id)
     
     def collection_id(self):
-        if self.model in ['repo', 'org']:
-            raise Exception('Model does not have collection ID: %s' % self.model)
+        if not self.model in COLLECTION_MODELS:
+            raise Exception('%s objects do not have collection IDs' % self.model.capitalize())
         return format_id(self.__dict__, 'collection')
     
     def collection_path(self):
+        if not self.model in COLLECTION_MODELS:
+            raise Exception('%s objects do not have collection paths' % self.model.capitalize())
         if not self.basepath:
             raise Exception('%s basepath not set.'% self)
-        path = format_path(self.__dict__, 'collection', 'abs')
-        return path
+        return format_path(self.__dict__, 'collection', 'abs')
     
     def parent_id(self):
         if not PARENTS.get(self.model, None):
