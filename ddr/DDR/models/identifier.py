@@ -6,8 +6,18 @@ import string
 import urlparse
 
 
+# Models that can be managed by this module
 MODELS = [
     'file',
+    'file-role',
+    'entity',
+    'collection',   # required
+    'organization', # required
+    'repository',   # required
+]
+
+# Models that can contain other models.
+CONTAINERS = [
     'file-role',
     'entity',
     'collection',
@@ -15,6 +25,7 @@ MODELS = [
     'repository',
 ]
 
+# Pointers from models to their parent models
 PARENTS = {
     'file': 'entity',
     'entity': 'collection',
@@ -23,22 +34,25 @@ PARENTS = {
     'repository': None,
 }
 
-# keywords that can legally appear in IDs
+# Keywords that can legally appear in IDs
 ID_COMPONENTS = [
     'repo', 'org', 'cid', 'eid', 'role', 'sha1', 'ext'
 ]
 
-# used to match object id pattern and extract model and tokens
+
+# Regex patterns used to match IDs, paths, and URLs and extract model and tokens
+
 ID_PATTERNS = (
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'file'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'file-role'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'collection'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization'),
-    (r'^(?P<repo>[\w]+)$', 'repository'),
+    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', '', 'file'),
+    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', '', 'file-role'),
+    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', '', 'entity'),
+    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', '', 'collection'),
+    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)$', '', 'organization'),
+    (r'^(?P<repo>[\w]+)$', '', 'repository'),
 )
 
-# used to match path pattern and extract model and tokens
+# In the current path scheme, collection and entity ID components are repeated.
+# Fields can't appear multiple times in regexes so redundant fields have numbers.
 PATH_PATTERNS = (
     # file-abs
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
@@ -63,26 +77,27 @@ PATH_PATTERNS = (
     (r'^repository.json$', 'repository-meta-rel', 'repository'),
 )
 
-# used to match URL pattern and extract model and tokens
 URL_PATTERNS = (
-    # ddr-local
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'file'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'file-role'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'collection'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization'),
-    (r'/ui/(?P<repo>[\w]+)$', 'repository'),
-    # ddr-public
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)/(?P<sha1>[\w]+)$', 'file'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)$', 'file-role'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)$', 'entity'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)$', 'collection'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)$', 'organization'),
-    (r'^/(?P<repo>[\w]+)$', 'repository'),
+    # editor
+    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'editor-file', 'file'),
+    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'editor-file-role', 'file-role'),
+    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'editor-entity', 'entity'),
+    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'editor-collection', 'collection'),
+    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'editor-organization', 'organization'),
+    (r'/ui/(?P<repo>[\w]+)$', 'editor-repository', 'repository'),
+    # public
+    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)/(?P<sha1>[\w]+)$', 'public-file', 'file'),
+    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)$', 'public-file-role', 'file-role'),
+    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)$', 'public-entity', 'entity'),
+    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)$', 'public-collection', 'collection'),
+    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)$', 'public-organization', 'organization'),
+    (r'^/(?P<repo>[\w]+)$', 'public-repository', 'repository'),
 )
 
-# used to generate IDs from model and tokens
-ID_FORMATS = {
+
+# Templates used to generate IDs, paths, and URLs from model and tokens
+
+ID_TEMPLATES = {
     'file':         '{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
     'file-role':    '{repo}-{org}-{cid}-{eid}-{role}',
     'entity':       '{repo}-{org}-{cid}-{eid}',
@@ -91,19 +106,24 @@ ID_FORMATS = {
     'repository':   '{repo}',
 }
 
-# used to generate paths from model and tokens
-PATH_FORMATS = {
-    'file-abs': '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    'file-rel': 'files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    'entity-abs': '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}',
-    'entity-rel': 'files/{repo}-{org}-{cid}-{eid}',
-    'collection-abs': '{basepath}/{repo}-{org}-{cid}',
+PATH_TEMPLATES = {
+    'file-rel':         'files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    'entity-rel':       'files/{repo}-{org}-{cid}-{eid}',
+    'file-abs':         '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    'entity-abs':       '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}',
+    'collection-abs':   '{basepath}/{repo}-{org}-{cid}',
     'organization-abs': '{basepath}/{repo}-{org}',
-    'repository-abs': '{basepath}/{repo}',
+    'repository-abs':   '{basepath}/{repo}',
+    #'file-rel':         '{eid}/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    #'entity-rel':       '{eid}',
+    #'file-abs':         '{basepath}/{repo}-{org}-{cid}/{eid}/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    #'entity-abs':       '{basepath}/{repo}-{org}-{cid}/{eid}',
+    #'collection-abs':   '{basepath}/{repo}-{org}-{cid}',
+    #'organization-abs': '{basepath}/{repo}-{org}',
+    #'repository-abs':   '{basepath}/{repo}',
 }
 
-# used to generate URIs from model and tokens
-URL_FORMATS = {
+URL_TEMPLATES = {
     'editor': {
         'file':         '/ui/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
         'file-role':    '/ui/{repo}-{org}-{cid}-{eid}-{role}',
@@ -122,32 +142,33 @@ URL_FORMATS = {
     },
 }
 
+
+# Additional file types that may be present in a repo
 ADDITIONAL_PATHS = {
     'file': {
-        'json_path': '{id}.json',
-        'access_path': '{id}-a.jpg',
+        'access': '{id}-a.jpg',
+        'json': '{id}.json',
     },
     'entity': {
-        'json_path': 'entity.json',
-        'changelog_path': 'changelog',
-        'control_path': 'control',
-        'files_path': 'files/',
+        'changelog': 'changelog',
+        'control': 'control',
+        'files': 'files/',
+        'json': 'entity.json',
     },
     'collection': {
-        'json_path': 'collection.json',
-        'gitignore_path': '.gitignore',
-        'git_path': '.git/',
-        'annex_path': '.git/annex/',
+        'annex': '.git/annex/',
+        'control': 'control',
+        'gitignore': '.gitignore',
+        'git': '.git/',
+        'json': 'collection.json',
     },
     'organization': {
-        'json_path': 'organization.json',
+        'json': 'organization.json',
     },
     'repository': {
-        'json_path': 'repository.json',
+        'json': 'repository.json',
     },
 }
-
-
 
 
 def identify_object(i, text, patterns):
@@ -198,7 +219,7 @@ def format_id(groupdict, model):
     @param model: str Model keyword
     @returns: str
     """
-    return ID_FORMATS[model].format(**groupdict)
+    return ID_TEMPLATES[model].format(**groupdict)
 
 def format_path(groupdict, model, which):
     """
@@ -209,7 +230,7 @@ def format_path(groupdict, model, which):
     """
     key = '-'.join([model, which])
     try:
-        template = PATH_FORMATS[key]
+        template = PATH_TEMPLATES[key]
         return template.format(**groupdict)
     except KeyError:
         return None
@@ -221,21 +242,11 @@ def format_url(groupdict, model, which):
     @param which: str 'public' or 'editor'
     @returns: str
     """
-    pass
-
-def additional_paths(i):
-    """Assign the appropriate 
-    @param i: Identifier object
-    """
-    paths = ADDITIONAL_PATHS[i.model]
-    for key,val in paths.iteritems():
-        print(key,val)
-        key_abs = '%s_abs' % key
-        path_abs = os.path.join(i.path_abs, val)
-        setattr(i, key_abs, path_abs)
-        key_rel = '%s_rel' % key
-        path_rel = os.path.join(i.path_rel, val)
-        setattr(i, key_rel, path_rel)
+    try:
+        template = URL_TEMPLATES[which][model]
+        return template.format(**groupdict)
+    except KeyError:
+        return None
 
 
 class Identifier(object):
@@ -260,37 +271,53 @@ class Identifier(object):
         path = format_path(self.__dict__, 'collection', 'abs')
         return path
     
-    def json_path_abs(self):
-        filename = ADDITIONAL_PATHS[self.model]['json_path']
-        if self.model == 'file':
-            filename = filename.format(id=self.id)
-        return os.path.join(self.path_abs(), filename)
-    
-    def json_path_rel(self):
-        path_rel = self.path_rel()
-        filename = ADDITIONAL_PATHS[self.model]['json_path']
-        if self.model == 'file':
-            filename = filename.format(id=self.id)
-        if path_rel:
-            return os.path.join(path_rel, filename)
-        return filename
-    
     def parent_id(self):
         if not PARENTS.get(self.model, None):
             return None
         idpartsdict = {key: getattr(self, key, None) for key in self.idparts}
         return format_id(idpartsdict, PARENTS[self.model])
     
-    def path_abs(self):
+    def path_abs(self, append=None):
+        """Return absolute path to object with optional file appended.
+        
+        @param append: str File descriptor. Must be present in ADDITIONAL_PATHS!
+        @returns: str
+        """
         if not self.basepath:
             raise Exception('%s basepath not set.'% self)
-        return format_path(self.__dict__, self.model, 'abs')
+        path = format_path(self.__dict__, self.model, 'abs')
+        if append:
+            if self.model == 'file':
+                filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
+            else:
+                filename = ADDITIONAL_PATHS[self.model][append]
+            path = os.path.join(path, filename)
+        return path
     
-    def path_rel(self):
-        return format_path(self.__dict__, self.model, 'rel')
+    def path_rel(self, append=None):
+        """Return relative path to object with optional file appended.
+        
+        Note: paths relative to repository, intended for use in Git commands.
+        
+        @param append: str File descriptor. Must be present in ADDITIONAL_PATHS!
+        @returns: str
+        """
+        path = format_path(self.__dict__, self.model, 'rel')
+        if append:
+            if self.model == 'file':
+                filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
+            else:
+                filename = ADDITIONAL_PATHS[self.model][append]
+            if path:
+                path = os.path.join(path, filename)
+            else:
+                path = filename
+        return path
     
-    def url(self, domain=None):
-        assert False
+    def urlpath(self, which):
+        """Return object URL or URI.
+        """
+        return format_url(self.__dict__, self.model, which)
     
     @staticmethod
     def from_id(object_id, base_path=None):
@@ -331,10 +358,7 @@ class Identifier(object):
         i.idparts = [key for key in idpartsdict.iterkeys()]
         # set object attributes with numbers as ints
         for key in i.idparts:
-            if isinstance(i, basestring) and idpartsdict[key].isdigit():
-                setattr(i, key, int(idpartsdict[key]))
-            else:
-                setattr(i, key, idpartsdict[key])
+            setattr(i, key, idpartsdict[key])
         i.id = format_id(idpartsdict, i.model)
         if base_path and not i.basepath:
             i.basepath = base_path
@@ -389,84 +413,4 @@ class Identifier(object):
         i.id = format_id(groupdict, i.model)
         if base_path and not i.basepath:
             i.basepath = base_path
-        return i
-    
-    
-        
-#        # set various IDs (i.collection_id, i.entity_id, etc)
-#        for model,pattern in ID_FORMATS:
-#            try:
-#                field = '%s_id' % model
-#                text = pattern.format(**groupdict)
-#                setattr(i, field, text)
-#            except:
-#                pass
-# 
-#        for attr,pattern in PATH_REL_FORMATS:
-#            try:
-#                text = pattern.format(**groupdict)
-#                setattr(i, attr, text)
-#            except:
-#                pass
-#        if i.model == 'entity':
-#            i.changelog_path_rel = os.path.join(i.entity_path_rel, 'changelog')
-#            i.control_path_rel = os.path.join(i.entity_path_rel, 'control')
-#            i.files_path_rel = os.path.join(i.entity_path_rel, 'files')
-#        elif i.model == 'file':
-#            i.access_rel = i.json_path_rel.replace('.json', '-a.jpg')
-#        
-#        if base_path:
-#            i.base_path = base_path
-#            if i.collection_id:
-#                i.collection_path = os.path.join(base_path, i.collection_id)
-# 
-#        if hasattr(i, 'collection_path') and i.collection_path:
-#            # prepend base_path to all i.*_rel attributes
-#            d = {}
-#            for key,val in i.__dict__.iteritems():
-#                if '_rel' in key:
-#                    field = key.replace('_rel', '')
-#                    path = os.path.join(i.collection_path, val)
-#                    d[field] = path
-#            for key,val in d.iteritems():
-#                setattr(i,key,val)
-# 
-#        if i.collection_path and i.model == 'collection':
-#            i.git_path = os.path.join(i.collection_path, '.git')
-#            i.annex_path = os.path.join(i.collection_path, '.git', 'annex')
-#            i.gitignore_path = os.path.join(i.collection_path, '.gitignore')
-        
-        #if i.model == 'repository':
-        #    pass
-        # 
-        #elif i.model == 'organization':
-        #    pass
-        # 
-        #elif i.model == 'collection':
-        #    i.json_path_rel = 'collection.json'
-        #    i.changelog_path_rel = 'changelog'
-        #    i.control_path_rel = 'control'
-        #    i.entities_path_rel = 'files'
-        #    i.gitignore_path_rel = '.gitignore'
-        #    if base_path:
-        #        i.json_path = os.path.join(base_path, i.json_path_rel)
-        #        i.changelog_path = os.path.join(base_path, i.changelog_path_rel)
-        #        i.control_path = os.path.join(base_path, i.control_path_rel)
-        #        i.entities_path = os.path.join(base_path, i.entities_path_rel)
-        #        i.gitignore_path = os.path.join(base_path, i.gitignore_path_rel)
-        #        i.git_path = os.path.join(base_path, '.git')
-        #        i.annex_path = os.path.join(base_path, '.git', 'annex')
-        # 
-        #elif i.model == 'entity':
-        #    pass
-        # 
-        #elif i.model == 'file-tmp':
-        #    pass
-        # 
-        #elif i.model == 'file':
-        #    pass
-        # 
-        #if i.collection_path:
-        #    pass
-            
         return i
