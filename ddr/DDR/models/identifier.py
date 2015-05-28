@@ -8,7 +8,7 @@ import urlparse
 
 MODELS = [
     'file',
-    'file-tmp',
+    'file-role',
     'entity',
     'collection',
     'organization',
@@ -31,7 +31,7 @@ ID_COMPONENTS = [
 # used to match object id pattern and extract model and tokens
 ID_PATTERNS = (
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'file'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'file-tmp'),
+    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'file-role'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'collection'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization'),
@@ -40,33 +40,26 @@ ID_PATTERNS = (
 
 # used to match path pattern and extract model and tokens
 PATH_PATTERNS = (
-    # file
-    #(r'^/var/www/media/ddr/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
-    #(r'^/var/www/media/ddr/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-abs'),
-    #(r'^/var/www/media/ddr/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-abs', 'file'),
+    # file-abs
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-abs'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-abs', 'file'),
-    
+    # file-rel
     (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-rel', 'file'),
     (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-rel', 'file'),
     (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-rel', 'file'),
-    
     # entity
-    #(r'^/var/www/media/ddr/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)', 'entity-abs', 'entity'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)', 'entity-abs', 'entity'),
     (r'^files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity-rel', 'entity'),
-    
     # collection
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)', 'collection'),
     (r'^collection.json$', 'collection-meta-rel', 'collection'),
     # organization
-    #(r'(?P<base>[\w/]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)/organization.json$', 'organization-meta-abs', 'organization'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization-abs', 'organization'),
     (r'^organization.json$', 'organization-meta-rel', 'organization'),
     # repository
-    #(r'^/var/www/media/ddr/(?P<repo>[\w]+)/repository.json$', 'repository-meta-abs', 'repository'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)/repository.json$', 'repository-meta-abs', 'repository'),
+    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)$', 'repository-meta-abs', 'repository'),
     (r'^repository.json$', 'repository-meta-rel', 'repository'),
 )
 
@@ -74,14 +67,14 @@ PATH_PATTERNS = (
 URL_PATTERNS = (
     # ddr-local
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'file'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'file-tmp'),
+    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'file-role'),
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity'),
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'collection'),
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization'),
     (r'/ui/(?P<repo>[\w]+)$', 'repository'),
     # ddr-public
     (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)/(?P<sha1>[\w]+)$', 'file'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)$', 'file-tmp'),
+    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)$', 'file-role'),
     (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)$', 'entity'),
     (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)$', 'collection'),
     (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)$', 'organization'),
@@ -91,7 +84,7 @@ URL_PATTERNS = (
 # used to generate IDs from model and tokens
 ID_FORMATS = {
     'file':         '{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    'file-tmp':     '{repo}-{org}-{cid}-{eid}-{role}',
+    'file-role':    '{repo}-{org}-{cid}-{eid}-{role}',
     'entity':       '{repo}-{org}-{cid}-{eid}',
     'collection':   '{repo}-{org}-{cid}',
     'organization': '{repo}-{org}',
@@ -100,8 +93,8 @@ ID_FORMATS = {
 
 # used to generate paths from model and tokens
 PATH_FORMATS = {
-    'file-abs': '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}.{ext}',
-    'file-rel': 'files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}.{ext}',
+    'file-abs': '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    'file-rel': 'files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
     'entity-abs': '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}',
     'entity-rel': 'files/{repo}-{org}-{cid}-{eid}',
     'collection-abs': '{basepath}/{repo}-{org}-{cid}',
@@ -111,6 +104,22 @@ PATH_FORMATS = {
 
 # used to generate URIs from model and tokens
 URL_FORMATS = {
+    'editor': {
+        'file':         '/ui/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+        'file-role':    '/ui/{repo}-{org}-{cid}-{eid}-{role}',
+        'entity':       '/ui/{repo}-{org}-{cid}-{eid}',
+        'collection':   '/ui/{repo}-{org}-{cid}',
+        'organization': '/ui/{repo}-{org}',
+        'repository':   '/ui/{repo}',
+    },
+    'public': {
+        'file':         '/{repo}/{org}/{cid}/{eid}/{role}/{sha1}',
+        'file-role':    '/{repo}/{org}/{cid}/{eid}/{role}',
+        'entity':       '/{repo}/{org}/{cid}/{eid}',
+        'collection':   '/{repo}/{org}/{cid}',
+        'organization': '/{repo}/{org}',
+        'repository':   '/{repo}',
+    },
 }
 
 ADDITIONAL_PATHS = {
@@ -141,10 +150,18 @@ ADDITIONAL_PATHS = {
 
 
 
-
-    
 def identify_object(i, text, patterns):
     """split ID,path,url into model and tokens and assign to identifier
+    
+    Like Django URL router, look for pattern than matches the given text.
+    Patterns match to a model and the fields correspond to components of
+    a legal object ID.
+    Component names and values are assigned as attributes of the object.
+    
+    @param i: Identifier object
+    @param text: str Text string to look for
+    @param patterns: list Patterns in which to look
+    @returns: dict groupdict resulting from successful regex match
     """
     groupdict = {}
     for tpl in patterns:
@@ -157,7 +174,11 @@ def identify_object(i, text, patterns):
             break
     if not groupdict:
         raise Exception('Could not identify object: "%s"' % text)
+    # basepath without trailing slash
     i.basepath = groupdict.get('basepath', None)
+    if i.basepath and (i.basepath[-1] == os.sep):
+        i.basepath = i.basepath[:-1]
+    # list of object ID components
     i.idparts = [
         key
         for key in groupdict.iterkeys()
@@ -173,12 +194,19 @@ def identify_object(i, text, patterns):
 
 def format_id(groupdict, model):
     """
-    @param model: str
-    @groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
+    @param groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
+    @param model: str Model keyword
+    @returns: str
     """
     return ID_FORMATS[model].format(**groupdict)
 
 def format_path(groupdict, model, which):
+    """
+    @param groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
+    @param model: str Model keyword
+    @param which: str 'abs' or 'rel'
+    @returns: str
+    """
     key = '-'.join([model, which])
     try:
         template = PATH_FORMATS[key]
@@ -188,13 +216,17 @@ def format_path(groupdict, model, which):
 
 def format_url(groupdict, model, which):
     """
-    @param groupdict: dict
-    @param model: str 
+    @param groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
+    @param model: str Model keyword
     @param which: str 'public' or 'editor'
+    @returns: str
     """
     pass
 
 def additional_paths(i):
+    """Assign the appropriate 
+    @param i: Identifier object
+    """
     paths = ADDITIONAL_PATHS[i.model]
     for key,val in paths.iteritems():
         print(key,val)
@@ -217,29 +249,47 @@ class Identifier(object):
     def __repr__(self):
         return "<Identifier %s>" % (self.id)
     
+    def collection_id(self):
+        if self.model in ['repo', 'org']:
+            raise Exception('Model does not have collection ID: %s' % self.model)
+        return format_id(self.__dict__, 'collection')
+    
+    def collection_path(self):
+        if not self.basepath:
+            raise Exception('%s basepath not set.'% self)
+        path = format_path(self.__dict__, 'collection', 'abs')
+        return path
+    
+    def json_path_abs(self):
+        filename = ADDITIONAL_PATHS[self.model]['json_path']
+        if self.model == 'file':
+            filename = filename.format(id=self.id)
+        return os.path.join(self.path_abs(), filename)
+    
+    def json_path_rel(self):
+        path_rel = self.path_rel()
+        filename = ADDITIONAL_PATHS[self.model]['json_path']
+        if self.model == 'file':
+            filename = filename.format(id=self.id)
+        if path_rel:
+            return os.path.join(path_rel, filename)
+        return filename
+    
+    def parent_id(self):
+        if not PARENTS.get(self.model, None):
+            return None
+        idpartsdict = {key: getattr(self, key, None) for key in self.idparts}
+        return format_id(idpartsdict, PARENTS[self.model])
+    
     def path_abs(self):
         if not self.basepath:
             raise Exception('%s basepath not set.'% self)
-        assert False
+        return format_path(self.__dict__, self.model, 'abs')
     
     def path_rel(self):
-        assert False
+        return format_path(self.__dict__, self.model, 'rel')
     
     def url(self, domain=None):
-        assert False
-    
-    def parent_id(self):
-        parent_model = PARENTS[self.model]
-        print('parent_model %s' % parent_model)
-        assert False
-    
-    def collection_id(self):
-        assert False
-    
-    def collection_path(self, relative=False):
-        assert False
-    
-    def json_path(self, relative=False):
         assert False
     
     @staticmethod
@@ -257,9 +307,9 @@ class Identifier(object):
         i.method = 'id'
         i.raw = object_id
         i.id = object_id
+        groupdict = identify_object(i, object_id, ID_PATTERNS)
         if base_path and not i.basepath:
             i.basepath = base_path
-        groupdict = identify_object(i, object_id, ID_PATTERNS)
         return i
     
     @staticmethod
@@ -279,6 +329,12 @@ class Identifier(object):
         i.raw = idpartsdict
         i.model = idpartsdict['model']
         i.idparts = [key for key in idpartsdict.iterkeys()]
+        # set object attributes with numbers as ints
+        for key in i.idparts:
+            if isinstance(i, basestring) and idpartsdict[key].isdigit():
+                setattr(i, key, int(idpartsdict[key]))
+            else:
+                setattr(i, key, idpartsdict[key])
         i.id = format_id(idpartsdict, i.model)
         if base_path and not i.basepath:
             i.basepath = base_path
@@ -325,14 +381,14 @@ class Identifier(object):
         i = Identifier()
         i.method = 'url'
         i.raw = url
-        if base_path and not i.basepath:
-            i.basepath = base_path
         path = urlparse.urlparse(url).path
         # rm trailing slash
         if path[-1] == os.sep:
             path = path[:-1]
         groupdict = identify_object(i, path, URL_PATTERNS)
         i.id = format_id(groupdict, i.model)
+        if base_path and not i.basepath:
+            i.basepath = base_path
         return i
     
     
