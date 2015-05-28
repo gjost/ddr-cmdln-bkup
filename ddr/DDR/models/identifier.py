@@ -6,7 +6,7 @@ import string
 import urlparse
 
 
-# Models that can be managed by this module
+# Models in this Repository
 MODELS = [
     'file',
     'file-role',
@@ -48,8 +48,10 @@ ID_COMPONENTS = [
     'repo', 'org', 'cid', 'eid', 'role', 'sha1', 'ext'
 ]
 
-
+# ----------------------------------------------------------------------
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
+# Record format: (regex, description, model)
+#
 
 ID_PATTERNS = (
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', '', 'file'),
@@ -103,8 +105,9 @@ URL_PATTERNS = (
     (r'^/(?P<repo>[\w]+)$', 'public-repository', 'repository'),
 )
 
-
+# ----------------------------------------------------------------------
 # Templates used to generate IDs, paths, and URLs from model and tokens
+#
 
 ID_TEMPLATES = {
     'file':         '{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
@@ -150,7 +153,6 @@ URL_TEMPLATES = {
         'repository':   '/{repo}',
     },
 }
-
 
 # Additional file types that may be present in a repo
 ADDITIONAL_PATHS = {
