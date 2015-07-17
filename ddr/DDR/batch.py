@@ -840,8 +840,9 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         file0 = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file0, module, field_names, rowd)
         entity = entities[Identity.parent_id(file_id)]
-        if file_.exists:
+        if os.path.exists(file_.path_abs) or os.path.islink(file_.path_abs):
             # update metadata
+            # File may be a binary or a symlink pointing to annex
             file_.write_json()
             git_files.append(file_.json_path_rel)
             entity.changelog_updated.append(file_)
