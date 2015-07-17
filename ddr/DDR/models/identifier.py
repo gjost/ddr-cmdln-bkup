@@ -206,10 +206,8 @@ def identify_object(i, text, patterns):
             break
     if not groupdict:
         raise Exception('Could not identify object: "%s"' % text)
-    # basepath without trailing slash
     i.basepath = groupdict.get('basepath', None)
-    if i.basepath and (i.basepath[-1] == os.sep):
-        i.basepath = i.basepath[:-1]
+    i.basepath = os.path.normpath(i.basepath)
     # list of object ID components
     i.idparts = [
         key
@@ -390,9 +388,7 @@ class Identifier(object):
         i = Identifier()
         i.method = 'path'
         i.raw = path_abs
-        # rm trailing slash
-        if path_abs[-1] == os.sep:
-            path_abs = path_abs[:-1]
+        path_abs = os.path.normpath(path_abs)
         groupdict = identify_object(i, path_abs, PATH_PATTERNS)
         i.id = format_id(groupdict, i.model)
         return i
@@ -418,9 +414,7 @@ class Identifier(object):
         i.method = 'url'
         i.raw = url
         path = urlparse.urlparse(url).path
-        # rm trailing slash
-        if path[-1] == os.sep:
-            path = path[:-1]
+        path = os.path.normpath(path)
         groupdict = identify_object(i, path, URL_PATTERNS)
         i.id = format_id(groupdict, i.model)
         if base_path and not i.basepath:

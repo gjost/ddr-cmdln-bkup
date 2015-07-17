@@ -795,6 +795,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     @param git_mail:
     @param agent:
     """
+    collection_path = os.path.normpath(collection_path)
     logging.info('-----------------------------------------------')
     csv_dir = os.path.dirname(csv_path)
     cpath = Identity.dissect_path(collection_path)

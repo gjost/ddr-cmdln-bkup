@@ -322,6 +322,7 @@ class Identity(object):
         @param path_abs: absolute path to object json file.
         @returns: Identifier object
         """
+        path_abs = os.path.normpath(path_abs)
         p = Path()
         p.path = path_abs
         p.path_abs = path_abs
@@ -337,11 +338,7 @@ class Identity(object):
         ]
         for f in FIELDS:
             setattr(p, f, None)
-        
-        # remove trailing slash if this is a directory
-        if path_abs[-1] == os.path.sep:
-            path_abs = path_abs[:-1]
-        
+                
         model = None
         if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
             model = 'file'
@@ -602,9 +599,10 @@ class Identity(object):
         * Does not append 'entity.json' or file extension.
         
         @param object_id:
-        @param base_dir: Absolute path, with no trailing slash.
+        @param base_dir: Absolute path
         @returns: Relative path or (if base_dir) absolute path
         """
+        base_dir = os.path.normpath(base_dir)
         path = None
         repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
         parts = Identity.split_object_id(object_id)
