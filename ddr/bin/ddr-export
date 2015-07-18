@@ -147,12 +147,10 @@ def main():
     parser.add_argument('-I', '--idfile', help='File containing list of IDs, one per line.')
     parser.add_argument('-m', '--model', required=True, help="Model: 'entity' or 'file'.")
     parser.add_argument('collection', help='Absolute path to Collection.')
-    parser.add_argument('-c', '--csv', help='Absolute path to CSV file.')
+    parser.add_argument('csv', help='Absolute path to CSV file.')
     args = parser.parse_args()
     
-    if not (args.ids or args.idfile):
-        raise Exception('Specify an ID pattern or a file containing IDs.')
-    elif args.idfile and not os.path.exists(args.idfile):
+    if args.idfile and not os.path.exists(args.idfile):
         raise Exception('IDs file does not exist: %s' % args.idfile)
     elif not os.path.exists(args.collection):
         raise Exception('Collection does not exist: %s' % args.collection)
