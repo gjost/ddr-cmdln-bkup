@@ -190,7 +190,7 @@ ADDITIONAL_PATHS = {
 
 
 def identify_object(i, text, patterns):
-    """split ID,path,url into model and tokens and assign to identifier
+    """Split ID, path, or URL into model and tokens and assign to Identifier
     
     Like Django URL router, look for pattern than matches the given text.
     Patterns match to a model and the fields correspond to components of
@@ -228,19 +228,25 @@ def identify_object(i, text, patterns):
             i.parts[key] = int(val)
 
 def format_id(i, model):
-    """
+    """Format ID for the requested model using ID_TEMPLATES.
+    
+    Hint: you can get parent IDs from an Identifier.
+    
     @param i: Identifier
+    @param model: str A legal model keyword
     @returns: str
     """
     return ID_TEMPLATES[model].format(**i.parts)
 
-def format_path(i, model, which):
-    """
+def format_path(i, model, path_type):
+    """Format absolute or relative path using PATH_TEMPLATES.
+    
     @param i: Identifier
-    @param which: str 'abs' or 'rel'
+    @param model: str A legal model keyword
+    @param path_type: str 'abs' or 'rel'
     @returns: str
     """
-    key = '-'.join([model, which])
+    key = '-'.join([model, path_type])
     kwargs = {key: val for key,val in i.parts.items()}
     kwargs['basepath'] = i.basepath
     try:
@@ -249,14 +255,16 @@ def format_path(i, model, which):
     except KeyError:
         return None
 
-def format_url(i, model, which):
-    """
+def format_url(i, model, url_type):
+    """Format URL using URL_TEMPLATES.
+    
     @param i: Identifier
-    @param which: str 'public' or 'editor'
+    @param model: str A legal model keyword
+    @param url_type: str 'public' or 'editor'
     @returns: str
     """
     try:
-        template = URL_TEMPLATES[which][model]
+        template = URL_TEMPLATES[url_type][model]
         return template.format(**i.parts)
     except KeyError:
         return None
@@ -326,7 +334,7 @@ class Identifier(object):
         
         Note: paths relative to repository, intended for use in Git commands.
         
-        @param append: str File descriptor. Must be present in ADDITIONAL_PATHS!
+        @param append: str Descriptor of file in ADDITIONAL_PATHS!
         @returns: str
         """
         path = format_path(self, self.model, 'rel')
@@ -343,19 +351,24 @@ class Identifier(object):
             path = os.path.normpath(path)
         return path
     
-    def urlpath(self, which):
+    def urlpath(self, url_type):
         """Return object URL or URI.
+        
+        @param url_type: str 'public' or 'editor'
+        @returns: str
         """
-        return format_url(self, self.model, which)
+        return format_url(self, self.model, url_type)
     
     @staticmethod
     def from_id(object_id, base_path=None):
-        """Return Identified given object ID
+        """Make Identifier from object ID.
         
         >>> Identifier.from_id('ddr-testing-123-456')
         <Identifier ddr-testing-123-456>
         
         @param object_id: str
+        @param base_path: str Absolute path to Store's parent dir
+        @returns: Identifier
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
@@ -372,13 +385,15 @@ class Identifier(object):
     
     @staticmethod
     def from_idparts(partsdict, base_path=None):
-        """Return Identified given dict of parts
+        """Make Identifier from dict of parts.
         
         >>> parts = {'model':'entity', 'repo':'ddr', 'org':'testing', 'cid':123, 'eid':456}
         >>> Identifier.from_parts(parts)
         <Identifier ddr-testing-123-456>
         
         @param parts: dict
+        @param base_path: str Absolute path to Store's parent dir
+        @returns: Identifier
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
@@ -400,12 +415,15 @@ class Identifier(object):
     
     @staticmethod
     def from_path(path_abs):
-        """Return Identified given absolute path.
+        """Make Identifier from absolute path.
         
-        >>> Identifier.from_id('ddr-testing-123-456')
+        >>> path = '/tmp/ddr-testing-123/files/ddr-testing-123-456/entity.json
+        >>> Identifier.from_path(path)
         <Identifier ddr-testing-123-456>
         
         @param path_abs: str
+        @param base_path: str Absolute path to Store's parent dir
+        @returns: Identifier
         """
         if not os.path.isabs(path_abs):
             raise Exception('Path is not absolute: %s' % path_abs)
@@ -418,7 +436,7 @@ class Identifier(object):
     
     @staticmethod
     def from_url(url, base_path=None):
-        """Return Identified given URL or URI.
+        """Make Identifier from URL or URI.
         
         >>> Identifier.from_id('http://ddr.densho.org/ddr/testing/123/456')
         <Identifier ddr-testing-123-456>
@@ -430,6 +448,8 @@ class Identifier(object):
         <Identifier ddr-testing-123-456>
         
         @param path_abs: str
+        @param base_path: str Absolute path to Store's parent dir
+        @returns: Identifier
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
