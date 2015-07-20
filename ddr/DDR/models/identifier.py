@@ -290,6 +290,13 @@ class Identifier(object):
             return None
         return format_id(self, PARENTS[self.model])
     
+    def parent_path(self):
+        """Absolute path to parent object
+        """
+        if not PARENTS.get(self.model, None):
+            return None
+        return format_path(self, PARENTS[self.model], 'abs')
+    
     def path_abs(self, append=None):
         """Return absolute path to object with optional file appended.
         
