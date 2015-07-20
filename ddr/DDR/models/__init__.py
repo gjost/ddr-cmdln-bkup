@@ -30,6 +30,7 @@ from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import imaging
 from DDR.models.xml import EAD, METS
+from DDR.models.identifier import Identifier
 #from DDR import commands
 # NOTE: DDR.commands imports DDR.models.Collection which is a circular import
 # so the following is imported in Entity.add_access
@@ -484,17 +485,16 @@ class Identity(object):
     
     @staticmethod
     def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
-        if   (model == 'file') and repo and org and cid and eid and role and sha1:
-            return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
-        elif (model == 'entity') and repo and org and cid and eid:
-            return '%s-%s-%s-%s' % (repo, org, cid, eid)
-        elif (model == 'collection') and repo and org and cid:
-            return '%s-%s-%s' % (repo, org, cid)
-        elif (model in ['org', 'organization']) and repo and org:
-            return '%s-%s' % (repo, org)
-        elif (model in ['repo', 'repository']) and repo:
-            return repo
-        return None
+        idparts = {
+            'model': model,
+            'repo': repo,
+            'org': org,
+            'cid': cid,
+            'eid': eid,
+            'role': role,
+            'sha1': sha1,
+        }
+        return Identifier.from_idparts(idparts).id
     
     @staticmethod
     def split_object_id( object_id=None ):
@@ -502,26 +502,7 @@ class Identity(object):
         TODO make sure it's actually an object ID first!
         """
         if object_id and isinstance(object_id, basestring):
-            parts = object_id.strip().split('-')
-            if len(parts) == 6:
-                parts.insert(0, 'file')
-                return parts
-            elif len(parts) == 5:
-                # file ID without the SHA1 hash; used to mark new files in batch CSV
-                parts.insert(0, 'file partial')
-                return parts
-            elif len(parts) == 4:
-                parts.insert(0, 'entity')
-                return parts
-            elif len(parts) == 3:
-                parts.insert(0, 'collection')
-                return parts
-            elif len(parts) == 2:
-                parts.insert(0, 'organization')
-                return parts
-            elif len(parts) == 1:
-                parts.insert(0, 'repository')
-                return parts
+            return Identifier.from_id(object_id).components()
         return None
     
     @staticmethod
@@ -542,12 +523,8 @@ class Identity(object):
         @param path: absolute or relative path to a DDR metadata file
         @returns: DDR object ID
         """
-        object_id = None
-        model = Identity.model_from_path(path)
-        if model == 'collection': return os.path.basename(os.path.dirname(path))
-        elif model == 'entity': return os.path.basename(os.path.dirname(path))
-        elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
-        return None
+        i = Identifier.from_path(path)
+        return i.id
     
     @staticmethod
     def model_from_path( path ):
@@ -563,10 +540,7 @@ class Identity(object):
         @param path: absolute or relative path to metadata JSON file.
         @returns: model
         """
-        if 'collection.json' in path: return 'collection'
-        elif 'entity.json' in path: return 'entity'
-        elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
-        return None
+        return Identifier.from_path(path).model
     
     @staticmethod
     def model_from_dict( data ):
@@ -575,22 +549,7 @@ class Identity(object):
         if data.get('path_rel',None):
             return 'file'
         object_id = data.get('id', '')
-        LEGAL_LENGTHS = [
-            1, # repository   (ddr)
-            2, # organization (ddr-testing)
-            3, # collection   (ddr-testing-123)
-            4, # entity       (ddr-testing-123-1)
-            6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
-        ]
-        parts = object_id.split('-')
-        len_parts = len(parts)
-        if (len_parts in LEGAL_LENGTHS):
-            if   len_parts == 6: return 'file'
-            elif len_parts == 4: return 'entity'
-            elif len_parts == 3: return 'collection'
-            #elif len_parts == 2: return 'organization'
-            #elif len_parts == 1: return 'repository'
-        return None
+        return Identifier.from_id(object_id).model
     
     @staticmethod
     def path_from_id( object_id, base_dir='' ):
@@ -603,28 +562,10 @@ class Identity(object):
         @returns: Relative path or (if base_dir) absolute path
         """
         base_dir = os.path.normpath(base_dir)
-        path = None
-        repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
-        parts = Identity.split_object_id(object_id)
-        model = parts[0]
-        base = '%s/' % base_dir
-        if model == 'collection':
-            repo = parts[1]; org = parts[2]; cid = parts[3]
-            path = '%s%s-%s-%s' % (
-                base, repo,org,cid)
-        elif model == 'entity':
-            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
-            path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
-                base, repo,org,cid, repo,org,cid,eid)
-        elif model == 'file partial':
-            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]
-            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s' % (
-                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role)
-        elif model == 'file':
-            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
-            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
-                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
-        return path
+        i = Identifier.from_id(object_id, base_dir)
+        if i.basepath:
+            return i.path_abs()
+        return i.path_rel()
     
     @staticmethod
     def json_path_from_dir(model, path):
@@ -667,13 +608,7 @@ class Identity(object):
         >>> Identity.parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
         'ddr-testing-123-1'
         """
-        parts = object_id.split('-')
-        if   len(parts) == 2: return '-'.join([ parts[0], ])
-        elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
-        elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
-        elif len(parts) == 5: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-        elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-        return None
+        return Identifier.from_id(object_id).parent_id()
 
 
 class Module(object):
@@ -1035,6 +970,7 @@ class Collection( object ):
     org = None
     cid = None
     path = None; path_rel = None
+    git_path = None; git_path_rel = None
     annex_path = None; annex_path_rel = None
     json_path = None; json_path_rel = None
     files_path = None; files_path_rel = None
@@ -1048,22 +984,11 @@ class Collection( object ):
     _astatus = ''
     _unsynced = 0
     
-    def _path_absrel( self, filename, rel=False ):
-        if rel:
-            return filename
-        return os.path.join(self.path, filename)
-    
     def __init__( self, path, uid=None ):
         """
         >>> c = Collection('/tmp/ddr-testing-123')
         >>> c.uid
         'ddr-testing-123'
-        >>> c.repo
-        'ddr'
-        >>> c.org
-        'testing'
-        >>> c.cid
-        '123'
         >>> c.ead_path_rel
         'ead.xml'
         >>> c.ead_path
@@ -1073,29 +998,34 @@ class Collection( object ):
         >>> c.json_path
         '/tmp/ddr-testing-123/collection.json'
         """
+        i = Identifier.from_path(path)
+        self.identifier = i
         self.path = path
-        self.path_rel = os.path.split(self.path)[1]
+        self.path_rel = i.path_rel()
         self.root = os.path.split(self.path)[0]
         if not uid:
-            uid = os.path.basename(self.path)
-        self.uid  = uid
-        self.id = uid
-        self_model,self.repo,self.org,self.cid = Identity.split_object_id(uid)
-        self.annex_path         = os.path.join(self.path, '.git', 'annex')
-        self.annex_path_rel     = os.path.join('.git', 'annex')
-        self.json_path          = self._path_absrel('collection.json')
-        self.json_path_rel      = self._path_absrel('collection.json',rel=True)
-        self.files_path         = self._path_absrel('files')
-        self.files_path_rel     = self._path_absrel('files', rel=True)
-        self.changelog_path     = self._path_absrel('changelog')
-        self.changelog_path_rel = self._path_absrel('changelog', rel=True)
-        self.control_path       = self._path_absrel('control')
-        self.control_path_rel   = self._path_absrel('control', rel=True)
-        self.ead_path           = self._path_absrel('ead.xml')
-        self.ead_path_rel       = self._path_absrel('ead.xml', rel=True)
-        self.gitignore_path     = self._path_absrel('.gitignore')
-        self.gitignore_path_rel = self._path_absrel('.gitignore', rel=True)
-        self.lock_path          = self._path_absrel('lock')
+            uid = i.id
+        self.uid  = i.id
+        self.id = i.id
+        model,self.repo,self.org,self.cid = i.components()
+        
+        self.git_path           = i.path_abs('git')
+        self.git_path_rel       = i.path_rel('git')
+        self.annex_path         = i.path_abs('annex')
+        self.annex_path_rel     = i.path_rel('annex')
+        self.json_path          = i.path_abs('json')
+        self.json_path_rel      = i.path_rel('json')
+        self.files_path         = i.path_abs('files')
+        self.files_path_rel     = i.path_rel('files')
+        self.changelog_path     = i.path_abs('changelog')
+        self.changelog_path_rel = i.path_rel('changelog')
+        self.control_path       = i.path_abs('control')
+        self.control_path_rel   = i.path_rel('control')
+        self.ead_path           = i.path_abs('ead')
+        self.ead_path_rel       = i.path_rel('ead')
+        self.gitignore_path     = i.path_abs('gitignore')
+        self.gitignore_path_rel = i.path_rel('gitignore')
+        self.lock_path          = i.path_abs('lock')
         self.git_url = '{}:{}'.format(GITOLITE, self.uid)
     
     def __repr__(self):
@@ -1325,6 +1255,7 @@ class Collection( object ):
                         if '"title":' in line:
                             e = ListEntity()
                             e.id = e.uid = eid = os.path.basename(path)
+                            # TODO Identifier
                             e.repo,e.org,e.cid,e.eid = eid.split('-')
                             # make a miniature JSON doc out of just title line
                             e.title = json.loads('{%s}' % line)['title']
@@ -1341,7 +1272,7 @@ class Collection( object ):
         """Fetch latest changes to collection repo from origin/master.
         """
         result = '-1'
-        if os.path.exists(os.path.join(self.path, '.git')):
+        if os.path.exists(self.git_path):
             result = dvcs.fetch(self.path)
         else:
             result = '%s is not a git repository' % self.path
@@ -1353,7 +1284,7 @@ class Collection( object ):
         The repo_(synced,ahead,behind,diverged,conflicted) functions all use
         the result of this function so that git-status is only called once.
         """
-        if not self._status and (os.path.exists(os.path.join(self.path, '.git'))):
+        if not self._status and (os.path.exists(self.git_path)):
             status = dvcs.repo_status(self.path, short=True)
             if status:
                 self._status = status
@@ -1362,7 +1293,7 @@ class Collection( object ):
     def repo_annex_status( self ):
         """Get annex status of collection repo.
         """
-        if not self._astatus and (os.path.exists(os.path.join(self.path, '.git'))):
+        if not self._astatus and (os.path.exists(self.git_path)):
             astatus = dvcs.annex_status(self.path)
             if astatus:
                 self._astatus = astatus
@@ -1427,37 +1358,30 @@ class Entity( object ):
     _file_objects = 0
     _file_objects_loaded = 0
     
-    def _path_absrel( self, filename, rel=False ):
-        """
-        NOTE: relative == relative to collection root
-        """
-        if rel:
-            p = self.path.replace('%s/' % self.parent_path, '')
-            return os.path.join(p, filename)
-        return os.path.join(self.path, filename)
-    
     def __init__( self, path, uid=None ):
+        i = Identifier.from_path(path)
+        self.identifier = i
         self.path = path
-        self.parent_path = os.path.split(os.path.split(self.path)[0])[0]
+        self.parent_path = i.parent_path()
         self.root = os.path.split(self.parent_path)[0]
-        self.path_rel = self.path.replace('%s/' % self.root, '')
+        self.path_rel = i.path_rel()
         if not uid:
-            uid = os.path.basename(self.path)
+            uid = i.id
         self.uid = uid
         self.id = uid
-        self_model,self.repo,self.org,self.cid,self.eid = Identity.split_object_id(uid)
-        self.parent_uid = os.path.split(self.parent_path)[1]
-        self.json_path          = self._path_absrel('entity.json')
-        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
-        self.files_path         = self._path_absrel('files')
-        self.files_path_rel     = self._path_absrel('files', rel=True)
-        self.changelog_path     = self._path_absrel('changelog')
-        self.changelog_path_rel = self._path_absrel('changelog', rel=True)
-        self.control_path       = self._path_absrel('control')
-        self.control_path_rel   = self._path_absrel('control', rel=True)
-        self.mets_path          = self._path_absrel('mets.xml')
-        self.mets_path_rel      = self._path_absrel('mets.xml', rel=True)
-        self.lock_path          = self._path_absrel('lock')
+        model,self.repo,self.org,self.cid,self.eid = i.components()
+        self.parent_uid = i.parent_id()
+        self.json_path          = i.path_abs('json')
+        self.json_path_rel      = i.path_rel('json')
+        self.files_path         = i.path_abs('files')
+        self.files_path_rel     = i.path_rel('files')
+        self.changelog_path     = i.path_abs('changelog')
+        self.changelog_path_rel = i.path_rel('changelog')
+        self.control_path       = i.path_abs('control')
+        self.control_path_rel   = i.path_rel('control')
+        self.mets_path          = i.path_abs('mets')
+        self.mets_path_rel      = i.path_rel('mets')
+        self.lock_path          = i.path_abs('lock')
         self._file_objects = []
     
     def __repr__(self):
@@ -1726,9 +1650,10 @@ class Entity( object ):
         # reload objects
         self.load_file_objects()
     
-    def file( self, repo, org, cid, eid, role, sha1, newfile=None ):
+    def file( self, role, sha1, newfile=None ):
         """Given a SHA1 hash, get the corresponding file dict.
         
+        @param role
         @param sha1
         @param newfile (optional) If present, updates existing file or appends new one.
         @returns 'added', 'updated', File, or None
@@ -2253,68 +2178,36 @@ class File( object ):
         probably get it wrong and fail silently!
         TODO refactor and simplify this horrible code!
         """
-        # accept either path_abs or path_rel
+        path_abs = None
+        path = None
+        # only accept path_abs
         if kwargs and kwargs.get('path_abs',None):
-            self.path_abs = kwargs['path_abs']
+            path = kwargs['path_abs']
         elif kwargs and kwargs.get('path_rel',None):
-            self.path_rel = kwargs['path_rel']
-        else:
-            if args and args[0]:
-                s = os.path.splitext(args[0])
-                if os.path.exists(args[0]):  # <<< Causes problems with missing git-annex files
-                    self.path_abs = args[0]  #     Use path_abs arg!!!
-                elif (len(s) == 2) and s[0] and s[1]:
-                    self.path_rel = args[0]
-        if self.path_abs:
-            self.basename = os.path.basename(self.path_abs)
-        elif self.path_rel:
-            self.basename = os.path.basename(self.path_rel)
-        # IMPORTANT: path_rel is the link between Entity and File
-        # It MUST be present in entity.json and file.json or lots of
-        # things will break!
-        # NOTE: path_rel is basically the same as basename
-        if self.path_abs and not self.path_rel:
-            self.path_rel = self.basename
-        # much info is encoded in filename
-        if self.basename:
-            parts = os.path.splitext(self.basename)[0].split('-')
-            self.repo = parts[0]
-            self.org = parts[1]
-            self.cid = parts[2]
-            self.eid = parts[3]
-            # NOTE: we get role from filename and also from JSON data, if available
-            self.role = parts[4]
-            self.sha1 = parts[5]
-            self.id = '-'.join([self.repo,self.org,self.cid,self.eid,self.role,self.sha1])
-        # get one path if the other not present
-        if self.entity_path and self.path_rel and not self.path_abs:
-            self.path_abs = os.path.join(self.entity_files_path, self.path_rel)
-        elif self.entity_path and self.path_abs and not self.path_rel:
-            self.path_rel = self.path_abs.replace(self.entity_files_path, '')
-        # clean up path_rel if necessary
-        if self.path_rel and (self.path_rel[0] == '/'):
-            self.path_rel = self.path_rel[1:]
-        # load JSON
-        if self.path_abs:
-            self.path = self.path_abs
-            p = Identity.dissect_path(self.path_abs)
-            self.collection_path = p.collection_path
-            self.entity_path = p.entity_path
-            self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
-            # file JSON
-            self.json_path = os.path.join(os.path.splitext(self.path_abs)[0], '.json')
-            self.json_path = self.json_path.replace('/.json', '.json')
-            self.json_path_rel = self.json_path.replace(self.collection_path, '')
-            if self.json_path_rel[0] == '/':
-                self.json_path_rel = self.json_path_rel[1:]
-            ## TODO seriously, do we need this?
-            #with open(self.json_path, 'r') as f:
-            #    self.load_json(f.read())
-            access_abs = None
-            if self.access_rel and self.entity_path:
-                access_abs = os.path.join(self.entity_files_path, self.access_rel)
-                if os.path.exists(access_abs):
-                    self.access_abs = os.path.join(self.entity_files_path, self.access_rel)
+            path = kwargs['path_rel']
+        elif args and args[0]:
+            path = args[0]  #     Use path_abs arg!!!
+        if path and os.path.isabs(path):
+            path_abs = path
+        if not path_abs:
+            # TODO accept path_rel plus base_path
+            raise Exception("File must be instantiated with an absolute path!")
+        
+        i = Identifier.from_path(self.path_abs)
+        self.identifier = i
+        self.id = i.id
+        model,self.repo,self.org,self.cid,self.eid,self.role,self.sha1 = i.components()
+        self.path     = path_abs
+        self.path_abs = path_abs
+        self.path_rel = i.path_rel()
+        self.basename = os.path.basename(self.path_abs)
+        self.collection_path   = i.collection_path()
+        self.entity_path       = i.parent_path()
+        self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
+        self.json_path     = i.path_abs('json')
+        self.json_path_rel = i.path_rel('json')
+        self.access_abs    = i.path_abs('access')
+        self.access_rel    = i.path_rel('access')
     
     def __repr__(self):
         return "<File %s (%s)>" % (self.basename, self.basename_orig)
@@ -2345,16 +2238,11 @@ class File( object ):
         @param collection_path
         @returns: list of relative file paths
         """
-        if collection_path[-1] != '/':
-            collection_path = '%s/' % collection_path
-        paths = [ ]
-        if self.path_abs and os.path.exists(self.path_abs) and (collection_path in self.path_abs):
-            paths.append(self.path_abs.replace(collection_path, ''))
-        if self.json_path and os.path.exists(self.json_path) and (collection_path in self.json_path):
-            paths.append(self.json_path.replace(collection_path, ''))
-        if self.access_abs and os.path.exists(self.access_abs) and (collection_path in self.access_abs):
-            paths.append(self.access_abs.replace(collection_path, ''))
-        return paths
+        return [
+            self.path_rel,
+            self.json_path_rel,
+            self.access_rel,
+        ]
     
     def present( self ):
         """Indicates whether or not the original file is currently present in the filesystem.
