@@ -13,8 +13,9 @@ BASE_PATH = '/var/www/media/ddr'
 
 
 REPO_ID = 'ddr'
-REPO_REPR = '<Identifier ddr>'
 REPO_MODEL = 'repository'
+REPO_PARTS = ['ddr']
+REPO_REPR = '<Identifier repository:ddr>'
 
 def test_repository_from_id():
     i0 = Identifier.from_id('ddr')
@@ -57,8 +58,9 @@ def test_repository_from_url():
 
 
 ORG_ID = 'ddr-test'
-ORG_REPR = '<Identifier ddr-test>'
 ORG_MODEL = 'organization'
+ORG_PARTS = ['ddr', 'test']
+ORG_REPR = '<Identifier organization:ddr-test>'
 
 def test_organization_from_id():
     i0 = Identifier.from_id('ddr-test')
@@ -102,8 +104,9 @@ def test_organization_from_url():
 
 
 COLLECTION_ID = 'ddr-test-123'
-COLLECTION_REPR = '<Identifier ddr-test-123>'
 COLLECTION_MODEL = 'collection'
+COLLECTION_PARTS = ['ddr', 'test', '123']
+COLLECTION_REPR = '<Identifier collection:ddr-test-123>'
 
 def test_collection_from_id():
     i0 = Identifier.from_id('ddr-test-123')
@@ -148,8 +151,9 @@ def test_collection_from_url():
 
 
 ENTITY_ID = 'ddr-test-123-456'
-ENTITY_REPR = '<Identifier ddr-test-123-456>'
 ENTITY_MODEL = 'entity'
+ENTITY_PARTS = ['ddr', 'test', '123', '456']
+ENTITY_REPR = '<Identifier entity:ddr-test-123-456>'
 
 def test_entity_from_id():
     i0 = Identifier.from_id('ddr-test-123-456')
@@ -199,8 +203,9 @@ def test_entity_from_url():
 
 
 FILE_ID = 'ddr-test-123-456-master-a1b2c3d4e5'
-FILE_REPR = '<Identifier ddr-test-123-456-master-a1b2c3d4e5>'
 FILE_MODEL = 'file'
+FILE_PARTS = ['ddr', 'test', '123', '456', 'master', 'a1b2c3d4e5']
+FILE_REPR = '<Identifier file:ddr-test-123-456-master-a1b2c3d4e5>'
 
 def test_file_from_id():
     i0 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
