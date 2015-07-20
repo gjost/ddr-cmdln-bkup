@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from collections import OrderedDict
 import os
 import re
 import string
@@ -209,51 +210,47 @@ def identify_object(i, text, patterns):
     i.basepath = groupdict.get('basepath', None)
     i.basepath = os.path.normpath(i.basepath)
     # list of object ID components
-    i.idparts = [
-        key
-        for key in groupdict.iterkeys()
-        if key in ID_COMPONENTS
-    ]
+    i.parts = OrderedDict([
+        (key, groupdict[key])
+        for key in ID_COMPONENTS
+        if groupdict.get(key)
+    ])
     # set object attributes with numbers as ints
-    for key in i.idparts:
-        if groupdict[key].isdigit():
-            setattr(i, key, int(groupdict[key]))
-        else:
-            setattr(i, key, groupdict[key])
-    return groupdict
+    for key,val in i.parts.items():
+        if val.isdigit():
+            i.parts[key] = int(val)
 
-def format_id(groupdict, model):
+def format_id(i, model):
     """
-    @param groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
-    @param model: str Model keyword
+    @param i: Identifier
     @returns: str
     """
-    return ID_TEMPLATES[model].format(**groupdict)
+    return ID_TEMPLATES[model].format(**i.parts)
 
-def format_path(groupdict, model, which):
+def format_path(i, model, which):
     """
-    @param groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
-    @param model: str Model keyword
+    @param i: Identifier
     @param which: str 'abs' or 'rel'
     @returns: str
     """
     key = '-'.join([model, which])
+    kwargs = {key: val for key,val in i.parts.items()}
+    kwargs['basepath'] = i.basepath
     try:
         template = PATH_TEMPLATES[key]
-        return template.format(**groupdict)
+        return template.format(**kwargs)
     except KeyError:
         return None
 
-def format_url(groupdict, model, which):
+def format_url(i, model, which):
     """
-    @param groupdict: dict of ID parts and values e.g. {'repo':'ddr','org':'test',}
-    @param model: str Model keyword
+    @param i: Identifier
     @param which: str 'public' or 'editor'
     @returns: str
     """
     try:
         template = URL_TEMPLATES[which][model]
-        return template.format(**groupdict)
+        return template.format(**i.parts)
     except KeyError:
         return None
 
@@ -262,30 +259,36 @@ class Identifier(object):
     raw = None
     method = None
     model = None
-    idparts = []
+    parts = OrderedDict()
     basepath = None
     id = None
     
     def __repr__(self):
-        return "<Identifier %s>" % (self.id)
+        return "<Identifier %s:%s>" % (self.model, self.id)
+
+    def components(self):
+        """Model and parts of the ID as a list.
+        """
+        parts = [val for val in self.parts.itervalues()]
+        parts.insert(0, self.model)
+        return parts
     
     def collection_id(self):
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection IDs' % self.model.capitalize())
-        return format_id(self.__dict__, 'collection')
+        return format_id(self, 'collection')
     
     def collection_path(self):
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection paths' % self.model.capitalize())
         if not self.basepath:
             raise Exception('%s basepath not set.'% self)
-        return format_path(self.__dict__, 'collection', 'abs')
+        return format_path(self, 'collection', 'abs')
     
     def parent_id(self):
         if not PARENTS.get(self.model, None):
             return None
-        idpartsdict = {key: getattr(self, key, None) for key in self.idparts}
-        return format_id(idpartsdict, PARENTS[self.model])
+        return format_id(self, PARENTS[self.model])
     
     def path_abs(self, append=None):
         """Return absolute path to object with optional file appended.
@@ -295,7 +298,7 @@ class Identifier(object):
         """
         if not self.basepath:
             raise Exception('%s basepath not set.'% self)
-        path = format_path(self.__dict__, self.model, 'abs')
+        path = format_path(self, self.model, 'abs')
         if append:
             if self.model == 'file':
                 filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
@@ -312,7 +315,7 @@ class Identifier(object):
         @param append: str File descriptor. Must be present in ADDITIONAL_PATHS!
         @returns: str
         """
-        path = format_path(self.__dict__, self.model, 'rel')
+        path = format_path(self, self.model, 'rel')
         if append:
             if self.model == 'file':
                 filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
@@ -327,7 +330,7 @@ class Identifier(object):
     def urlpath(self, which):
         """Return object URL or URI.
         """
-        return format_url(self.__dict__, self.model, which)
+        return format_url(self, self.model, which)
     
     @staticmethod
     def from_id(object_id, base_path=None):
@@ -344,32 +347,33 @@ class Identifier(object):
         i.method = 'id'
         i.raw = object_id
         i.id = object_id
-        groupdict = identify_object(i, object_id, ID_PATTERNS)
+        identify_object(i, object_id, ID_PATTERNS)
         if base_path and not i.basepath:
             i.basepath = base_path
         return i
     
     @staticmethod
-    def from_idparts(idpartsdict, base_path=None):
-        """Return Identified given dict of idparts
+    def from_idparts(partsdict, base_path=None):
+        """Return Identified given dict of parts
         
-        >>> idparts = {'model':'entity', 'repo':'ddr', 'org':'testing', 'cid':123, 'eid':456}
-        >>> Identifier.from_idparts(idparts)
+        >>> parts = {'model':'entity', 'repo':'ddr', 'org':'testing', 'cid':123, 'eid':456}
+        >>> Identifier.from_parts(parts)
         <Identifier ddr-testing-123-456>
         
-        @param idparts: dict
+        @param parts: dict
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
         i = Identifier()
-        i.method = 'idparts'
-        i.raw = idpartsdict
-        i.model = idpartsdict['model']
-        i.idparts = [key for key in idpartsdict.iterkeys()]
-        # set object attributes with numbers as ints
-        for key in i.idparts:
-            setattr(i, key, idpartsdict[key])
-        i.id = format_id(idpartsdict, i.model)
+        i.method = 'parts'
+        i.raw = partsdict
+        i.model = partsdict['model']
+        i.parts = OrderedDict([
+            (key, val)
+            for key,val in partsdict.iteritems()
+            if (key in ID_COMPONENTS) and val
+        ])
+        i.id = format_id(i, i.model)
         if base_path and not i.basepath:
             i.basepath = base_path
         return i
@@ -388,9 +392,8 @@ class Identifier(object):
         i = Identifier()
         i.method = 'path'
         i.raw = path_abs
-        path_abs = os.path.normpath(path_abs)
-        groupdict = identify_object(i, path_abs, PATH_PATTERNS)
-        i.id = format_id(groupdict, i.model)
+        identify_object(i, path_abs, PATH_PATTERNS)
+        i.id = format_id(i, i.model)
         return i
     
     @staticmethod
@@ -414,9 +417,8 @@ class Identifier(object):
         i.method = 'url'
         i.raw = url
         path = urlparse.urlparse(url).path
-        path = os.path.normpath(path)
-        groupdict = identify_object(i, path, URL_PATTERNS)
-        i.id = format_id(groupdict, i.model)
+        identify_object(i, path, URL_PATTERNS)
+        i.id = format_id(i, i.model)
         if base_path and not i.basepath:
             i.basepath = base_path
         return i
