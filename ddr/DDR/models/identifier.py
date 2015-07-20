@@ -214,7 +214,8 @@ def identify_object(i, text, patterns):
     if not groupdict:
         raise Exception('Could not identify object: "%s"' % text)
     i.basepath = groupdict.get('basepath', None)
-    i.basepath = os.path.normpath(i.basepath)
+    if i.basepath:
+        i.basepath = os.path.normpath(i.basepath)
     # list of object ID components
     i.parts = OrderedDict([
         (key, groupdict[key])
@@ -289,7 +290,7 @@ class Identifier(object):
             raise Exception('%s objects do not have collection paths' % self.model.capitalize())
         if not self.basepath:
             raise Exception('%s basepath not set.'% self)
-        return format_path(self, 'collection', 'abs')
+        return os.path.normpath(format_path(self, 'collection', 'abs'))
     
     def parent_id(self):
         if not PARENTS.get(self.model, None):
@@ -301,7 +302,7 @@ class Identifier(object):
         """
         if not PARENTS.get(self.model, None):
             return None
-        return format_path(self, PARENTS[self.model], 'abs')
+        return os.path.normpath(format_path(self, PARENTS[self.model], 'abs'))
     
     def path_abs(self, append=None):
         """Return absolute path to object with optional file appended.
@@ -318,7 +319,7 @@ class Identifier(object):
             else:
                 filename = ADDITIONAL_PATHS[self.model][append]
             path = os.path.join(path, filename)
-        return path
+        return os.path.normpath(path)
     
     def path_rel(self, append=None):
         """Return relative path to object with optional file appended.
@@ -338,6 +339,8 @@ class Identifier(object):
                 path = os.path.join(path, filename)
             else:
                 path = filename
+        if path:
+            path = os.path.normpath(path)
         return path
     
     def urlpath(self, which):
@@ -356,6 +359,8 @@ class Identifier(object):
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
+        if base_path:
+            base_path = os.path.normpath(base_path)
         i = Identifier()
         i.method = 'id'
         i.raw = object_id
@@ -377,6 +382,8 @@ class Identifier(object):
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
+        if base_path:
+            base_path = os.path.normpath(base_path)
         i = Identifier()
         i.method = 'parts'
         i.raw = partsdict
@@ -426,6 +433,8 @@ class Identifier(object):
         """
         if base_path and not os.path.isabs(base_path):
             raise Exception('Base path is not absolute: %s' % base_path)
+        if base_path:
+            base_path = os.path.normpath(base_path)
         i = Identifier()
         i.method = 'url'
         i.raw = url
