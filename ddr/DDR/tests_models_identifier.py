@@ -144,6 +144,7 @@ def test_collection_from_url():
     i0 = Identifier.from_url('http://192.168.56.101/ddr/test/123')
     i1 = Identifier.from_url('http://192.168.56.101/ddr/test/123/')
     i2 = Identifier.from_url('http://192.168.56.101/ddr/test/123/', BASE_PATH)
+    assert_raises(Exception, Identifier.from_url, 'http://192.168.56.101/ddr/test/123/', 'ddr/test/123')
     assert str(i0)  == str(i1)  == COLLECTION_REPR
     assert i0.id    == i1.id    == COLLECTION_ID
     assert i0.model == i1.model == COLLECTION_MODEL
@@ -197,6 +198,7 @@ def test_entity_from_path():
 def test_entity_from_url():
     i0 = Identifier.from_url('http://192.168.56.101/ddr/test/123/456')
     i1 = Identifier.from_url('http://192.168.56.101/ddr/test/123/456/', BASE_PATH)
+    assert_raises(Exception, Identifier.from_url, 'http://192.168.56.101/ddr/test/123/456/', 'ddr/test/123/456')
     assert str(i0)  == str(i1)  == ENTITY_REPR
     assert i0.id    == i1.id    == ENTITY_ID
     assert i0.model == i1.model == ENTITY_MODEL
@@ -262,6 +264,12 @@ def test_file_from_url():
     i1 = Identifier.from_url(
         'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
         BASE_PATH
+    )
+    assert_raises(
+        Exception,
+        Identifier.from_url,
+        'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
+        'ddr/test/123/456/master/a1b2c3d4e5'
     )
     assert str(i0)  == str(i1)  == FILE_REPR
     assert i0.id    == i1.id    == FILE_ID
