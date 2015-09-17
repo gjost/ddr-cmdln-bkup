@@ -159,7 +159,10 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
     keys = []
     while json_paths:
         path = json_paths.pop()
-        model,repo,org,cid,eid,role,sha1 = Identity.split_object_id(Identity.id_from_path(path))
+        identifier = Identifier.from_path(path)
+        eid = identifier.parts.get('eid',None)
+        role = identifier.parts.get('role',None)
+        sha1 = identifier.parts.get('sha1',None)
         sort = 0
         with open(path, 'r') as f:
             for line in f.readlines():
@@ -523,8 +526,7 @@ class Identity(object):
         @param path: absolute or relative path to a DDR metadata file
         @returns: DDR object ID
         """
-        i = Identifier.from_path(path)
-        return i.id
+        return Identifier.from_path(path).id
     
     @staticmethod
     def model_from_path( path ):
@@ -822,12 +824,11 @@ class Inheritance(object):
         if field_values:
             for json_path in Inheritance._child_jsons(parent_object.path):
                 child = None
-                p = Identity.dissect_path(json_path)
-                if p.model == 'collection':
-                    child = Collection.from_json(p.collection_path)
-                elif p.model == 'entity':
-                    child = Entity.from_json(p.entity_path)
-                elif p.model == 'file':
+                if identifier.model == 'collection':
+                    child = Collection.from_json(Identifier.from_path(json_path).path_abs())
+                elif identifier.model == 'entity':
+                    child = Entity.from_json(Identifier.from_path(json_path).path_abs())
+                elif identifier.model == 'file':
                     child = File.from_json(json_path)
                 if child:
                     # set field if exists in child and doesn't already match parent value
