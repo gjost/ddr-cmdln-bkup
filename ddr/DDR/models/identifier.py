@@ -164,13 +164,13 @@ ADDITIONAL_PATHS = {
     'entity': {
         'changelog': 'changelog',
         'control': 'control',
-        'files': 'files/',
+        'files': 'files',
         'json': 'entity.json',
         'lock': 'lock',
         'mets': 'mets.xml',
     },
     'collection': {
-        'annex': '.git/annex/',
+        'annex': '.git/annex',
         'changelog': 'changelog',
         'control': 'control',
         'ead': 'ead.xml',
