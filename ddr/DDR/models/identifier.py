@@ -323,10 +323,16 @@ class Identifier(object):
         path = format_path(self, self.model, 'abs')
         if append:
             if self.model == 'file':
-                filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
+                # For files, bits are appended to file ID using string formatter
+                dirname,basename = os.path.split(path)
+                template = ADDITIONAL_PATHS[self.model][append]
+                filename = template.format(id=self.id)
+                path = os.path.join(dirname, filename)
             else:
+                # For everything else you just append the file or dirname
+                # to the end of the path
                 filename = ADDITIONAL_PATHS[self.model][append]
-            path = os.path.join(path, filename)
+                path = os.path.join(path, filename)
         return os.path.normpath(path)
     
     def path_rel(self, append=None):
