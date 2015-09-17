@@ -134,10 +134,11 @@ def test_collection_from_idparts():
 def test_collection_from_path():
     i0 = Identifier.from_path('/var/www/media/ddr/ddr-test-123')
     i1 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/')
-    assert str(i0)  == str(i1)  == COLLECTION_REPR
-    assert i0.id    == i1.id    == COLLECTION_ID
-    assert i0.model == i1.model == COLLECTION_MODEL
-    assert i0.basepath == i1.basepath == BASE_PATH
+    i2 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/collection.json')
+    assert str(i0)     == str(i1)     == str(i2)     == COLLECTION_REPR
+    assert i0.id       == i1.id       == i2.id       == COLLECTION_ID
+    assert i0.model    == i1.model    == i2.model    == COLLECTION_MODEL
+    assert i0.basepath == i1.basepath == i2.basepath == BASE_PATH
 
 def test_collection_from_url():
     i0 = Identifier.from_url('http://192.168.56.101/ddr/test/123')
@@ -181,16 +182,17 @@ def test_entity_from_idparts():
 def test_entity_from_path():
     i0 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456')
     i1 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/')
-    assert str(i0)  == str(i1)  == ENTITY_REPR
-    assert i0.id    == i1.id    == ENTITY_ID
-    assert i0.model == i1.model == ENTITY_MODEL
-    assert i0.basepath == i1.basepath == BASE_PATH
+    i2 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/entity.json')
+    assert str(i0)     == str(i1)     == str(i2)     == ENTITY_REPR
+    assert i0.id       == i1.id       == i2.id       == ENTITY_ID
+    assert i0.model    == i1.model    == i2.model    == ENTITY_MODEL
+    assert i0.basepath == i1.basepath == i2.basepath == BASE_PATH
     
-    i2 = Identifier.from_path('/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456')
-    assert i2.id == ENTITY_ID
-    assert str(i2) == ENTITY_REPR
-    assert i2.model == ENTITY_MODEL
-    assert i2.basepath == '/mnt/nfsdrive/ddr'
+    i3 = Identifier.from_path('/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456')
+    assert i3.id == ENTITY_ID
+    assert str(i3) == ENTITY_REPR
+    assert i3.model == ENTITY_MODEL
+    assert i3.basepath == '/mnt/nfsdrive/ddr'
 
 def test_entity_from_url():
     i0 = Identifier.from_url('http://192.168.56.101/ddr/test/123/456')
@@ -245,10 +247,13 @@ def test_file_from_path():
     i1 = Identifier.from_path(
         '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5/'
     )
-    assert str(i0)  == str(i1)  == FILE_REPR
-    assert i0.id    == i1.id    == FILE_ID
-    assert i0.model == i1.model == FILE_MODEL
-    assert i0.basepath == i1.basepath == BASE_PATH
+    i2 = Identifier.from_path(
+        '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5.json'
+    )
+    assert str(i0)     == str(i1)     == str(i2)     == FILE_REPR
+    assert i0.id       == i1.id       == i2.id       == FILE_ID
+    assert i0.model    == i1.model    == i2.model    == FILE_MODEL
+    assert i0.basepath == i1.basepath == i2.basepath == BASE_PATH
 
 def test_file_from_url():
     i0 = Identifier.from_url(
