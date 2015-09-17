@@ -965,27 +965,43 @@ class Locking(object):
 
 class Collection( object ):
     root = None
-    uid = None
     id = None
+    uid = None
     repo = None
     org = None
     cid = None
-    path = None; path_rel = None
-    git_path = None; git_path_rel = None
-    annex_path = None; annex_path_rel = None
-    json_path = None; json_path_rel = None
-    files_path = None; files_path_rel = None
-    changelog_path = None; changelog_path_rel = None
-    control_path = None; control_path_rel = None
-    ead_path = None; ead_path_rel = None
-    gitignore_path = None; gitignore_path_rel = None
+    #collection_id = None
+    #parent_id = None
+    path_abs = None
+    path = None
+    #collection_path = None
+    #parent_path = None
+    json_path = None
+    git_path = None
+    gitignore_path = None
+    annex_path = None
+    changelog_path = None
+    control_path = None
+    ead_path = None
     lock_path = None
+    files_path = None
+    
+    path_rel = None
+    json_path_rel = None
+    git_path_rel = None
+    gitignore_path_rel = None
+    annex_path_rel = None
+    changelog_path_rel = None
+    control_path_rel = None
+    ead_path_rel = None
+    files_path_rel = None
+    
     git_url = None
     _status = ''
     _astatus = ''
     _unsynced = 0
     
-    def __init__( self, path, uid=None ):
+    def __init__( self, path_abs, uid=None ):
         """
         >>> c = Collection('/tmp/ddr-testing-123')
         >>> c.uid
@@ -999,34 +1015,40 @@ class Collection( object ):
         >>> c.json_path
         '/tmp/ddr-testing-123/collection.json'
         """
-        i = Identifier.from_path(path)
+        path_abs = os.path.normpath(path_abs)
+        i = Identifier.from_path(path_abs)
         self.identifier = i
-        self.path = path
-        self.path_rel = i.path_rel()
-        self.root = os.path.split(self.path)[0]
-        if not uid:
-            uid = i.id
-        self.uid  = i.id
-        self.id = i.id
-        model,self.repo,self.org,self.cid = i.components()
         
-        self.git_path           = i.path_abs('git')
-        self.git_path_rel       = i.path_rel('git')
-        self.annex_path         = i.path_abs('annex')
-        self.annex_path_rel     = i.path_rel('annex')
+        self.id = i.id
+        self.uid = i.id
+        self.repo = i.parts['repo']
+        self.org = i.parts['org']
+        self.cid = i.parts['cid']
+        
+        self.path_abs = path_abs
+        self.path = path_abs
+        
+        self.root = os.path.split(self.path)[0]
         self.json_path          = i.path_abs('json')
-        self.json_path_rel      = i.path_rel('json')
-        self.files_path         = i.path_abs('files')
-        self.files_path_rel     = i.path_rel('files')
-        self.changelog_path     = i.path_abs('changelog')
-        self.changelog_path_rel = i.path_rel('changelog')
-        self.control_path       = i.path_abs('control')
-        self.control_path_rel   = i.path_rel('control')
-        self.ead_path           = i.path_abs('ead')
-        self.ead_path_rel       = i.path_rel('ead')
+        self.git_path           = i.path_abs('git')
         self.gitignore_path     = i.path_abs('gitignore')
-        self.gitignore_path_rel = i.path_rel('gitignore')
+        self.annex_path         = i.path_abs('annex')
+        self.changelog_path     = i.path_abs('changelog')
+        self.control_path       = i.path_abs('control')
+        self.ead_path           = i.path_abs('ead')
         self.lock_path          = i.path_abs('lock')
+        self.files_path         = i.path_abs('files')
+        
+        self.path_rel = i.path_rel()
+        self.json_path_rel      = i.path_rel('json')
+        self.git_path_rel       = i.path_rel('git')
+        self.gitignore_path_rel = i.path_rel('gitignore')
+        self.annex_path_rel     = i.path_rel('annex')
+        self.changelog_path_rel = i.path_rel('changelog')
+        self.control_path_rel   = i.path_rel('control')
+        self.ead_path_rel       = i.path_rel('ead')
+        self.files_path_rel     = i.path_rel('files')
+        
         self.git_url = '{}:{}'.format(GITOLITE, self.uid)
     
     def __repr__(self):
@@ -1341,48 +1363,67 @@ class EntityAddFileLogger():
 
 class Entity( object ):
     root = None
-    uid = None
     id = None
+    uid = None
     repo = None
     org = None
     cid = None
     eid = None
-    path = None; path_rel = None
+    collection_id = None
+    parent_id = None
+    path_abs = None
+    path = None
+    collection_path = None
     parent_path = None
-    parent_uid = None
-    json_path = None; json_path_rel = None
-    files_path = None; files_path_rel = None
-    changelog_path = None; changelog_path_rel = None
-    control_path = None; control_path_rel = None
-    mets_path = None; mets_path_rel = None
-    lock_path = None
+    json_path = None
+    changelog_path = None
+    control_path = None
+    mets_path = None
+    files_path = None
+    path_rel = None
+    json_path_rel = None
+    changelog_path_rel = None
+    control_path_rel = None
+    mets_path_rel = None
+    files_path_rel = None
     _file_objects = 0
     _file_objects_loaded = 0
     
-    def __init__( self, path, uid=None ):
-        i = Identifier.from_path(path)
+    def __init__( self, path_abs, uid=None ):
+        path_abs = os.path.normpath(path_abs)
+        i = Identifier.from_path(path_abs)
         self.identifier = i
-        self.path = path
+        
+        self.id = i.id
+        self.uid = i.id
+        self.repo = i.parts['repo']
+        self.org = i.parts['org']
+        self.cid = i.parts['cid']
+        self.eid = i.parts['eid']
+        
+        self.collection_id = i.collection_id()
+        self.parent_id = i.parent_id()
+        
+        self.path_abs = path_abs
+        self.path = path_abs
+        self.collection_path = i.collection_path()
         self.parent_path = i.parent_path()
+        
         self.root = os.path.split(self.parent_path)[0]
+        self.json_path = i.path_abs('json')
+        self.changelog_path = i.path_abs('changelog')
+        self.control_path = i.path_abs('control')
+        self.mets_path = i.path_abs('mets')
+        self.lock_path = i.path_abs('lock')
+        self.files_path = i.path_abs('files')
+        
         self.path_rel = i.path_rel()
-        if not uid:
-            uid = i.id
-        self.uid = uid
-        self.id = uid
-        model,self.repo,self.org,self.cid,self.eid = i.components()
-        self.parent_uid = i.parent_id()
-        self.json_path          = i.path_abs('json')
-        self.json_path_rel      = i.path_rel('json')
-        self.files_path         = i.path_abs('files')
-        self.files_path_rel     = i.path_rel('files')
-        self.changelog_path     = i.path_abs('changelog')
+        self.json_path_rel = i.path_rel('json')
         self.changelog_path_rel = i.path_rel('changelog')
-        self.control_path       = i.path_abs('control')
-        self.control_path_rel   = i.path_rel('control')
-        self.mets_path          = i.path_abs('mets')
-        self.mets_path_rel      = i.path_rel('mets')
-        self.lock_path          = i.path_abs('lock')
+        self.control_path_rel = i.path_rel('control')
+        self.mets_path_rel = i.path_rel('mets')
+        self.files_path_rel = i.path_rel('files')
+        
         self._file_objects = []
     
     def __repr__(self):
@@ -2129,46 +2170,43 @@ FILE_KEYS = ['path_rel',
              'xmp',]
 
 class File( object ):
-    id = 'whatever'
-    # path relative to /
-    # (ex: /var/www/media/base/ddr-testing-71/files/ddr-testing-71-6/files/ddr-testing-71-6-dd9ec4305d.jpg)
-    # not saved; constructed on instantiation
-    path = None
+    id = None
+    uid = None
+    repo = None
+    org = None
+    cid = None
+    eid = None
+    role = None
+    sha1 = None
+    collection_id = None
+    parent_id = None
+    entity_id = None
     path_abs = None
-    # files
-    # path relative to entity files directory
-    # (ex: ddr-testing-71-6-dd9ec4305d.jpg)
-    # (ex: subdir/ddr-testing-71-6-dd9ec4305d.jpg)
-    path_rel = None
+    path = None
+    collection_path = None
+    parent_path = None
+    entity_path = None
+    entity_files_path = None
     json_path = None
+    access_abs = None
+    path_rel = None
     json_path_rel = None
+    access_rel = None
     basename = None
     basename_orig = ''
     size = None
-    role = None
-    sha1 = None
     sha256 = None
     md5 = None
     public = 0
     sort = 1
     label = ''
     thumb = -1
-    # access file path relative to entity
-    access_rel = None
     # access file path relative to /
     # not saved; constructed on instantiation
-    access_abs = None
     access_size = None
     xmp = ''
     # entity
     src = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
-    collection_path = None
-    entity_path = None
-    entity_files_path = None
     links = None
     
     def __init__(self, *args, **kwargs):
@@ -2180,35 +2218,45 @@ class File( object ):
         TODO refactor and simplify this horrible code!
         """
         path_abs = None
-        path = None
         # only accept path_abs
         if kwargs and kwargs.get('path_abs',None):
-            path = kwargs['path_abs']
-        elif kwargs and kwargs.get('path_rel',None):
-            path = kwargs['path_rel']
+            path_abs = kwargs['path_abs']
         elif args and args[0]:
-            path = args[0]  #     Use path_abs arg!!!
-        if path and os.path.isabs(path):
-            path_abs = path
+            path_abs = args[0]  #     Use path_abs arg!!!
         if not path_abs:
             # TODO accept path_rel plus base_path
             raise Exception("File must be instantiated with an absolute path!")
-        
-        i = Identifier.from_path(self.path_abs)
+        path_abs = os.path.normpath(path_abs)
+        i = Identifier.from_path(path_abs)
         self.identifier = i
+        
         self.id = i.id
-        model,self.repo,self.org,self.cid,self.eid,self.role,self.sha1 = i.components()
-        self.path     = path_abs
+        self.uid = i.id
+        self.repo = i.parts['repo']
+        self.org = i.parts['org']
+        self.cid = i.parts['cid']
+        self.eid = i.parts['eid']
+        self.role = i.parts['role']
+        self.sha1 = i.parts['sha1']
+        self.collection_id = i.collection_id()
+        self.parent_id = i.parent_id()
+        self.entity_id = self.parent_id
+        
         self.path_abs = path_abs
-        self.path_rel = i.path_rel()
-        self.basename = os.path.basename(self.path_abs)
-        self.collection_path   = i.collection_path()
-        self.entity_path       = i.parent_path()
+        self.path = path_abs
+        self.collection_path = i.collection_path()
+        self.parent_path = i.parent_path()
+        self.entity_path = self.parent_path
         self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
-        self.json_path     = i.path_abs('json')
+        
+        self.json_path = i.path_abs('json')
+        self.access_abs = i.path_abs('access')
+        
+        self.path_rel = i.path_rel()
         self.json_path_rel = i.path_rel('json')
-        self.access_abs    = i.path_abs('access')
-        self.access_rel    = i.path_rel('access')
+        self.access_rel = i.path_rel('access')
+        
+        self.basename = os.path.basename(self.path_abs)
     
     def __repr__(self):
         return "<File %s (%s)>" % (self.basename, self.basename_orig)
