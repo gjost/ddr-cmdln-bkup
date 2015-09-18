@@ -1,14 +1,16 @@
 # coding: utf-8
 
 import codecs
+import csv
 import os
+import unicodecsv
 
 import fileio
 
 
 TEXT_UTF8 = u'тє$тїпg 1 2 З'
 # contents of TEXT_UTF8 in bytes
-TEXT_UTF8_BYTES = '\xd1\x82\xd1\x94$\xd1\x82\xd1\x97\xd0\xbfg 1 2 \xd0\x97'
+TEXT_UTF8_BYTES = b'\xd1\x82\xd1\x94$\xd1\x82\xd1\x97\xd0\xbfg 1 2 \xd0\x97'
 
 TEXT_CP1252_BYTES = ''
 
@@ -26,6 +28,23 @@ def test_write():
     with codecs.open(path, 'r', encoding='utf-8', errors='strict') as f:
         text = f.read()
     assert text == TEXT_UTF8
+
+CSV_UTF8_BYTES = [
+    b'\xd1\x82\xd1\x94$\xd1\x82\xd1\x97\xd0\xbfg 1 2 \xd0\x97',
+]
+CSV_UTF8 = [
+    u'тє$тїпg 1 2 З',
+]
+
+def test_read_csv():
+    path = '/tmp/test.DDR.fileio.read_csv'
+    with open(path, 'wb') as f:
+        f.write(CSV_UTF8_BYTES)
+    #
+    
+
+def test_write_csv():
+    pass
 
 def test_read_replace():
     path = '/tmp/test.DDR.fileio.read_replace'
@@ -77,3 +96,10 @@ def test_readlines_raw():
     assert lines == LINES_ASCII
     # clean up
     os.remove(path)
+
+# TODO test_writelines_raw
+# TODO test_append_raw
+# TODO test_read_csv_raw
+# TODO test_write_csv_raw
+# TODO test_read_config_raw
+# TODO test_write_config_raw
