@@ -271,6 +271,12 @@ def format_url(i, model, url_type):
         return None
 
 
+class MissingBasepathException(Exception):
+    pass
+
+class BadPathException(Exception):
+    pass
+
 class MalformedIDException(Exception):
     pass
 
@@ -307,7 +313,7 @@ class Identifier(object):
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection paths' % self.model.capitalize())
         if not self.basepath:
-            raise Exception('%s basepath not set.'% self)
+            raise MissingBasepathException('%s basepath not set.'% self)
         return os.path.normpath(format_path(self, 'collection', 'abs'))
     
     def parent_id(self):
@@ -329,7 +335,7 @@ class Identifier(object):
         @returns: str
         """
         if not self.basepath:
-            raise Exception('%s basepath not set.'% self)
+            raise MissingBasepathException('%s basepath not set.'% self)
         path = format_path(self, self.model, 'abs')
         if append:
             if self.model == 'file':
@@ -387,7 +393,7 @@ class Identifier(object):
         @returns: Identifier
         """
         if base_path and not os.path.isabs(base_path):
-            raise Exception('Base path is not absolute: %s' % base_path)
+            raise BadPathException('Base path is not absolute: %s' % base_path)
         if base_path:
             base_path = os.path.normpath(base_path)
         i = Identifier()
@@ -415,7 +421,7 @@ class Identifier(object):
         @returns: Identifier
         """
         if base_path and not os.path.isabs(base_path):
-            raise Exception('Base path is not absolute: %s' % base_path)
+            raise BadPathException('Base path is not absolute: %s' % base_path)
         if base_path:
             base_path = os.path.normpath(base_path)
         i = Identifier()
@@ -445,7 +451,7 @@ class Identifier(object):
         @returns: Identifier
         """
         if not os.path.isabs(path_abs):
-            raise Exception('Path is not absolute: %s' % path_abs)
+            raise BadPathException('Path is not absolute: %s' % path_abs)
         i = Identifier()
         i.method = 'path'
         i.raw = path_abs
@@ -474,7 +480,7 @@ class Identifier(object):
         @returns: Identifier
         """
         if base_path and not os.path.isabs(base_path):
-            raise Exception('Base path is not absolute: %s' % base_path)
+            raise BadPathException('Base path is not absolute: %s' % base_path)
         if base_path:
             base_path = os.path.normpath(base_path)
         i = Identifier()
