@@ -316,6 +316,9 @@ class Identifier(object):
             raise MissingBasepathException('%s basepath not set.'% self)
         return os.path.normpath(format_path(self, 'collection', 'abs'))
     
+    def collection(self):
+        return Identifier.from_id(self.collection_id(), self.basepath)
+    
     def parent_id(self):
         if not PARENTS.get(self.model, None):
             return None
@@ -327,6 +330,9 @@ class Identifier(object):
         if not PARENTS.get(self.model, None):
             return None
         return os.path.normpath(format_path(self, PARENTS[self.model], 'abs'))
+    
+    def parent(self):
+        return Identifier.from_id(self.parent_id(), self.basepath)
     
     def path_abs(self, append=None):
         """Return absolute path to object with optional file appended.
