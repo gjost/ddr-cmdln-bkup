@@ -171,7 +171,7 @@ def collections_local(collections_root, repository, organization):
     @param collections_root: Absolute path of dir in which collections are located.
     @param repository: Repository keyword.
     @param organization: Organization keyword.
-    @return: list of collection UIDs
+    @return: list of collection IDs
     """
     if not (os.path.exists(collections_root) and os.path.isdir(collections_root)):
         message = '{} does not exist or is not a directory'.format(collections_root)
@@ -181,19 +181,19 @@ def collections_local(collections_root, repository, organization):
 
 @command
 @requires_network
-def clone(user_name, user_mail, collection_uid, alt_collection_path):
+def clone(user_name, user_mail, collection_id, alt_collection_path):
     """Command-line function for cloning an existing collection.
     
     Clones existing collection object from workbench server.
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_uid: A valid DDR collection UID
-    @param alt_collection_path: Absolute path to which repo will be cloned (includes collection UID)
+    @param collection_id: A valid DDR collection ID
+    @param alt_collection_path: Absolute path to which repo will be cloned (includes collection ID)
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(alt_collection_path)
-    url = '{}:{}.git'.format(GITOLITE, collection_uid)
+    url = '{}:{}.git'.format(GITOLITE, collection_id)
     
     repo = git.Repo.clone_from(url, alt_collection_path)
     logging.debug('    git clone {}'.format(url))
@@ -250,7 +250,7 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     """
     collection = DDRCollection(collection_path)
     
-    url = '{}:{}.git'.format(GITOLITE, collection.uid)
+    url = '{}:{}.git'.format(GITOLITE, collection.id)
     
     repo = git.Repo.clone_from(url, collection.path)
     logging.debug('    git clone {}'.format(url))
@@ -283,7 +283,7 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     gitignore = collection.gitignore()
     
     # prep log entries
-    changelog_messages = ['Initialized collection {}'.format(collection.uid)]
+    changelog_messages = ['Initialized collection {}'.format(collection.id)]
     if agent:
         changelog_messages.append('@agent: %s' % agent)
     commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
@@ -474,20 +474,20 @@ def sync(user_name, user_mail, collection_path):
 
 @command
 @local_only
-def entity_create(user_name, user_mail, collection_path, entity_uid, updated_files, templates, agent=''):
+def entity_create(user_name, user_mail, collection_path, entity_id, updated_files, templates, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
+    @param entity_id: A valid DDR entity ID
     @param updated_files: List of updated files (relative to collection root).
     @param templates: List of entity metadata templates (absolute paths).
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
-    entity = DDREntity(collection.entity_path(entity_uid))
+    entity = DDREntity(collection.entity_path(entity_id))
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
@@ -523,11 +523,11 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
     git_files.append(ccontrol.path)
     
     # prep ENTITY log entries
-    entity_changelog_messages = ['Initialized entity {}'.format(entity.uid),]
+    entity_changelog_messages = ['Initialized entity {}'.format(entity.id),]
     if agent:
         entity_changelog_messages.append('@agent: %s' % agent)
     # prep COLLECTION log entries
-    changelog_messages = ['Initialized entity {}'.format(entity.uid),]
+    changelog_messages = ['Initialized entity {}'.format(entity.id),]
     if agent:
         changelog_messages.append('@agent: %s' % agent)
     commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
@@ -557,7 +557,7 @@ def entity_create(user_name, user_mail, collection_path, entity_uid, updated_fil
 
 @command
 @local_only
-def entity_destroy(user_name, user_mail, collection_path, entity_uid, agent=''):
+def entity_destroy(user_name, user_mail, collection_path, entity_id, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     - check that paths exist, etc
@@ -569,11 +569,11 @@ def entity_destroy(user_name, user_mail, collection_path, entity_uid, agent=''):
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
+    @param entity_id: A valid DDR entity ID
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    entity_dir = os.path.join(collection_path, 'files', entity_uid)
+    entity_dir = os.path.join(collection_path, 'files', entity_id)
     
     if not os.path.exists(collection_path):
         raise Exception('collection_path not found: %s' % collection_path)
@@ -600,7 +600,7 @@ def entity_destroy(user_name, user_mail, collection_path, entity_uid, agent=''):
     git_files.append(ccontrol.path)
     
     # prep collection log entries
-    changelog_messages = ['Deleted entity {}'.format(entity_uid),]
+    changelog_messages = ['Deleted entity {}'.format(entity_id),]
     if agent:
         changelog_messages.append('@agent: %s' % agent)
     commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
@@ -618,7 +618,7 @@ def entity_destroy(user_name, user_mail, collection_path, entity_uid, agent=''):
 
 @command
 @local_only
-def file_destroy(user_name, user_mail, collection_path, entity_uid, rm_files, updated_files, agent=''):
+def file_destroy(user_name, user_mail, collection_path, entity_id, rm_files, updated_files, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     - check that paths exist, etc
@@ -630,21 +630,21 @@ def file_destroy(user_name, user_mail, collection_path, entity_uid, rm_files, up
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
+    @param entity_id: A valid DDR entity ID
     @param rm_files: List of paths to files to delete (relative to entity files dir).
     @param updated_files: List of paths to updated file(s), relative to entitys.
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
-    entity = DDREntity(collection.entity_path(entity_uid))
+    entity = DDREntity(collection.entity_path(entity_id))
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     
     # updated file paths are relative to collection root
-    git_files = [os.path.join('files', entity.uid, f) for f in updated_files]
+    git_files = [os.path.join('files', entity.id, f) for f in updated_files]
     
     # Only list the original file in changelog
     # TODO use a models.File function to ID the original file
@@ -680,7 +680,7 @@ def file_destroy(user_name, user_mail, collection_path, entity_uid, rm_files, up
 
 @command
 @local_only
-def entity_update(user_name, user_mail, collection_path, entity_uid, updated_files, agent=''):
+def entity_update(user_name, user_mail, collection_path, entity_id, updated_files, agent=''):
     """Command-line function for committing changes to the specified entity file.
     
     NOTE: Does not push to the workbench server.
@@ -690,13 +690,13 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
+    @param entity_id: A valid DDR entity ID
     @param updated_files: List of paths to updated file(s), relative to entitys.
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
     collection = DDRCollection(collection_path)
-    entity = DDREntity(collection.entity_path(entity_uid))
+    entity = DDREntity(collection.entity_path(entity_id))
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
@@ -706,12 +706,12 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
     # entity file paths are relative to collection root
     git_files = []
     for f in updated_files:
-        git_files.append( os.path.join( 'files', entity.uid, f) )
+        git_files.append( os.path.join( 'files', entity.id, f) )
     
     # entity changelog
     entity_changelog_messages = []
     for f in updated_files:
-        p = os.path.join(entity.uid, f)
+        p = os.path.join(entity.id, f)
         entity_changelog_messages.append('Updated entity file {}'.format(p))
 
     # prep log entries
@@ -730,7 +730,7 @@ def entity_update(user_name, user_mail, collection_path, entity_uid, updated_fil
 
 @command
 @local_only
-def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_files, new_annex_files, agent='', entity=None):
+def entity_annex_add(user_name, user_mail, collection_path, entity_id, updated_files, new_annex_files, agent='', entity=None):
     """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
@@ -747,7 +747,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
     @param collection_path: Absolute path to collection repo.
-    @param entity_uid: A valid DDR entity UID
+    @param entity_id: A valid DDR entity ID
     @param updated_files: list of paths to updated files (relative to collection repo).
     @param new_annex_files: List of paths to new files (relative to entity files dir).
     @param agent: (optional) Name of software making the change.
@@ -756,7 +756,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
     """
     collection = DDRCollection(collection_path)
     if not entity:
-        entity = DDREntity(collection.entity_path(entity_uid))
+        entity = DDREntity(collection.entity_path(entity_id))
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
@@ -769,11 +769,11 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_uid, updated_
         logging.error('    .git/annex IS MISSING!')
         return 1,'.git/annex IS MISSING!'
     if not os.path.exists(entity.path):
-        logging.error('    Entity does not exist: {}'.format(entity.uid))
-        return 1,'entity does not exist: {}'.format(entity.uid)
+        logging.error('    Entity does not exist: {}'.format(entity.id))
+        return 1,'entity does not exist: {}'.format(entity.id)
     if not os.path.exists(entity.files_path):
-        logging.error('    Entity files_path does not exist: {}'.format(entity.uid))
-        return 1,'entity files_path does not exist: {}'.format(entity.uid)
+        logging.error('    Entity files_path does not exist: {}'.format(entity.id))
+        return 1,'entity files_path does not exist: {}'.format(entity.id)
     
     # new annex files
     new_files_rel_entity = []

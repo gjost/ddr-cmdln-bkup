@@ -488,7 +488,7 @@ def load_entity(collection_path, class_, rowd):
         entity.new = False
     else:
         entity = class_(entity_path)
-        entity.id = entity_uid
+        entity.id = entity_id
         entity.record_created = datetime.now()
         entity.record_lastmod = datetime.now()
         entity.files = []

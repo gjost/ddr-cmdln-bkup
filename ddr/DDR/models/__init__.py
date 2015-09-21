@@ -304,11 +304,11 @@ def from_json(model, json_path):
     document = None
     if os.path.exists(json_path):
         document = model(os.path.dirname(json_path))
-        document_uid = document.id  # save this just in case
+        document_id = document.id  # save this just in case
         document.load_json(read_json(json_path))
         if not document.id:
             # id gets overwritten if document.json is blank
-            document.id = document_uid
+            document.id = document_id
     return document
 
 
@@ -966,7 +966,6 @@ class Locking(object):
 class Collection( object ):
     root = None
     id = None
-    uid = None
     idparts = None
     repo = None
     org = None
@@ -1002,10 +1001,10 @@ class Collection( object ):
     _astatus = ''
     _unsynced = 0
     
-    def __init__( self, path_abs, uid=None ):
+    def __init__( self, path_abs, id=None ):
         """
         >>> c = Collection('/tmp/ddr-testing-123')
-        >>> c.uid
+        >>> c.id
         'ddr-testing-123'
         >>> c.ead_path_rel
         'ead.xml'
@@ -1021,7 +1020,6 @@ class Collection( object ):
         self.identifier = i
         
         self.id = i.id
-        self.uid = i.id
         self.idparts = i.parts.values()
         self.repo = i.parts['repo']
         self.org = i.parts['org']
@@ -1051,7 +1049,7 @@ class Collection( object ):
         self.ead_path_rel       = i.path_rel('ead')
         self.files_path_rel     = i.path_rel('files')
         
-        self.git_url = '{}:{}'.format(GITOLITE, self.uid)
+        self.git_url = '{}:{}'.format(GITOLITE, self.id)
     
     def __repr__(self):
         """Returns string representation of object.
@@ -1175,7 +1173,7 @@ class Collection( object ):
     
     def control( self ):
         if not os.path.exists(self.control_path):
-            CollectionControlFile.create(self.control_path, self.uid)
+            CollectionControlFile.create(self.control_path, self.id)
         return CollectionControlFile(self.control_path)
     
     def ead( self ):
@@ -1225,17 +1223,17 @@ class Collection( object ):
         """
         paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
-        uid = re.compile(regex)
+        id = re.compile(regex)
         for x in os.listdir(collections_root):
-            m = uid.search(x)
+            m = id.search(x)
             if m:
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
                     paths.append(colldir)
         return natural_sort(paths)
     
-    def entity_path( self, entity_uid ):
-        return os.path.join(self.files_path, entity_uid)
+    def entity_path( self, entity_id ):
+        return os.path.join(self.files_path, entity_id)
     
     def entity_paths( self ):
         """Returns relative paths to entities.
@@ -1245,8 +1243,8 @@ class Collection( object ):
         if cpath[-1] != '/':
             cpath = '{}/'.format(cpath)
         if os.path.exists(self.files_path):
-            for uid in os.listdir(self.files_path):
-                epath = os.path.join(self.files_path, uid)
+            for id in os.listdir(self.files_path):
+                epath = os.path.join(self.files_path, id)
                 paths.append(epath)
         return natural_sort(paths)
     
@@ -1279,7 +1277,7 @@ class Collection( object ):
                     for line in read_json(entity_json_path).split('\n'):
                         if '"title":' in line:
                             e = ListEntity()
-                            e.id = e.uid = eid = os.path.basename(path)
+                            e.id = eid = os.path.basename(path)
                             # TODO Identifier
                             e.repo,e.org,e.cid,e.eid = eid.split('-')
                             # make a miniature JSON doc out of just title line
@@ -1366,7 +1364,6 @@ class EntityAddFileLogger():
 class Entity( object ):
     root = None
     id = None
-    uid = None
     repo = None
     org = None
     cid = None
@@ -1392,13 +1389,12 @@ class Entity( object ):
     _file_objects = 0
     _file_objects_loaded = 0
     
-    def __init__( self, path_abs, uid=None ):
+    def __init__( self, path_abs, id=None ):
         path_abs = os.path.normpath(path_abs)
         i = Identifier.from_path(path_abs)
         self.identifier = i
         
         self.id = i.id
-        self.uid = i.id
         self.idparts = i.parts.values()
         self.repo = i.parts['repo']
         self.org = i.parts['org']
@@ -1555,7 +1551,7 @@ class Entity( object ):
     
     def control( self ):
         if not os.path.exists(self.control_path):
-            EntityControlFile.create(self.control_path, self.parent_uid, self.uid)
+            EntityControlFile.create(self.control_path, self.parent_id, self.id)
         return EntityControlFile(self.control_path)
 
     def mets( self ):
@@ -1730,7 +1726,7 @@ class Entity( object ):
         @returns: absolute path to logfile
         """
         logpath = os.path.join(
-            LOG_DIR, 'addfile', self.parent_uid, '%s.log' % self.id)
+            LOG_DIR, 'addfile', self.parent_id, '%s.log' % self.id)
         if not os.path.exists(os.path.dirname(logpath)):
             os.makedirs(os.path.dirname(logpath))
         return logpath
@@ -1773,7 +1769,7 @@ class Entity( object ):
         log.ok('data: %s' % data)
         
         tmp_dir = os.path.join(
-            MEDIA_BASE, 'tmp', 'file-add', self.parent_uid, self.id)
+            MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
         dest_dir = self.files_path
         
         log.ok('Checking files/dirs')
@@ -2045,7 +2041,7 @@ class Entity( object ):
         src_path = ddrfile.path_abs
         tmp_dir = os.path.join(
             MEDIA_BASE, 'tmp', 'file-add',
-            self.parent_uid, self.id)
+            self.parent_id, self.id)
         dest_dir = self.files_path
 
         log.ok('Checking files/dirs')
@@ -2175,7 +2171,6 @@ FILE_KEYS = ['path_rel',
 
 class File( object ):
     id = None
-    uid = None
     idparts = None
     repo = None
     org = None
@@ -2236,7 +2231,6 @@ class File( object ):
         self.identifier = i
         
         self.id = i.id
-        self.uid = i.id
         self.idparts = i.parts.values()
         self.repo = i.parts['repo']
         self.org = i.parts['org']

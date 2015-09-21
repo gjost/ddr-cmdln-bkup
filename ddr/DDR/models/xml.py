@@ -92,7 +92,7 @@ class EAD( object ):
             c01 = etree.SubElement(dsc, 'c01')
             did = etree.SubElement(c01, 'did')
             unittitle = etree.SubElement(did, 'unittitle')
-            unittitle.set('eid', entity.uid)
+            unittitle.set('eid', entity.id)
             unittitle.text = 'Entity description goes here'
         # swap out existing one
         tags = self.tree.xpath('/ead/dsc')
