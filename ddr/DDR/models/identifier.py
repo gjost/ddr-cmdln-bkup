@@ -211,8 +211,9 @@ def identify_object(i, text, patterns):
             i.model = model
             groupdict = m.groupdict()
             break
-    if not groupdict:
-        raise Exception('Could not identify object: "%s"' % text)
+    return groupdict
+
+def set_idparts(i, groupdict):
     i.basepath = groupdict.get('basepath', None)
     if i.basepath:
         i.basepath = os.path.normpath(i.basepath)
@@ -269,6 +270,15 @@ def format_url(i, model, url_type):
     except KeyError:
         return None
 
+
+class MalformedIDException(Exception):
+    pass
+
+class MalformedPathException(Exception):
+    pass
+
+class MalformedURLException(Exception):
+    pass
 
 class Identifier(object):
     raw = None
@@ -384,7 +394,10 @@ class Identifier(object):
         i.method = 'id'
         i.raw = object_id
         i.id = object_id
-        identify_object(i, object_id, ID_PATTERNS)
+        groupdict = identify_object(i, object_id, ID_PATTERNS)
+        if not groupdict:
+            raise MalformedIDException('Malformed ID: "%s"' % object_id)
+        set_idparts(i, groupdict)
         if base_path and not i.basepath:
             i.basepath = base_path
         return i
@@ -436,7 +449,10 @@ class Identifier(object):
         i = Identifier()
         i.method = 'path'
         i.raw = path_abs
-        identify_object(i, path_abs, PATH_PATTERNS)
+        groupdict = identify_object(i, path_abs, PATH_PATTERNS)
+        if not groupdict:
+            raise MalformedPathException('Malformed path: "%s"' % path_abs)
+        set_idparts(i, groupdict)
         i.id = format_id(i, i.model)
         return i
     
@@ -465,7 +481,10 @@ class Identifier(object):
         i.method = 'url'
         i.raw = url
         path = urlparse.urlparse(url).path
-        identify_object(i, path, URL_PATTERNS)
+        identify_object(i, path_abs, PATH_PATTERNS)
+        if not groupdict:
+            raise MalformedURLException('Malformed URL: "%s"' % url)
+        set_idparts(i, groupdict)
         i.id = format_id(i, i.model)
         if base_path and not i.basepath:
             i.basepath = base_path

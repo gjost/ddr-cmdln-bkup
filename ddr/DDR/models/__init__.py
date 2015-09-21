@@ -967,6 +967,7 @@ class Collection( object ):
     root = None
     id = None
     uid = None
+    idparts = None
     repo = None
     org = None
     cid = None
@@ -1021,6 +1022,7 @@ class Collection( object ):
         
         self.id = i.id
         self.uid = i.id
+        self.idparts = i.parts.values()
         self.repo = i.parts['repo']
         self.org = i.parts['org']
         self.cid = i.parts['cid']
@@ -1369,6 +1371,7 @@ class Entity( object ):
     org = None
     cid = None
     eid = None
+    idparts = None
     collection_id = None
     parent_id = None
     path_abs = None
@@ -1396,6 +1399,7 @@ class Entity( object ):
         
         self.id = i.id
         self.uid = i.id
+        self.idparts = i.parts.values()
         self.repo = i.parts['repo']
         self.org = i.parts['org']
         self.cid = i.parts['cid']
@@ -2172,6 +2176,7 @@ FILE_KEYS = ['path_rel',
 class File( object ):
     id = None
     uid = None
+    idparts = None
     repo = None
     org = None
     cid = None
@@ -2232,6 +2237,7 @@ class File( object ):
         
         self.id = i.id
         self.uid = i.id
+        self.idparts = i.parts.values()
         self.repo = i.parts['repo']
         self.org = i.parts['org']
         self.cid = i.parts['cid']
