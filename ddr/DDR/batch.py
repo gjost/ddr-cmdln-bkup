@@ -259,11 +259,8 @@ def export(json_paths, class_, module, csv_path):
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
-        for n,path in enumerate(json_paths):
-            if module.MODEL == 'entity':
-                obj = class_.from_json(os.path.dirname(path))
-            elif module.MODEL == 'file':
-                obj = class_.from_json(path)
+        for n,json_path in enumerate(json_paths):
+            obj = class_.from_json(json_path)
             logging.info('%s/%s - %s' % (n+1, len(json_paths), obj.id))
             writer.writerow(dump_object(obj, module, field_names))
     return csv_path
@@ -484,7 +481,7 @@ def load_entity(collection_path, class_, rowd):
     entity_json_path = eidentifier.path_abs('json')
     # update an existing entity
     if os.path.exists(entity_json_path):
-        entity = class_.from_json(entity_path)
+        entity = class_.from_json(entity_json_path)
         entity.new = False
     else:
         entity = class_(entity_path)
@@ -651,7 +648,7 @@ def test_entities(collection_path, class_, rowds):
         # update an existing entity
         entity = None
         if os.path.exists(entity_path):
-            entity = class_.from_json(entity_path)
+            entity = class_.from_identifier(eidentifier)
         if entity:
             entities[entity.id] = entity
         else:
@@ -718,7 +715,7 @@ def load_file(collection_path, file_class, rowd):
     path_abs = identifier.path_abs()
     path_abs_json = identifier.path_abs('json')
     if identifier and os.path.exists(path_abs_json):
-        file_ = file_class.from_json(path_abs)
+        file_ = file_class.from_json(path_abs_json)
         file_.exists = True
     else:
         file_ = file_class()

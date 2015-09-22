@@ -528,12 +528,13 @@ class Inheritance(object):
         if field_values:
             for json_path in Inheritance._child_jsons(parent_object.path):
                 child = None
+                identifier = Identifier.from_path(json_path)
                 if identifier.model == 'collection':
-                    child = Collection.from_json(Identifier.from_path(json_path).path_abs())
+                    child = Collection.from_identifier(identifier)
                 elif identifier.model == 'entity':
-                    child = Entity.from_json(Identifier.from_path(json_path).path_abs())
+                    child = Entity.from_identifier(identifier)
                 elif identifier.model == 'file':
-                    child = File.from_json(json_path)
+                    child = File.from_identifier(identifier)
                 if child:
                     # set field if exists in child and doesn't already match parent value
                     changed = False
@@ -1357,9 +1358,9 @@ class Entity( object ):
         self._file_objects = []
         for f in self.files:
             if f and f.get('path_rel',None):
-                path_abs = os.path.join(self.files_path, f['path_rel'])
-                file_ = File(path_abs=path_abs)
-                file_.load_json(read_json(file_.json_path))
+                fid = os.path.splitext(f['path_rel'])[0]
+                identifier = Identifier.from_id(fid)
+                file_ = File.from_identifier(identifier)
                 self._file_objects.append(file_)
         # keep track of how many times this gets loaded...
         self._file_objects_loaded = self._file_objects_loaded + 1
