@@ -264,6 +264,7 @@ def test_Collection_changelog():
     assert c.changelog() == '/tmp/ddr-testing-123/changelog is empty or missing'
     # TODO test reading changelog
 
+# TODO Collection.children
 # TODO Collection.control
 # TODO Collection.ead
 # TODO Collection.dump_ead
@@ -274,8 +275,6 @@ def test_Collection_entity_path():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.entity_path('11') == '/tmp/ddr-testing-123/files/11'
 
-# TODO Collection.entity_paths
-# TODO Collection.entities
 # TODO Collection.repo_fetch
 # TODO Collection.repo_status
 # TODO Collection.repo_annex_status

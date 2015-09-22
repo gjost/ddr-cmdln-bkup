@@ -68,7 +68,7 @@ class EAD( object ):
             f.write(xml)
     
     def update_dsc( self, collection ):
-        """Repopulates <ead><dsc> based on collection.entities().
+        """Repopulates <ead><dsc> based on collection.children().
         
         TODO Instead of creating a new <dsc>, read current data then recreate with additional files
         
@@ -86,7 +86,7 @@ class EAD( object ):
         head = etree.SubElement(dsc, 'head')
         head.text = 'Inventory'
         n = 0
-        for entity in collection.entities():
+        for entity in collection.children():
             n = n + 1
             # add c01, did, unittitle
             c01 = etree.SubElement(dsc, 'c01')

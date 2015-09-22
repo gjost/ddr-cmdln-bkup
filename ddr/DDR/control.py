@@ -61,7 +61,7 @@ class CollectionControlFile( ControlFile ):
         self._config.remove_section('Entities')
         self._config.add_section('Entities')
         ids = []
-        [ids.append(entity.id) for entity in collection.entities()]
+        [ids.append(entity.id) for entity in collection.children()]
         ids.sort()
         [self._config.set('Entities', id) for id in ids]
 

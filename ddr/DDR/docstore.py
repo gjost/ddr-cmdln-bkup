@@ -41,7 +41,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, TransportError
 
 from DDR import natural_sort
 from DDR import models
@@ -999,9 +999,15 @@ def delete( hosts, index, document_id, recursive=False ):
         elif identifier.model == 'entity': doc_type = 'entity,file'
         elif identifier.model == 'file': doc_type = 'file'
         query = 'id:"%s"' % identifier.id
-        return es.delete_by_query(index=index, doc_type=doc_type, q=query)
+        try:
+            return es.delete_by_query(index=index, doc_type=doc_type, q=query)
+        except TransportError:
+            pass
     else:
-        return es.delete(index=index, doc_type=identifier.model, id=identifier.id)
+        try:
+            return es.delete(index=index, doc_type=identifier.model, id=identifier.id)
+        except TransportError:
+            pass
 
 
 # index ----------------------------------------------------------------

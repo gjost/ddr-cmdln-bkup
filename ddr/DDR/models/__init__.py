@@ -794,6 +794,54 @@ class Collection( object ):
         @returns: Collection
         """
         return from_json(Collection, identifier.path_abs('json'), identifier)
+
+    def parent( self ):
+        """Returns Collection's parent object.
+        """
+        return None
+    
+    def children( self, quick=None ):
+        """Returns list of the Collection's Entity objects.
+        
+        >>> c = Collection.from_json('/tmp/ddr-testing-123')
+        >>> c.children()
+        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
+        
+        TODO use metadata_files()
+        
+        @param quick: Boolean List only titles and IDs
+        """
+        # empty class used for quick view
+        class ListEntity( object ):
+            def __repr__(self):
+                return "<DDRListEntity %s>" % (self.id)
+        entity_paths = []
+        if os.path.exists(self.files_path):
+            # TODO use cached list if available
+            for eid in os.listdir(self.files_path):
+                path = os.path.join(self.files_path, eid)
+                entity_paths.append(path)
+        entity_paths = natural_sort(entity_paths)
+        entities = []
+        for path in entity_paths:
+            if quick:
+                # fake Entity with just enough info for lists
+                entity_json_path = os.path.join(path,'entity.json')
+                if os.path.exists(entity_json_path):
+                    for line in read_json(entity_json_path).split('\n'):
+                        if '"title":' in line:
+                            e = ListEntity()
+                            e.id = Identifier.from_path(path).id
+                            # make a miniature JSON doc out of just title line
+                            e.title = json.loads('{%s}' % line)['title']
+                            entities.append(e)
+            else:
+                entity = Entity.from_identifier(Identifier.from_path(path))
+                for lv in entity.labels_values():
+                    if lv['label'] == 'title':
+                        entity.title = lv['value']
+                entities.append(entity)
+        return entities
     
     def model_def_commits( self ):
         return Module(collectionmodule).cmp_model_definition_commits(self)
@@ -929,6 +977,7 @@ class Collection( object ):
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
         """Returns collection paths.
+        TODO use metadata_files()
         """
         paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
@@ -940,65 +989,6 @@ class Collection( object ):
                 if 'collection.json' in os.listdir(colldir):
                     paths.append(colldir)
         return natural_sort(paths)
-    
-    def entity_path( self, entity_id ):
-        return os.path.join(self.files_path, entity_id)
-    
-    def entity_paths( self ):
-        """Returns relative paths to entities.
-        """
-        paths = []
-        cpath = self.path
-        if cpath[-1] != '/':
-            cpath = '{}/'.format(cpath)
-        if os.path.exists(self.files_path):
-            for id in os.listdir(self.files_path):
-                epath = os.path.join(self.files_path, id)
-                paths.append(epath)
-        return natural_sort(paths)
-    
-    def entities( self, quick=None ):
-        """Returns list of the Collection's Entity objects.
-        
-        >>> c = Collection.from_json('/tmp/ddr-testing-123')
-        >>> c.entities()
-        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
-        
-        @param quick: Boolean List only titles and IDs
-        """
-        # empty class used for quick view
-        class ListEntity( object ):
-            def __repr__(self):
-                return "<DDRListEntity %s>" % (self.id)
-        entity_paths = []
-        if os.path.exists(self.files_path):
-            # TODO use cached list if available
-            for eid in os.listdir(self.files_path):
-                path = os.path.join(self.files_path, eid)
-                entity_paths.append(path)
-        entity_paths = natural_sort(entity_paths)
-        entities = []
-        for path in entity_paths:
-            if quick:
-                # fake Entity with just enough info for lists
-                entity_json_path = os.path.join(path,'entity.json')
-                if os.path.exists(entity_json_path):
-                    for line in read_json(entity_json_path).split('\n'):
-                        if '"title":' in line:
-                            e = ListEntity()
-                            e.id = eid = os.path.basename(path)
-                            # TODO Identifier
-                            e.repo,e.org,e.cid,e.eid = eid.split('-')
-                            # make a miniature JSON doc out of just title line
-                            e.title = json.loads('{%s}' % line)['title']
-                            entities.append(e)
-            else:
-                entity = Entity.from_json(path)
-                for lv in entity.labels_values():
-                    if lv['label'] == 'title':
-                        entity.title = lv['value']
-                entities.append(entity)
-        return entities
     
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
@@ -1159,6 +1149,24 @@ class Entity( object ):
         @returns: Entity
         """
         return from_json(Entity, identifier.path_abs('json'), identifier)
+    
+#    def parent( self ):
+#        """
+#        TODO Entity.parent is overridden by a field value
+#        """
+#        cidentifier = self.identifier.parent()
+#        return Collection.from_identifier(cidentifier)
+   
+    def children( self, role=None, quick=None ):
+        self.load_file_objects()
+        if role:
+            files = [
+                f for f in self._file_objects
+                if hasattr(f,'role') and (f.role == role)
+            ]
+        else:
+            files = [f for f in self._file_objects]
+        return sorted(files, key=lambda f: f.sort)
     
     def model_def_commits( self ):
         return Module(entitymodule).cmp_model_definition_commits(self)
@@ -1321,7 +1329,7 @@ class Entity( object ):
         checksums = []
         if algo not in self.checksum_algorithms():
             raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
-        for f in self.file_paths():
+        for f in self._file_paths():
             cs = None
             fpath = os.path.join(self.files_path, f)
             # git-annex files are present
@@ -1337,8 +1345,9 @@ class Entity( object ):
                 checksums.append( (cs, fpath) )
         return checksums
     
-    def file_paths( self ):
+    def _file_paths( self ):
         """Returns relative paths to payload files.
+        TODO use metadata_files()
         """
         paths = []
         prefix_path = self.files_path
@@ -1364,16 +1373,6 @@ class Entity( object ):
                 self._file_objects.append(file_)
         # keep track of how many times this gets loaded...
         self._file_objects_loaded = self._file_objects_loaded + 1
-    
-    def files_master( self ):
-        self.load_file_objects()
-        files = [f for f in self._file_objects if hasattr(f,'role') and (f.role == 'master')]
-        return sorted(files, key=lambda f: f.sort)
-    
-    def files_mezzanine( self ):
-        self.load_file_objects()
-        files = [f for f in self._file_objects if hasattr(f,'role') and (f.role == 'mezzanine')]
-        return sorted(files, key=lambda f: f.sort)
     
     def detect_file_duplicates( self, role ):
         """Returns list of file dicts that appear in Entity.files more than once
@@ -1959,7 +1958,7 @@ class File( object ):
     
     def __repr__(self):
         return "<File %s (%s)>" % (self.basename, self.basename_orig)
-    
+
     # _lockfile
     # lock
     # unlock
@@ -1988,6 +1987,13 @@ class File( object ):
         @returns: File
         """
         return File.from_json(identifier.path_abs('json'), identifier)
+    
+    def parent( self ):
+        i = Identifier.from_id(self.parent_id, self.identifier.basepath)
+        return Entity.from_identifier(i)
+
+    def children( self, quick=None ):
+        return []
     
     def model_def_commits( self ):
         return Module(filemodule).cmp_model_definition_commits(self)
