@@ -294,11 +294,12 @@ def prep_json(obj, module, template=False,
             data.append(item)
     return data
 
-def from_json(model, json_path):
+def from_json(model, json_path, identifier=None):
     """Read the specified JSON file and properly instantiate object.
     
     @param model: LocalCollection, LocalEntity, or File
     @param json_path: absolute path to the object's .json file
+    @param identifier: [optional] Identifier
     @returns: object
     """
     document = None
@@ -775,13 +776,23 @@ class Collection( object ):
         return collection
     
     @staticmethod
-    def from_json(collection_abs):
-        """Creates a Collection and populates with data from JSON file.
+    def from_json(path_abs, identifier=None):
+        """Instantiates a Collection object from specified collection.json.
         
-        @param collection_abs: Absolute path to collection directory.
+        @param path_abs: Absolute path to .json file.
+        @param identifier: [optional] Identifier
         @returns: Collection
         """
-        return from_json(Collection, os.path.join(collection_abs, 'collection.json'))
+        return from_json(Collection, path_abs, identifier)
+    
+    @staticmethod
+    def from_identifier(identifier):
+        """Instantiates a Collection object using data from Identidier.
+        
+        @param identifier: Identifier
+        @returns: Collection
+        """
+        return from_json(Collection, identifier.path_abs('json'), identifier)
     
     def model_def_commits( self ):
         return Module(collectionmodule).cmp_model_definition_commits(self)
@@ -1130,13 +1141,23 @@ class Entity( object ):
         return entity
     
     @staticmethod
-    def from_json(entity_abs):
-        """Creates a Entity and populates with data from JSON file.
+    def from_json(path_abs, identifier=None):
+        """Instantiates an Entity object from specified entity.json.
         
-        @param entity_abs: Absolute path to entity dir.
+        @param path_abs: Absolute path to .json file.
+        @param identifier: [optional] Identifier
         @returns: Entity
         """
-        return from_json(Entity, os.path.join(entity_abs, 'entity.json'))
+        return from_json(Entity, path_abs, identifier)
+    
+    @staticmethod
+    def from_identifier(identifier):
+        """Instantiates an Entity object, loads data from entity.json.
+        
+        @param identifier: Identifier
+        @returns: Entity
+        """
+        return from_json(Entity, identifier.path_abs('json'), identifier)
     
     def model_def_commits( self ):
         return Module(entitymodule).cmp_model_definition_commits(self)
@@ -1945,7 +1966,27 @@ class File( object ):
     
     # create(path)
     
-    # entities/files/???
+    @staticmethod
+    def from_json(path_abs, identifier=None):
+        """Instantiates a File object from specified *.json.
+        
+        @param path_abs: Absolute path to .json file.
+        @param identifier: [optional] Identifier
+        @returns: DDRFile
+        """
+        #file_ = File(path_abs=path_abs)
+        #file_.load_json(read_json(file_.json_path))
+        #return file_
+        return from_json(File, path_abs, identifier)
+    
+    @staticmethod
+    def from_identifier(identifier):
+        """Instantiates a File object, loads data from FILE.json.
+        
+        @param identifier: Identifier
+        @returns: File
+        """
+        return File.from_json(identifier.path_abs('json'), identifier)
     
     def model_def_commits( self ):
         return Module(filemodule).cmp_model_definition_commits(self)
@@ -1986,28 +2027,6 @@ class File( object ):
     
     def inherit( self, parent ):
         Inheritance.inherit( parent, self )
-    
-    @staticmethod
-    def from_json(file_json):
-        """Creates a File and populates with data from JSON file.
-        
-        @param file_json: Absolute path to JSON file.
-        @returns: File
-        """
-        # This is complicated: The file object has to be created with
-        # the path to the file to which the JSON metadata file refers.
-        file_abs = None
-        fid = os.path.splitext(os.path.basename(file_json))[0]
-        fstub = '%s.' % fid
-        for filename in os.listdir(os.path.dirname(file_json)):
-            if (fstub in filename) and not ('json' in filename):
-                file_abs = os.path.join(os.path.dirname(file_json), filename)
-        # Now load the object
-        file_ = None
-        if os.path.exists(file_abs) or os.path.islink(file_abs):
-            file_ = File(path_abs=file_abs)
-            file_.load_json(read_json(file_.json_path))
-        return file_
     
     def load_json(self, json_text):
         """Populate File data from JSON-formatted text.
