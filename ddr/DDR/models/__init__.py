@@ -670,9 +670,6 @@ class Collection( object ):
     root = None
     id = None
     idparts = None
-    repo = None
-    org = None
-    cid = None
     #collection_id = None
     #parent_id = None
     path_abs = None
@@ -724,9 +721,6 @@ class Collection( object ):
         
         self.id = i.id
         self.idparts = i.parts.values()
-        self.repo = i.parts['repo']
-        self.org = i.parts['org']
-        self.cid = i.parts['cid']
         
         self.path_abs = path_abs
         self.path = path_abs
@@ -1067,10 +1061,6 @@ class EntityAddFileLogger():
 class Entity( object ):
     root = None
     id = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
     idparts = None
     collection_id = None
     parent_id = None
@@ -1099,10 +1089,6 @@ class Entity( object ):
         
         self.id = i.id
         self.idparts = i.parts.values()
-        self.repo = i.parts['repo']
-        self.org = i.parts['org']
-        self.cid = i.parts['cid']
-        self.eid = i.parts['eid']
         
         self.collection_id = i.collection_id()
         self.parent_id = i.parent_id()
@@ -1875,12 +1861,6 @@ FILE_KEYS = ['path_rel',
 class File( object ):
     id = None
     idparts = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
-    role = None
-    sha1 = None
     collection_id = None
     parent_id = None
     entity_id = None
@@ -1935,12 +1915,6 @@ class File( object ):
         
         self.id = i.id
         self.idparts = i.parts.values()
-        self.repo = i.parts['repo']
-        self.org = i.parts['org']
-        self.cid = i.parts['cid']
-        self.eid = i.parts['eid']
-        self.role = i.parts['role']
-        self.sha1 = i.parts['sha1']
         self.collection_id = i.collection_id()
         self.parent_id = i.parent_id()
         self.entity_id = self.parent_id
@@ -2069,7 +2043,7 @@ class File( object ):
         """Generate a new name for the specified file; Use only when ingesting a file!
         
         rename files to standard names on ingest:
-        %{repo}-%{org}-%{cid}-%{eid}-%{role}%{sha1}.%{ext}
+        %{entity_id%}-%{role}-%{sha1}.%{ext}
         example: ddr-testing-56-101-master-fb73f9de29.jpg
         
         SHA1 is optional so it can be passed in by a calling process that has already
@@ -2085,12 +2059,10 @@ class File( object ):
             if not sha1:
                 sha1 = file_hash(path_abs, 'sha1')
             if sha1:
-                base = '-'.join([
-                    entity.repo, entity.org, entity.cid, entity.eid,
-                    role,
-                    sha1[:10]
-                ])
-                name = '{}{}'.format(base, ext)
+                idparts = [a for a in entity.idparts]
+                idparts.append(role)
+                idparts.append(sha1[:10])
+                name = '{}{}'.format(Identifier.from_idparts(idparts).id, ext)
                 return name
         return None
     
