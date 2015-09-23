@@ -294,7 +294,7 @@ def prep_json(obj, module, template=False,
             data.append(item)
     return data
 
-def from_json(model, json_path, identifier=None):
+def from_json(model, json_path, identifier):
     """Read the specified JSON file and properly instantiate object.
     
     @param model: LocalCollection, LocalEntity, or File
@@ -304,7 +304,12 @@ def from_json(model, json_path, identifier=None):
     """
     document = None
     if os.path.exists(json_path):
-        document = model(os.path.dirname(json_path))
+        if identifier.model in ['file']:
+            # object_id is in .json file
+            document = model(os.path.splitext(json_path)[0])
+        else:
+            # object_id is in object directory
+            document = model(os.path.dirname(json_path))
         document_id = document.id  # save this just in case
         document.load_json(read_json(json_path))
         if not document.id:
