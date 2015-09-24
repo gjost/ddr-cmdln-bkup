@@ -714,26 +714,21 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     for field in document:
         for k,v in field.iteritems():
             data[k] = v
-    
-    identifier = Identifier.from_id(data['id'])
-    if identifier.model in ['collection', 'entity']:
-        if not (data and data.get('id', None)):
-            return {'status':2, 'response':'no id'}
-    elif identifier.model in ['file']:
-        if not (data and data.get('path_rel', None)):
-            return {'status':3, 'response':'no path_rel'}
-        filename = None
-        extension = None
-        if data.get('path_rel',None):
-            filename,extension = os.path.splitext(data['path_rel'])
+
+    # make sure Files have id,title
+    # TODO do this elsewhere, like in File object
+    if data and data.get('path_rel', None):
         basename_orig = data.get('basename_orig', None)
         label = data.get('label', None)
+        filename,extension = os.path.splitext(os.path.basename(data['path_rel']))
         if basename_orig and not label:
             label = basename_orig
         elif filename and not label:
             label = filename
-        data['id'] = filename
+        identifier = Identifier.from_id(filename)
+        data['id'] = identifier.id
         data['title'] = label
+    
     # additional_fields
     _add_id_parts(data)
     for key,val in additional_fields.iteritems():
