@@ -765,7 +765,7 @@ class Collection( object ):
         >>> c
         <Collection ddr-testing-123>
         """
-        return "<Collection %s>" % (self.id)
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
     @staticmethod
     def create(path):
@@ -1129,7 +1129,7 @@ class Entity( object ):
         self._file_objects = []
     
     def __repr__(self):
-        return "<Entity %s>" % (self.id)
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
     @staticmethod
     def create(path):
@@ -1971,7 +1971,7 @@ class File( object ):
         self.basename = os.path.basename(self.path_abs)
     
     def __repr__(self):
-        return "<File %s (%s)>" % (self.basename, self.basename_orig)
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
 
     # _lockfile
     # lock

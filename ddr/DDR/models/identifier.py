@@ -469,7 +469,7 @@ class Identifier(object):
             self.basepath = base_path
     
     def __repr__(self):
-        return "<Identifier %s:%s>" % (self.model, self.id)
+        return "<%s.%s %s:%s>" % (self.__module__, self.__class__.__name__, self.model, self.id)
 
     def components(self):
         """Model and parts of the ID as a list.
