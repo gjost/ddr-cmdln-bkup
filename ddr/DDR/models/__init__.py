@@ -159,7 +159,7 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
     keys = []
     while json_paths:
         path = json_paths.pop()
-        identifier = Identifier.from_path(path)
+        identifier = Identifier(path=path)
         eid = identifier.parts.get('eid',None)
         role = identifier.parts.get('role',None)
         sha1 = identifier.parts.get('sha1',None)
@@ -533,7 +533,7 @@ class Inheritance(object):
         if field_values:
             for json_path in Inheritance._child_jsons(parent_object.path):
                 child = None
-                identifier = Identifier.from_path(json_path)
+                identifier = Identifier(path=json_path)
                 if identifier.model == 'collection':
                     child = Collection.from_identifier(identifier)
                 elif identifier.model == 'entity':
@@ -723,7 +723,7 @@ class Collection( object ):
         '/tmp/ddr-testing-123/collection.json'
         """
         path_abs = os.path.normpath(path_abs)
-        i = Identifier.from_path(path_abs)
+        i = Identifier(path=path_abs)
         self.identifier = i
         
         self.id = i.id
@@ -836,12 +836,12 @@ class Collection( object ):
                     for line in read_json(entity_json_path).split('\n'):
                         if '"title":' in line:
                             e = ListEntity()
-                            e.id = Identifier.from_path(path).id
+                            e.id = Identifier(path=path).id
                             # make a miniature JSON doc out of just title line
                             e.title = json.loads('{%s}' % line)['title']
                             entities.append(e)
             else:
-                entity = Entity.from_identifier(Identifier.from_path(path))
+                entity = Entity.from_identifier(Identifier(path=path))
                 for lv in entity.labels_values():
                     if lv['label'] == 'title':
                         entity.title = lv['value']
@@ -1091,7 +1091,7 @@ class Entity( object ):
     
     def __init__( self, path_abs, id=None ):
         path_abs = os.path.normpath(path_abs)
-        i = Identifier.from_path(path_abs)
+        i = Identifier(path=path_abs)
         self.identifier = i
         
         self.id = i.id
@@ -1373,7 +1373,7 @@ class Entity( object ):
         for f in self.files:
             if f and f.get('path_rel',None):
                 fid = os.path.splitext(f['path_rel'])[0]
-                identifier = Identifier.from_id(fid, self.identifier.basepath)
+                identifier = Identifier(id=fid, base_path=self.identifier.basepath)
                 file_ = File.from_identifier(identifier)
                 self._file_objects.append(file_)
         # keep track of how many times this gets loaded...
@@ -1936,7 +1936,7 @@ class File( object ):
             # TODO accept path_rel plus base_path
             raise Exception("File must be instantiated with an absolute path!")
         path_abs = os.path.normpath(path_abs)
-        i = Identifier.from_path(path_abs)
+        i = Identifier(path=path_abs)
         self.identifier = i
         
         self.id = i.id
@@ -1994,7 +1994,7 @@ class File( object ):
         return File.from_json(identifier.path_abs('json'), identifier)
     
     def parent( self ):
-        i = Identifier.from_id(self.parent_id, self.identifier.basepath)
+        i = Identifier(id=self.parent_id, base_path=self.identifier.basepath)
         return Entity.from_identifier(i)
 
     def children( self, quick=None ):
@@ -2093,7 +2093,7 @@ class File( object ):
                 idparts = [a for a in entity.idparts]
                 idparts.append(role)
                 idparts.append(sha1[:10])
-                name = '{}{}'.format(Identifier.from_idparts(idparts).id, ext)
+                name = '{}{}'.format(Identifier(parts=idparts).id, ext)
                 return name
         return None
     

@@ -194,7 +194,7 @@ def clone(user_name, user_mail, collection_id, alt_collection_path):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     url = '{}:{}.git'.format(GITOLITE, collection_id)
     
@@ -252,7 +252,7 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     
     url = '{}:{}.git'.format(GITOLITE, collection.id)
@@ -393,7 +393,7 @@ def update(user_name, user_mail, collection_path, updated_files, agent=''):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
@@ -451,7 +451,7 @@ def sync(user_name, user_mail, collection_path):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     repo = dvcs.repository(collection.path, user_name, user_mail)
     logging.debug('repo: %s' % repo)
@@ -496,9 +496,9 @@ def entity_create(user_name, user_mail, collection_path, entity_id, updated_file
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
-    eidentifier = Identifier.from_id(entity_id, collection.identifier.basepath)
+    eidentifier = Identifier(id=entity_id, base_path=collection.identifier.basepath)
     entity = DDREntity(eidentifier.path_abs())
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
@@ -593,7 +593,7 @@ def entity_destroy(user_name, user_mail, collection_path, entity_id, agent=''):
         raise Exception('entity not found: %s' % entity_dir)
     
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
@@ -651,10 +651,10 @@ def file_destroy(user_name, user_mail, collection_path, entity_id, rm_files, upd
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     entity = DDREntity.from_identifier(
-        Identifier.from_id(entity_id, collection.identifier.basepath)
+        Identifier(id=entity_id, base_path=collection.identifier.basepath)
     )
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
@@ -714,10 +714,10 @@ def entity_update(user_name, user_mail, collection_path, entity_id, updated_file
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     entity = DDREntity.from_identifier(
-        Identifier.from_id(entity_id, collection.identifier.basepath)
+        Identifierid(id=entity_id, base_path=collection.identifier.basepath)
     )
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
@@ -777,11 +777,11 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_id, updated_f
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     if not entity:
         entity = DDREntity.from_identifier(
-            Identifier.from_id(entity_id, collection.identifier.basepath)
+            Identifier(id=entity_id, base_path=collection.identifier.basepath)
         )
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
@@ -857,7 +857,7 @@ def annex_push(collection_path, file_path_rel):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     file_path_abs = os.path.join(collection.path, file_path_rel)
     logging.debug('    collection.path {}'.format(collection.path))
@@ -903,7 +903,7 @@ def annex_pull(collection_path, file_path_rel):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier.from_path(collection_path)
+        Identifier(path=collection_path)
     )
     file_path_abs = os.path.join(collection.path, file_path_rel)
     logging.debug('    collection.path {}'.format(collection.path))

@@ -4,7 +4,7 @@ from collections import OrderedDict
 import os
 import re
 import string
-import urlparse
+from urlparse import urlparse
 
 
 # Models in this Repository
@@ -52,6 +52,7 @@ ID_COMPONENTS = [
 # ----------------------------------------------------------------------
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
 # Record format: (regex, description, model)
+# TODO compile regexes
 #
 
 ID_PATTERNS = (
@@ -65,6 +66,7 @@ ID_PATTERNS = (
 
 # In the current path scheme, collection and entity ID components are repeated.
 # Fields can't appear multiple times in regexes so redundant fields have numbers.
+# TODO compile regexes
 PATH_PATTERNS = (
     # file-abs
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
@@ -89,6 +91,7 @@ PATH_PATTERNS = (
     (r'^repository.json$', 'repository-meta-rel', 'repository'),
 )
 
+# TODO compile regexes
 URL_PATTERNS = (
     # editor
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'editor-file', 'file'),
@@ -189,7 +192,7 @@ ADDITIONAL_PATHS = {
 }
 
 
-def identify_object(i, text, patterns):
+def identify_object(text, patterns):
     """Split ID, path, or URL into model and tokens and assign to Identifier
     
     Like Django URL router, look for pattern than matches the given text.
@@ -202,16 +205,17 @@ def identify_object(i, text, patterns):
     @param patterns: list Patterns in which to look
     @returns: dict groupdict resulting from successful regex match
     """
+    model = ''
     groupdict = {}
     for tpl in patterns:
         pattern = tpl[0]
         model = tpl[-1]
         m = re.match(pattern, text)
         if m:
-            i.model = model
+            model = model
             groupdict = m.groupdict()
             break
-    return groupdict
+    return model,groupdict
 
 def set_idparts(i, groupdict):
     i.basepath = groupdict.get('basepath', None)
@@ -270,6 +274,49 @@ def format_url(i, model, url_type):
     except KeyError:
         return None
 
+def _is_id(text):
+    for tpl in ID_PATTERNS:
+        pattern = tpl[0]
+        model = tpl[-1]
+        m = re.match(pattern, text)
+        if m:
+            return True
+    return False
+
+def _is_url(text):
+    for tpl in URL_PATTERNS:
+        pattern = tpl[0]
+        model = tpl[-1]
+        m = re.match(pattern, text)
+        if m:
+            return True
+    return False
+
+def _is_abspath(text):
+    if isinstance(text, basestring) and os.path.isabs(text):
+        return True
+    return False
+
+def _parse_args_kwargs(keys, args, kwargs):
+    # TODO there's probably something in stdlib for this...
+    blargs = {key:None for key in keys}
+    if args:
+        arg = None
+        if len(args) >= 2: blargs['base_path'] = args[1]
+        if len(args) >= 1: arg = args[0]
+        if arg:
+            # TODO refactor: lots of regex that's duplicated in identify_object
+            if isinstance(arg, dict): blargs['parts'] = arg
+            elif _is_id(arg): blargs['id'] = arg
+            elif _is_url(arg): blargs['url'] = arg
+            elif _is_abspath(arg): blargs['path'] = arg
+    # kwargs override args
+    if kwargs:
+        for key,val in kwargs.items():
+            if val and (key in keys):
+                blargs[key] = val
+    return blargs
+
 
 class MissingBasepathException(Exception):
     pass
@@ -286,6 +333,14 @@ class MalformedPathException(Exception):
 class MalformedURLException(Exception):
     pass
 
+KWARG_KEYS = [
+    'id',
+    'parts',
+    'path',
+    'url',
+    'base_path',
+]
+
 class Identifier(object):
     raw = None
     method = None
@@ -293,6 +348,16 @@ class Identifier(object):
     parts = OrderedDict()
     basepath = None
     id = None
+    
+    def __init__(self, *args, **kwargs):
+        """
+        NOTE: You will get faster performance with kwargs
+        """
+        blargs = _parse_args_kwargs(KWARG_KEYS, args, kwargs)
+        if blargs['id']: self._from_id(blargs['id'], blargs['base_path'])
+        elif blargs['parts']: self._from_idparts(blargs['parts'], blargs['base_path'])
+        elif blargs['path']: self._from_path(blargs['path'], blargs['base_path'])
+        elif blargs['url']: self._from_url(blargs['url'], blargs['base_path'])
     
     def __repr__(self):
         return "<Identifier %s:%s>" % (self.model, self.id)
@@ -317,7 +382,7 @@ class Identifier(object):
         return os.path.normpath(format_path(self, 'collection', 'abs'))
     
     def collection(self):
-        return Identifier.from_id(self.collection_id(), self.basepath)
+        return Identifier(id=self.collection_id(), base_path=self.basepath)
     
     def parent_id(self):
         if not PARENTS.get(self.model, None):
@@ -332,8 +397,10 @@ class Identifier(object):
         return os.path.normpath(format_path(self, PARENTS[self.model], 'abs'))
     
     def parent(self):
-        return Identifier.from_id(self.parent_id(), self.basepath)
-    
+        if self.parent_id():
+            return Identifier(id=self.parent_id(), base_path=self.basepath)
+        return None
+
     def path_abs(self, append=None):
         """Return absolute path to object with optional file appended.
         
@@ -386,12 +453,11 @@ class Identifier(object):
         @returns: str
         """
         return format_url(self, self.model, url_type)
-    
-    @staticmethod
-    def from_id(object_id, base_path=None):
+
+    def _from_id(self, object_id, base_path=None):
         """Make Identifier from object ID.
         
-        >>> Identifier.from_id('ddr-testing-123-456')
+        >>> Identifier(id='ddr-testing-123-456')
         <Identifier ddr-testing-123-456>
         
         @param object_id: str
@@ -402,24 +468,22 @@ class Identifier(object):
             raise BadPathException('Base path is not absolute: %s' % base_path)
         if base_path:
             base_path = os.path.normpath(base_path)
-        i = Identifier()
-        i.method = 'id'
-        i.raw = object_id
-        i.id = object_id
-        groupdict = identify_object(i, object_id, ID_PATTERNS)
+        self.method = 'id'
+        self.raw = object_id
+        self.id = object_id
+        model,groupdict = identify_object(object_id, ID_PATTERNS)
         if not groupdict:
             raise MalformedIDException('Malformed ID: "%s"' % object_id)
-        set_idparts(i, groupdict)
-        if base_path and not i.basepath:
-            i.basepath = base_path
-        return i
+        self.model = model
+        set_idparts(self, groupdict)
+        if base_path and not self.basepath:
+            self.basepath = base_path
     
-    @staticmethod
-    def from_idparts(partsdict, base_path=None):
+    def _from_idparts(self, idparts, base_path=None):
         """Make Identifier from dict of parts.
         
         >>> parts = {'model':'entity', 'repo':'ddr', 'org':'testing', 'cid':123, 'eid':456}
-        >>> Identifier.from_parts(parts)
+        >>> Identifier(parts=parts)
         <Identifier ddr-testing-123-456>
         
         @param parts: dict
@@ -430,55 +494,53 @@ class Identifier(object):
             raise BadPathException('Base path is not absolute: %s' % base_path)
         if base_path:
             base_path = os.path.normpath(base_path)
-        i = Identifier()
-        i.method = 'parts'
-        i.raw = partsdict
-        i.model = partsdict['model']
-        i.parts = OrderedDict([
+        self.method = 'parts'
+        self.raw = idparts
+        self.model = idparts['model']
+        self.parts = OrderedDict([
             (key, val)
-            for key,val in partsdict.iteritems()
+            for key,val in idparts.iteritems()
             if (key in ID_COMPONENTS) and val
         ])
-        i.id = format_id(i, i.model)
-        if base_path and not i.basepath:
-            i.basepath = base_path
-        return i
+        self.id = format_id(self, self.model)
+        if base_path and not self.basepath:
+            self.basepath = base_path
     
-    @staticmethod
-    def from_path(path_abs):
+    def _from_path(self, path_abs, base_path=None):
         """Make Identifier from absolute path.
         
         >>> path = '/tmp/ddr-testing-123/files/ddr-testing-123-456/entity.json
-        >>> Identifier.from_path(path)
+        >>> Identifier(path=path)
         <Identifier ddr-testing-123-456>
         
         @param path_abs: str
         @param base_path: str Absolute path to Store's parent dir
         @returns: Identifier
         """
+        path_abs = os.path.normpath(path_abs)
         if not os.path.isabs(path_abs):
             raise BadPathException('Path is not absolute: %s' % path_abs)
-        i = Identifier()
-        i.method = 'path'
-        i.raw = path_abs
-        groupdict = identify_object(i, path_abs, PATH_PATTERNS)
+        if base_path:
+            base_path = os.path.normpath(base_path)
+        self.method = 'path'
+        self.raw = path_abs
+        model,groupdict = identify_object(path_abs, PATH_PATTERNS)
         if not groupdict:
             raise MalformedPathException('Malformed path: "%s"' % path_abs)
-        set_idparts(i, groupdict)
-        i.id = format_id(i, i.model)
-        return i
+        self.model = model
+        set_idparts(self, groupdict)
+        self.id = format_id(self, self.model)
     
-    @staticmethod
-    def from_url(url, base_path=None):
+    def _from_url(self, url, base_path=None):
         """Make Identifier from URL or URI.
         
-        >>> Identifier.from_id('http://ddr.densho.org/ddr/testing/123/456')
+        >>> Identifier(url='http://ddr.densho.org/ddr/testing/123/456')
         <Identifier ddr-testing-123-456>
-        >>> Identifier.from_id('http://ddr.densho.org/ddr/testing/123/456/')
+        >>> Identifier(url='http://ddr.densho.org/ddr/testing/123/456/')
         <Identifier ddr-testing-123-456>
-        >>> Identifier.from_id('http://192.168.56.101/ui/ddr-testing-123-456')
+        >>> Identifier(url='http://192.168.56.101/ui/ddr-testing-123-456')
         <Identifier ddr-testing-123-456>
-        >>> Identifier.from_id('http://192.168.56.101/ui/ddr-testing-123-456/files/')
+        >>> Identifier(url='http://192.168.56.101/ui/ddr-testing-123-456/files/')
         <Identifier ddr-testing-123-456>
         
         @param path_abs: str
@@ -489,15 +551,14 @@ class Identifier(object):
             raise BadPathException('Base path is not absolute: %s' % base_path)
         if base_path:
             base_path = os.path.normpath(base_path)
-        i = Identifier()
-        i.method = 'url'
-        i.raw = url
-        path = urlparse.urlparse(url).path
-        identify_object(i, path_abs, PATH_PATTERNS)
+        self.method = 'url'
+        self.raw = url
+        urlpath = urlparse(url).path
+        model,groupdict = identify_object(urlpath, URL_PATTERNS)
         if not groupdict:
             raise MalformedURLException('Malformed URL: "%s"' % url)
-        set_idparts(i, groupdict)
-        i.id = format_id(i, i.model)
-        if base_path and not i.basepath:
-            i.basepath = base_path
-        return i
+        self.model = model
+        set_idparts(self, groupdict)
+        self.id = format_id(self, self.model)
+        if base_path and not self.basepath:
+            self.basepath = base_path

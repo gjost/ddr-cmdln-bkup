@@ -671,7 +671,7 @@ def _add_id_parts( data ):
     >>> data
     {'id':'ddr-test-123', 'repo':'ddr', 'org':'test', 'cid':'123', ...}
     """
-    identifier = Identifier.from_id(data['id'])
+    identifier = Identifier(id=data['id'])
     for key,val in identifier.parts.iteritems():
         data[key] = val
 
@@ -725,7 +725,7 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
             label = basename_orig
         elif filename and not label:
             label = filename
-        identifier = Identifier.from_id(filename)
+        identifier = Identifier(id=filename)
         data['id'] = identifier.id
         data['title'] = label
     
@@ -987,7 +987,7 @@ def delete( hosts, index, document_id, recursive=False ):
     @param document_id:
     @param recursive: True or False
     """
-    identifier = Identifier.from_id(document_id)
+    identifier = Identifier(id=document_id)
     es = _get_connection(hosts)
     if recursive:
         if identifier.model == 'collection': doc_type = 'collection,entity,file'
@@ -1083,7 +1083,7 @@ def _publishable_or_not( paths, parents ):
     successful_paths = []
     bad_paths = []
     for path in paths:
-        identifier = Identifier.from_path(path)
+        identifier = Identifier(path=path)
         # see if item's parents are incomplete or nonpublic
         # TODO Bad! Bad! Generalize this...
         UNPUBLISHABLE = []
@@ -1155,7 +1155,7 @@ def _choose_signatures( paths ):
     SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
     signature_files = {}
     for path in paths:
-        identifier = Identifier.from_path(path)
+        identifier = Identifier(path=path)
         if identifier.model == 'file':
             # decide whether to store this as a collection/entity signature
             _store_signature_file(signature_files, identifier, SIGNATURE_MASTER_SUBSTITUTE)
@@ -1224,7 +1224,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     
     successful = 0
     for path in successful_paths:
-        identifier = Identifier.from_path(path)
+        identifier = Identifier(path=path)
         parent_id = identifier.parent_id()
         
         publicfields = []

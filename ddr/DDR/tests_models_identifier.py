@@ -18,8 +18,8 @@ REPO_PARTS = ['ddr']
 REPO_REPR = '<Identifier repository:ddr>'
 
 def test_repository_from_id():
-    i0 = Identifier.from_id('ddr')
-    i1 = Identifier.from_id('ddr', BASE_PATH)
+    i0 = Identifier('ddr')
+    i1 = Identifier('ddr', BASE_PATH)
     assert str(i0)  == str(i1)  == REPO_REPR
     assert i0.id    == i1.id    == REPO_ID
     assert i0.model == i1.model == REPO_MODEL
@@ -27,10 +27,10 @@ def test_repository_from_id():
     assert i1.basepath == BASE_PATH
 
 def test_repository_from_idparts():
-    i0 = Identifier.from_idparts(
+    i0 = Identifier(
         {'model':'repository', 'repo':'ddr',}
     )
-    i1 = Identifier.from_idparts(
+    i1 = Identifier(
         {'model':'repository', 'repo':'ddr',},
         BASE_PATH
     )
@@ -41,15 +41,15 @@ def test_repository_from_idparts():
     assert i1.basepath == BASE_PATH
 
 def test_repository_from_path():
-    i0 = Identifier.from_path('/var/www/media/ddr/ddr')
+    i0 = Identifier('/var/www/media/ddr/ddr')
     assert str(i0) == REPO_REPR
     assert i0.id == REPO_ID
     assert i0.model == REPO_MODEL
     assert i0.basepath == BASE_PATH
 
 def test_repository_from_url():
-    i0 = Identifier.from_url('http://192.168.56.101/ddr')
-    i1 = Identifier.from_url('http://192.168.56.101/ddr/', BASE_PATH)
+    i0 = Identifier('http://192.168.56.101/ddr')
+    i1 = Identifier('http://192.168.56.101/ddr/', BASE_PATH)
     assert str(i0)  == str(i1)  == REPO_REPR
     assert i0.id    == i1.id    == REPO_ID
     assert i0.model == i1.model == REPO_MODEL
@@ -63,8 +63,8 @@ ORG_PARTS = ['ddr', 'test']
 ORG_REPR = '<Identifier organization:ddr-test>'
 
 def test_organization_from_id():
-    i0 = Identifier.from_id('ddr-test')
-    i1 = Identifier.from_id('ddr-test', BASE_PATH)
+    i0 = Identifier('ddr-test')
+    i1 = Identifier('ddr-test', BASE_PATH)
     assert str(i0)  == str(i1)  == ORG_REPR
     assert i0.id    == i1.id    == ORG_ID
     assert i0.model == i1.model == ORG_MODEL
@@ -72,10 +72,10 @@ def test_organization_from_id():
     assert i1.basepath == BASE_PATH
 
 def test_organization_from_idparts():
-    i0 = Identifier.from_idparts(
+    i0 = Identifier(
         {'model':'organization', 'repo':'ddr', 'org':'test',}
     )
-    i1 = Identifier.from_idparts(
+    i1 = Identifier(
         {'model':'organization', 'repo':'ddr', 'org':'test',},
         BASE_PATH
     )
@@ -86,16 +86,16 @@ def test_organization_from_idparts():
     assert i1.basepath == BASE_PATH
 
 def test_organization_from_path():
-    i0 = Identifier.from_path('/var/www/media/ddr/ddr-test')
-    i1 = Identifier.from_path('/var/www/media/ddr/ddr-test/')
+    i0 = Identifier('/var/www/media/ddr/ddr-test')
+    i1 = Identifier('/var/www/media/ddr/ddr-test/')
     assert str(i0)  == str(i1)  == ORG_REPR
     assert i0.id    == i1.id    == ORG_ID
     assert i0.model == i1.model == ORG_MODEL
     assert i0.basepath == i1.basepath == BASE_PATH
 
 def test_organization_from_url():
-    i0 = Identifier.from_url('http://192.168.56.101/ddr/test')
-    i1 = Identifier.from_url('http://192.168.56.101/ddr/test/', BASE_PATH)
+    i0 = Identifier('http://192.168.56.101/ddr/test')
+    i1 = Identifier('http://192.168.56.101/ddr/test/', BASE_PATH)
     assert str(i0)  == str(i1)  == ORG_REPR
     assert i0.id    == i1.id    == ORG_ID
     assert i0.model == i1.model == ORG_MODEL
@@ -109,8 +109,8 @@ COLLECTION_PARTS = ['ddr', 'test', '123']
 COLLECTION_REPR = '<Identifier collection:ddr-test-123>'
 
 def test_collection_from_id():
-    i0 = Identifier.from_id('ddr-test-123')
-    i1 = Identifier.from_id('ddr-test-123', BASE_PATH)
+    i0 = Identifier('ddr-test-123')
+    i1 = Identifier('ddr-test-123', BASE_PATH)
     assert str(i0)  == str(i1)  == COLLECTION_REPR
     assert i0.id    == i1.id    == COLLECTION_ID
     assert i0.model == i1.model == COLLECTION_MODEL
@@ -118,10 +118,10 @@ def test_collection_from_id():
     assert i1.basepath == BASE_PATH
 
 def test_collection_from_idparts():
-    i0 = Identifier.from_idparts(
+    i0 = Identifier(
         {'model':'collection', 'repo':'ddr', 'org':'test', 'cid':123,}
     )
-    i1 = Identifier.from_idparts(
+    i1 = Identifier(
         {'model':'collection', 'repo':'ddr', 'org':'test', 'cid':123,},
         BASE_PATH
     )
@@ -132,19 +132,19 @@ def test_collection_from_idparts():
     assert i1.basepath == BASE_PATH
 
 def test_collection_from_path():
-    i0 = Identifier.from_path('/var/www/media/ddr/ddr-test-123')
-    i1 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/')
-    i2 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/collection.json')
+    i0 = Identifier('/var/www/media/ddr/ddr-test-123')
+    i1 = Identifier('/var/www/media/ddr/ddr-test-123/')
+    i2 = Identifier('/var/www/media/ddr/ddr-test-123/collection.json')
     assert str(i0)     == str(i1)     == str(i2)     == COLLECTION_REPR
     assert i0.id       == i1.id       == i2.id       == COLLECTION_ID
     assert i0.model    == i1.model    == i2.model    == COLLECTION_MODEL
     assert i0.basepath == i1.basepath == i2.basepath == BASE_PATH
 
 def test_collection_from_url():
-    i0 = Identifier.from_url('http://192.168.56.101/ddr/test/123')
-    i1 = Identifier.from_url('http://192.168.56.101/ddr/test/123/')
-    i2 = Identifier.from_url('http://192.168.56.101/ddr/test/123/', BASE_PATH)
-    assert_raises(Exception, Identifier.from_url, 'http://192.168.56.101/ddr/test/123/', 'ddr/test/123')
+    i0 = Identifier('http://192.168.56.101/ddr/test/123')
+    i1 = Identifier('http://192.168.56.101/ddr/test/123/')
+    i2 = Identifier('http://192.168.56.101/ddr/test/123/', BASE_PATH)
+    assert_raises(Exception, Identifier, 'http://192.168.56.101/ddr/test/123/', 'ddr/test/123')
     assert str(i0)  == str(i1)  == COLLECTION_REPR
     assert i0.id    == i1.id    == COLLECTION_ID
     assert i0.model == i1.model == COLLECTION_MODEL
@@ -158,8 +158,8 @@ ENTITY_PARTS = ['ddr', 'test', '123', '456']
 ENTITY_REPR = '<Identifier entity:ddr-test-123-456>'
 
 def test_entity_from_id():
-    i0 = Identifier.from_id('ddr-test-123-456')
-    i1 = Identifier.from_id('ddr-test-123-456', BASE_PATH)
+    i0 = Identifier('ddr-test-123-456')
+    i1 = Identifier('ddr-test-123-456', BASE_PATH)
     assert str(i0)  == str(i1)  == ENTITY_REPR
     assert i0.id    == i1.id    == ENTITY_ID
     assert i0.model == i1.model == ENTITY_MODEL
@@ -167,10 +167,10 @@ def test_entity_from_id():
     assert i1.basepath == BASE_PATH
 
 def test_entity_from_idparts():
-    i0 = Identifier.from_idparts(
+    i0 = Identifier(
         {'model':'entity', 'repo':'ddr', 'org':'test', 'cid':123, 'eid':456,}
     )
-    i1 = Identifier.from_idparts(
+    i1 = Identifier(
         {'model':'entity', 'repo':'ddr', 'org':'test', 'cid':123, 'eid':456,},
         BASE_PATH
     )
@@ -181,24 +181,24 @@ def test_entity_from_idparts():
     assert i1.basepath == BASE_PATH
 
 def test_entity_from_path():
-    i0 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456')
-    i1 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/')
-    i2 = Identifier.from_path('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/entity.json')
+    i0 = Identifier('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456')
+    i1 = Identifier('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/')
+    i2 = Identifier('/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/entity.json')
     assert str(i0)     == str(i1)     == str(i2)     == ENTITY_REPR
     assert i0.id       == i1.id       == i2.id       == ENTITY_ID
     assert i0.model    == i1.model    == i2.model    == ENTITY_MODEL
     assert i0.basepath == i1.basepath == i2.basepath == BASE_PATH
     
-    i3 = Identifier.from_path('/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456')
+    i3 = Identifier('/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456')
     assert i3.id == ENTITY_ID
     assert str(i3) == ENTITY_REPR
     assert i3.model == ENTITY_MODEL
     assert i3.basepath == '/mnt/nfsdrive/ddr'
 
 def test_entity_from_url():
-    i0 = Identifier.from_url('http://192.168.56.101/ddr/test/123/456')
-    i1 = Identifier.from_url('http://192.168.56.101/ddr/test/123/456/', BASE_PATH)
-    assert_raises(Exception, Identifier.from_url, 'http://192.168.56.101/ddr/test/123/456/', 'ddr/test/123/456')
+    i0 = Identifier('http://192.168.56.101/ddr/test/123/456')
+    i1 = Identifier('http://192.168.56.101/ddr/test/123/456/', BASE_PATH)
+    assert_raises(Exception, Identifier, 'http://192.168.56.101/ddr/test/123/456/', 'ddr/test/123/456')
     assert str(i0)  == str(i1)  == ENTITY_REPR
     assert i0.id    == i1.id    == ENTITY_ID
     assert i0.model == i1.model == ENTITY_MODEL
@@ -212,8 +212,8 @@ FILE_PARTS = ['ddr', 'test', '123', '456', 'master', 'a1b2c3d4e5']
 FILE_REPR = '<Identifier file:ddr-test-123-456-master-a1b2c3d4e5>'
 
 def test_file_from_id():
-    i0 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
-    i1 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5', BASE_PATH)
+    i0 = Identifier('ddr-test-123-456-master-a1b2c3d4e5')
+    i1 = Identifier('ddr-test-123-456-master-a1b2c3d4e5', BASE_PATH)
     assert str(i0)  == str(i1)  == FILE_REPR
     assert i0.id    == i1.id    == FILE_ID
     assert i0.model == i1.model == FILE_MODEL
@@ -221,21 +221,13 @@ def test_file_from_id():
     assert i1.basepath == BASE_PATH
 
 def test_file_from_idparts():
-    i0 = Identifier.from_idparts(
-        {
+    idparts = {
             'model':'file',
             'repo':'ddr', 'org':'test', 'cid':123,
             'eid':456, 'role':'master', 'sha1':'a1b2c3d4e5',
         }
-    )
-    i1 = Identifier.from_idparts(
-        {
-            'model':'file',
-            'repo':'ddr', 'org':'test', 'cid':123,
-            'eid':456, 'role':'master', 'sha1':'a1b2c3d4e5',
-        },
-        BASE_PATH
-    )
+    i0 = Identifier(idparts)
+    i1 = Identifier(idparts, BASE_PATH)
     assert str(i0)  == str(i1)  == FILE_REPR
     assert i0.id    == i1.id    == FILE_ID
     assert i0.model == i1.model == FILE_MODEL
@@ -243,13 +235,13 @@ def test_file_from_idparts():
     assert i1.basepath == BASE_PATH
 
 def test_file_from_path():
-    i0 = Identifier.from_path(
+    i0 = Identifier(
         '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5'
     )
-    i1 = Identifier.from_path(
+    i1 = Identifier(
         '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5/'
     )
-    i2 = Identifier.from_path(
+    i2 = Identifier(
         '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5.json'
     )
     assert str(i0)     == str(i1)     == str(i2)     == FILE_REPR
@@ -258,16 +250,16 @@ def test_file_from_path():
     assert i0.basepath == i1.basepath == i2.basepath == BASE_PATH
 
 def test_file_from_url():
-    i0 = Identifier.from_url(
+    i0 = Identifier(
         'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5'
     )
-    i1 = Identifier.from_url(
+    i1 = Identifier(
         'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
         BASE_PATH
     )
     assert_raises(
         Exception,
-        Identifier.from_url,
+        Identifier,
         'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
         'ddr/test/123/456/master/a1b2c3d4e5'
     )
@@ -286,11 +278,11 @@ ENTITY_COLLECTION_ID = 'ddr-test-123'
 FILE_COLLECTION_ID = 'ddr-test-123'
 
 def test_collection_id():
-    i0 = Identifier.from_id('ddr')
-    i1 = Identifier.from_id('ddr-test')
-    i2 = Identifier.from_id('ddr-test-123')
-    i3 = Identifier.from_id('ddr-test-123-456')
-    i4 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
+    i0 = Identifier('ddr')
+    i1 = Identifier('ddr-test')
+    i2 = Identifier('ddr-test-123')
+    i3 = Identifier('ddr-test-123-456')
+    i4 = Identifier('ddr-test-123-456-master-a1b2c3d4e5')
     assert_raises(Exception, i0, 'collection_id')
     assert_raises(Exception, i1, 'collection_id')
     assert i2.collection_id() == COLLECTION_COLLECTION_ID
@@ -306,22 +298,22 @@ ENTITY_COLLECTION_PATH = '/var/www/media/ddr/ddr-test-123'
 FILE_COLLECTION_PATH = '/var/www/media/ddr/ddr-test-123'
 
 def test_collection_path():
-    i0 = Identifier.from_id('ddr')
-    i1 = Identifier.from_id('ddr-test')
-    i2 = Identifier.from_id('ddr-test-123')
-    i3 = Identifier.from_id('ddr-test-123-456')
-    i4 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
+    i0 = Identifier('ddr')
+    i1 = Identifier('ddr-test')
+    i2 = Identifier('ddr-test-123')
+    i3 = Identifier('ddr-test-123-456')
+    i4 = Identifier('ddr-test-123-456-master-a1b2c3d4e5')
     assert_raises(Exception, i0, 'collection_path')
     assert_raises(Exception, i1, 'collection_path')
     assert_raises(Exception, i2, 'collection_path')
     assert_raises(Exception, i3, 'collection_path')
     assert_raises(Exception, i4, 'collection_path')
     
-    i0 = Identifier.from_id('ddr', BASE_PATH)
-    i1 = Identifier.from_id('ddr-test', BASE_PATH)
-    i2 = Identifier.from_id('ddr-test-123', BASE_PATH)
-    i3 = Identifier.from_id('ddr-test-123-456', BASE_PATH)
-    i4 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5', BASE_PATH)
+    i0 = Identifier('ddr', BASE_PATH)
+    i1 = Identifier('ddr-test', BASE_PATH)
+    i2 = Identifier('ddr-test-123', BASE_PATH)
+    i3 = Identifier('ddr-test-123-456', BASE_PATH)
+    i4 = Identifier('ddr-test-123-456-master-a1b2c3d4e5', BASE_PATH)
     assert_raises(Exception, i0, 'collection_path')
     assert_raises(Exception, i1, 'collection_path')
     assert i2.collection_path() == COLLECTION_COLLECTION_PATH
@@ -337,11 +329,11 @@ ENTITY_PARENT_ID     = 'ddr-test-123'
 FILE_PARENT_ID       = 'ddr-test-123-456'
 
 def test_parent_id():
-    i0 = Identifier.from_id('ddr')
-    i1 = Identifier.from_id('ddr-test')
-    i2 = Identifier.from_id('ddr-test-123')
-    i3 = Identifier.from_id('ddr-test-123-456')
-    i4 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
+    i0 = Identifier('ddr')
+    i1 = Identifier('ddr-test')
+    i2 = Identifier('ddr-test-123')
+    i3 = Identifier('ddr-test-123-456')
+    i4 = Identifier('ddr-test-123-456-master-a1b2c3d4e5')
     assert i0.parent_id() == REPO_PARENT_ID
     assert i1.parent_id() == ORG_PARENT_ID
     assert i2.parent_id() == COLLECTION_PARENT_ID
@@ -363,13 +355,13 @@ FILE_PATH_ABS_JSON       = '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-4
 FILE_PATH_ABS_ACCESS = '/var/www/media/ddr/ddr-test-123/files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5/ddr-test-123-456-master-a1b2c3d4e5-a.jpg'
 
 def test_path_abs():
-    ri0 = Identifier.from_id(
+    ri0 = Identifier(
         'ddr'
     )
     assert_raises(Exception, ri0, 'path_abs')
     assert_raises(Exception, ri0, 'path_abs', 'json')
     assert_raises(Exception, ri0, 'path_abs', 'BAD')
-    ri1 = Identifier.from_id(
+    ri1 = Identifier(
         'ddr',
         BASE_PATH
     )
@@ -377,13 +369,13 @@ def test_path_abs():
     assert ri1.path_abs('json') == REPO_PATH_ABS_JSON
     assert_raises(Exception, ri1, 'path_abs', 'BAD')
     
-    oi0 = Identifier.from_id(
+    oi0 = Identifier(
         'ddr-test'
     )
     assert_raises(Exception, oi0, 'path_abs')
     assert_raises(Exception, oi0, 'path_abs', 'json')
     assert_raises(Exception, oi0, 'path_abs', 'BAD')
-    oi1 = Identifier.from_id(
+    oi1 = Identifier(
         'ddr-test',
         BASE_PATH
     )
@@ -391,13 +383,13 @@ def test_path_abs():
     assert oi1.path_abs('json') == ORG_PATH_ABS_JSON
     assert_raises(Exception, oi1, 'path_abs', 'BAD')
     
-    ci0 = Identifier.from_id(
+    ci0 = Identifier(
         'ddr-test-123'
     )
     assert_raises(Exception, ci0, 'path_abs')
     assert_raises(Exception, ci0, 'path_abs', 'json')
     assert_raises(Exception, ci0, 'path_abs', 'BAD')
-    ci1 = Identifier.from_id(
+    ci1 = Identifier(
         'ddr-test-123',
         BASE_PATH
     )
@@ -405,13 +397,13 @@ def test_path_abs():
     assert ci1.path_abs('json') == COLLECTION_PATH_ABS_JSON
     assert_raises(Exception, ci1, 'path_abs', 'BAD')
     
-    ei0 = Identifier.from_id(
+    ei0 = Identifier(
         'ddr-test-123-456'
     )
     assert_raises(Exception, ei0, 'path_abs')
     assert_raises(Exception, ei0, 'path_abs', 'json')
     assert_raises(Exception, ei0, 'path_abs', 'BAD')
-    ei1 = Identifier.from_id(
+    ei1 = Identifier(
         'ddr-test-123-456',
         BASE_PATH
     )
@@ -419,14 +411,14 @@ def test_path_abs():
     assert ei1.path_abs('json') == ENTITY_PATH_ABS_JSON
     assert_raises(Exception, ei1, 'path_abs', 'BAD')
     
-    fi0 = Identifier.from_id(
+    fi0 = Identifier(
         'ddr-test-123-456-master-a1b2c3d4e5'
     )
     assert_raises(Exception, fi0, 'path_abs')
     assert_raises(Exception, fi0, 'path_abs', 'access')
     assert_raises(Exception, fi0, 'path_abs', 'json')
     assert_raises(Exception, fi0, 'path_abs', 'BAD')
-    fi1 = Identifier.from_id(
+    fi1 = Identifier(
         'ddr-test-123-456-master-a1b2c3d4e5',
         BASE_PATH
     )
@@ -435,7 +427,7 @@ def test_path_abs():
     assert fi1.path_abs('json')   == FILE_PATH_ABS_JSON
     assert_raises(Exception, fi1, 'path_abs', 'BAD')
     
-    fi2 = Identifier.from_path('/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456')
+    fi2 = Identifier('/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456')
     assert fi2.path_abs()       == '/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456'
     assert fi2.path_abs('json') == '/mnt/nfsdrive/ddr/ddr-test-123/files/ddr-test-123-456/entity.json'
 
@@ -454,27 +446,27 @@ FILE_PATH_REL_JSON       = 'files/ddr-test-123-456/files/ddr-test-123-456-master
 FILE_PATH_REL_ACCESS = 'files/ddr-test-123-456/files/ddr-test-123-456-master-a1b2c3d4e5/ddr-test-123-456-master-a1b2c3d4e5-a.jpg'
 
 def test_path_rel():
-    i0 = Identifier.from_id('ddr')
+    i0 = Identifier('ddr')
     assert i0.path_rel()         == REPO_PATH_REL
     assert i0.path_rel('json')   == REPO_PATH_REL_JSON
     assert_raises(Exception, i0, 'path_rel', 'BAD')
     
-    i1 = Identifier.from_id('ddr-test')
+    i1 = Identifier('ddr-test')
     assert i1.path_rel()         == ORG_PATH_REL
     assert i1.path_rel('json')   == ORG_PATH_REL_JSON
     assert_raises(Exception, i1, 'path_rel', 'BAD')
     
-    i2 = Identifier.from_id('ddr-test-123')
+    i2 = Identifier('ddr-test-123')
     assert i2.path_rel()         == COLLECTION_PATH_REL
     assert i2.path_rel('json')   == COLLECTION_PATH_REL_JSON
     assert_raises(Exception, i2, 'path_rel', 'BAD')
     
-    i3 = Identifier.from_id('ddr-test-123-456')
+    i3 = Identifier('ddr-test-123-456')
     assert i3.path_rel()         == ENTITY_PATH_REL
     assert i3.path_rel('json')   == ENTITY_PATH_REL_JSON
     assert_raises(Exception, i3, 'path_rel', 'BAD')
     
-    i4 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
+    i4 = Identifier('ddr-test-123-456-master-a1b2c3d4e5')
     assert i4.path_rel()         == FILE_PATH_REL
     assert i4.path_rel('access') == FILE_PATH_REL_ACCESS
     assert i4.path_rel('json')   == FILE_PATH_REL_JSON
@@ -493,22 +485,22 @@ ENTITY_PUBLIC_URL     = '/ddr/test/123/456'
 FILE_PUBLIC_URL       = '/ddr/test/123/456/master/a1b2c3d4e5'
 
 def test_urlpath():
-    i0 = Identifier.from_id('ddr')
+    i0 = Identifier('ddr')
     assert i0.urlpath('editor') == REPO_EDITOR_URL
     assert i0.urlpath('public') == REPO_PUBLIC_URL
     
-    i1 = Identifier.from_id('ddr-test')
+    i1 = Identifier('ddr-test')
     assert i1.urlpath('editor') == ORG_EDITOR_URL
     assert i1.urlpath('public') == ORG_PUBLIC_URL
     
-    i2 = Identifier.from_id('ddr-test-123')
+    i2 = Identifier('ddr-test-123')
     assert i2.urlpath('editor') == COLLECTION_EDITOR_URL
     assert i2.urlpath('public') == COLLECTION_PUBLIC_URL
     
-    i3 = Identifier.from_id('ddr-test-123-456')
+    i3 = Identifier('ddr-test-123-456')
     assert i3.urlpath('editor') == ENTITY_EDITOR_URL
     assert i3.urlpath('public') == ENTITY_PUBLIC_URL
     
-    i4 = Identifier.from_id('ddr-test-123-456-master-a1b2c3d4e5')
+    i4 = Identifier('ddr-test-123-456-master-a1b2c3d4e5')
     assert i4.urlpath('editor') == FILE_EDITOR_URL
     assert i4.urlpath('public') == FILE_PUBLIC_URL

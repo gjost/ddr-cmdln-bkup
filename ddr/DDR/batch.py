@@ -475,8 +475,8 @@ def load_entity(collection_path, class_, rowd):
     @param rowd:
     @returns: entity
     """
-    cidentifier = Identifier.from_path(collection_path)
-    eidentifier = Identifier.from_id(rowd['id'], cidentifier.basepath)
+    cidentifier = Identifier(path=collection_path)
+    eidentifier = Identifier(id=rowd['id'], base_path=cidentifier.basepath)
     entity_path = eidentifier.path_abs()
     entity_json_path = eidentifier.path_abs('json')
     # update an existing entity
@@ -633,12 +633,12 @@ def test_entities(collection_path, class_, rowds):
     @returns: ok,bad
     """
     logging.info('Validating parent entities')
-    cidentifier = Identifier.from_path(collection_path)
+    cidentifier = Identifier(path=collection_path)
     # get unique entity_ids
     eids = []
     for rowd in rowds:
-        fidentifier = Identifier.from_id(rowd['file_id'], cidentifier.basepath)
-        eidentifier = Identifier.from_id(fidentifier.parent_id(), cidentifier.basepath)
+        fidentifier = Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
+        eidentifier = Identifier(id=fidentifier.parent_id(), base_path=cidentifier.basepath)
         eids.append(eidentifier)
     # test-load the Entities
     entities = {}
@@ -673,7 +673,7 @@ def test_new_files(csv_path, rowds):
     logging.info('Checking for new files')
     paths = []
     for rowd in rowds:
-        identifier = Identifier.from_id(rowd['file_id'])
+        identifier = Identifier(id=rowd['file_id'])
         if identifier.model == 'file':
             # files that exist in the same directory as .csv
             paths.append(os.path.join(
@@ -707,9 +707,9 @@ def load_file(collection_path, file_class, rowd):
     """
     identifier = None
     if rowd.get('file_id',None):
-        identifier = Identifier.from_id(
-            rowd['file_id'],
-            os.path.dirname(collection_path)
+        identifier = Identifier(
+            id=rowd['file_id'],
+            base_path=os.path.dirname(collection_path)
         )
     # update an existing file
     path_abs = identifier.path_abs()
@@ -799,7 +799,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     collection_path = os.path.normpath(collection_path)
     logging.info('-----------------------------------------------')
     csv_dir = os.path.dirname(csv_path)
-    cidentifier = Identifier.from_path(collection_path)
+    cidentifier = Identifier(path=collection_path)
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
@@ -835,7 +835,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         entity.changelog_added = []
     for n,rowd in enumerate(rowds):
         logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['file_id']))
-        fidentifier = Identifier.from_id(rowd['file_id'], cidentifier.basepath)
+        fidentifier = Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
         file0 = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file0, module, field_names, rowd)
         entity = entities[fidentifier.parent_id()]
