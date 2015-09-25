@@ -1,6 +1,7 @@
 # coding: utf-8
 
 from collections import OrderedDict
+import importlib
 import os
 import re
 import string
@@ -16,6 +17,12 @@ MODELS = [
     'organization', # required
     'repository',   # required
 ]
+
+MODEL_CLASSES = {
+    'file':         {'module': 'DDR.models', 'class':'File'},
+    'entity':       {'module': 'DDR.models', 'class':'Entity'},
+    'collection':   {'module': 'DDR.models', 'class':'Collection'},
+}
 
 # Models that are part of collection repositories. Repository and organizations
 # are above the level of the collection and are thus excluded.
@@ -317,6 +324,19 @@ def _parse_args_kwargs(keys, args, kwargs):
                 blargs[key] = val
     return blargs
 
+def class_for_name(module_name, class_name):
+    """Returns specified class from specified module.
+    
+    @param module_name: str
+    @param class_name: str
+    @returns: class
+    """
+    # load the module, will raise ImportError if module cannot be loaded
+    m = importlib.import_module(module_name)
+    # get the class, will raise AttributeError if class cannot be found
+    c = getattr(m, class_name)
+    return c
+
 
 class MissingBasepathException(Exception):
     pass
@@ -477,6 +497,17 @@ class Identifier(object):
         parts = [val for val in self.parts.itervalues()]
         parts.insert(0, self.model)
         return parts
+    
+    def object_class(self, mappings=MODEL_CLASSES):
+        """Identifier's object class according to mappings.
+        """
+        return class_for_name(
+            mappings[self.model]['module'],
+            mappings[self.model]['class']
+        )
+    
+    def object(self, mappings=MODEL_CLASSES):
+        return self.object_class(mappings).from_identifier(self)
     
     def collection_id(self):
         if not self.model in COLLECTION_MODELS:
