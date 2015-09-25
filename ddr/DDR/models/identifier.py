@@ -358,101 +358,6 @@ class Identifier(object):
         elif blargs['parts']: self._from_idparts(blargs['parts'], blargs['base_path'])
         elif blargs['path']: self._from_path(blargs['path'], blargs['base_path'])
         elif blargs['url']: self._from_url(blargs['url'], blargs['base_path'])
-    
-    def __repr__(self):
-        return "<Identifier %s:%s>" % (self.model, self.id)
-
-    def components(self):
-        """Model and parts of the ID as a list.
-        """
-        parts = [val for val in self.parts.itervalues()]
-        parts.insert(0, self.model)
-        return parts
-    
-    def collection_id(self):
-        if not self.model in COLLECTION_MODELS:
-            raise Exception('%s objects do not have collection IDs' % self.model.capitalize())
-        return format_id(self, 'collection')
-    
-    def collection_path(self):
-        if not self.model in COLLECTION_MODELS:
-            raise Exception('%s objects do not have collection paths' % self.model.capitalize())
-        if not self.basepath:
-            raise MissingBasepathException('%s basepath not set.'% self)
-        return os.path.normpath(format_path(self, 'collection', 'abs'))
-    
-    def collection(self):
-        return Identifier(id=self.collection_id(), base_path=self.basepath)
-    
-    def parent_id(self):
-        if not PARENTS.get(self.model, None):
-            return None
-        return format_id(self, PARENTS[self.model])
-    
-    def parent_path(self):
-        """Absolute path to parent object
-        """
-        if not PARENTS.get(self.model, None):
-            return None
-        return os.path.normpath(format_path(self, PARENTS[self.model], 'abs'))
-    
-    def parent(self):
-        if self.parent_id():
-            return Identifier(id=self.parent_id(), base_path=self.basepath)
-        return None
-
-    def path_abs(self, append=None):
-        """Return absolute path to object with optional file appended.
-        
-        @param append: str File descriptor. Must be present in ADDITIONAL_PATHS!
-        @returns: str
-        """
-        if not self.basepath:
-            raise MissingBasepathException('%s basepath not set.'% self)
-        path = format_path(self, self.model, 'abs')
-        if append:
-            if self.model == 'file':
-                # For files, bits are appended to file ID using string formatter
-                dirname,basename = os.path.split(path)
-                template = ADDITIONAL_PATHS[self.model][append]
-                filename = template.format(id=self.id)
-                path = os.path.join(dirname, filename)
-            else:
-                # For everything else you just append the file or dirname
-                # to the end of the path
-                filename = ADDITIONAL_PATHS[self.model][append]
-                path = os.path.join(path, filename)
-        return os.path.normpath(path)
-    
-    def path_rel(self, append=None):
-        """Return relative path to object with optional file appended.
-        
-        Note: paths relative to repository, intended for use in Git commands.
-        
-        @param append: str Descriptor of file in ADDITIONAL_PATHS!
-        @returns: str
-        """
-        path = format_path(self, self.model, 'rel')
-        if append:
-            if self.model == 'file':
-                filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
-            else:
-                filename = ADDITIONAL_PATHS[self.model][append]
-            if path:
-                path = os.path.join(path, filename)
-            else:
-                path = filename
-        if path:
-            path = os.path.normpath(path)
-        return path
-    
-    def urlpath(self, url_type):
-        """Return object URL or URI.
-        
-        @param url_type: str 'public' or 'editor'
-        @returns: str
-        """
-        return format_url(self, self.model, url_type)
 
     def _from_id(self, object_id, base_path=None):
         """Make Identifier from object ID.
@@ -562,3 +467,98 @@ class Identifier(object):
         self.id = format_id(self, self.model)
         if base_path and not self.basepath:
             self.basepath = base_path
+    
+    def __repr__(self):
+        return "<Identifier %s:%s>" % (self.model, self.id)
+
+    def components(self):
+        """Model and parts of the ID as a list.
+        """
+        parts = [val for val in self.parts.itervalues()]
+        parts.insert(0, self.model)
+        return parts
+    
+    def collection_id(self):
+        if not self.model in COLLECTION_MODELS:
+            raise Exception('%s objects do not have collection IDs' % self.model.capitalize())
+        return format_id(self, 'collection')
+    
+    def collection_path(self):
+        if not self.model in COLLECTION_MODELS:
+            raise Exception('%s objects do not have collection paths' % self.model.capitalize())
+        if not self.basepath:
+            raise MissingBasepathException('%s basepath not set.'% self)
+        return os.path.normpath(format_path(self, 'collection', 'abs'))
+    
+    def collection(self):
+        return Identifier(id=self.collection_id(), base_path=self.basepath)
+    
+    def parent_id(self):
+        if not PARENTS.get(self.model, None):
+            return None
+        return format_id(self, PARENTS[self.model])
+    
+    def parent_path(self):
+        """Absolute path to parent object
+        """
+        if not PARENTS.get(self.model, None):
+            return None
+        return os.path.normpath(format_path(self, PARENTS[self.model], 'abs'))
+    
+    def parent(self):
+        if self.parent_id():
+            return Identifier(id=self.parent_id(), base_path=self.basepath)
+        return None
+
+    def path_abs(self, append=None):
+        """Return absolute path to object with optional file appended.
+        
+        @param append: str File descriptor. Must be present in ADDITIONAL_PATHS!
+        @returns: str
+        """
+        if not self.basepath:
+            raise MissingBasepathException('%s basepath not set.'% self)
+        path = format_path(self, self.model, 'abs')
+        if append:
+            if self.model == 'file':
+                # For files, bits are appended to file ID using string formatter
+                dirname,basename = os.path.split(path)
+                template = ADDITIONAL_PATHS[self.model][append]
+                filename = template.format(id=self.id)
+                path = os.path.join(dirname, filename)
+            else:
+                # For everything else you just append the file or dirname
+                # to the end of the path
+                filename = ADDITIONAL_PATHS[self.model][append]
+                path = os.path.join(path, filename)
+        return os.path.normpath(path)
+    
+    def path_rel(self, append=None):
+        """Return relative path to object with optional file appended.
+        
+        Note: paths relative to repository, intended for use in Git commands.
+        
+        @param append: str Descriptor of file in ADDITIONAL_PATHS!
+        @returns: str
+        """
+        path = format_path(self, self.model, 'rel')
+        if append:
+            if self.model == 'file':
+                filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
+            else:
+                filename = ADDITIONAL_PATHS[self.model][append]
+            if path:
+                path = os.path.join(path, filename)
+            else:
+                path = filename
+        if path:
+            path = os.path.normpath(path)
+        return path
+    
+    def urlpath(self, url_type):
+        """Return object URL or URI.
+        
+        @param url_type: str 'public' or 'editor'
+        @returns: str
+        """
+        return format_url(self, self.model, url_type)
