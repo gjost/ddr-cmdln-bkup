@@ -509,6 +509,16 @@ class Identifier(object):
         if self.parent_id():
             return Identifier(id=self.parent_id(), base_path=self.basepath)
         return None
+    
+    def lineage(self):
+        """Identifier's lineage, starting with the Identifier itself.
+        """
+        i = self
+        identifiers = [i]
+        while(i.parent()):
+            i = i.parent()
+            identifiers.append(i)
+        return identifiers
 
     def path_abs(self, append=None):
         """Return absolute path to object with optional file appended.
