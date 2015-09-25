@@ -306,10 +306,10 @@ def from_json(model, json_path, identifier):
     if os.path.exists(json_path):
         if identifier.model in ['file']:
             # object_id is in .json file
-            document = model(os.path.splitext(json_path)[0])
+            document = model(os.path.splitext(json_path)[0], identifier=identifier)
         else:
             # object_id is in object directory
-            document = model(os.path.dirname(json_path))
+            document = model(os.path.dirname(json_path), identifier=identifier)
         document_id = document.id  # save this just in case
         document.load_json(read_json(json_path))
         if not document.id:
@@ -708,7 +708,7 @@ class Collection( object ):
     _astatus = ''
     _unsynced = 0
     
-    def __init__( self, path_abs, id=None ):
+    def __init__( self, path_abs, id=None, identifier=None ):
         """
         >>> c = Collection('/tmp/ddr-testing-123')
         >>> c.id
@@ -723,7 +723,10 @@ class Collection( object ):
         '/tmp/ddr-testing-123/collection.json'
         """
         path_abs = os.path.normpath(path_abs)
-        i = Identifier(path=path_abs)
+        if identifier:
+            i = identifier
+        else:
+            i = Identifier(path=path_abs)
         self.identifier = i
         
         self.id = i.id
@@ -1089,9 +1092,12 @@ class Entity( object ):
     _file_objects = 0
     _file_objects_loaded = 0
     
-    def __init__( self, path_abs, id=None ):
+    def __init__( self, path_abs, id=None, identifier=None ):
         path_abs = os.path.normpath(path_abs)
-        i = Identifier(path=path_abs)
+        if identifier:
+            i = identifier
+        else:
+            i = Identifier(path=path_abs)
         self.identifier = i
         
         self.id = i.id
@@ -1936,7 +1942,10 @@ class File( object ):
             # TODO accept path_rel plus base_path
             raise Exception("File must be instantiated with an absolute path!")
         path_abs = os.path.normpath(path_abs)
-        i = Identifier(path=path_abs)
+        if kwargs and kwargs.get('identifier',None):
+            i = kwargs['identifier']
+        else:
+            i = Identifier(path=path_abs)
         self.identifier = i
         
         self.id = i.id
