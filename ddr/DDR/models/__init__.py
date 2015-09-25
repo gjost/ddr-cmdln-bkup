@@ -691,8 +691,8 @@ class Stub(object):
     def __repr__(self):
         return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
-    def parent(self):
-        return self.identifier.parent().object()
+    def parent(self, stubs=False):
+        return self.identifier.parent(stubs).object()
 
     def children(self):
         return []
@@ -831,7 +831,7 @@ class Collection( object ):
     def parent( self ):
         """Returns Collection's parent object.
         """
-        return None
+        return self.identifier.parent().object()
     
     def children( self, quick=None ):
         """Returns list of the Collection's Entity objects.

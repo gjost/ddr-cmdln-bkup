@@ -49,6 +49,14 @@ CONTAINERS = [
 PARENTS = {
     'file': 'entity',
     'entity': 'collection',
+    'collection': None,
+}
+# include Stubs
+PARENTS_ALL = {
+    #'file': 'entity',
+    'file': 'file-role',
+    'file-role': 'entity',
+    'entity': 'collection',
     'collection': 'organization',
     'organization': 'repository',
     'repository': None,
@@ -530,30 +538,44 @@ class Identifier(object):
     def collection(self):
         return Identifier(id=self.collection_id(), base_path=self.basepath)
     
-    def parent_id(self):
-        if not PARENTS.get(self.model, None):
+    def parent_id(self, stubs=False):
+        if stubs:
+            parent_model = PARENTS_ALL.get(self.model, None)
+        else:
+            parent_model = PARENTS.get(self.model, None)
+        if not parent_model:
             return None
-        return format_id(self, PARENTS[self.model])
+        return format_id(self, parent_model)
     
-    def parent_path(self):
+    def parent_path(self, stubs=False):
         """Absolute path to parent object
         """
-        if not PARENTS.get(self.model, None):
-            return None
-        return os.path.normpath(format_path(self, PARENTS[self.model], 'abs'))
-    
-    def parent(self):
-        if self.parent_id():
-            return Identifier(id=self.parent_id(), base_path=self.basepath)
+        if stubs:
+            parent_model = PARENTS_ALL.get(self.model, None)
+        else:
+            parent_model = PARENTS.get(self.model, None)
+        if parent_model:
+            path = format_path(self, parent_model, 'abs')
+            if path:
+                return os.path.normpath(path)
         return None
     
-    def lineage(self):
+    def parent(self, stubs=False):
+        """
+        @param actual: boolean An archival object not just a Stub
+        """
+        pid = self.parent_id(stubs)
+        if pid:
+            return Identifier(id=pid, base_path=self.basepath)
+        return None
+    
+    def lineage(self, stubs=False):
         """Identifier's lineage, starting with the Identifier itself.
         """
         i = self
         identifiers = [i]
-        while(i.parent()):
-            i = i.parent()
+        while(i.parent(stubs=stubs)):
+            i = i.parent(stubs=stubs)
             identifiers.append(i)
         return identifiers
 
