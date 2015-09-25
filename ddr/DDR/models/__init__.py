@@ -303,10 +303,11 @@ def from_json(model, json_path, identifier):
     @returns: object
     """
     document = None
-    if os.path.exists(json_path):
+    if json_path and os.path.exists(json_path):
         if identifier.model in ['file']:
             # object_id is in .json file
-            document = model(os.path.splitext(json_path)[0], identifier=identifier)
+            path = os.path.splitext(json_path)[0]
+            document = model(path, identifier=identifier)
         else:
             # object_id is in object directory
             document = model(os.path.dirname(json_path), identifier=identifier)

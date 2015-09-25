@@ -263,16 +263,15 @@ def format_path(i, model, path_type):
     @param i: Identifier
     @param model: str A legal model keyword
     @param path_type: str 'abs' or 'rel'
-    @returns: str
+    @returns: str or None
     """
     key = '-'.join([model, path_type])
-    kwargs = {key: val for key,val in i.parts.items()}
-    kwargs['basepath'] = i.basepath
-    try:
-        template = PATH_TEMPLATES[key]
+    template = PATH_TEMPLATES.get(key, None)
+    if template:
+        kwargs = {key: val for key,val in i.parts.items()}
+        kwargs['basepath'] = i.basepath
         return template.format(**kwargs)
-    except KeyError:
-        return None
+    return None
 
 def format_url(i, model, url_type):
     """Format URL using URL_TEMPLATES.
@@ -568,17 +567,18 @@ class Identifier(object):
             raise MissingBasepathException('%s basepath not set.'% self)
         path = format_path(self, self.model, 'abs')
         if append:
-            if self.model == 'file':
+            filename = ADDITIONAL_PATHS.get(self.model,None).get(append,None)
+            if filename and self.model == 'file':
                 # For files, bits are appended to file ID using string formatter
                 dirname,basename = os.path.split(path)
-                template = ADDITIONAL_PATHS[self.model][append]
-                filename = template.format(id=self.id)
+                filename = filename.format(id=self.id)
                 path = os.path.join(dirname, filename)
-            else:
+            elif filename:
                 # For everything else you just append the file or dirname
                 # to the end of the path
-                filename = ADDITIONAL_PATHS[self.model][append]
                 path = os.path.join(path, filename)
+            else:
+                return None
         return os.path.normpath(path)
     
     def path_rel(self, append=None):
