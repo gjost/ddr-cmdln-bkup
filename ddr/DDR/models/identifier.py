@@ -20,8 +20,11 @@ MODELS = [
 
 MODEL_CLASSES = {
     'file':         {'module': 'DDR.models', 'class':'File'},
+    'file-role':    {'module': 'DDR.models', 'class':'Stub'},
     'entity':       {'module': 'DDR.models', 'class':'Entity'},
     'collection':   {'module': 'DDR.models', 'class':'Collection'},
+    'organization': {'module': 'DDR.models', 'class':'Stub'},
+    'repository':   {'module': 'DDR.models', 'class':'Stub'},
 }
 
 # Models that are part of collection repositories. Repository and organizations
@@ -131,8 +134,10 @@ ID_TEMPLATES = {
 
 PATH_TEMPLATES = {
     'file-rel':         'files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    # file-role-rel
     'entity-rel':       'files/{repo}-{org}-{cid}-{eid}',
     'file-abs':         '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
+    # file-role-abs
     'entity-abs':       '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}',
     'collection-abs':   '{basepath}/{repo}-{org}-{cid}',
     'organization-abs': '{basepath}/{repo}-{org}',
@@ -170,6 +175,8 @@ ADDITIONAL_PATHS = {
     'file': {
         'access': '{id}-a.jpg',
         'json': '{id}.json',
+    },
+    'file-role': {
     },
     'entity': {
         'changelog': 'changelog',

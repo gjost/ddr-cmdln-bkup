@@ -673,6 +673,30 @@ class Locking(object):
 # objects --------------------------------------------------------------
 
 
+class Stub(object):
+    id = None
+    idparts = None
+    identifier = None
+
+    def __init__(self, identifier):
+        self.identifier = identifier
+        self.id = self.identifier.id
+        self.idparts = self.identifier.parts
+    
+    @staticmethod
+    def from_identifier(identifier):
+        return Stub(identifier)
+    
+    def __repr__(self):
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
+    
+    def parent(self):
+        return self.identifier.parent().object()
+
+    def children(self):
+        return []
+    
+
 class Collection( object ):
     root = None
     id = None
