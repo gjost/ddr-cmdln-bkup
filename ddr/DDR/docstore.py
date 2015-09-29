@@ -714,7 +714,8 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     for field in document:
         for k,v in field.iteritems():
             data[k] = v
-
+    identifier = Identifier(id=data['id'])
+    
     # make sure Files have id,title
     # TODO do this elsewhere, like in File object
     if data and data.get('path_rel', None):
@@ -725,8 +726,6 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
             label = basename_orig
         elif filename and not label:
             label = filename
-        identifier = Identifier(id=filename)
-        data['id'] = identifier.id
         data['title'] = label
     
     # additional_fields

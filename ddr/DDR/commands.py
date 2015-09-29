@@ -717,7 +717,7 @@ def entity_update(user_name, user_mail, collection_path, entity_id, updated_file
         Identifier(path=collection_path)
     )
     entity = DDREntity.from_identifier(
-        Identifierid(id=entity_id, base_path=collection.identifier.basepath)
+        Identifier(id=entity_id, base_path=collection.identifier.basepath)
     )
     
     repo = dvcs.repository(collection.path, user_name, user_mail)
