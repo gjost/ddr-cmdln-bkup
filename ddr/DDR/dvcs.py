@@ -693,7 +693,7 @@ def merge_add( repo, file_path_rel ):
     """Adds file unless contains conflict markers
     """
     # check for merge conflict markers
-    file_path_abs = os.path.join(repo_path, file_path_rel)
+    file_path_abs = os.path.join(repo.working_dir, file_path_rel)
     with open(file_path_abs, 'r') as f:
         txt = f.read()
     if (MERGE_MARKER_START in txt) or (MERGE_MARKER_MID in txt) or (MERGE_MARKER_END in txt):
@@ -706,7 +706,7 @@ def merge_commit( repo ):
     
     Assumes files have already been added; quits if it finds unmerged files.
     """
-    unmerged = list_conflicted(path)
+    unmerged = list_conflicted(repo)
     if unmerged:
         return 'ERROR: unmerged files exist!'
     commit = repo.git.commit('--message', 'merge conflicts resolved using DDR web UI.')
@@ -716,7 +716,7 @@ def diverge_commit( repo ):
     
     Assumes files have already been added; quits if it finds unmerged files.
     """
-    unmerged = list_conflicted(path)
+    unmerged = list_conflicted(repo)
     if unmerged:
         return 'ERROR: unmerged files exist!'
     commit = repo.git.commit('--message', 'divergent commits resolved using DDR web UI.')
