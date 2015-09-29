@@ -728,7 +728,7 @@ def entity_update(user_name, user_mail, collection_path, entity_id, updated_file
     # entity file paths are relative to collection root
     git_files = []
     for f in updated_files:
-        git_files.append( os.path.join( 'files', entity.id, f) )
+        git_files.append( os.path.join( 'files', entity.id, str(f)) )
     
     # entity changelog
     entity_changelog_messages = []
