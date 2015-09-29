@@ -318,6 +318,28 @@ def from_json(model, json_path, identifier):
             document.id = document_id
     return document
 
+def read_xml(path):
+    pass
+
+def write_xml(text, path):
+    """Write text to UTF-8 file.
+    
+    @param text: unicode
+    @param path: str Absolute path to file.
+    """
+    # TODO use codecs.open utf-8
+    with open(path, 'w') as f:
+        f.write(text)
+
+def load_xml():
+    pass
+
+def prep_xml():
+    pass
+
+def from_xml():
+    pass
+
 
 class Path( object ):
     pass
@@ -995,8 +1017,12 @@ class Collection( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        with open(self.ead_path, 'w') as f:
-            f.write(xml_pretty)
+        return xml_pretty
+
+    def write_ead(self):
+        """Write EAD XML file to disk.
+        """
+        write_xml(self.dump_ead(), self.ead_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -1348,8 +1374,12 @@ class Entity( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        with open(self.mets_path, 'w') as f:
-            f.write(xml_pretty)
+        return xml_pretty
+
+    def write_mets(self):
+        """Write METS XML file to disk.
+        """
+        write_xml(self.dump_mets(), self.mets_path)
     
     @staticmethod
     def checksum_algorithms():
