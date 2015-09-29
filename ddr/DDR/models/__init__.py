@@ -235,6 +235,7 @@ def load_json(document, module, json_text):
     except ValueError:
         json_data = [
             {'title': 'ERROR: COULD NOT READ DATA (.JSON) FILE!'},
+            {'_error': 'Error: ValueError during read load_json.'},
         ]
     ## software and commit metadata
     #if data:
