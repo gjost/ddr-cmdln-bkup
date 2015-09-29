@@ -11,8 +11,8 @@ import git
 
 from DDR import storage
 from DDR import dvcs
+from DDR.identifier import Identifier
 from DDR.models import Collection as DDRCollection, Entity as DDREntity
-from DDR.models.identifier import Identifier
 from DDR.changelog import write_changelog_entry
 from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
 

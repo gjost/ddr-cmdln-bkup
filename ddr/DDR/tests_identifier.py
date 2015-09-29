@@ -6,7 +6,7 @@ import os
 
 from nose.tools import assert_raises
 
-from DDR.models.identifier import Identifier
+from DDR.identifier import Identifier
 
 BASE_PATH = '/var/www/media/ddr'
 

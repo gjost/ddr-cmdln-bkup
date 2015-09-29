@@ -29,8 +29,8 @@ from DDR import changelog
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import imaging
+from DDR.identifier import Identifier
 from DDR.models.xml import EAD, METS
-from DDR.models.identifier import Identifier
 #from DDR import commands
 # NOTE: DDR.commands imports DDR.models.Collection which is a circular import
 # so the following is imported in Entity.add_access

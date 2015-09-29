@@ -15,8 +15,8 @@ from DDR import changelog
 from DDR import commands
 from DDR import dvcs
 from DDR import models
+from DDR.identifier import Identifier
 from DDR.models import Module
-from DDR.models.identifier import Identifier
 
 COLLECTION_FILES_PREFIX = 'files'
 

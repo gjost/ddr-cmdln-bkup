@@ -45,7 +45,7 @@ from elasticsearch import Elasticsearch, TransportError
 
 from DDR import natural_sort
 from DDR import models
-from DDR.models.identifier import Identifier
+from DDR.identifier import Identifier
 
 from DDR import MAPPINGS_PATH
 from DDR import FACETS_PATH
