@@ -1314,14 +1314,18 @@ class Entity( object ):
         if not template:
             for f in self.files:
                 fd = {}
-                for key in ENTITY_FILE_KEYS:
-                    val = None
-                    if hasattr(f, key):
-                        val = getattr(f, key, None)
-                    elif f.get(key,None):
-                        val = f[key]
-                    if val != None:
-                        fd[key] = val
+                if isinstance(f, dict):
+                    for key in ENTITY_FILE_KEYS:
+                        val = None
+                        if hasattr(f, key):
+                            val = getattr(f, key, None)
+                        elif f.get(key,None):
+                            val = f[key]
+                        if val != None:
+                            fd[key] = val
+                elif isinstance(f, File):
+                    for key in ENTITY_FILE_KEYS:
+                        fd[key] = getattr(f, key)
                 files.append(fd)
         data.append( {'files':files} )
         return format_json(data)
