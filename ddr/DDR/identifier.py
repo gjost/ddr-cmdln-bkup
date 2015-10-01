@@ -61,6 +61,8 @@ PARENTS_ALL = {
     'organization': 'repository',
     'repository': None,
 }
+CHILDREN = {val:key for key,val in PARENTS.iteritems() if val}
+CHILDREN_ALL = {val:key for key,val in PARENTS_ALL.iteritems() if val}
 
 # Keywords that can legally appear in IDs
 ID_COMPONENTS = [
@@ -568,6 +570,24 @@ class Identifier(object):
         if pid:
             return Identifier(id=pid, base_path=self.basepath)
         return None
+    
+    def child(self, model, idparts, base_path=None):
+        """Returns a *new* child Identifier with specified properties.
+        
+        Does not return an existing child of the Identifier!
+        Useful for when you need Identifier info before Object is created.
+        
+        @param model: str Model of the child object
+        @param idparts: dict Additional idpart(s) to add.
+        """
+        if not model in CHILDREN[self.model]:
+            raise Exception('%s can not have child of type %s.' % (self.model, model))
+        child_parts = {key:val for key,val in self.parts.iteritems()}
+        child_parts['model'] = model
+        for key,val in idparts.iteritems():
+            if key in ID_COMPONENTS:
+                child_parts[key] = val
+        return Identifier(child_parts, base_path=base_path)
     
     def lineage(self, stubs=False):
         """Identifier's lineage, starting with the Identifier itself.
