@@ -1439,7 +1439,8 @@ class Entity( object ):
         self._file_objects = []
         for f in self.files:
             if f and f.get('path_rel',None):
-                fid = os.path.splitext(f['path_rel'])[0]
+                basename = os.path.basename(f['path_rel'])
+                fid = os.path.splitext(basename)[0]
                 identifier = Identifier(id=fid, base_path=self.identifier.basepath)
                 file_ = File.from_identifier(identifier)
                 self._file_objects.append(file_)
