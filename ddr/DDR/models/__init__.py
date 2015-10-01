@@ -1976,6 +1976,7 @@ class File( object ):
     basename = None
     basename_orig = ''
     size = None
+    role = None
     sha256 = None
     md5 = None
     public = 0
@@ -2019,6 +2020,7 @@ class File( object ):
         self.collection_id = i.collection_id()
         self.parent_id = i.parent_id()
         self.entity_id = self.parent_id
+        self.role = i.parts['role']
         
         self.path_abs = path_abs
         self.path = path_abs
