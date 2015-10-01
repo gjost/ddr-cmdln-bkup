@@ -541,6 +541,9 @@ class Identifier(object):
         return Identifier(id=self.collection_id(), base_path=self.basepath)
     
     def parent_id(self, stubs=False):
+        """
+        @param stubs: boolean Whether or not to include Stub objects.
+        """
         if stubs:
             parent_model = PARENTS_ALL.get(self.model, None)
         else:
@@ -551,6 +554,8 @@ class Identifier(object):
     
     def parent_path(self, stubs=False):
         """Absolute path to parent object
+        
+        @param stubs: boolean Whether or not to include Stub objects.
         """
         if stubs:
             parent_model = PARENTS_ALL.get(self.model, None)
@@ -563,8 +568,9 @@ class Identifier(object):
         return None
     
     def parent(self, stubs=False):
-        """
-        @param actual: boolean An archival object not just a Stub
+        """Parent of the Identifier
+        
+        @param stub: boolean An archival object not just a Stub
         """
         pid = self.parent_id(stubs)
         if pid:
@@ -591,6 +597,8 @@ class Identifier(object):
     
     def lineage(self, stubs=False):
         """Identifier's lineage, starting with the Identifier itself.
+        
+        @param stubs: boolean Whether or not to include Stub objects.
         """
         i = self
         identifiers = [i]
