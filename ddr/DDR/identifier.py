@@ -615,6 +615,7 @@ class Identifier(object):
         if append:
             if self.model == 'file':
                 filename = ADDITIONAL_PATHS[self.model][append].format(id=self.id)
+                path = os.path.dirname(path)
             else:
                 filename = ADDITIONAL_PATHS[self.model][append]
             if path:
