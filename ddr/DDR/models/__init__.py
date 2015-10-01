@@ -2012,7 +2012,7 @@ class File( object ):
         if kwargs and kwargs.get('identifier',None):
             i = kwargs['identifier']
         else:
-            i = Identifier(path=path_abs)
+            i = Identifier(path_abs)
         self.identifier = i
         
         self.id = i.id
