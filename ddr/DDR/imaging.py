@@ -95,7 +95,7 @@ def geometry_is_ok(geometry):
     return False
 
 def make_convert_cmd(src, dest, geometry):
-    return "convert %s[0] -resize '%s' %s" % (src, geometry, dest)
+    return "convert %s -resize '%s' %s" % (src, geometry, dest)
 
 def thumbnail(src, dest, geometry):
     """Attempt to make thumbnail
