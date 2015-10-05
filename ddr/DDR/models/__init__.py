@@ -2011,6 +2011,7 @@ class File( object ):
     path_rel = None
     json_path_rel = None
     access_rel = None
+    ext = None
     basename = None
     basename_orig = ''
     size = None
@@ -2050,7 +2051,7 @@ class File( object ):
         if kwargs and kwargs.get('identifier',None):
             i = kwargs['identifier']
         else:
-            i = Identifier(path_abs)
+            i = Identifier(os.path.splitext(path_abs)[0])
         self.identifier = i
         
         self.id = i.id
@@ -2059,6 +2060,9 @@ class File( object ):
         self.parent_id = i.parent_id()
         self.entity_id = self.parent_id
         self.role = i.parts['role']
+        
+        # IMPORTANT: These paths (set by Identifier) do not have file extension!
+        # File extension is added in File.load_json!
         
         self.path_abs = path_abs
         self.path = path_abs
@@ -2075,7 +2079,7 @@ class File( object ):
         self.access_rel = i.path_rel('access')
         
         self.basename = os.path.basename(self.path_abs)
-    
+
     def __repr__(self):
         return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
 
@@ -2166,6 +2170,17 @@ class File( object ):
             access_abs = os.path.join(self.entity_files_path, self.access_rel)
             if os.path.exists(access_abs):
                 self.access_abs = access_abs
+        # Identifier does not know file extension
+        self.ext = os.path.splitext(self.basename_orig)[1]
+        self.path = self.path + self.ext
+        self.path_abs = self.path_abs + self.ext
+        self.path_rel = self.path_rel + self.ext
+        self.basename = self.basename + self.ext
+        # fix access_rel
+        self.access_rel = os.path.join(
+            os.path.dirname(self.path_rel),
+            os.path.basename(self.access_abs)
+        )
     
     def dump_json(self, doc_metadata=False):
         """Dump File data to JSON-formatted text.
