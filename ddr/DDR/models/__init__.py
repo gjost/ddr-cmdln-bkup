@@ -980,6 +980,10 @@ class Collection( object ):
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
     
+    def post_json(self, hosts, index):
+        from DDR.docstore import post_json
+        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+    
     def lock( self, text ): return Locking.lock(self.lock_path, text)
     def unlock( self, text ): return Locking.unlock(self.lock_path, text)
     def locked( self ): return Locking.locked(self.lock_path)
@@ -1334,6 +1338,10 @@ class Entity( object ):
         """Write JSON file to disk.
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
+    
+    def post_json(self, hosts, index):
+        from DDR.docstore import post_json
+        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -2175,6 +2183,10 @@ class File( object ):
         """Write JSON file to disk.
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
+    
+    def post_json(self, hosts, index):
+        from DDR.docstore import post_json
+        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
     
     @staticmethod
     def file_name( entity, path_abs, role, sha1=None ):
