@@ -2191,7 +2191,8 @@ class File( object ):
         data = prep_json(self, filemodule)
         if doc_metadata:
             data.insert(0, document_metadata(filemodule, self.collection_path))
-        data.insert(1, {'path_rel': self.path_rel})
+        # what we call path_rel in the .json is actually basename
+        data.insert(1, {'path_rel': self.basename})
         return format_json(data)
 
     def write_json(self):
