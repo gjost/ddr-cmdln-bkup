@@ -538,7 +538,7 @@ class Identifier(object):
         return os.path.normpath(format_path(self, 'collection', 'abs'))
     
     def collection(self):
-        return Identifier(id=self.collection_id(), base_path=self.basepath)
+        return self.__class__(id=self.collection_id(), base_path=self.basepath)
     
     def parent_id(self, stubs=False):
         """
@@ -574,7 +574,7 @@ class Identifier(object):
         """
         pid = self.parent_id(stubs)
         if pid:
-            return Identifier(id=pid, base_path=self.basepath)
+            return self.__class__(id=pid, base_path=self.basepath)
         return None
     
     def child(self, model, idparts, base_path=None):
@@ -593,7 +593,7 @@ class Identifier(object):
         for key,val in idparts.iteritems():
             if key in ID_COMPONENTS:
                 child_parts[key] = val
-        return Identifier(child_parts, base_path=base_path)
+        return self.__class__(child_parts, base_path=base_path)
     
     def lineage(self, stubs=False):
         """Identifier's lineage, starting with the Identifier itself.
