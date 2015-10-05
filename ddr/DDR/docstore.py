@@ -663,18 +663,6 @@ def _clean_payload( data ):
             # rm null or empty fields
             _clean_dict(field)
 
-def _add_id_parts( data ):
-    """Add parts of id (e.g. repo, org, cid) to document as separate fields.
-    
-    >>> data = {'id'}
-    >>> _add_id_parts(data)
-    >>> data
-    {'id':'ddr-test-123', 'repo':'ddr', 'org':'test', 'cid':'123', ...}
-    """
-    identifier = Identifier(id=data['id'])
-    for key,val in identifier.parts.iteritems():
-        data[key] = val
-
 def post( hosts, index, document, public_fields=[], additional_fields={}, private_ok=False ):
     """Add a new document to an index or update an existing one.
     
@@ -685,6 +673,7 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     DDR metadata JSON files are structured as a list of fieldname:value dicts.
     This is done so that the fields are always in the same order, making it
     possible to easily see the difference between versions of a file.
+    [IMPORTANT: documents MUST contain an 'id' field!]
     
     In ElasticSearch, documents are structured in a normal dict so that faceting
     works properly.
@@ -701,6 +690,13 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     """
     logger.debug('post(%s, %s, %s, %s, %s, %s)' % (hosts, index, document, public_fields, additional_fields, private_ok))
     
+    document_id = None
+    for field in document:
+        for k,v in field.iteritems():
+            if k == 'id':
+                document_id = v
+    identifier = Identifier(document_id)
+    
     # die if document is public=False or status=incomplete
     if (not _is_publishable(document)) and (not private_ok):
         return {'status':403, 'response':'object not publishable'}
@@ -708,13 +704,12 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     _filter_payload(document, public_fields)
     # normalize field contents
     _clean_payload(document)
-    
+
     # restructure from list-of-fields dict to straight dict used by ddr-public
     data = {}
     for field in document:
         for k,v in field.iteritems():
             data[k] = v
-    identifier = Identifier(id=data['id'])
     
     # make sure Files have id,title
     # TODO do this elsewhere, like in File object
@@ -728,8 +723,10 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
             label = filename
         data['title'] = label
     
+    # Add parts of id (e.g. repo, org, cid) to document as separate fields.
+    for key,val in identifier.parts.iteritems():
+        data[key] = val
     # additional_fields
-    _add_id_parts(data)
     for key,val in additional_fields.iteritems():
         data[key] = val
     logger.debug('identifier.id %s' % identifier.id)
