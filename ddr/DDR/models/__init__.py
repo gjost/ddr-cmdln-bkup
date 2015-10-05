@@ -1987,6 +1987,46 @@ class Entity( object ):
         
         return f,repo,log
 
+    def rm_file(self, file_, git_name, git_mail, agent ):
+        """Delete specified file and update Entity.
+        
+        @param git_name: str
+        @param git_name: str
+        @param agent: str
+        """
+        from DDR import docstore
+        logger.debug('%s.rm_file(%s, %s, %s, %s)' % (self, file_, git_name, git_mail, agent))
+        # list of files to be *removed*
+        rm_files = [
+            f for f in file_.files_rel()
+            if os.path.exists(
+                os.path.join(self.collection_path, f)
+            )
+        ]
+        # remove pointers to file in entity.json
+        # TODO move this to commands.file_destroy or models.Entity
+        logger.debug('removing:')
+        for f in self.files:
+            logger.debug('| %s' % f)
+            if file_.id in f['path_rel']:
+                logger.debug('| --entity.files.remove(%s)' % f)
+                self.files.remove(f)
+        self.write_json()
+        # list of files to be *updated*
+        updated_files = ['entity.json']
+        logger.debug('updated_files: %s' % updated_files)
+        # remove and commit
+        from DDR import commands
+        status,message = commands.file_destroy(
+            git_name, git_mail,
+            self.collection_path, self.id,
+            rm_files, updated_files,
+            agent
+        )
+        logger.debug(status)
+        logger.debug(message)
+        return status,message
+
 
 
 FILE_KEYS = ['path_rel',
