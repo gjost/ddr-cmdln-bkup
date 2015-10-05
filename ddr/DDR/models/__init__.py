@@ -1604,20 +1604,26 @@ class Entity( object ):
         log.ok('File object')
         file_ = File(path_abs=dest_path, identifier=fidentifier)
         file_.basename_orig = os.path.basename(src_path)
+        # add extension to path_abs
+        file_.ext = os.path.splitext(file_.basename_orig)[1]
+        file_.path_abs = file_.path_abs + file_.ext
+        log.ok('file_.ext %s' % file_.ext)
+        log.ok('file_.path_abs %s' % file_.path_abs)
         file_.size = os.path.getsize(src_path)
         file_.role = role
         file_.sha1 = sha1
         file_.md5 = md5
         file_.sha256 = sha256
         log.ok('| file_ %s' % file_)
-        log.ok('| file_.path_abs: %s' % file_.path_abs)
         log.ok('| file_.basename_orig: %s' % file_.basename_orig)
+        log.ok('| file_.path_abs: %s' % file_.path_abs)
         log.ok('| file_.size: %s' % file_.size)
         # form data
         for field in data:
             setattr(file_, field, data[field])
         
         log.ok('Copying to work dir')
+        log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
         tmp_path = os.path.join(tmp_dir, file_.basename_orig)
         log.ok('| cp %s %s' % (src_path, tmp_path))
         shutil.copy(src_path, tmp_path)
@@ -1638,11 +1644,16 @@ class Entity( object ):
         
         log.ok('Access file')
         access_filename = File.access_filename(tmp_path_renamed)
+        access_dest_path = os.path.join(tmp_dir, os.path.basename(access_filename))
+        log.ok('src_path %s' % src_path)
+        log.ok('access_filename %s' % access_filename)
+        log.ok('access_dest_path %s' % access_dest_path)
+        log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
         tmp_access_path = None
         try:
             tmp_access_path = imaging.thumbnail(
                 src_path,
-                os.path.join(tmp_dir, os.path.basename(access_filename)),
+                access_dest_path,
                 geometry=ACCESS_FILE_GEOMETRY)
         except:
             # write traceback to log and continue on
@@ -1733,7 +1744,7 @@ class Entity( object ):
             file_.json_path_rel
         ]
         annex_files = [file_.path_abs.replace('%s/' % file_.collection_path, '')]
-        if file_.access_abs:
+        if file_.access_abs and os.path.exists(file_.access_abs):
             annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
         # These vars will be used to determine if stage operation is successful.
         # If called in batch operation there may already be staged files.
@@ -1849,8 +1860,6 @@ class Entity( object ):
         @param agent: (optional) Name of software making the change.
         @return file_ File object
         """
-        from DDR.commands import entity_annex_add
-        
         f = ddrfile
         repo = None
         log = self.addfile_logger()
@@ -1953,7 +1962,8 @@ class Entity( object ):
             git_files, annex_files,
             agent, self))
         try:
-            exit,status = entity_annex_add(
+            from DDR import commands
+            exit,status = commands.entity_annex_add(
                 git_name, git_mail,
                 self.parent_path, self.id, git_files, annex_files,
                 agent=agent, entity=self)
