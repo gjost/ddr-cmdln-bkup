@@ -2130,7 +2130,7 @@ class File( object ):
         """
         return Module(filemodule).labels_values(self)
     
-    def files_rel( self, collection_path ):
+    def files_rel( self ):
         """Returns list of the file, its metadata JSON, and access file, relative to collection.
         
         @param collection_path
