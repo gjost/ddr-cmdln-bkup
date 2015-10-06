@@ -152,6 +152,8 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
 def sort_file_paths(json_paths, rank='role-eid-sort'):
     """Sort file JSON paths in human-friendly order.
     
+    TODO this belongs in DDR.identifier
+    
     @param json_paths: 
     @param rank: 'role-eid-sort' or 'eid-sort-role'
     """
@@ -168,8 +170,11 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
             for line in f.readlines():
                 if 'sort' in line:
                     sort = line.split(':')[1].replace('"','').strip()
+        eid = str(eid)
+        sha1 = str(sha1)
+        sort = str(sort)
         if rank == 'eid-sort-role':
-            key = '-'.join([eid,sort,role,sha1])
+            key = '-'.join([str(eid),sort,role,sha1])
         elif rank == 'role-eid-sort':
             key = '-'.join([role,eid,sort,sha1])
         paths[key] = path

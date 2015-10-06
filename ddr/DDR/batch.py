@@ -260,7 +260,8 @@ def export(json_paths, class_, module, csv_path):
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
         for n,json_path in enumerate(json_paths):
-            obj = class_.from_json(json_path)
+            oi = Identifier(json_path)
+            obj = class_.from_identifier(oi)
             logging.info('%s/%s - %s' % (n+1, len(json_paths), obj.id))
             writer.writerow(dump_object(obj, module, field_names))
     return csv_path
