@@ -6,22 +6,28 @@
 
 description = """Copies binaries from a collection into a destination directory for publication."""
 
-epilog = """This command copies specified types of binaries from a collection to a destination folder.  Destination files are in a very simple hierarchy (just files within a single directory per collection) that is suitable for use by ddr-public.
+epilog = """
+This command copies specified types of binaries from a collection to a
+destination folder.  Destination files are in a very simple hierarchy (just
+files within a single directory per collection) that is suitable for use by
+ddr-public.
 
 ddrpubcopy produces a very simple file layout:
 
     $BASE/$COLLECTION_ID/$FILENAME
 
-This command uses git-annex find to generate the list of files.  Thus it will only work with files that are phsyically present in the filesystem.
+This command uses git-annex find to generate the list of files. Thus it will
+only work with files that are phsyically present in the filesystem.
 
-IMPORTANT: You are responsible for making sure that the destination base directory is available and writable.
+IMPORTANT: You are responsible for making sure that the destination base
+directory is available and writable.
 
-IMPORTANT: This command does not check whether files are published!  Use *after* filtering a collection.
+IMPORTANT: This command does not check whether files are published!
+Use *after* filtering a collection.
 
 EXAMPLES
 
-     $ ddrpubcopy -amM -c /var/www/media/base/ddr-testing-123 -d /media/USBHARDDRIVE
-
+     $ ddrpubcopy -amM /var/www/media/ddr/ddr-test-123 /media/USBHARDDRIVE
 
 ddr-public - ddrpubcopy"""
 
@@ -77,6 +83,8 @@ def logprint_nots(filename, msg):
     print(msg.strip('\n'))
 
 def find_files(collection_path):
+    """List files using git-annex-find.
+    """
     os.chdir(collection_path)
     # git annex find
     r0 = envoy.run('git annex find')
@@ -95,13 +103,24 @@ def filter_files(files, args):
             to_copy.append(f)
     return to_copy
 
+def rsync_files(to_copy, collection_path, destdir, LOG):
+    for f in to_copy:
+        src = os.path.join(collection_path, f)
+        dest = os.path.join(destdir, f)
+        cmd = 'rsync --copy-links %s %s/' % (src, destdir)
+        logprint(LOG, cmd)
+        r1 = envoy.run(cmd)
+        if r1.status_code:
+            logprint(LOG, r1.status_code)
+            logprint(LOG, r1.std_out)
+
 
 def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-c', '--collection', required=True, help='Absolute path to source collection repository.')
-    parser.add_argument('-d', '--destbase', required=True, help='Absolute path to destination base directory.')
+    parser.add_argument('collection', help='Absolute path to source collection repository.')
+    parser.add_argument('destbase', help='Absolute path to destination base directory.')
     parser.add_argument('-a', '--access', action='store_const', const=1, help='git-annex copy access files.')
     parser.add_argument('-m', '--mezzanine', action='store_const', const=1, help='git-annex copy mezzanine files.')
     parser.add_argument('-M', '--master', action='store_const', const=1, help='git-annex copy master files.')
@@ -133,16 +152,7 @@ def main():
     
     files = find_files(args.collection)
     to_copy = filter_files(files, args)
-    
-    for f in to_copy:
-        src = os.path.join(args.collection, f)
-        dest = os.path.join(destdir, f)
-        cmd = 'rsync --copy-links %s %s/' % (src, destdir)
-        logprint(LOG, cmd)
-        r1 = envoy.run(cmd)
-        if r1.status_code:
-            logprint(LOG, r1.status_code)
-            logprint(LOG, r1.std_out)
+    rsync_files(to_copy, args.collection, destdir, LOG)
         
     finished = datetime.now()
     elapsed = finished - started
