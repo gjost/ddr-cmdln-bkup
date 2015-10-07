@@ -72,7 +72,7 @@ def main():
     args = parser.parse_args()
     
     filepaths = models.metadata_files(args.repo, recursive=1, model='file', force_read=True)
-    hits = check_files(filepaths, verbose=False)
+    hits = check_files(filepaths, args.verbose)
 
 
 if __name__ == '__main__':
