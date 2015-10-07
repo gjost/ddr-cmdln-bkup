@@ -82,6 +82,14 @@ VALID_COMPONENTS = {
     ],
 }
 
+# Bits of file paths that uniquely identify file types.
+# Suitable for use on command-line e.g. in git-annex-whereis.
+FILETYPE_MATCH_ANNEX = {
+    'access': '*-a.jpg',
+    'master': '*-master-*',
+    'mezzanine': '*-mezzanine-*',
+}
+
 # ----------------------------------------------------------------------
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
 # Record format: (regex, description, model)
@@ -131,6 +139,13 @@ PATH_PATTERNS = _compile_patterns((
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)$', 'repository-meta-abs', 'repository'),
     (r'^repository.json$', 'repository-meta-rel', 'repository'),
 ))
+
+# Simple path regexes suitable for use inside for-loops
+PATH_PATTERNS_LOOP = (
+    (r'(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+).json$', '' 'file-json'),
+    (r'entity.json$', '' 'entity-json'),
+    (r'collection.json$', '' 'collection-json'),
+)
 
 URL_PATTERNS = _compile_patterns((
     # editor
