@@ -31,6 +31,7 @@ import sys
 from DDR import natural_sort
 from DDR import batch
 from DDR import models
+from DDR.identifier import Identifier
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -106,13 +107,13 @@ def read_id_file(path):
 def make_paths(collection_path, model, ids):
     basedir = os.path.dirname(collection_path)
     paths = [
-        models.identifier.Identifier.from_id(object_id, basedir).path_abs('json')
+        Identifier(object_id, basedir).path_abs('json')
         for object_id in ids
     ]
     return paths
 
 def make_csv_path(collection_path, model):
-    identifier = models.identifier.Identifier.from_path(collection_path)
+    identifier = Identifier(collection_path)
     return os.path.join('/tmp', '%s-%s.csv' % (identifier.id, model))
 
 def filter_paths(collection_path, model, pattern):

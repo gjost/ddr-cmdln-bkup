@@ -38,6 +38,8 @@ import sys
 
 import envoy
 
+from DDR import format_json, models
+
 
 METADATA_FILES_REGEX = {
     'collection': re.compile('collection.json'),
@@ -69,22 +71,15 @@ def logprint_nots(filename, msg):
         f.writelines([msg])
     print(msg.strip('\n'))
 
-def find_files(targetdir, file_types):
+def find_files(basedir, file_types):
     """Looks for filenames in the list.
     Just does stupid matching, not real regex or anything.
+    TODO refactor this does three passes
     """
-    regexes = []
-    for file_type in file_types:
-        regex = METADATA_FILES_REGEX.get(file_type,None)
-        if regex:
-            regexes.append(regex)
-    cmd = 'find %s -name "*.json" -print' % (targetdir)
-    r = envoy.run(cmd)
     paths = []
-    for path in r.std_out.split('\n'):
-        for regex in regexes:
-            if re.search(regex, path):
-                paths.append(path)
+    for m in file_types:
+        mpaths = models.metadata_files(basedir, recursive=True, model=m, force_read=True)
+        paths = paths + mpaths
     return paths
 
 def write_json(data, path):
@@ -104,9 +99,8 @@ def write_json(data, path):
     ...
     ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
     """
-    json_pretty = json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
     with open(path, 'w') as f:
-        f.write(json_pretty)
+        f.write(format_json(data))
 
 def update_file(json_path, field_name, new_value):
     """Updates specified field in json file with a value and saves.

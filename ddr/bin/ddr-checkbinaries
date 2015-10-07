@@ -14,13 +14,15 @@ Example:
 import argparse
 import os
 
+from DDR.identifier import Identifier
 from DDR import models
 
 ALGORITHMS = ['md5', 'sha1', 'sha256']
 
 
 def check_file(json_path, verbose=False):
-    f = models.File.from_json(json_path)
+    fi = Identifier(json_path)
+    f = models.File.from_identifier(fi)
 
     if not os.path.exists(f.path_abs):
         result = ['missing', f.path_abs]
