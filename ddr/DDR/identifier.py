@@ -88,19 +88,27 @@ VALID_COMPONENTS = {
 # TODO compile regexes
 #
 
-ID_PATTERNS = (
+def _compile_patterns(patterns):
+    """Replace str regexes with compiled regular expression objects."""
+    new = []
+    for p in patterns:
+        pattern = [x for x in p]
+        pattern[0] = re.compile(p[0])
+        new.append(pattern)
+    return new
+
+ID_PATTERNS = _compile_patterns((
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', '', 'file'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', '', 'file-role'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', '', 'entity'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', '', 'collection'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)$', '', 'organization'),
     (r'^(?P<repo>[\w]+)$', '', 'repository'),
-)
+))
 
 # In the current path scheme, collection and entity ID components are repeated.
 # Fields can't appear multiple times in regexes so redundant fields have numbers.
-# TODO compile regexes
-PATH_PATTERNS = (
+PATH_PATTERNS = _compile_patterns((
     # file-abs
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-abs'),
@@ -122,10 +130,9 @@ PATH_PATTERNS = (
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)/repository.json$', 'repository-meta-abs', 'repository'),
     (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)$', 'repository-meta-abs', 'repository'),
     (r'^repository.json$', 'repository-meta-rel', 'repository'),
-)
+))
 
-# TODO compile regexes
-URL_PATTERNS = (
+URL_PATTERNS = _compile_patterns((
     # editor
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'editor-file', 'file'),
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'editor-file-role', 'file-role'),
@@ -140,7 +147,7 @@ URL_PATTERNS = (
     (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)$', 'public-collection', 'collection'),
     (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)$', 'public-organization', 'organization'),
     (r'^/(?P<repo>[\w]+)$', 'public-repository', 'repository'),
-)
+))
 
 # ----------------------------------------------------------------------
 # Templates used to generate IDs, paths, and URLs from model and tokens
