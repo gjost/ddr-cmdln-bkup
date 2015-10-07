@@ -194,7 +194,7 @@ def clone(user_name, user_mail, collection_id, alt_collection_path):
     @return: message ('ok' if successful)
     """
     collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
+        Identifier(path=alt_collection_path)
     )
     url = '{}:{}.git'.format(GITOLITE, collection_id)
     
