@@ -254,6 +254,19 @@ def identify_object(text, patterns):
             break
     return model,groupdict
 
+def identify_filepath(path):
+    """
+    TODO use VALID_COMPONENTS or similar rather than hard-coding
+    
+    @param text: str Text string to look for
+    @returns: str File type or None
+    """
+    ftype = None
+    if   '-a.'    in path: ftype = 'access'
+    elif 'mezzan' in path: ftype = 'mezzanine'
+    elif 'master' in path: ftype = 'master'
+    return ftype
+
 def set_idparts(i, groupdict):
     i.basepath = groupdict.get('basepath', None)
     if i.basepath:
