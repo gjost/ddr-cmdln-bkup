@@ -69,6 +69,19 @@ ID_COMPONENTS = [
     'repo', 'org', 'cid', 'eid', 'role', 'sha1', 'ext'
 ]
 
+# Components in VALID_COMPONENTS.keys() must appear in VALID_COMPONENTS[key] to be valid.
+VALID_COMPONENTS = {
+    'repo': [
+        'ddr'
+    ],
+    'org': [
+        'densho', 'hmwf', 'janm', 'njpa', 'one', 'pc',
+    ],
+    'role': [
+        'master', 'mezzanine'
+    ],
+}
+
 # ----------------------------------------------------------------------
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
 # Record format: (regex, description, model)
@@ -297,23 +310,41 @@ def format_url(i, model, url_type):
     except KeyError:
         return None
 
-def _is_id(text):
-    for tpl in ID_PATTERNS:
+def matches_pattern(text, patterns):
+    """
+    @param text: str
+    @returns: dict of idparts including model
+    """
+    for tpl in patterns:
         pattern = tpl[0]
         model = tpl[-1]
         m = re.match(pattern, text)
         if m:
-            return True
-    return False
+            idparts = {k:v for k,v in m.groupdict().iteritems()}
+            idparts['model'] = model
+            return idparts
+    return {}
+
+def _is_id(text):
+    """
+    @param text: str
+    @returns: dict of idparts including model
+    """
+    return matches_pattern(text, ID_PATTERNS)
+
+def _is_path(text):
+    """
+    @param text: str
+    @returns: dict of idparts including model
+    """
+    return matches_pattern(text, PATH_PATTERNS)
 
 def _is_url(text):
-    for tpl in URL_PATTERNS:
-        pattern = tpl[0]
-        model = tpl[-1]
-        m = re.match(pattern, text)
-        if m:
-            return True
-    return False
+    """
+    @param text: str
+    @returns: dict of idparts including model
+    """
+    return matches_pattern(text, URL_PATTERNS)
 
 def _is_abspath(text):
     if isinstance(text, basestring) and os.path.isabs(text):
@@ -384,6 +415,38 @@ class Identifier(object):
     parts = OrderedDict()
     basepath = None
     id = None
+    
+    @staticmethod
+    def wellformed(idtype, text, models=MODELS):
+        """Checks if text is well-formed ID of specified type and (optionally) model.
+        
+        @param idtype: str one of ['id', 'path', 'url']
+        @param text: str
+        @param models: list
+        @returns: dict (populated if well-formed)
+        """
+        idparts = None
+        if idtype == 'id': idparts = _is_id(text)
+        elif idtype == 'path': idparts = _is_path(text)
+        elif idtype == 'url': idparts = _is_url(text)
+        if idparts and (idparts['model'] in models):
+            return idparts
+        return {}
+
+    @staticmethod
+    def valid(idparts):
+        """Checks if all non-int ID components are valid.
+        
+        @param idparts: dict
+        @returns: True or dict containing name of invalid component
+        """
+        invalid = [
+            key for key in VALID_COMPONENTS.iterkeys()
+            if idparts[key] not in VALID_COMPONENTS[key]
+        ]
+        if not invalid:
+            return True
+        return invalid
     
     def __init__(self, *args, **kwargs):
         """
