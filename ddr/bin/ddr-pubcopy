@@ -12,7 +12,7 @@ destination folder.  Destination files are in a very simple hierarchy (just
 files within a single directory per collection) that is suitable for use by
 ddr-public.
 
-ddrpubcopy produces a very simple file layout:
+ddr-pubcopy produces a very simple file layout:
 
     $BASE/$COLLECTION_ID/$FILENAME
 
@@ -27,9 +27,9 @@ Use *after* filtering a collection.
 
 EXAMPLES
 
-     $ ddrpubcopy -amM /var/www/media/ddr/ddr-test-123 /media/USBHARDDRIVE
+     $ ddr-pubcopy -amM /var/www/media/ddr/ddr-test-123 /media/USBHARDDRIVE
 
-ddr-public - ddrpubcopy"""
+ddr-public - ddr-pubcopy"""
 
 import argparse
 import ConfigParser
@@ -135,7 +135,7 @@ def main():
         sys.exit(1)
     
     started = datetime.now()
-    LOG = os.path.join(args.destbase, 'ddrpubcopy.log')
+    LOG = os.path.join(args.destbase, 'ddr-pubcopy.log')
     
     cid = os.path.basename(args.collection)
     destdir = os.path.join(args.destbase, cid)

@@ -20,15 +20,15 @@ It does not commit the changes!
 Example:
 
     # Update collection and entity metadata in a collection
-    $ ddrmassupdate collection,entity /var/www/media/base/ddr-testing-123
+    $ ddr-massupdate collection,entity /var/www/media/base/ddr-testing-123
 
     # Update all metadata files in a collection
-    $ ddrmassupdate collection,entity,file /var/www/media/base/ddr-testing-123
+    $ ddr-massupdate collection,entity,file /var/www/media/base/ddr-testing-123
 
     # Dry run: show which files would be changed by an operation
-    $ ddrmassupdate -d collection,entity,file /var/www/media/base/ddr-testing-123
+    $ ddr-massupdate -d collection,entity,file /var/www/media/base/ddr-testing-123
 
-ddr-public - ddrmassupdate"""
+ddr-public - ddr-massupdate"""
 
 import argparse
 from datetime import datetime
@@ -133,7 +133,7 @@ def main():
     args = parser.parse_args()
     collection_path = os.path.realpath(args.collection)
     collection_id = os.path.basename(collection_path)
-    LOG = os.path.join(os.getcwd(), 'ddrmassupdate-%s.log' % collection_id)
+    LOG = os.path.join(os.getcwd(), 'ddr-massupdate-%s.log' % collection_id)
     
     selected_file_types = args.models.split(',')
     for model in selected_file_types:

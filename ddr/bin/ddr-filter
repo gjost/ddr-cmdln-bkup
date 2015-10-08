@@ -8,14 +8,14 @@ description = """
 Filters a repository, completely removing items marked non-public or incomplete."""
 
 epilog = """
-ddrfilter is a wrapper around the git filter-branch command, which steps through
+ddr-filter is a wrapper around the git filter-branch command, which steps through
 all the commits in a repository's history, running a filter at each step.  This
 is a destructive operation!  It results in a new repository that contains only
 the public items from the original, and is thus technically a separate
 repository.  This new public repository must be kept separate to avoid deleting
 private items from the original.
 
-ddrfilter makes a list of items in the original repository that are to be
+ddr-filter makes a list of items in the original repository that are to be
 removed, then makes a clone of the repository and its files.  Once it has made
 the clone it removes the clone's git remotes; this prevents accidental pulls and
 pushes between the new repository and the original.  The git filter-branch
@@ -24,17 +24,17 @@ command is then run and non-public items are removed from the repository.
 EXAMPLES
 
     # List files to be excluded and quit.
-    $ ddrfilter -l /PATH/TO/REPOSITORY/ddr-testing-123
+    $ ddr-filter -l /PATH/TO/REPOSITORY/ddr-testing-123
 
     # Run the filter, copying master, mezzanine, and access files.
-    $ ddrfilter -Mma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
+    $ ddr-filter -Mma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
 
     # Run the filter, copying master, mezzanine, and access files and keeping
     # the temporary repository.
-    $ ddrfilter -k -Mma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
+    $ ddr-filter -k -Mma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
 
     # Run the filter, copying only the mezzanine and access files.
-    $ ddrfilter -ma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
+    $ ddr-filter -ma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
 
 Due to peculiarities of git filter-branch and to time pressures, the operation
 is broken up into two phases.  The first phase is this Python command, which
@@ -489,10 +489,10 @@ def main():
     
     # check args
     if (not args.destdir) and (not args.list):
-        print('ddrfilter: error: -d/--destdir is required except when using -l/--list.')
+        print('ddr-filter: error: -d/--destdir is required except when using -l/--list.')
         sys.exit(1)
     if args.destdir == args.source:
-        print('ddrfilter: error: Source and destdir are the same!')
+        print('ddr-filter: error: Source and destdir are the same!')
         sys.exit(1)
     
     # make list of files to exclude
@@ -514,10 +514,10 @@ def main():
         LOG = '%s.log' % FILTER_REPO_PATH
         
         if os.path.exists(FILTER_REPO_PATH):
-            print('ddrfilter: error: Destination path already exists! (%s)' % FILTER_REPO_PATH)
+            print('ddr-filter: error: Destination path already exists! (%s)' % FILTER_REPO_PATH)
             sys.exit(1)
         if os.path.exists(PUBLIC_REPO_PATH):
-            print('ddrfilter: error: Destination path already exists! (%s)' % PUBLIC_REPO_PATH)
+            print('ddr-filter: error: Destination path already exists! (%s)' % PUBLIC_REPO_PATH)
             sys.exit(1)
         
         # print exclusion list and write to file
@@ -532,7 +532,7 @@ def main():
         if os.path.exists(exclusion_list_path):
             logprint(LOG, 'Wrote exclusion list %s' % exclusion_list_path)
         else:
-            logprint(LOG, 'ddrfilter: error: Failed to write exclusion list.')
+            logprint(LOG, 'ddr-filter: error: Failed to write exclusion list.')
             sys.exit(1)
         
         started = datetime.now()
@@ -542,7 +542,7 @@ def main():
         logprint(LOG, 'Cloning %s to %s' % (args.source, FILTER_REPO_PATH))
         repo = clone(args.source, FILTER_REPO_PATH)
         if not repo:
-            logprint(LOG, 'ddrfilter: error: Could not clone repository!')
+            logprint(LOG, 'ddr-filter: error: Could not clone repository!')
             sys.exit(1)
         
         # git annex get the files
@@ -565,7 +565,7 @@ def main():
         logprint(LOG, 'Removing remotes...')
         rm_remotes_status = rm_remotes(repo)
         if rm_remotes_status:
-            logprint(LOG, 'ddrfilter: error: Failed to remove one or more remotes: %s' % rm_remotes_status)
+            logprint(LOG, 'ddr-filter: error: Failed to remove one or more remotes: %s' % rm_remotes_status)
             sys.exit(1)
         
         # print git-filter-branch to shell script
