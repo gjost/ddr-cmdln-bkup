@@ -10,7 +10,9 @@ epilog = """* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 WARNING! THIS SCRIPT IS AN EXTREMELY STUPID BLUNT INSTRUMENT!
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-It sets all the status fields in all the collection.json and entity.json files of a collection to "completed".  You can specify the collection directory but not much else.
+It sets all the status fields in all the collection.json and entity.json files
+of a collection to "completed".  You can specify the collection directory but
+not much else.
 
 It writes a logfile to the current directory.
 It does not commit the changes!
@@ -18,13 +20,13 @@ It does not commit the changes!
 Example:
 
     # Update collection and entity metadata in a collection
-    $ ddrmassupdate -ce -C /var/www/media/base/ddr-testing-123
+    $ ddrmassupdate collection,entity /var/www/media/base/ddr-testing-123
 
     # Update all metadata files in a collection
-    $ ddrmassupdate -cef -C /var/www/media/base/ddr-testing-123
+    $ ddrmassupdate collection,entity,file /var/www/media/base/ddr-testing-123
 
     # Dry run: show which files would be changed by an operation
-    $ ddrmassupdate -d -cef -C /var/www/media/base/ddr-testing-123
+    $ ddrmassupdate -d collection,entity,file /var/www/media/base/ddr-testing-123
 
 ddr-public - ddrmassupdate"""
 
@@ -39,13 +41,9 @@ import sys
 import envoy
 
 from DDR import format_json, models
+from DDR import identifier
 
 
-METADATA_FILES_REGEX = {
-    'collection': re.compile('collection.json'),
-    'entity': re.compile('entity.json'),
-    'file': re.compile('(\w+)-(\w+)-(\d+)-(master|mezzanine)-([\w\d]+).json'),
-}
 FIELD_NAME = 'status'
 NEW_VALUE = 'inprocess'
 
@@ -71,15 +69,22 @@ def logprint_nots(filename, msg):
         f.writelines([msg])
     print(msg.strip('\n'))
 
-def find_files(basedir, file_types):
+MODEL_JSON_REGEX = {}
+for pattern in identifier.PATH_PATTERNS_LOOP:
+    key = pattern[-1]
+    MODEL_JSON_REGEX[key] = re.compile(pattern[0])
+
+def find_files(basedir, filetypes):
     """Looks for filenames in the list.
+    
     Just does stupid matching, not real regex or anything.
-    TODO refactor this does three passes
     """
+    allpaths = models.metadata_files(basedir, recursive=True, force_read=True)
     paths = []
-    for m in file_types:
-        mpaths = models.metadata_files(basedir, recursive=True, model=m, force_read=True)
-        paths = paths + mpaths
+    for model in filetypes:
+        prog = MODEL_JSON_REGEX['%s-json' % model]
+        these = [path for path in allpaths if re.search(prog, path)]
+        paths.extend(these)
     return paths
 
 def write_json(data, path):
@@ -121,27 +126,18 @@ def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-C', '--collection', required=True, help='Absolute path to source collection repository.')
+    parser.add_argument('models', help="Comma-separated list of models to change.")
+    parser.add_argument('collection', help='Absolute path to source collection repository.')
     parser.add_argument('-d', '--dryrun', action='store_true', help="Don't change anything, just list files that would be changed.")
-    parser.add_argument('-c', '--collections', action='store_true', help="Match collection metadata files.")
-    parser.add_argument('-e', '--entities', action='store_true', help="Match entity metadata files.")
-    parser.add_argument('-f', '--files', action='store_true', help="Match file files.")
     
     args = parser.parse_args()
     collection_path = os.path.realpath(args.collection)
     collection_id = os.path.basename(collection_path)
     LOG = os.path.join(os.getcwd(), 'ddrmassupdate-%s.log' % collection_id)
     
-    selected_file_types = []
-    if args.collections:
-        selected_file_types.append('collection')
-        logprint(LOG, 'Matching collections')
-    if args.entities:
-        selected_file_types.append('entity')
-        logprint(LOG, 'Matching entities')
-    if args.files:
-        selected_file_types.append('file')
-        logprint(LOG, 'Matching files')
+    selected_file_types = args.models.split(',')
+    for model in selected_file_types:
+        logprint(LOG, 'Matching %ss' % model)
     if not len(selected_file_types):
         print('Error: Select at least one type of file to match.')
         sys.exit(1)
