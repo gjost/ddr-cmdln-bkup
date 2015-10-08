@@ -482,10 +482,10 @@ def load_entity(collection_path, class_, rowd):
     entity_json_path = eidentifier.path_abs('json')
     # update an existing entity
     if os.path.exists(entity_json_path):
-        entity = class_.from_json(entity_json_path)
+        entity = class_.from_identifier(eidentifier)
         entity.new = False
     else:
-        entity = class_(entity_path)
+        entity = class_.from_identifier(eidentifier)
         entity.id = entity_id
         entity.record_created = datetime.now()
         entity.record_lastmod = datetime.now()

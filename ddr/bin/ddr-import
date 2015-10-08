@@ -20,7 +20,14 @@ Importing New Files
 The following fields work differently when adding new files:
 * file_id: Desired file ID, minus the SHA1 hash (ex: "ddr-test-123-45-master").
 * basename_orig: The filename to import, with no path (ex: "my-file.jpg").
-"""
+
+Examples:
+
+    $ ddr-import -u gjost -m gjost@densho.org /tmp/ddr-test-123-entity-201501234560.csv /var/www/media/base/ddr-test-123
+    $ ddr-import -u gjost -m gjost@densho.org /tmp/ddr-test-123-file-201501234560.csv /var/www/media/base/ddr-test-123
+    $ ddr-import -u gjost -m gjost@densho.org -M file /tmp/NO_COLLECTIONID_OR_MODEL.csv /var/www/media/base/ddr-test-123
+
+---"""
 
 
 import argparse
@@ -35,6 +42,7 @@ import sys
 from DDR import batch
 from DDR import idservice
 from DDR import models
+from DDR import identifier
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -49,22 +57,7 @@ if not configs_read:
     raise NoConfigError('No config file!')
 
 REPO_MODELS_PATH = config.get('cmdln','repo_models_path')
-if REPO_MODELS_PATH not in sys.path:
-    sys.path.append(REPO_MODELS_PATH)
-
-try:
-    from repo_models import collection as collectionmodule
-    from repo_models import entity as entitymodule
-    from repo_models import files as filemodule
-except ImportError:
-    raise Exception("Could not load repo_models. No Store mounted, no 'ddr' repository, no valid repo_models in 'ddr' repo, or possibly an error in the repo_model module code.")
-
 VOCABS_PATH = os.path.join(REPO_MODELS_PATH, 'vocab')
-
-
-ENTITY_MODULE_NAMES = ['entity', 'entities']
-FILE_MODULE_NAMES = ['file', 'files']
-MODULE_NAMES = ENTITY_MODULE_NAMES + FILE_MODULE_NAMES
 
 
 def guess_model(csv_path, collection_path, args_model=None):
@@ -87,34 +80,9 @@ def guess_model(csv_path, collection_path, args_model=None):
         )[0].replace(cid,'').replace('-','')
     except:
         model = None
-    if model and (model in MODULE_NAMES):
+    if model and (model in identifier.MODELS):
         return model
     return args_model
-
-def model_class_module(csv_path, collection_path, args_model=None):
-    """Pick object class and module based on model arg.
-    
-    @param csv_path: Absolute path to CSV file.
-    @param collection_path: Absolute path to collection repo.
-    @param args_model: str 'entity' or 'file'
-    @returns: model, class, module
-    """
-    model = guess_model(csv_path, collection_path, args_model)
-    if not model:
-        raise Exception('ddr-import: Could not guess model based on csv and collection. Add an -M arg.')
-    class_ = None
-    module = None
-    if model in ENTITY_MODULE_NAMES:
-        model = 'entity'
-        class_ = models.Entity
-        module = entitymodule
-    elif model in FILE_MODULE_NAMES:
-        model = 'file'
-        class_ = models.File
-        module = filemodule
-    if not (class_ and module):
-        raise Exception('ERROR: Could not decide on a class/module.')
-    return model,class_,module
 
 def username_password(args):
     """
@@ -133,6 +101,7 @@ def username_password(args):
 def get_entity_ids(collection_id, session):
     """
     TODO do we actually need to log in?
+    TODO make this work with Identifier
     
     @param collection_id: str
     @param session: requests.session.Session object
@@ -144,6 +113,8 @@ def get_entity_ids(collection_id, session):
 def register_ids(added, collection_id, session):
     """Register the specified entity IDs with the ID service
     
+    TODO make this work with Identifier
+    
     @param added: list of Entity objects
     @param collection_id: str
     @param session: requests.session.Session object
@@ -153,6 +124,8 @@ def register_ids(added, collection_id, session):
 
 def confirm_added(expected, collection_id, session):
     """Confirm that entity_ids were added.
+    
+    TODO make this work with Identifier
     
     @param expected: list of entities
     @param collection_id: str
@@ -186,16 +159,32 @@ def main():
     if not os.path.exists(args.collection):
         raise Exception('ddr-import: Collection does not exist.')
     
-    model,class_,module = model_class_module(args.csv, args.collection, args.model)
+    model = guess_model(args.csv, args.collection, args.model)
+    if not model:
+        raise Exception('ddr-import: Could not guess model based on csv and collection. Add an -M arg.')
+    
+    # TODO this still knows too much about entities and files...
+    entity_class = identifier.class_for_name(
+        identifier.MODEL_CLASSES['entity']['module'],
+        identifier.MODEL_CLASSES['entity']['class']
+    )
+    file_class = identifier.class_for_name(
+        identifier.MODEL_CLASSES['file']['module'],
+        identifier.MODEL_CLASSES['file']['class']
+    )
+    entity_module = identifier.module_for_name(
+        identifier.MODEL_REPO_MODELS['entity']['module']
+    )
+    file_module = identifier.module_for_name(
+        identifier.MODEL_REPO_MODELS['file']['module']
+    )
     
     start = datetime.now()
     if model == 'entity':
 
-        collection_path = args.collection
-        # rm trailing slashes from dir
-        if collection_path[-1] == os.path.sep:
-            collection_path = collection_path[:-1]
-        collection_id = os.path.basename(collection_path)
+        cidentifier = identifier.Identifier(args.collection)
+        cidentifier.path_abs
+        collection_id = cidentifier.id
         
         username,password = username_password(args)
         session = idservice.login(username, password)
@@ -206,14 +195,14 @@ def main():
         updated = batch.update_entities(
             args.csv,
             args.collection,
-            models.Entity, entitymodule, VOCABS_PATH,
+            entity_class, entity_module, VOCABS_PATH,
             args.user, args.mail, 'ddr-import'
         )
         max_eid_after = get_entity_ids(collection_id, session)[-1]
         # Quit if someone else added entity IDs on the workbench
         if not (max_eid_before == max_eid_after):
             raise Exception('Entity IDs were requested during operation.')
-
+        
         # See if any new entities were added
         added = []
         while updated:
@@ -226,7 +215,7 @@ def main():
                 logging.info('| %s' % entity.id)
             added_ids = [entity.id for entity in added]
             confirmed_ids = []
-
+            
             # Register new entity IDs with ID service
             register = raw_input('Register new IDs with ID service? [y/N] ')
             if register and (register == 'y'):
@@ -242,7 +231,7 @@ def main():
         updated = batch.update_files(
             args.csv,
             args.collection,
-            models.Entity, models.File, module, VOCABS_PATH,
+            entity_class, file_class, file_module, VOCABS_PATH,
             args.user, args.mail, 'ddr-import'
         )
     
