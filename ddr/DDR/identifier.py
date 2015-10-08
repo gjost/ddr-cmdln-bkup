@@ -18,6 +18,7 @@ MODELS = [
     'repository',   # required
 ]
 
+# map model names to DDR python classes
 MODEL_CLASSES = {
     'file':         {'module': 'DDR.models', 'class':'File'},
     'file-role':    {'module': 'DDR.models', 'class':'Stub'},
@@ -26,6 +27,14 @@ MODEL_CLASSES = {
     'organization': {'module': 'DDR.models', 'class':'Stub'},
     'repository':   {'module': 'DDR.models', 'class':'Stub'},
 }
+
+# map model names to module files in ddr repo's repo_models
+MODEL_REPO_MODELS = {
+    'file':         {'module': 'repo_models.files', 'class':'file', 'as':'filemodule'},
+    'entity':       {'module': 'repo_models.entity', 'class':'entity', 'as':'entitymodule'},
+    'collection':   {'module': 'repo_models.collection', 'class':'collection', 'as':'collectionmodule'},
+}
+
 
 # Models that are part of collection repositories. Repository and organizations
 # are above the level of the collection and are thus excluded.
@@ -406,6 +415,15 @@ def _parse_args_kwargs(keys, args, kwargs):
                 blargs[key] = val
     return blargs
 
+def module_for_name(module_name):
+    """Returns specified module.
+    
+    @param module_name: str
+    @returns: module
+    """
+    # load the module, will raise ImportError if module cannot be loaded
+    return importlib.import_module(module_name)
+
 def class_for_name(module_name, class_name):
     """Returns specified class from specified module.
     
@@ -413,10 +431,10 @@ def class_for_name(module_name, class_name):
     @param class_name: str
     @returns: class
     """
-    # load the module, will raise ImportError if module cannot be loaded
-    m = importlib.import_module(module_name)
-    # get the class, will raise AttributeError if class cannot be found
-    c = getattr(m, class_name)
+    c = getattr(
+        module_for_name(module_name),
+        class_name
+    )
     return c
 
 
@@ -611,7 +629,12 @@ class Identifier(object):
         parts = [val for val in self.parts.itervalues()]
         parts.insert(0, self.model)
         return parts
-    
+
+    def fields_module(self, mappings=MODEL_REPO_MODELS):
+        return module_for_name(
+            mappings[self.model]['module']
+        )
+        
     def object_class(self, mappings=MODEL_CLASSES):
         """Identifier's object class according to mappings.
         """
