@@ -8,7 +8,7 @@ description = """Checks collection repository for non-UTF-8 chars, lists offendi
 
 epilog = """
 Example:
-    $ ddr-checkencoding git@mits.densho.org:REPO.git /var/www/media/base/temp/REPO ddr-testing-141
+    $ ddr-checkencoding git@mits.densho.org:ddr-test-123.git /var/www/media/base/temp
 
 Clones collection repo to specified location, loads every .json file in the collection with strict utf-8 encoding,
 then removes the directory.  This should surface any UTF-8 encoding problems.
@@ -41,21 +41,32 @@ def out(verbose, text):
     if verbose:
         print(text)
 
+def extract_collection_id(url):
+    # git@mits.densho.org:REPO.git
+    return os.path.splitext(url.split(':')[1])[0]
+
 def clone(url, destpath):
-    """
+    """Simple clone of repo (not ddr-clone).
+    
     @param url: 
     @param destpath: 
     """
     return git.Repo.clone_from(url, destpath)
 
 def clean(repo_path):
-    """
+    """rm repo from filesystem
+    
     @param repo_path: 
     """
     shutil.rmtree(repo_path)
 
-def analyze_files(repo_path, verbose=False):
-    paths = models.metadata_files(repo_path, recursive=True)
+def analyze_files(paths, verbose=False):
+    """Opens files with strict encoding; lists paths that throw exceptions
+    
+    @param paths: list
+    @param verbose: boolean
+    @returns: list of defective paths
+    """
     defects = []
     for path in paths:
         bad = 0
@@ -74,16 +85,15 @@ def analyze_files(repo_path, verbose=False):
             sys.stdout.write('.')
     if len(paths) and verbose:
         print('')
-    return paths,defects
+    return defects
 
 
 def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('repo_url_pattern', help='Repository URL pattern.')
+    parser.add_argument('repo_url', help='Repository URL.')
     parser.add_argument('dest_dir', help='Absolute path to destination dir.')
-    parser.add_argument('collection_id', help='Collection ID')
     parser.add_argument(
         '-v', '--verbose', action='store_const', const=1,
         help='Print lots of output. Important lines prefixed with "%%%%".'
@@ -103,6 +113,11 @@ def main():
     
     args = parser.parse_args()
     
+    collection_id = extract_collection_id(args.repo_url)
+    repo_path = args.dest_dir.replace('REPO', collection_id)
+    out(args.verbose, collection_id)
+    out(args.verbose, repo_path)
+    
     # if verbose, add marker to important lines
     if args.verbose:
         prefix = '%% '
@@ -111,26 +126,19 @@ def main():
     
     if args.csv and args.headers:
         print('%scollection id, files, defects, elapsed' % prefix)
-    
-    out(args.verbose, args.collection_id)
-    
+        
     start = datetime.now()
     out(args.verbose, start)
     
-    url = args.repo_url_pattern.replace('REPO', args.collection_id)
-    repo_path = args.dest_dir.replace('REPO', args.collection_id)
-    
-    out(args.verbose, repo_path)
-    out(args.verbose, 'clone %s %s' % (url, repo_path))
-    
-    repo = clone(url, repo_path)
-    
+    out(args.verbose, 'clone %s %s' % (args.repo_url, repo_path))
+    repo = clone(args.repo_url, repo_path)
     out(args.verbose, repo)
     
-    paths,defects = analyze_files(repo_path, args.verbose)
+    out(args.verbose, 'analyzing')
+    paths = models.metadata_files(repo_path, recursive=True)
+    defects = analyze_files(paths, args.verbose)
     
     out(args.verbose, 'cleaning up')
-    
     clean(repo_path)
     
     end = datetime.now()
@@ -141,12 +149,12 @@ def main():
         print '%s%s' % (
             prefix,
             ','.join([
-                str(args.collection_id), str(len(paths)), str(len(defects)), str(elapsed)
+                str(collection_id), str(len(paths)), str(len(defects)), str(elapsed)
             ])
         )
     elif args.json:
         data = {
-            'collection id': args.collection_id,
+            'collection id': collection_id,
             'files': len(paths),
             'defects': len(defects),
             'elapsed': str(elapsed),
@@ -157,7 +165,7 @@ def main():
         )
     else:
         print('%s%s, %s files, %s bad, %s elapsed' % (
-            prefix, args.collection_id, len(paths), len(defects), elapsed))
+            prefix, collection_id, len(paths), len(defects), elapsed))
 
 
 if __name__ == '__main__':

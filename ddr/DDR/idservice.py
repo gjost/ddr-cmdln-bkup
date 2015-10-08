@@ -286,7 +286,7 @@ def register_entity_ids(session, entities):
     @param entities: list of Entity objects - all will be added!
     @returns: list of IDs added
     """
-    collection_id = entities[0].parent_uid
+    collection_id = entities[0].parent_id
     entity_ids = '\n'.join([entity.id for entity in entities])
     csrf_token_url = '{}/kiroku/{}/'.format(WORKBENCH_URL, collection_id)
     csrf_token = _get_csrf_token(session, csrf_token_url)

@@ -15,7 +15,8 @@ from DDR import changelog
 from DDR import commands
 from DDR import dvcs
 from DDR import models
-from DDR.models import Identity, Module
+from DDR.identifier import Identifier
+from DDR.models import Module
 
 COLLECTION_FILES_PREFIX = 'files'
 
@@ -258,11 +259,9 @@ def export(json_paths, class_, module, csv_path):
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
         writer = csv_writer(csvfile)
         writer.writerow(field_names)
-        for n,path in enumerate(json_paths):
-            if module.MODEL == 'entity':
-                obj = class_.from_json(os.path.dirname(path))
-            elif module.MODEL == 'file':
-                obj = class_.from_json(path)
+        for n,json_path in enumerate(json_paths):
+            oi = Identifier(json_path)
+            obj = class_.from_identifier(oi)
             logging.info('%s/%s - %s' % (n+1, len(json_paths), obj.id))
             writer.writerow(dump_object(obj, module, field_names))
     return csv_path
@@ -477,17 +476,17 @@ def load_entity(collection_path, class_, rowd):
     @param rowd:
     @returns: entity
     """
-    cpath = Identity.dissect_path(collection_path)
-    entity_id = rowd['id']
-    entity_path = Identity.path_from_id(entity_id, cpath.base_path)
-    entity_json_path = Identity.json_path_from_dir('entity', entity_path)
+    cidentifier = Identifier(path=collection_path)
+    eidentifier = Identifier(id=rowd['id'], base_path=cidentifier.basepath)
+    entity_path = eidentifier.path_abs()
+    entity_json_path = eidentifier.path_abs('json')
     # update an existing entity
     if os.path.exists(entity_json_path):
-        entity = class_.from_json(entity_path)
+        entity = class_.from_identifier(eidentifier)
         entity.new = False
     else:
-        entity = class_(entity_path)
-        entity.id = entity_uid
+        entity = class_.from_identifier(eidentifier)
+        entity.id = entity_id
         entity.record_created = datetime.now()
         entity.record_lastmod = datetime.now()
         entity.files = []
@@ -554,6 +553,8 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     @param agent:
     @returns: list of updated entities
     """
+    csv_path = os.path.normpath(csv_path)
+    collection_path = os.path.normpath(collection_path)
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
@@ -633,25 +634,26 @@ def test_entities(collection_path, class_, rowds):
     @returns: ok,bad
     """
     logging.info('Validating parent entities')
-    cpath = Identity.dissect_path(collection_path)
+    cidentifier = Identifier(path=collection_path)
     # get unique entity_ids
     eids = []
     for rowd in rowds:
-        entity_id = Identity.parent_id(rowd['file_id'])
-        eids.append(entity_id)
+        fidentifier = Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
+        eidentifier = Identifier(id=fidentifier.parent_id(), base_path=cidentifier.basepath)
+        eids.append(eidentifier)
     # test-load the Entities
     entities = {}
     bad = []
-    for entity_id in eids:
-        entity_path = Identity.path_from_id(entity_id, cpath.base_path)
+    for eidentifier in eids:
+        entity_path = eidentifier.path_abs()
         # update an existing entity
         entity = None
         if os.path.exists(entity_path):
-            entity = class_.from_json(entity_path)
+            entity = class_.from_identifier(eidentifier)
         if entity:
             entities[entity.id] = entity
         else:
-            bad.append(entity_id)
+            bad.append(eidentifier.id)
     if bad:
         logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
         for f in bad:
@@ -672,8 +674,8 @@ def test_new_files(csv_path, rowds):
     logging.info('Checking for new files')
     paths = []
     for rowd in rowds:
-        file_id = Identity.split_object_id(rowd['file_id'])
-        if len(file_id) == 6:
+        identifier = Identifier(id=rowd['file_id'])
+        if identifier.model == 'file':
             # files that exist in the same directory as .csv
             paths.append(os.path.join(
                 os.path.dirname(csv_path),
@@ -704,18 +706,17 @@ def load_file(collection_path, file_class, rowd):
     @param rowd: dict containing file fields:values
     @returns: File object
     """
+    identifier = None
     if rowd.get('file_id',None):
-        file_path = Identity.path_from_id(
-            rowd['file_id'],
-            os.path.dirname(collection_path)
+        identifier = Identifier(
+            id=rowd['file_id'],
+            base_path=os.path.dirname(collection_path)
         )
-        if file_path:
-            # make our own file.json_path
-            fpath = os.path.splitext(file_path)
-            file_path = Identity.json_path_from_dir('file', fpath[0])
     # update an existing file
-    if file_path and os.path.exists(file_path):
-        file_ = file_class.from_json(file_path)
+    path_abs = identifier.path_abs()
+    path_abs_json = identifier.path_abs('json')
+    if identifier and os.path.exists(path_abs_json):
+        file_ = file_class.from_json(path_abs_json)
         file_.exists = True
     else:
         file_ = file_class()
@@ -795,10 +796,11 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     @param git_mail:
     @param agent:
     """
+    csv_path = os.path.normpath(csv_path)
     collection_path = os.path.normpath(collection_path)
     logging.info('-----------------------------------------------')
     csv_dir = os.path.dirname(csv_path)
-    cpath = Identity.dissect_path(collection_path)
+    cidentifier = Identifier(path=collection_path)
     field_names = module_field_names(module)
     nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
@@ -834,15 +836,12 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
         entity.changelog_added = []
     for n,rowd in enumerate(rowds):
         logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['file_id']))
-        file_id = rowd['file_id']
-        fpath_abs = Identity.path_from_id(file_id, cpath.base_path)
-        role = Identity.split_object_id(file_id)[5]
+        fidentifier = Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
         file0 = load_file(collection_path, file_class, rowd)
         file_ = csvload_file(file0, module, field_names, rowd)
-        entity = entities[Identity.parent_id(file_id)]
-        if os.path.exists(file_.path_abs) or os.path.islink(file_.path_abs):
+        entity = entities[fidentifier.parent_id()]
+        if file_.exists:
             # update metadata
-            # File may be a binary or a symlink pointing to annex
             file_.write_json()
             git_files.append(file_.json_path_rel)
             entity.changelog_updated.append(file_)
@@ -854,7 +853,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
             logging.info('| %s' % src_path)
             # add the file
             file_,filerepo,filelog = entity.add_file(
-                src_path, role, rowd, git_name, git_mail, agent)
+                src_path, fidentifier.parts['role'], rowd, git_name, git_mail, agent)
             logging.info('| > %s' % file_.id)
             # file_add stages files, don't need to use git_add
             entity.changelog_added.append(file_)

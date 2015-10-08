@@ -43,45 +43,45 @@ class ControlFile( object ):
 
 class CollectionControlFile( ControlFile ):
     path_rel = None
-    uid = None
+    id = None
     
     def __init__(self, *args, **kwargs):
         super(CollectionControlFile, self).__init__(*args, **kwargs)
-        self.uid = os.path.split(os.path.dirname(self.path))[1]
+        self.id = os.path.split(os.path.dirname(self.path))[1]
         self.path_rel = os.path.basename(self.path)
     
     @staticmethod
-    def create( path, collection_uid ):
+    def create( path, collection_id ):
         logging.debug('    CollectionControlFile.create({})'.format(path))
         t = load_template(COLLECTION_CONTROL_TEMPLATE)
         with open(path, 'w') as f:
-            f.write(t.format(cid=collection_uid))
+            f.write(t.format(cid=collection_id))
     
     def update_checksums( self, collection ):
         self._config.remove_section('Entities')
         self._config.add_section('Entities')
-        uids = []
-        [uids.append(entity.uid) for entity in collection.entities()]
-        uids.sort()
-        [self._config.set('Entities', uid) for uid in uids]
+        ids = []
+        [ids.append(entity.id) for entity in collection.children()]
+        ids.sort()
+        [self._config.set('Entities', id) for id in ids]
 
 
 class EntityControlFile( ControlFile ):
     path_rel = None
-    uid = None
+    id = None
     
     def __init__(self, *args, **kwargs):
         super(EntityControlFile, self).__init__(*args, **kwargs)
-        self.uid = os.path.split(os.path.dirname(self.path))[1]
+        self.id = os.path.split(os.path.dirname(self.path))[1]
         sep = os.sep
         self.path_rel = sep.join(self.path.split(sep)[-3:])
     
     @staticmethod
-    def create( path, collection_uid, entity_uid ):
+    def create( path, collection_id, entity_id ):
         logging.debug('    EntityControlFile.create({})'.format(path))
         t = load_template(ENTITY_CONTROL_TEMPLATE)
         with open(path, 'w') as f:
-            f.write(t.format(cid=collection_uid, eid=entity_uid))
+            f.write(t.format(cid=collection_id, eid=entity_id))
     
     CHECKSUMS = ['sha1', 'sha256', 'files']
     def update_checksums( self, entity ):

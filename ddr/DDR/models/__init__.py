@@ -29,6 +29,7 @@ from DDR import changelog
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import imaging
+from DDR.identifier import Identifier
 from DDR.models.xml import EAD, METS
 #from DDR import commands
 # NOTE: DDR.commands imports DDR.models.Collection which is a circular import
@@ -151,6 +152,8 @@ def metadata_files( basedir, recursive=False, model=None, files_first=False, for
 def sort_file_paths(json_paths, rank='role-eid-sort'):
     """Sort file JSON paths in human-friendly order.
     
+    TODO this belongs in DDR.identifier
+    
     @param json_paths: 
     @param rank: 'role-eid-sort' or 'eid-sort-role'
     """
@@ -158,14 +161,20 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
     keys = []
     while json_paths:
         path = json_paths.pop()
-        model,repo,org,cid,eid,role,sha1 = Identity.split_object_id(Identity.id_from_path(path))
+        identifier = Identifier(path=path)
+        eid = identifier.parts.get('eid',None)
+        role = identifier.parts.get('role',None)
+        sha1 = identifier.parts.get('sha1',None)
         sort = 0
         with open(path, 'r') as f:
             for line in f.readlines():
                 if 'sort' in line:
                     sort = line.split(':')[1].replace('"','').strip()
+        eid = str(eid)
+        sha1 = str(sha1)
+        sort = str(sort)
         if rank == 'eid-sort-role':
-            key = '-'.join([eid,sort,role,sha1])
+            key = '-'.join([str(eid),sort,role,sha1])
         elif rank == 'role-eid-sort':
             key = '-'.join([role,eid,sort,sha1])
         paths[key] = path
@@ -226,7 +235,13 @@ def load_json(document, module, json_text):
     @param json_text: JSON-formatted text
     @returns: dict
     """
-    json_data = json.loads(json_text)
+    try:
+        json_data = json.loads(json_text)
+    except ValueError:
+        json_data = [
+            {'title': 'ERROR: COULD NOT READ DATA (.JSON) FILE!'},
+            {'_error': 'Error: ValueError during read load_json.'},
+        ]
     ## software and commit metadata
     #if data:
     #    setattr(document, 'json_metadata', data[0])
@@ -290,390 +305,55 @@ def prep_json(obj, module, template=False,
             data.append(item)
     return data
 
-def from_json(model, json_path):
+def from_json(model, json_path, identifier):
     """Read the specified JSON file and properly instantiate object.
     
     @param model: LocalCollection, LocalEntity, or File
     @param json_path: absolute path to the object's .json file
+    @param identifier: [optional] Identifier
     @returns: object
     """
     document = None
-    if os.path.exists(json_path):
-        document = model(os.path.dirname(json_path))
-        document_uid = document.id  # save this just in case
+    if json_path and os.path.exists(json_path):
+        if identifier.model in ['file']:
+            # object_id is in .json file
+            path = os.path.splitext(json_path)[0]
+            document = model(path, identifier=identifier)
+        else:
+            # object_id is in object directory
+            document = model(os.path.dirname(json_path), identifier=identifier)
+        document_id = document.id  # save this just in case
         document.load_json(read_json(json_path))
         if not document.id:
             # id gets overwritten if document.json is blank
-            document.id = document_uid
+            document.id = document_id
     return document
+
+def read_xml(path):
+    pass
+
+def write_xml(text, path):
+    """Write text to UTF-8 file.
+    
+    @param text: unicode
+    @param path: str Absolute path to file.
+    """
+    # TODO use codecs.open utf-8
+    with open(path, 'w') as f:
+        f.write(text)
+
+def load_xml():
+    pass
+
+def prep_xml():
+    pass
+
+def from_xml():
+    pass
 
 
 class Path( object ):
     pass
-
-class Identity(object):
-
-    @staticmethod
-    def dissect_path( path_abs ):
-        """Slices up an absolute path and extracts as much as it can.
-        
-        TODO use caching to speed this up
-        
-        @param path_abs: absolute path to object json file.
-        @returns: Identifier object
-        """
-        path_abs = os.path.normpath(path_abs)
-        p = Path()
-        p.path = path_abs
-        p.path_abs = path_abs
-        FIELDS = [
-            'base_path', 'git_path', 'annex_path', 'gitignore_path',
-            'collection_path', 'entity_path', 'file_path', 'access_path',
-            'json_path', 'changelog_path', 'control_path', 'entities_path',
-            'files_path', 'file_path_rel', 'access_path_rel', 'json_path_rel',
-            'changelog_path_rel', 'control_path_rel', 'entities_path_rel',
-            'files_path_rel', 'object_id', 'object_type', 'model',
-            'repo', 'org', 'cid', 'eid', 'role', 'sha1',
-            'file_id', 'entity_id', 'collection_id', 'parent_id',
-        ]
-        for f in FIELDS:
-            setattr(p, f, None)
-                
-        model = None
-        if ('master' in path_abs.lower()) or ('mezzanine' in path_abs.lower()):
-            model = 'file'
-        elif ('entity.json' in path_abs) or ('files' in path_abs):
-            model = 'entity'
-        elif ('collection.json' in path_abs) or (not 'files' in path_abs):
-            model = 'collection'
-        
-        if model == 'file':
-            # /basepath/collection_id/files/entity_id/files/file_id-a.jpg
-            # /basepath/collection_id/files/entity_id/files/file_id.ext
-            # /basepath/collection_id/files/entity_id/files/file_id.json
-            # /basepath/collection_id/files/entity_id/files/file_id
-            ACCESS_FILE_STUB = '%s%s' % (ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION)
-            
-            pathname,ext = os.path.splitext(path_abs)
-            if ext and (pathname[-2:] == '-a'):
-                p.object_id = os.path.basename(pathname[:-2])
-            else:
-                p.object_id = os.path.basename(pathname)
-            
-            which = 'unknown'
-            if   os.path.splitext(path_abs)[1]:     which = 'file'   # file_id with extension
-            elif ('.json' in path_abs):             which = 'json'   # the *.json file
-            elif ACCESS_FILE_STUB in path_abs:      which = 'access' # access file
-            elif not os.path.splitext(path_abs)[1]: which = 'noext'  # file_id with no extension
-            
-            def find_file_path(pattern):
-                # figure out original file path
-                for fp in glob.glob(pattern):
-                    if not ('.json' in fp) or (ACCESS_FILE_STUB in fp):
-                        return fp
-                return None
-                
-            if which == 'file':
-                p.file_path = path_abs
-                p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
-                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
-                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
-            
-            elif which == 'json':
-                p.json_path = path_abs
-                pattern = os.path.splitext(path_abs)[0]
-                p.file_path = find_file_path(pattern)
-                p.access_path = '%s%s' % (os.path.splitext(p.file_path)[0], ACCESS_FILE_STUB)
-                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
-            
-            elif which == 'access':
-                p.access_path = p.path_abs
-                pattern = '%s*' % path_abs.replace(ACCESS_FILE_STUB,'')
-                p.file_path = find_file_path(pattern)
-                p.json_path = '%s.json' % os.path.splitext(path_abs)[0]
-                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
-            
-            elif which == 'noext':
-                p.json_path = '%s.json' % path_abs
-                pattern = '%s*' % path_abs
-                p.file_path = find_file_path(pattern)
-                p.access_path = '%s%s' % (p.file_path, ACCESS_FILE_STUB)
-                p.object_type,p.repo,p.org,p.cid,p.eid,p.role,p.sha1 = Identity.split_object_id(p.object_id)
-            
-            p.entity_path = os.path.dirname(os.path.dirname(p.path))
-            p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
-            p.base_path = os.path.dirname(p.collection_path)
-            
-            if p.file_path: p.file_path_rel = p.file_path.replace(p.base_path, '')
-            if p.access_path: p.access_path_rel = p.access_path.replace(p.base_path, '')
-            if p.json_path: p.json_path_rel = p.json_path.replace(p.base_path, '')
-            
-            p.git_path = os.path.join(p.collection_path, '.git')
-            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
-            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
-            
-            p.model = p.object_type
-            p.role = p.role.lower()
-            
-            p.file_id = Identity.make_object_id('file', p.repo,p.org,p.cid,p.eid,p.role,p.sha1)
-            p.entity_id = Identity.make_object_id('entity', p.repo,p.org,p.cid,p.eid)
-            p.collection_id = Identity.make_object_id('collection', p.repo,p.org,p.cid)
-            p.parent_id = p.entity_id
-        
-        elif model == 'entity':
-            # /basepath/collection_id/files/entity_id/entity.json
-            if (os.path.basename(path_abs) == 'entity.json'):
-                p.entity_path = os.path.dirname(path_abs)
-                p.json_path = path_abs
-            elif (os.path.basename(path_abs) == 'files'):
-                p.entity_path = os.path.dirname(path_abs)
-                p.json_path = os.path.join(p.entity_path, 'entity.json')
-            else:
-                p.entity_path = path_abs
-                p.json_path = os.path.join(path_abs, 'entity.json')
-            
-            p.collection_path = os.path.dirname(os.path.dirname(p.entity_path))
-            p.base_path = os.path.dirname(p.collection_path)
-            
-            p.git_path = os.path.join(p.collection_path, '.git')
-            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
-            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
-            # these are for the entity not the collection
-            p.changelog_path = os.path.join(p.entity_path, 'changelog')
-            p.control_path = os.path.join(p.entity_path, 'control')
-            p.files_path = os.path.join(p.entity_path, 'files')
-    
-            p.changelog_path_rel = p.changelog_path.replace(p.base_path, '')
-            p.control_path_rel = p.control_path.replace(p.base_path, '')
-            p.files_path_rel = p.files_path.replace(p.base_path, '')
-            
-            p.object_id = os.path.basename(p.entity_path)
-            
-            p.object_type,p.repo,p.org,p.cid,p.eid = Identity.split_object_id(p.object_id)
-            p.model = p.object_type
-            
-            p.entity_id = Identity.make_object_id('entity', p.repo,p.org,p.cid,p.eid)
-            p.collection_id = Identity.make_object_id('collection', p.repo,p.org,p.cid)
-            p.parent_id = p.collection_id
-        
-        elif model == 'collection':
-            if (os.path.basename(path_abs) == 'collection.json'):
-                p.collection_path = os.path.dirname(path_abs)
-                p.json_path = path_abs
-            else:
-                p.collection_path = path_abs
-                p.json_path = os.path.join(path_abs, 'collection.json')
-            
-            p.base_path = os.path.dirname(p.collection_path)
-            
-            p.git_path = os.path.join(p.collection_path, '.git')
-            p.annex_path = os.path.join(p.collection_path, '.git', 'annex')
-            p.gitignore_path = os.path.join(p.collection_path, '.gitignore')
-            p.changelog_path = os.path.join(p.collection_path, 'changelog')
-            p.control_path = os.path.join(p.collection_path, 'control')
-            p.entities_path = os.path.join(p.collection_path, 'files')
-            
-            p.object_id = os.path.basename(p.collection_path)
-            
-            p.object_type,p.repo,p.org,p.cid = Identity.split_object_id(p.object_id)
-            p.model = p.object_type
-            
-            p.collection_id = p.object_id
-        
-        return p
-    
-    @staticmethod
-    def make_object_id( model, repo, org=None, cid=None, eid=None, role=None, sha1=None ):
-        if   (model == 'file') and repo and org and cid and eid and role and sha1:
-            return '%s-%s-%s-%s-%s-%s' % (repo, org, cid, eid, role, sha1)
-        elif (model == 'entity') and repo and org and cid and eid:
-            return '%s-%s-%s-%s' % (repo, org, cid, eid)
-        elif (model == 'collection') and repo and org and cid:
-            return '%s-%s-%s' % (repo, org, cid)
-        elif (model in ['org', 'organization']) and repo and org:
-            return '%s-%s' % (repo, org)
-        elif (model in ['repo', 'repository']) and repo:
-            return repo
-        return None
-    
-    @staticmethod
-    def split_object_id( object_id=None ):
-        """Very naive function that splits an object ID into its parts
-        TODO make sure it's actually an object ID first!
-        """
-        if object_id and isinstance(object_id, basestring):
-            parts = object_id.strip().split('-')
-            if len(parts) == 6:
-                parts.insert(0, 'file')
-                return parts
-            elif len(parts) == 5:
-                # file ID without the SHA1 hash; used to mark new files in batch CSV
-                parts.insert(0, 'file partial')
-                return parts
-            elif len(parts) == 4:
-                parts.insert(0, 'entity')
-                return parts
-            elif len(parts) == 3:
-                parts.insert(0, 'collection')
-                return parts
-            elif len(parts) == 2:
-                parts.insert(0, 'organization')
-                return parts
-            elif len(parts) == 1:
-                parts.insert(0, 'repository')
-                return parts
-        return None
-    
-    @staticmethod
-    def id_from_path( path ):
-        """Extract ID from path.
-        
-        >>> Identity.id_from_path('.../ddr-testing-123/collection.json')
-        'ddr-testing-123'
-        >>> Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/entity.json')
-        'ddr-testing-123-1'
-        >>> Identity.d_from_path('.../ddr-testing-123-1-master-a1b2c3d4e5.json')
-        'ddr-testing-123-1-master-a1b2c3d4e5.json'
-        >>> Identity.id_from_path('.../ddr-testing-123/files/ddr-testing-123-1/')
-        None
-        >>> Identity.id_from_path('.../ddr-testing-123/something-else.json')
-        None
-        
-        @param path: absolute or relative path to a DDR metadata file
-        @returns: DDR object ID
-        """
-        object_id = None
-        model = Identity.model_from_path(path)
-        if model == 'collection': return os.path.basename(os.path.dirname(path))
-        elif model == 'entity': return os.path.basename(os.path.dirname(path))
-        elif model == 'file': return os.path.splitext(os.path.basename(path))[0]
-        return None
-    
-    @staticmethod
-    def model_from_path( path ):
-        """Guess model from the path.
-        
-        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/collection.json')
-        'collection'
-        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/entity.json')
-        'entity'
-        >>> Identity.model_from_path('/var/www/media/base/ddr-testing-123/files/ddr-testing-123-1/files/ddr-testing-123-1-master-a1b2c3d4e5.json')
-        'file'
-        
-        @param path: absolute or relative path to metadata JSON file.
-        @returns: model
-        """
-        if 'collection.json' in path: return 'collection'
-        elif 'entity.json' in path: return 'entity'
-        elif ('master' in path.lower()) or ('mezzanine' in path.lower()): return 'file'
-        return None
-    
-    @staticmethod
-    def model_from_dict( data ):
-        """Guess model by looking in dict for object_id or path_rel
-        """
-        if data.get('path_rel',None):
-            return 'file'
-        object_id = data.get('id', '')
-        LEGAL_LENGTHS = [
-            1, # repository   (ddr)
-            2, # organization (ddr-testing)
-            3, # collection   (ddr-testing-123)
-            4, # entity       (ddr-testing-123-1)
-            6, # file         (ddr-testing-123-1-master-a1b2c3d4e5)
-        ]
-        parts = object_id.split('-')
-        len_parts = len(parts)
-        if (len_parts in LEGAL_LENGTHS):
-            if   len_parts == 6: return 'file'
-            elif len_parts == 4: return 'entity'
-            elif len_parts == 3: return 'collection'
-            #elif len_parts == 2: return 'organization'
-            #elif len_parts == 1: return 'repository'
-        return None
-    
-    @staticmethod
-    def path_from_id( object_id, base_dir='' ):
-        """Return's path to object* given the object ID and (optional) base_dir.
-        
-        * Does not append 'entity.json' or file extension.
-        
-        @param object_id:
-        @param base_dir: Absolute path
-        @returns: Relative path or (if base_dir) absolute path
-        """
-        base_dir = os.path.normpath(base_dir)
-        path = None
-        repo = None; org = None; cid = None; eid = None; role = None; sha1 = None
-        parts = Identity.split_object_id(object_id)
-        model = parts[0]
-        base = '%s/' % base_dir
-        if model == 'collection':
-            repo = parts[1]; org = parts[2]; cid = parts[3]
-            path = '%s%s-%s-%s' % (
-                base, repo,org,cid)
-        elif model == 'entity':
-            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]
-            path = '%s%s-%s-%s/files/%s-%s-%s-%s' % (
-                base, repo,org,cid, repo,org,cid,eid)
-        elif model == 'file partial':
-            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]
-            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s' % (
-                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role)
-        elif model == 'file':
-            repo = parts[1]; org = parts[2]; cid = parts[3]; eid = parts[4]; role = parts[5]; sha1 = parts[6]
-            path = '%s%s-%s-%s/files/%s-%s-%s-%s/files/%s-%s-%s-%s-%s-%s' % (
-                base, repo,org,cid, repo,org,cid,eid, repo,org,cid,eid,role,sha1)
-        return path
-    
-    @staticmethod
-    def json_path_from_dir(model, path):
-        """Given path to collection/entity dir, return path to .json
-        
-        >>> Identity.json_path_from_dir('collection', '/path/ddr-test-123')
-        '/path/ddr-test-123/collection.json'
-        >>> Identity.json_path_from_dir('entity', '/path/ddr-test-123/files//ddr-test-123-45')
-        '/path/ddr-test-123/files//ddr-test-123-45/entity.json'
-        >>> Identity.json_path_from_dir('entity', 'files/ddr-test-123-45')
-        'files/ddr-test-123-45/entity.json'
-        
-        @param model: 'collection' or 'entity'
-        @param path: Absolute or relative path to collection/entity dir
-        """
-        if model == 'collection':
-            json_path = os.path.join(path, 'collection.json')
-        elif model == 'entity':
-            json_path = os.path.join(path, 'entity.json')
-        elif model == 'file':
-            json_path = '%s.json' % path
-        else:
-            raise Exception('Unrecognized model: "%s"' % model)
-        return json_path
-    
-    @staticmethod
-    def parent_id( object_id ):
-        """Given a DDR object ID, returns the parent object ID.
-        
-        TODO not specific to elasticsearch - move this function so other modules can use
-        
-        >>> Identity.parent_id('ddr')
-        None
-        >>> Identity.parent_id('ddr-testing')
-        'ddr'
-        >>> Identity.parent_id('ddr-testing-123')
-        'ddr-testing'
-        >>> Identity.parent_id('ddr-testing-123-1')
-        'ddr-testing-123'
-        >>> Identity.parent_id('ddr-testing-123-1-master-a1b2c3d4e5')
-        'ddr-testing-123-1'
-        """
-        parts = object_id.split('-')
-        if   len(parts) == 2: return '-'.join([ parts[0], ])
-        elif len(parts) == 3: return '-'.join([ parts[0], parts[1], ])
-        elif len(parts) == 4: return '-'.join([ parts[0], parts[1], parts[2] ])
-        elif len(parts) == 5: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-        elif len(parts) == 6: return '-'.join([ parts[0], parts[1], parts[2], parts[3] ])
-        return None
 
 
 class Module(object):
@@ -887,13 +567,13 @@ class Inheritance(object):
         if field_values:
             for json_path in Inheritance._child_jsons(parent_object.path):
                 child = None
-                p = Identity.dissect_path(json_path)
-                if p.model == 'collection':
-                    child = Collection.from_json(p.collection_path)
-                elif p.model == 'entity':
-                    child = Entity.from_json(p.entity_path)
-                elif p.model == 'file':
-                    child = File.from_json(json_path)
+                identifier = Identifier(path=json_path)
+                if identifier.model == 'collection':
+                    child = Collection.from_identifier(identifier)
+                elif identifier.model == 'entity':
+                    child = Entity.from_identifier(identifier)
+                elif identifier.model == 'file':
+                    child = File.from_identifier(identifier)
                 if child:
                     # set field if exists in child and doesn't already match parent value
                     changed = False
@@ -1027,43 +707,70 @@ class Locking(object):
 # objects --------------------------------------------------------------
 
 
+class Stub(object):
+    id = None
+    idparts = None
+    identifier = None
+
+    def __init__(self, identifier):
+        self.identifier = identifier
+        self.id = self.identifier.id
+        self.idparts = self.identifier.parts
+    
+    @staticmethod
+    def from_identifier(identifier):
+        return Stub(identifier)
+    
+    def __repr__(self):
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
+    
+    def parent(self, stubs=False):
+        return self.identifier.parent(stubs).object()
+
+    def children(self):
+        return []
+    
+
 class Collection( object ):
     root = None
-    uid = None
     id = None
-    repo = None
-    org = None
-    cid = None
-    path = None; path_rel = None
-    annex_path = None; annex_path_rel = None
-    json_path = None; json_path_rel = None
-    files_path = None; files_path_rel = None
-    changelog_path = None; changelog_path_rel = None
-    control_path = None; control_path_rel = None
-    ead_path = None; ead_path_rel = None
-    gitignore_path = None; gitignore_path_rel = None
+    idparts = None
+    #collection_id = None
+    #parent_id = None
+    path_abs = None
+    path = None
+    #collection_path = None
+    #parent_path = None
+    json_path = None
+    git_path = None
+    gitignore_path = None
+    annex_path = None
+    changelog_path = None
+    control_path = None
+    ead_path = None
     lock_path = None
+    files_path = None
+    
+    path_rel = None
+    json_path_rel = None
+    git_path_rel = None
+    gitignore_path_rel = None
+    annex_path_rel = None
+    changelog_path_rel = None
+    control_path_rel = None
+    ead_path_rel = None
+    files_path_rel = None
+    
     git_url = None
     _status = ''
     _astatus = ''
     _unsynced = 0
     
-    def _path_absrel( self, filename, rel=False ):
-        if rel:
-            return filename
-        return os.path.join(self.path, filename)
-    
-    def __init__( self, path, uid=None ):
+    def __init__( self, path_abs, id=None, identifier=None ):
         """
         >>> c = Collection('/tmp/ddr-testing-123')
-        >>> c.uid
+        >>> c.id
         'ddr-testing-123'
-        >>> c.repo
-        'ddr'
-        >>> c.org
-        'testing'
-        >>> c.cid
-        '123'
         >>> c.ead_path_rel
         'ead.xml'
         >>> c.ead_path
@@ -1073,30 +780,41 @@ class Collection( object ):
         >>> c.json_path
         '/tmp/ddr-testing-123/collection.json'
         """
-        self.path = path
-        self.path_rel = os.path.split(self.path)[1]
+        path_abs = os.path.normpath(path_abs)
+        if identifier:
+            i = identifier
+        else:
+            i = Identifier(path=path_abs)
+        self.identifier = i
+        
+        self.id = i.id
+        self.idparts = i.parts.values()
+        
+        self.path_abs = path_abs
+        self.path = path_abs
+        
         self.root = os.path.split(self.path)[0]
-        if not uid:
-            uid = os.path.basename(self.path)
-        self.uid  = uid
-        self.id = uid
-        self_model,self.repo,self.org,self.cid = Identity.split_object_id(uid)
-        self.annex_path         = os.path.join(self.path, '.git', 'annex')
-        self.annex_path_rel     = os.path.join('.git', 'annex')
-        self.json_path          = self._path_absrel('collection.json')
-        self.json_path_rel      = self._path_absrel('collection.json',rel=True)
-        self.files_path         = self._path_absrel('files')
-        self.files_path_rel     = self._path_absrel('files', rel=True)
-        self.changelog_path     = self._path_absrel('changelog')
-        self.changelog_path_rel = self._path_absrel('changelog', rel=True)
-        self.control_path       = self._path_absrel('control')
-        self.control_path_rel   = self._path_absrel('control', rel=True)
-        self.ead_path           = self._path_absrel('ead.xml')
-        self.ead_path_rel       = self._path_absrel('ead.xml', rel=True)
-        self.gitignore_path     = self._path_absrel('.gitignore')
-        self.gitignore_path_rel = self._path_absrel('.gitignore', rel=True)
-        self.lock_path          = self._path_absrel('lock')
-        self.git_url = '{}:{}'.format(GITOLITE, self.uid)
+        self.json_path          = i.path_abs('json')
+        self.git_path           = i.path_abs('git')
+        self.gitignore_path     = i.path_abs('gitignore')
+        self.annex_path         = i.path_abs('annex')
+        self.changelog_path     = i.path_abs('changelog')
+        self.control_path       = i.path_abs('control')
+        self.ead_path           = i.path_abs('ead')
+        self.lock_path          = i.path_abs('lock')
+        self.files_path         = i.path_abs('files')
+        
+        self.path_rel = i.path_rel()
+        self.json_path_rel      = i.path_rel('json')
+        self.git_path_rel       = i.path_rel('git')
+        self.gitignore_path_rel = i.path_rel('gitignore')
+        self.annex_path_rel     = i.path_rel('annex')
+        self.changelog_path_rel = i.path_rel('changelog')
+        self.control_path_rel   = i.path_rel('control')
+        self.ead_path_rel       = i.path_rel('ead')
+        self.files_path_rel     = i.path_rel('files')
+        
+        self.git_url = '{}:{}'.format(GITOLITE, self.id)
     
     def __repr__(self):
         """Returns string representation of object.
@@ -1105,7 +823,7 @@ class Collection( object ):
         >>> c
         <Collection ddr-testing-123>
         """
-        return "<Collection %s>" % (self.id)
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
     @staticmethod
     def create(path):
@@ -1125,13 +843,71 @@ class Collection( object ):
         return collection
     
     @staticmethod
-    def from_json(collection_abs):
-        """Creates a Collection and populates with data from JSON file.
+    def from_json(path_abs, identifier=None):
+        """Instantiates a Collection object from specified collection.json.
         
-        @param collection_abs: Absolute path to collection directory.
+        @param path_abs: Absolute path to .json file.
+        @param identifier: [optional] Identifier
         @returns: Collection
         """
-        return from_json(Collection, os.path.join(collection_abs, 'collection.json'))
+        return from_json(Collection, path_abs, identifier)
+    
+    @staticmethod
+    def from_identifier(identifier):
+        """Instantiates a Collection object using data from Identidier.
+        
+        @param identifier: Identifier
+        @returns: Collection
+        """
+        return from_json(Collection, identifier.path_abs('json'), identifier)
+
+    def parent( self ):
+        """Returns Collection's parent object.
+        """
+        return self.identifier.parent().object()
+    
+    def children( self, quick=None ):
+        """Returns list of the Collection's Entity objects.
+        
+        >>> c = Collection.from_json('/tmp/ddr-testing-123')
+        >>> c.children()
+        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
+        
+        TODO use metadata_files()
+        
+        @param quick: Boolean List only titles and IDs
+        """
+        # empty class used for quick view
+        class ListEntity( object ):
+            def __repr__(self):
+                return "<DDRListEntity %s>" % (self.id)
+        entity_paths = []
+        if os.path.exists(self.files_path):
+            # TODO use cached list if available
+            for eid in os.listdir(self.files_path):
+                path = os.path.join(self.files_path, eid)
+                entity_paths.append(path)
+        entity_paths = natural_sort(entity_paths)
+        entities = []
+        for path in entity_paths:
+            if quick:
+                # fake Entity with just enough info for lists
+                entity_json_path = os.path.join(path,'entity.json')
+                if os.path.exists(entity_json_path):
+                    for line in read_json(entity_json_path).split('\n'):
+                        if '"title":' in line:
+                            e = ListEntity()
+                            e.id = Identifier(path=path).id
+                            # make a miniature JSON doc out of just title line
+                            e.title = json.loads('{%s}' % line)['title']
+                            entities.append(e)
+            else:
+                entity = Entity.from_identifier(Identifier(path=path))
+                for lv in entity.labels_values():
+                    if lv['label'] == 'title':
+                        entity.title = lv['value']
+                entities.append(entity)
+        return entities
     
     def model_def_commits( self ):
         return Module(collectionmodule).cmp_model_definition_commits(self)
@@ -1209,6 +985,10 @@ class Collection( object ):
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
     
+    def post_json(self, hosts, index):
+        from DDR.docstore import post_json
+        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+    
     def lock( self, text ): return Locking.lock(self.lock_path, text)
     def unlock( self, text ): return Locking.unlock(self.lock_path, text)
     def locked( self ): return Locking.locked(self.lock_path)
@@ -1220,7 +1000,7 @@ class Collection( object ):
     
     def control( self ):
         if not os.path.exists(self.control_path):
-            CollectionControlFile.create(self.control_path, self.uid)
+            CollectionControlFile.create(self.control_path, self.id)
         return CollectionControlFile(self.control_path)
     
     def ead( self ):
@@ -1252,8 +1032,12 @@ class Collection( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        with open(self.ead_path, 'w') as f:
-            f.write(xml_pretty)
+        return xml_pretty
+
+    def write_ead(self):
+        """Write EAD XML file to disk.
+        """
+        write_xml(self.dump_ead(), self.ead_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -1267,81 +1051,24 @@ class Collection( object ):
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
         """Returns collection paths.
+        TODO use metadata_files()
         """
         paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
-        uid = re.compile(regex)
+        id = re.compile(regex)
         for x in os.listdir(collections_root):
-            m = uid.search(x)
+            m = id.search(x)
             if m:
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
                     paths.append(colldir)
         return natural_sort(paths)
     
-    def entity_path( self, entity_uid ):
-        return os.path.join(self.files_path, entity_uid)
-    
-    def entity_paths( self ):
-        """Returns relative paths to entities.
-        """
-        paths = []
-        cpath = self.path
-        if cpath[-1] != '/':
-            cpath = '{}/'.format(cpath)
-        if os.path.exists(self.files_path):
-            for uid in os.listdir(self.files_path):
-                epath = os.path.join(self.files_path, uid)
-                paths.append(epath)
-        return natural_sort(paths)
-    
-    def entities( self, quick=None ):
-        """Returns list of the Collection's Entity objects.
-        
-        >>> c = Collection.from_json('/tmp/ddr-testing-123')
-        >>> c.entities()
-        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
-        
-        @param quick: Boolean List only titles and IDs
-        """
-        # empty class used for quick view
-        class ListEntity( object ):
-            def __repr__(self):
-                return "<DDRListEntity %s>" % (self.id)
-        entity_paths = []
-        if os.path.exists(self.files_path):
-            # TODO use cached list if available
-            for eid in os.listdir(self.files_path):
-                path = os.path.join(self.files_path, eid)
-                entity_paths.append(path)
-        entity_paths = natural_sort(entity_paths)
-        entities = []
-        for path in entity_paths:
-            if quick:
-                # fake Entity with just enough info for lists
-                entity_json_path = os.path.join(path,'entity.json')
-                if os.path.exists(entity_json_path):
-                    for line in read_json(entity_json_path).split('\n'):
-                        if '"title":' in line:
-                            e = ListEntity()
-                            e.id = e.uid = eid = os.path.basename(path)
-                            e.repo,e.org,e.cid,e.eid = eid.split('-')
-                            # make a miniature JSON doc out of just title line
-                            e.title = json.loads('{%s}' % line)['title']
-                            entities.append(e)
-            else:
-                entity = Entity.from_json(path)
-                for lv in entity.labels_values():
-                    if lv['label'] == 'title':
-                        entity.title = lv['value']
-                entities.append(entity)
-        return entities
-    
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
         """
         result = '-1'
-        if os.path.exists(os.path.join(self.path, '.git')):
+        if os.path.exists(self.git_path):
             result = dvcs.fetch(self.path)
         else:
             result = '%s is not a git repository' % self.path
@@ -1353,7 +1080,7 @@ class Collection( object ):
         The repo_(synced,ahead,behind,diverged,conflicted) functions all use
         the result of this function so that git-status is only called once.
         """
-        if not self._status and (os.path.exists(os.path.join(self.path, '.git'))):
+        if not self._status and (os.path.exists(self.git_path)):
             status = dvcs.repo_status(self.path, short=True)
             if status:
                 self._status = status
@@ -1362,7 +1089,7 @@ class Collection( object ):
     def repo_annex_status( self ):
         """Get annex status of collection repo.
         """
-        if not self._astatus and (os.path.exists(os.path.join(self.path, '.git'))):
+        if not self._astatus and (os.path.exists(self.git_path)):
             astatus = dvcs.annex_status(self.path)
             if astatus:
                 self._astatus = astatus
@@ -1409,59 +1136,66 @@ class EntityAddFileLogger():
 
 class Entity( object ):
     root = None
-    uid = None
     id = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
-    path = None; path_rel = None
+    idparts = None
+    collection_id = None
+    parent_id = None
+    path_abs = None
+    path = None
+    collection_path = None
     parent_path = None
-    parent_uid = None
-    json_path = None; json_path_rel = None
-    files_path = None; files_path_rel = None
-    changelog_path = None; changelog_path_rel = None
-    control_path = None; control_path_rel = None
-    mets_path = None; mets_path_rel = None
-    lock_path = None
+    json_path = None
+    changelog_path = None
+    control_path = None
+    mets_path = None
+    files_path = None
+    path_rel = None
+    json_path_rel = None
+    changelog_path_rel = None
+    control_path_rel = None
+    mets_path_rel = None
+    files_path_rel = None
     _file_objects = 0
     _file_objects_loaded = 0
     
-    def _path_absrel( self, filename, rel=False ):
-        """
-        NOTE: relative == relative to collection root
-        """
-        if rel:
-            p = self.path.replace('%s/' % self.parent_path, '')
-            return os.path.join(p, filename)
-        return os.path.join(self.path, filename)
-    
-    def __init__( self, path, uid=None ):
-        self.path = path
-        self.parent_path = os.path.split(os.path.split(self.path)[0])[0]
+    def __init__( self, path_abs, id=None, identifier=None ):
+        path_abs = os.path.normpath(path_abs)
+        if identifier:
+            i = identifier
+        else:
+            i = Identifier(path=path_abs)
+        self.identifier = i
+        
+        self.id = i.id
+        self.idparts = i.parts.values()
+        
+        self.collection_id = i.collection_id()
+        self.parent_id = i.parent_id()
+        
+        self.path_abs = path_abs
+        self.path = path_abs
+        self.collection_path = i.collection_path()
+        self.parent_path = i.parent_path()
+        
         self.root = os.path.split(self.parent_path)[0]
-        self.path_rel = self.path.replace('%s/' % self.root, '')
-        if not uid:
-            uid = os.path.basename(self.path)
-        self.uid = uid
-        self.id = uid
-        self_model,self.repo,self.org,self.cid,self.eid = Identity.split_object_id(uid)
-        self.parent_uid = os.path.split(self.parent_path)[1]
-        self.json_path          = self._path_absrel('entity.json')
-        self.json_path_rel      = self._path_absrel('entity.json',rel=True)
-        self.files_path         = self._path_absrel('files')
-        self.files_path_rel     = self._path_absrel('files', rel=True)
-        self.changelog_path     = self._path_absrel('changelog')
-        self.changelog_path_rel = self._path_absrel('changelog', rel=True)
-        self.control_path       = self._path_absrel('control')
-        self.control_path_rel   = self._path_absrel('control', rel=True)
-        self.mets_path          = self._path_absrel('mets.xml')
-        self.mets_path_rel      = self._path_absrel('mets.xml', rel=True)
-        self.lock_path          = self._path_absrel('lock')
+        self.json_path = i.path_abs('json')
+        self.changelog_path = i.path_abs('changelog')
+        self.control_path = i.path_abs('control')
+        self.mets_path = i.path_abs('mets')
+        self.lock_path = i.path_abs('lock')
+        self.files_path = i.path_abs('files')
+        
+        self.path_rel = i.path_rel()
+        self.json_path_rel = i.path_rel('json')
+        self.changelog_path_rel = i.path_rel('changelog')
+        self.control_path_rel = i.path_rel('control')
+        self.mets_path_rel = i.path_rel('mets')
+        self.files_path_rel = i.path_rel('files')
+        
         self._file_objects = []
     
     def __repr__(self):
-        return "<Entity %s>" % (self.id)
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
     @staticmethod
     def create(path):
@@ -1475,13 +1209,41 @@ class Entity( object ):
         return entity
     
     @staticmethod
-    def from_json(entity_abs):
-        """Creates a Entity and populates with data from JSON file.
+    def from_json(path_abs, identifier=None):
+        """Instantiates an Entity object from specified entity.json.
         
-        @param entity_abs: Absolute path to entity dir.
+        @param path_abs: Absolute path to .json file.
+        @param identifier: [optional] Identifier
         @returns: Entity
         """
-        return from_json(Entity, os.path.join(entity_abs, 'entity.json'))
+        return from_json(Entity, path_abs, identifier)
+    
+    @staticmethod
+    def from_identifier(identifier):
+        """Instantiates an Entity object, loads data from entity.json.
+        
+        @param identifier: Identifier
+        @returns: Entity
+        """
+        return from_json(Entity, identifier.path_abs('json'), identifier)
+    
+#    def parent( self ):
+#        """
+#        TODO Entity.parent is overridden by a field value
+#        """
+#        cidentifier = self.identifier.parent()
+#        return Collection.from_identifier(cidentifier)
+   
+    def children( self, role=None, quick=None ):
+        self.load_file_objects()
+        if role:
+            files = [
+                f for f in self._file_objects
+                if hasattr(f,'role') and (f.role == role)
+            ]
+        else:
+            files = [f for f in self._file_objects]
+        return sorted(files, key=lambda f: f.sort)
     
     def model_def_commits( self ):
         return Module(entitymodule).cmp_model_definition_commits(self)
@@ -1561,14 +1323,18 @@ class Entity( object ):
         if not template:
             for f in self.files:
                 fd = {}
-                for key in ENTITY_FILE_KEYS:
-                    val = None
-                    if hasattr(f, key):
-                        val = getattr(f, key, None)
-                    elif f.get(key,None):
-                        val = f[key]
-                    if val != None:
-                        fd[key] = val
+                if isinstance(f, dict):
+                    for key in ENTITY_FILE_KEYS:
+                        val = None
+                        if hasattr(f, key):
+                            val = getattr(f, key, None)
+                        elif f.get(key,None):
+                            val = f[key]
+                        if val != None:
+                            fd[key] = val
+                elif isinstance(f, File):
+                    for key in ENTITY_FILE_KEYS:
+                        fd[key] = getattr(f, key)
                 files.append(fd)
         data.append( {'files':files} )
         return format_json(data)
@@ -1578,6 +1344,10 @@ class Entity( object ):
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
     
+    def post_json(self, hosts, index):
+        from DDR.docstore import post_json
+        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+    
     def changelog( self ):
         if os.path.exists(self.changelog_path):
             return open(self.changelog_path, 'r').read()
@@ -1585,7 +1355,7 @@ class Entity( object ):
     
     def control( self ):
         if not os.path.exists(self.control_path):
-            EntityControlFile.create(self.control_path, self.parent_uid, self.uid)
+            EntityControlFile.create(self.control_path, self.parent_id, self.id)
         return EntityControlFile(self.control_path)
 
     def mets( self ):
@@ -1627,8 +1397,12 @@ class Entity( object ):
                     value
                 )
         xml_pretty = etree.tostring(tree, pretty_print=True)
-        with open(self.mets_path, 'w') as f:
-            f.write(xml_pretty)
+        return xml_pretty
+
+    def write_mets(self):
+        """Write METS XML file to disk.
+        """
+        write_xml(self.dump_mets(), self.mets_path)
     
     @staticmethod
     def checksum_algorithms():
@@ -1644,7 +1418,7 @@ class Entity( object ):
         checksums = []
         if algo not in self.checksum_algorithms():
             raise Error('BAD ALGORITHM CHOICE: {}'.format(algo))
-        for f in self.file_paths():
+        for f in self._file_paths():
             cs = None
             fpath = os.path.join(self.files_path, f)
             # git-annex files are present
@@ -1660,8 +1434,9 @@ class Entity( object ):
                 checksums.append( (cs, fpath) )
         return checksums
     
-    def file_paths( self ):
+    def _file_paths( self ):
         """Returns relative paths to payload files.
+        TODO use metadata_files()
         """
         paths = []
         prefix_path = self.files_path
@@ -1681,22 +1456,13 @@ class Entity( object ):
         self._file_objects = []
         for f in self.files:
             if f and f.get('path_rel',None):
-                path_abs = os.path.join(self.files_path, f['path_rel'])
-                file_ = File(path_abs=path_abs)
-                file_.load_json(read_json(file_.json_path))
+                basename = os.path.basename(f['path_rel'])
+                fid = os.path.splitext(basename)[0]
+                identifier = Identifier(id=fid, base_path=self.identifier.basepath)
+                file_ = File.from_identifier(identifier)
                 self._file_objects.append(file_)
         # keep track of how many times this gets loaded...
         self._file_objects_loaded = self._file_objects_loaded + 1
-    
-    def files_master( self ):
-        self.load_file_objects()
-        files = [f for f in self._file_objects if hasattr(f,'role') and (f.role == 'master')]
-        return sorted(files, key=lambda f: f.sort)
-    
-    def files_mezzanine( self ):
-        self.load_file_objects()
-        files = [f for f in self._file_objects if hasattr(f,'role') and (f.role == 'mezzanine')]
-        return sorted(files, key=lambda f: f.sort)
     
     def detect_file_duplicates( self, role ):
         """Returns list of file dicts that appear in Entity.files more than once
@@ -1726,9 +1492,10 @@ class Entity( object ):
         # reload objects
         self.load_file_objects()
     
-    def file( self, repo, org, cid, eid, role, sha1, newfile=None ):
+    def file( self, role, sha1, newfile=None ):
         """Given a SHA1 hash, get the corresponding file dict.
         
+        @param role
         @param sha1
         @param newfile (optional) If present, updates existing file or appends new one.
         @returns 'added', 'updated', File, or None
@@ -1759,7 +1526,7 @@ class Entity( object ):
         @returns: absolute path to logfile
         """
         logpath = os.path.join(
-            LOG_DIR, 'addfile', self.parent_uid, '%s.log' % self.id)
+            LOG_DIR, 'addfile', self.parent_id, '%s.log' % self.id)
         if not os.path.exists(os.path.dirname(logpath)):
             os.makedirs(os.path.dirname(logpath))
         return logpath
@@ -1802,7 +1569,7 @@ class Entity( object ):
         log.ok('data: %s' % data)
         
         tmp_dir = os.path.join(
-            MEDIA_BASE, 'tmp', 'file-add', self.parent_uid, self.id)
+            MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
         dest_dir = self.files_path
         
         log.ok('Checking files/dirs')
@@ -1812,47 +1579,65 @@ class Entity( object ):
                 os.makedirs(path)
             if not os.path.exists(path): crash('%s does not exist' % label)
             if not os.access(path, perm): crash('%s not has permission %s' % (label, permission))
-        check_dir('src_path', src_path, mkdir=False, perm=os.R_OK)
-        check_dir('tmp_dir', tmp_dir, mkdir=True, perm=os.W_OK)
-        check_dir('dest_dir', dest_dir, mkdir=True, perm=os.W_OK)
+        check_dir('| src_path', src_path, mkdir=False, perm=os.R_OK)
+        check_dir('| tmp_dir', tmp_dir, mkdir=True, perm=os.W_OK)
+        check_dir('| dest_dir', dest_dir, mkdir=True, perm=os.W_OK)
         
         log.ok('Checksumming')
-        sha1   = file_hash(src_path, 'sha1');   log.ok('sha1: %s' % sha1)
-        md5    = file_hash(src_path, 'md5');    log.ok('md5: %s' % md5)
-        sha256 = file_hash(src_path, 'sha256'); log.ok('sha256: %s' % sha256)
+        md5    = file_hash(src_path, 'md5');    log.ok('| md5: %s' % md5)
+        sha1   = file_hash(src_path, 'sha1');   log.ok('| sha1: %s' % sha1)
+        sha256 = file_hash(src_path, 'sha256'); log.ok('| sha256: %s' % sha256)
         if not sha1 and md5 and sha256:
             crash('Could not calculate checksums')
+
+        log.ok('Identifier')
+        idparts = {
+            'role': role,
+            'sha1': sha1[:10],
+        }
+        log.ok('| idparts %s' % idparts)
+        fidentifier = self.identifier.child('file', idparts, self.identifier.basepath)
+        log.ok('| identifier %s' % fidentifier)
         
-        # final basename
-        dest_basename = File.file_name(
-            self, src_path, role, sha1)  # NOTE: runs checksum if no sha1 arg!
+        log.ok('Destination path')
+        src_ext = os.path.splitext(src_path)[1]
+        dest_basename = '{}{}'.format(fidentifier.id, src_ext)
+        log.ok('| dest_basename %s' % dest_basename)
         dest_path = os.path.join(dest_dir, dest_basename)
+        log.ok('| dest_path %s' % dest_path)
         
-        # file object
-        f = File(path_abs=dest_path)
-        f.basename_orig = os.path.basename(src_path)
-        f.size = os.path.getsize(src_path)
-        f.role = role
-        f.sha1 = sha1
-        f.md5 = md5
-        f.sha256 = sha256
-        log.ok('Created File: %s' % f)
-        log.ok('f.path_abs: %s' % f.path_abs)
-        log.ok('f.basename_orig: %s' % f.basename_orig)
-        log.ok('f.size: %s' % f.size)
+        log.ok('File object')
+        file_ = File(path_abs=dest_path, identifier=fidentifier)
+        file_.basename_orig = os.path.basename(src_path)
+        # add extension to path_abs
+        file_.ext = os.path.splitext(file_.basename_orig)[1]
+        file_.path_abs = file_.path_abs + file_.ext
+        log.ok('file_.ext %s' % file_.ext)
+        log.ok('file_.path_abs %s' % file_.path_abs)
+        file_.size = os.path.getsize(src_path)
+        file_.role = role
+        file_.sha1 = sha1
+        file_.md5 = md5
+        file_.sha256 = sha256
+        log.ok('| file_ %s' % file_)
+        log.ok('| file_.basename_orig: %s' % file_.basename_orig)
+        log.ok('| file_.path_abs: %s' % file_.path_abs)
+        log.ok('| file_.size: %s' % file_.size)
         # form data
         for field in data:
-            setattr(f, field, data[field])
+            setattr(file_, field, data[field])
         
         log.ok('Copying to work dir')
-        tmp_path = os.path.join(tmp_dir, f.basename_orig)
-        log.ok('cp %s %s' % (src_path, tmp_path))
+        log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
+        tmp_path = os.path.join(tmp_dir, file_.basename_orig)
+        log.ok('| cp %s %s' % (src_path, tmp_path))
         shutil.copy(src_path, tmp_path)
         os.chmod(tmp_path, 0644)
-        if not os.path.exists(tmp_path):
-            crash('Copy to work dir failed %s %s' % (src_path, tmp_path))
+        if os.path.exists(tmp_path):
+            log.ok('| done')
+        else:
+            crash('Copy failed!')
         
-        # rename file
         tmp_path_renamed = os.path.join(os.path.dirname(tmp_path), dest_basename)
         log.ok('Renaming %s -> %s' % (os.path.basename(tmp_path), dest_basename))
         os.rename(tmp_path, tmp_path_renamed)
@@ -1860,57 +1645,71 @@ class Entity( object ):
             crash('File rename failed: %s -> %s' % (tmp_path, tmp_path_renamed))
         
         log.ok('Extracting XMP data')
-        f.xmp = imaging.extract_xmp(src_path)
+        file_.xmp = imaging.extract_xmp(src_path)
         
-        log.ok('Making access file')
+        log.ok('Access file')
         access_filename = File.access_filename(tmp_path_renamed)
+        access_dest_path = os.path.join(tmp_dir, os.path.basename(access_filename))
+        log.ok('src_path %s' % src_path)
+        log.ok('access_filename %s' % access_filename)
+        log.ok('access_dest_path %s' % access_dest_path)
+        log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
         tmp_access_path = None
         try:
             tmp_access_path = imaging.thumbnail(
                 src_path,
-                os.path.join(tmp_dir, os.path.basename(access_filename)),
+                access_dest_path,
                 geometry=ACCESS_FILE_GEOMETRY)
         except:
             # write traceback to log and continue on
             log.not_ok(traceback.format_exc().strip())
         if tmp_access_path and os.path.exists(tmp_access_path):
-            log.ok('Attaching access file')
+            log.ok('| attaching access file')
             #dest_access_path = os.path.join('files', os.path.basename(tmp_access_path))
             #log.ok('dest_access_path: %s' % dest_access_path)
-            f.set_access(tmp_access_path, self)
-            log.ok('f.access_rel: %s' % f.access_rel)
-            log.ok('f.access_abs: %s' % f.access_abs)
+            file_.set_access(tmp_access_path, self)
+            log.ok('| file_.access_rel: %s' % file_.access_rel)
+            log.ok('| file_.access_abs: %s' % file_.access_abs)
         else:
             log.not_ok('no access file')
         
         log.ok('Attaching file to entity')
-        self.files.append(f)
+        self.files.append(file_)
+        if file_ in self.files:
+            log.ok('| done')
+        else:
+            crash('Could not add file to entity.files!')
         
         log.ok('Writing file metadata')
-        tmp_file_json = os.path.join(tmp_dir, os.path.basename(f.json_path))
+        tmp_file_json = os.path.join(tmp_dir, os.path.basename(file_.json_path))
         log.ok(tmp_file_json)
-        write_json(f.dump_json(), tmp_file_json)
-        if not os.path.exists(tmp_file_json):
+        write_json(file_.dump_json(), tmp_file_json)
+        if os.path.exists(tmp_file_json):
+            log.ok('| done')
+        else:
             crash('Could not write file metadata %s' % tmp_file_json)
+        
         log.ok('Writing entity metadata')
         tmp_entity_json = os.path.join(tmp_dir, os.path.basename(self.json_path))
         log.ok(tmp_entity_json)
         write_json(self.dump_json(), tmp_entity_json)
-        if not os.path.exists(tmp_entity_json):
+        if os.path.exists(tmp_entity_json):
+            log.ok('| done')
+        else:
             crash('Could not write entity metadata %s' % tmp_entity_json)
         
         # WE ARE NOW MAKING CHANGES TO THE REPO ------------------------
         
         log.ok('Moving files to dest_dir')
         new_files = [
-            [tmp_path_renamed, f.path_abs],
-            [tmp_file_json, f.json_path],
+            [tmp_path_renamed, file_.path_abs],
+            [tmp_file_json, file_.json_path],
         ]
         if tmp_access_path and os.path.exists(tmp_access_path):
-            new_files.append([tmp_access_path, f.access_abs])
+            new_files.append([tmp_access_path, file_.access_abs])
         mvfiles_failures = []
         for tmp,dest in new_files:
-            log.ok('mv %s %s' % (tmp,dest))
+            log.ok('| mv %s %s' % (tmp,dest))
             os.rename(tmp,dest)
             if not os.path.exists(dest):
                 log.not_ok('FAIL')
@@ -1919,10 +1718,10 @@ class Entity( object ):
         # one of new_files failed to copy, so move all back to tmp
         if mvfiles_failures:
             log.not_ok('%s failures: %s' % (len(mvfiles_failures), mvfiles_failures))
-            log.not_ok('moving files back to tmp_dir')
+            log.not_ok('Moving files back to tmp_dir')
             try:
                 for tmp,dest in new_files:
-                    log.ok('mv %s %s' % (dest,tmp))
+                    log.ok('| mv %s %s' % (dest,tmp))
                     os.rename(dest,tmp)
                     if not os.path.exists(tmp) and not os.path.exists(dest):
                         log.not_ok('FAIL')
@@ -1932,19 +1731,26 @@ class Entity( object ):
                 raise
             finally:
                 crash('Failed to place one or more files to destination repo')
+        else:
+            log.ok('| all files moved')
         # entity metadata will only be copied if everything else was moved
-        log.ok('mv %s %s' % (tmp_entity_json, self.json_path))
+        log.ok('Moving entity.json to dest_dir')
+        log.ok('| mv %s %s' % (tmp_entity_json, self.json_path))
         os.rename(tmp_entity_json, self.json_path)
         if not os.path.exists(self.json_path):
             crash('Failed to place entity.json in destination repo')
         
-        # stage files
-        git_files = [self.json_path_rel, f.json_path_rel]
-        annex_files = [f.path_abs.replace('%s/' % f.collection_path, '')]
-        if f.access_abs:
-            annex_files.append(f.access_abs.replace('%s/' % f.collection_path, ''))
-        repo = dvcs.repository(f.collection_path)
-        log.ok(repo)
+        log.ok('Staging files')
+        repo = dvcs.repository(file_.collection_path)
+        log.ok('| repo %s' % repo)
+        log.ok('file_.json_path_rel %s' % file_.json_path_rel)
+        git_files = [
+            self.json_path_rel,
+            file_.json_path_rel
+        ]
+        annex_files = [file_.path_abs.replace('%s/' % file_.collection_path, '')]
+        if file_.access_abs and os.path.exists(file_.access_abs):
+            annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
         # These vars will be used to determine if stage operation is successful.
         # If called in batch operation there may already be staged files.
         # stage_planned   Files added/modified by this function call
@@ -1955,7 +1761,9 @@ class Entity( object ):
         stage_already = dvcs.list_staged(repo)
         stage_predicted = self._addfile_predict_staged(stage_already, stage_planned)
         stage_new = [x for x in stage_planned if x not in stage_already]
-        log.ok('Staging %s files' % len(stage_planned))
+        log.ok('| %s files to stage:' % len(stage_planned))
+        for sp in stage_planned:
+            log.ok('| %s' % sp)
         stage_ok = False
         staged = []
         try:
@@ -1963,34 +1771,33 @@ class Entity( object ):
             staged = dvcs.list_staged(repo)
         except:
             # FAILED! print traceback to addfile log
-            entrails = traceback.format_exc().strip()
-            log.not_ok(entrails)
-            with open(self._addfile_log_path(), 'a') as f:
-                f.write(entrails)
+            log.not_ok(traceback.format_exc().strip())
         finally:
             if len(staged) == len(stage_predicted):
-                log.ok('%s files staged (%s new, %s modified)' % (
-                    len(staged), len(stage_new), len(stage_already)))
+                log.ok('| %s files staged (%s new, %s modified)' % (
+                    len(staged), len(stage_new), len(stage_already))
+                )
                 stage_ok = True
             else:
                 log.not_ok('%s new files staged (should be %s)' % (
-                    len(staged), len(stage_predicted)))
+                    len(staged), len(stage_predicted))
+                )
             if not stage_ok:
-                log.not_ok('File staging aborted. Cleaning up...')
+                log.not_ok('File staging aborted. Cleaning up')
                 # try to pick up the pieces
                 # mv files back to tmp_dir
                 # TODO Properly clean up git-annex-added files.
                 #      This clause moves the *symlinks* to annex files but leaves
                 #      the actual binaries in the .git/annex objects dir.
                 for tmp,dest in new_files:
-                    log.not_ok('mv %s %s' % (dest,tmp))
+                    log.not_ok('| mv %s %s' % (dest,tmp))
                     os.rename(dest,tmp)
                 log.not_ok('finished cleanup. good luck...')
                 raise crash('Add file aborted, see log file for details.')
         
         # IMPORTANT: Files are only staged! Be sure to commit!
         # IMPORTANT: changelog is not staged!
-        return f,repo,log
+        return file_,repo,log
     
     def _addfile_predict_staged(self, already, planned):
         """Predict which files will be staged, accounting for modifications
@@ -2009,11 +1816,11 @@ class Entity( object ):
         return total
     
     def add_file_commit(self, file_, repo, log, git_name, git_mail, agent):
+        log.ok('add_file_commit(%s, %s, %s, %s, %s, %s)' % (file_, repo, log, git_name, git_mail, agent))
         staged = dvcs.list_staged(repo)
         modified = dvcs.list_modified(repo)
         if staged and not modified:
             log.ok('All files staged.')
-            
             log.ok('Updating changelog')
             path = file_.path_abs.replace('{}/'.format(self.path), '')
             changelog_messages = ['Added entity file {}'.format(path)]
@@ -2030,7 +1837,9 @@ class Entity( object ):
             log.ok('commit: {}'.format(commit.hexsha))
             committed = dvcs.list_committed(repo, commit)
             committed.sort()
-            log.ok('files committed:     {}'.format(committed))
+            log.ok('files committed:')
+            for f in committed:
+                log.ok('| %s' % f)
             
         else:
             log.not_ok('%s files staged, %s files modified' % (len(staged),len(modified)))
@@ -2056,8 +1865,6 @@ class Entity( object ):
         @param agent: (optional) Name of software making the change.
         @return file_ File object
         """
-        from DDR.commands import entity_annex_add
-        
         f = ddrfile
         repo = None
         log = self.addfile_logger()
@@ -2074,7 +1881,7 @@ class Entity( object ):
         src_path = ddrfile.path_abs
         tmp_dir = os.path.join(
             MEDIA_BASE, 'tmp', 'file-add',
-            self.parent_uid, self.id)
+            self.parent_id, self.id)
         dest_dir = self.files_path
 
         log.ok('Checking files/dirs')
@@ -2160,7 +1967,8 @@ class Entity( object ):
             git_files, annex_files,
             agent, self))
         try:
-            exit,status = entity_annex_add(
+            from DDR import commands
+            exit,status = commands.entity_annex_add(
                 git_name, git_mail,
                 self.parent_path, self.id, git_files, annex_files,
                 agent=agent, entity=self)
@@ -2169,8 +1977,7 @@ class Entity( object ):
         except:
             # COMMIT FAILED! try to pick up the pieces
             # print traceback to addfile log
-            with open(self._addfile_log_path(), 'a') as f:
-                traceback.print_exc(file=f)
+            log.not_ok(traceback.format_exc().strip())
             # mv files back to tmp_dir
             log.not_ok('status: %s' % status)
             log.not_ok('Cleaning up...')
@@ -2184,6 +1991,46 @@ class Entity( object ):
             raise
         
         return f,repo,log
+
+    def rm_file(self, file_, git_name, git_mail, agent ):
+        """Delete specified file and update Entity.
+        
+        @param git_name: str
+        @param git_name: str
+        @param agent: str
+        """
+        from DDR import docstore
+        logger.debug('%s.rm_file(%s, %s, %s, %s)' % (self, file_, git_name, git_mail, agent))
+        # list of files to be *removed*
+        rm_files = [
+            f for f in file_.files_rel()
+            if os.path.exists(
+                os.path.join(self.collection_path, f)
+            )
+        ]
+        # remove pointers to file in entity.json
+        # TODO move this to commands.file_destroy or models.Entity
+        logger.debug('removing:')
+        for f in self.files:
+            logger.debug('| %s' % f)
+            if file_.id in f['path_rel']:
+                logger.debug('| --entity.files.remove(%s)' % f)
+                self.files.remove(f)
+        self.write_json()
+        # list of files to be *updated*
+        updated_files = ['entity.json']
+        logger.debug('updated_files: %s' % updated_files)
+        # remove and commit
+        from DDR import commands
+        status,message = commands.file_destroy(
+            git_name, git_mail,
+            self.collection_path, self.id,
+            rm_files, updated_files,
+            agent
+        )
+        logger.debug(status)
+        logger.debug(message)
+        return status,message
 
 
 
@@ -2203,46 +2050,39 @@ FILE_KEYS = ['path_rel',
              'xmp',]
 
 class File( object ):
-    id = 'whatever'
-    # path relative to /
-    # (ex: /var/www/media/base/ddr-testing-71/files/ddr-testing-71-6/files/ddr-testing-71-6-dd9ec4305d.jpg)
-    # not saved; constructed on instantiation
-    path = None
+    id = None
+    idparts = None
+    collection_id = None
+    parent_id = None
+    entity_id = None
     path_abs = None
-    # files
-    # path relative to entity files directory
-    # (ex: ddr-testing-71-6-dd9ec4305d.jpg)
-    # (ex: subdir/ddr-testing-71-6-dd9ec4305d.jpg)
-    path_rel = None
+    path = None
+    collection_path = None
+    parent_path = None
+    entity_path = None
+    entity_files_path = None
     json_path = None
+    access_abs = None
+    path_rel = None
     json_path_rel = None
+    access_rel = None
+    ext = None
     basename = None
     basename_orig = ''
     size = None
     role = None
-    sha1 = None
     sha256 = None
     md5 = None
     public = 0
     sort = 1
     label = ''
     thumb = -1
-    # access file path relative to entity
-    access_rel = None
     # access file path relative to /
     # not saved; constructed on instantiation
-    access_abs = None
     access_size = None
     xmp = ''
     # entity
     src = None
-    repo = None
-    org = None
-    cid = None
-    eid = None
-    collection_path = None
-    entity_path = None
-    entity_files_path = None
     links = None
     
     def __init__(self, *args, **kwargs):
@@ -2253,72 +2093,51 @@ class File( object ):
         probably get it wrong and fail silently!
         TODO refactor and simplify this horrible code!
         """
-        # accept either path_abs or path_rel
+        path_abs = None
+        # only accept path_abs
         if kwargs and kwargs.get('path_abs',None):
-            self.path_abs = kwargs['path_abs']
-        elif kwargs and kwargs.get('path_rel',None):
-            self.path_rel = kwargs['path_rel']
+            path_abs = kwargs['path_abs']
+        elif args and args[0]:
+            path_abs = args[0]  #     Use path_abs arg!!!
+        if not path_abs:
+            # TODO accept path_rel plus base_path
+            raise Exception("File must be instantiated with an absolute path!")
+        path_abs = os.path.normpath(path_abs)
+        if kwargs and kwargs.get('identifier',None):
+            i = kwargs['identifier']
         else:
-            if args and args[0]:
-                s = os.path.splitext(args[0])
-                if os.path.exists(args[0]):  # <<< Causes problems with missing git-annex files
-                    self.path_abs = args[0]  #     Use path_abs arg!!!
-                elif (len(s) == 2) and s[0] and s[1]:
-                    self.path_rel = args[0]
-        if self.path_abs:
-            self.basename = os.path.basename(self.path_abs)
-        elif self.path_rel:
-            self.basename = os.path.basename(self.path_rel)
-        # IMPORTANT: path_rel is the link between Entity and File
-        # It MUST be present in entity.json and file.json or lots of
-        # things will break!
-        # NOTE: path_rel is basically the same as basename
-        if self.path_abs and not self.path_rel:
-            self.path_rel = self.basename
-        # much info is encoded in filename
-        if self.basename:
-            parts = os.path.splitext(self.basename)[0].split('-')
-            self.repo = parts[0]
-            self.org = parts[1]
-            self.cid = parts[2]
-            self.eid = parts[3]
-            # NOTE: we get role from filename and also from JSON data, if available
-            self.role = parts[4]
-            self.sha1 = parts[5]
-            self.id = '-'.join([self.repo,self.org,self.cid,self.eid,self.role,self.sha1])
-        # get one path if the other not present
-        if self.entity_path and self.path_rel and not self.path_abs:
-            self.path_abs = os.path.join(self.entity_files_path, self.path_rel)
-        elif self.entity_path and self.path_abs and not self.path_rel:
-            self.path_rel = self.path_abs.replace(self.entity_files_path, '')
-        # clean up path_rel if necessary
-        if self.path_rel and (self.path_rel[0] == '/'):
-            self.path_rel = self.path_rel[1:]
-        # load JSON
-        if self.path_abs:
-            self.path = self.path_abs
-            p = Identity.dissect_path(self.path_abs)
-            self.collection_path = p.collection_path
-            self.entity_path = p.entity_path
-            self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
-            # file JSON
-            self.json_path = os.path.join(os.path.splitext(self.path_abs)[0], '.json')
-            self.json_path = self.json_path.replace('/.json', '.json')
-            self.json_path_rel = self.json_path.replace(self.collection_path, '')
-            if self.json_path_rel[0] == '/':
-                self.json_path_rel = self.json_path_rel[1:]
-            ## TODO seriously, do we need this?
-            #with open(self.json_path, 'r') as f:
-            #    self.load_json(f.read())
-            access_abs = None
-            if self.access_rel and self.entity_path:
-                access_abs = os.path.join(self.entity_files_path, self.access_rel)
-                if os.path.exists(access_abs):
-                    self.access_abs = os.path.join(self.entity_files_path, self.access_rel)
-    
+            i = Identifier(os.path.splitext(path_abs)[0])
+        self.identifier = i
+        
+        self.id = i.id
+        self.idparts = i.parts.values()
+        self.collection_id = i.collection_id()
+        self.parent_id = i.parent_id()
+        self.entity_id = self.parent_id
+        self.role = i.parts['role']
+        
+        # IMPORTANT: These paths (set by Identifier) do not have file extension!
+        # File extension is added in File.load_json!
+        
+        self.path_abs = path_abs
+        self.path = path_abs
+        self.collection_path = i.collection_path()
+        self.parent_path = i.parent_path()
+        self.entity_path = self.parent_path
+        self.entity_files_path = os.path.join(self.entity_path, ENTITY_FILES_PREFIX)
+        
+        self.json_path = i.path_abs('json')
+        self.access_abs = i.path_abs('access')
+        
+        self.path_rel = i.path_rel()
+        self.json_path_rel = i.path_rel('json')
+        self.access_rel = i.path_rel('access')
+        
+        self.basename = os.path.basename(self.path_abs)
+
     def __repr__(self):
-        return "<File %s (%s)>" % (self.basename, self.basename_orig)
-    
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
+
     # _lockfile
     # lock
     # unlock
@@ -2326,7 +2145,34 @@ class File( object ):
     
     # create(path)
     
-    # entities/files/???
+    @staticmethod
+    def from_json(path_abs, identifier=None):
+        """Instantiates a File object from specified *.json.
+        
+        @param path_abs: Absolute path to .json file.
+        @param identifier: [optional] Identifier
+        @returns: DDRFile
+        """
+        #file_ = File(path_abs=path_abs)
+        #file_.load_json(read_json(file_.json_path))
+        #return file_
+        return from_json(File, path_abs, identifier)
+    
+    @staticmethod
+    def from_identifier(identifier):
+        """Instantiates a File object, loads data from FILE.json.
+        
+        @param identifier: Identifier
+        @returns: File
+        """
+        return File.from_json(identifier.path_abs('json'), identifier)
+    
+    def parent( self ):
+        i = Identifier(id=self.parent_id, base_path=self.identifier.basepath)
+        return Entity.from_identifier(i)
+
+    def children( self, quick=None ):
+        return []
     
     def model_def_commits( self ):
         return Module(filemodule).cmp_model_definition_commits(self)
@@ -2339,22 +2185,17 @@ class File( object ):
         """
         return Module(filemodule).labels_values(self)
     
-    def files_rel( self, collection_path ):
+    def files_rel( self ):
         """Returns list of the file, its metadata JSON, and access file, relative to collection.
         
         @param collection_path
         @returns: list of relative file paths
         """
-        if collection_path[-1] != '/':
-            collection_path = '%s/' % collection_path
-        paths = [ ]
-        if self.path_abs and os.path.exists(self.path_abs) and (collection_path in self.path_abs):
-            paths.append(self.path_abs.replace(collection_path, ''))
-        if self.json_path and os.path.exists(self.json_path) and (collection_path in self.json_path):
-            paths.append(self.json_path.replace(collection_path, ''))
-        if self.access_abs and os.path.exists(self.access_abs) and (collection_path in self.access_abs):
-            paths.append(self.access_abs.replace(collection_path, ''))
-        return paths
+        return [
+            self.path_rel,
+            self.json_path_rel,
+            self.access_rel,
+        ]
     
     def present( self ):
         """Indicates whether or not the original file is currently present in the filesystem.
@@ -2373,28 +2214,6 @@ class File( object ):
     def inherit( self, parent ):
         Inheritance.inherit( parent, self )
     
-    @staticmethod
-    def from_json(file_json):
-        """Creates a File and populates with data from JSON file.
-        
-        @param file_json: Absolute path to JSON file.
-        @returns: File
-        """
-        # This is complicated: The file object has to be created with
-        # the path to the file to which the JSON metadata file refers.
-        file_abs = None
-        fid = os.path.splitext(os.path.basename(file_json))[0]
-        fstub = '%s.' % fid
-        for filename in os.listdir(os.path.dirname(file_json)):
-            if (fstub in filename) and not ('json' in filename):
-                file_abs = os.path.join(os.path.dirname(file_json), filename)
-        # Now load the object
-        file_ = None
-        if os.path.exists(file_abs) or os.path.islink(file_abs):
-            file_ = File(path_abs=file_abs)
-            file_.load_json(read_json(file_.json_path))
-        return file_
-    
     def load_json(self, json_text):
         """Populate File data from JSON-formatted text.
         
@@ -2406,6 +2225,17 @@ class File( object ):
             access_abs = os.path.join(self.entity_files_path, self.access_rel)
             if os.path.exists(access_abs):
                 self.access_abs = access_abs
+        # Identifier does not know file extension
+        self.ext = os.path.splitext(self.basename_orig)[1]
+        self.path = self.path + self.ext
+        self.path_abs = self.path_abs + self.ext
+        self.path_rel = self.path_rel + self.ext
+        self.basename = self.basename + self.ext
+        # fix access_rel
+        self.access_rel = os.path.join(
+            os.path.dirname(self.path_rel),
+            os.path.basename(self.access_abs)
+        )
     
     def dump_json(self, doc_metadata=False):
         """Dump File data to JSON-formatted text.
@@ -2416,7 +2246,8 @@ class File( object ):
         data = prep_json(self, filemodule)
         if doc_metadata:
             data.insert(0, document_metadata(filemodule, self.collection_path))
-        data.insert(1, {'path_rel': self.path_rel})
+        # what we call path_rel in the .json is actually basename
+        data.insert(1, {'path_rel': self.basename})
         return format_json(data)
 
     def write_json(self):
@@ -2424,12 +2255,16 @@ class File( object ):
         """
         write_json(self.dump_json(doc_metadata=True), self.json_path)
     
+    def post_json(self, hosts, index):
+        from DDR.docstore import post_json
+        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+    
     @staticmethod
     def file_name( entity, path_abs, role, sha1=None ):
         """Generate a new name for the specified file; Use only when ingesting a file!
         
         rename files to standard names on ingest:
-        %{repo}-%{org}-%{cid}-%{eid}-%{role}%{sha1}.%{ext}
+        %{entity_id%}-%{role}-%{sha1}.%{ext}
         example: ddr-testing-56-101-master-fb73f9de29.jpg
         
         SHA1 is optional so it can be passed in by a calling process that has already
@@ -2445,12 +2280,10 @@ class File( object ):
             if not sha1:
                 sha1 = file_hash(path_abs, 'sha1')
             if sha1:
-                base = '-'.join([
-                    entity.repo, entity.org, entity.cid, entity.eid,
-                    role,
-                    sha1[:10]
-                ])
-                name = '{}{}'.format(base, ext)
+                idparts = [a for a in entity.idparts]
+                idparts.append(role)
+                idparts.append(sha1[:10])
+                name = '{}{}'.format(Identifier(parts=idparts).id, ext)
                 return name
         return None
     

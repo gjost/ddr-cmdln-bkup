@@ -41,11 +41,11 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, TransportError
 
 from DDR import natural_sort
-from DDR.models import Identity
 from DDR import models
+from DDR.identifier import Identifier
 
 from DDR import MAPPINGS_PATH
 from DDR import FACETS_PATH
@@ -663,23 +663,6 @@ def _clean_payload( data ):
             # rm null or empty fields
             _clean_dict(field)
 
-def _add_id_parts( data ):
-    """Add parts of id (e.g. repo, org, cid) to document as separate fields.
-    
-    >>> data = {'id'}
-    >>> _add_id_parts(data)
-    >>> data
-    {'id':'ddr-test-123', 'repo':'ddr', 'org':'test', 'cid':'123', ...}
-    """
-    oid = Identity.split_object_id(data['id'])
-    model = oid.pop(0)
-    # TODO what are we gonna do when there are multiple layers of entities?
-    # TODO n-layer, DRV
-    partnames = ['repo', 'org', 'cid', 'eid', 'role', 'sha1']
-    for n,partname in enumerate(partnames):
-        if len(oid) > n:
-            data[partname] = oid[n]
-
 def post( hosts, index, document, public_fields=[], additional_fields={}, private_ok=False ):
     """Add a new document to an index or update an existing one.
     
@@ -690,6 +673,7 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     DDR metadata JSON files are structured as a list of fieldname:value dicts.
     This is done so that the fields are always in the same order, making it
     possible to easily see the difference between versions of a file.
+    [IMPORTANT: documents MUST contain an 'id' field!]
     
     In ElasticSearch, documents are structured in a normal dict so that faceting
     works properly.
@@ -706,6 +690,13 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     """
     logger.debug('post(%s, %s, %s, %s, %s, %s)' % (hosts, index, document, public_fields, additional_fields, private_ok))
     
+    document_id = None
+    for field in document:
+        for k,v in field.iteritems():
+            if k == 'id':
+                document_id = v
+    identifier = Identifier(document_id)
+    
     # die if document is public=False or status=incomplete
     if (not _is_publishable(document)) and (not private_ok):
         return {'status':403, 'response':'object not publishable'}
@@ -713,44 +704,36 @@ def post( hosts, index, document, public_fields=[], additional_fields={}, privat
     _filter_payload(document, public_fields)
     # normalize field contents
     _clean_payload(document)
-    
+
     # restructure from list-of-fields dict to straight dict used by ddr-public
     data = {}
     for field in document:
         for k,v in field.iteritems():
             data[k] = v
     
-    document_id = None
-    model = Identity.model_from_dict(data)
-    if model in ['collection', 'entity']:
-        if not (data and data.get('id', None)):
-            return {'status':2, 'response':'no id'}
-        document_id = data['id']
-    elif model in ['file']:
-        if not (data and data.get('path_rel', None)):
-            return {'status':3, 'response':'no path_rel'}
-        filename = None
-        extension = None
-        if data.get('path_rel',None):
-            filename,extension = os.path.splitext(data['path_rel'])
+    # make sure Files have id,title
+    # TODO do this elsewhere, like in File object
+    if data and data.get('path_rel', None):
         basename_orig = data.get('basename_orig', None)
         label = data.get('label', None)
+        filename,extension = os.path.splitext(os.path.basename(data['path_rel']))
         if basename_orig and not label:
             label = basename_orig
         elif filename and not label:
             label = filename
-        data['id'] = filename
         data['title'] = label
-        document_id = data['id']
+    
+    # Add parts of id (e.g. repo, org, cid) to document as separate fields.
+    for key,val in identifier.parts.iteritems():
+        data[key] = val
     # additional_fields
-    _add_id_parts(data)
     for key,val in additional_fields.iteritems():
         data[key] = val
-    logger.debug('document_id %s' % document_id)
+    logger.debug('identifier.id %s' % identifier.id)
     
-    if document_id:
+    if identifier.id:
         es = _get_connection(hosts)
-        return es.index(index=index, doc_type=model, id=document_id, body=data)
+        return es.index(index=index, doc_type=identifier.model, id=identifier.id, body=data)
     return {'status':4, 'response':'unknown problem'}
 
 def post_json( hosts, index, doc_type, document_id, path ):
@@ -1000,16 +983,22 @@ def delete( hosts, index, document_id, recursive=False ):
     @param document_id:
     @param recursive: True or False
     """
-    model = Identity.split_object_id(document_id)[0]
+    identifier = Identifier(id=document_id)
     es = _get_connection(hosts)
     if recursive:
-        if model == 'collection': doc_type = 'collection,entity,file'
-        elif model == 'entity': doc_type = 'entity,file'
-        elif model == 'file': doc_type = 'file'
-        query = 'id:"%s"' % document_id
-        return es.delete_by_query(index=index, doc_type=doc_type, q=query)
+        if identifier.model == 'collection': doc_type = 'collection,entity,file'
+        elif identifier.model == 'entity': doc_type = 'entity,file'
+        elif identifier.model == 'file': doc_type = 'file'
+        query = 'id:"%s"' % identifier.id
+        try:
+            return es.delete_by_query(index=index, doc_type=doc_type, q=query)
+        except TransportError:
+            pass
     else:
-        return es.delete(index=index, doc_type=model, id=document_id)
+        try:
+            return es.delete(index=index, doc_type=identifier.model, id=identifier.id)
+        except TransportError:
+            pass
 
 
 # index ----------------------------------------------------------------
@@ -1059,7 +1048,7 @@ def _parents_status( paths ):
             parents[o.pop('id')] = o
     return parents
 
-def _file_parent_ids( path ):
+def _file_parent_ids(identifier):
     """Calculate the parent IDs of an entity or file from the filename.
     
     TODO not specific to elasticsearch - move this function so other modules can use
@@ -1071,14 +1060,13 @@ def _file_parent_ids( path ):
     >>> _file_parent_ids('file', '.../ddr-testing-123-1-master-a1b2c3d4e5.json')
     ['ddr-testing-123', 'ddr-testing-123-1']
     
-    @param path: absolute or relative path to metadata JSON file.
+    @param identifier: Identifier
     @returns: parent_ids
     """
-    p = Identity.dissect_path(path)
-    if p.model == 'file':
-        return [p.collection_id, p.entity_id]
-    elif p.model == 'entity':
-        return [p.collection_id]
+    if identifier.model == 'file':
+        return [identifier.collection_id, identifier.parent_id()]
+    elif identifier.model == 'entity':
+        return [identifier.collection_id]
     return []
 
 def _publishable_or_not( paths, parents ):
@@ -1091,11 +1079,11 @@ def _publishable_or_not( paths, parents ):
     successful_paths = []
     bad_paths = []
     for path in paths:
-        model = Identity.model_from_path(path)
+        identifier = Identifier(path=path)
         # see if item's parents are incomplete or nonpublic
         # TODO Bad! Bad! Generalize this...
         UNPUBLISHABLE = []
-        parent_ids = _file_parent_ids(path)
+        parent_ids = _file_parent_ids(identifier)
         for parent_id in parent_ids:
             parent = parents.get(parent_id, {})
             for x in parent.itervalues():
@@ -1106,37 +1094,32 @@ def _publishable_or_not( paths, parents ):
             response = 'parent unpublishable: %s' % UNPUBLISHABLE
             bad_paths.append((path,403,response))
         if not UNPUBLISHABLE:
-            if path and index and model:
+            if path and index and identifier.model:
                 successful_paths.append(path)
             else:
                 logger.error('missing information!: %s' % path)
     return successful_paths,bad_paths
 
-def _has_access_file( path, suffix='-a.jpg' ):
+def _has_access_file( identifier ):
     """Determines whether the path has a corresponding access file.
     
     @param path: Absolute or relative path to JSON file.
     @param suffix: Suffix that is applied to File ID to get access file.
     @returns: True,False
     """
-    fp = Identity.dissect_path(path)
-    if os.path.exists(fp.access_path) or os.path.islink(fp.access_path):
+    access_abs = identifier.path_abs('access')
+    if os.path.exists(access_abs) or os.path.islink(access_abs):
         return True
     return False
 
-def _store_signature_file( signatures, path, model, master_substitute ):
+def _store_signature_file( signatures, identifier, master_substitute ):
     """Store signature file for collection,entity if it is "earlier" than current one.
     
     IMPORTANT: remember to change 'zzzzzz' back to 'master'
     """
-    if _has_access_file(path):
-        # TODO Identity.dissect_path
-        thumbfile = Identity.id_from_path(path)
+    if _has_access_file(identifier):
         # replace 'master' with something so mezzanine wins in sort
-        thumbfile_mezzfirst = thumbfile.replace('master', master_substitute)
-        repo,org,cid,eid,role,sha1 = thumbfile.split('-')
-        collection_id = '-'.join([repo,org,cid])
-        entity_id = '-'.join([repo,org,cid,eid])
+        thumbfile_mezzfirst = identifier.id.replace('master', master_substitute)
         # # nifty little bit of code that extracts the sort field from file.json
         # import re
         # sort = ''
@@ -1155,8 +1138,8 @@ def _store_signature_file( signatures, path, model, master_substitute ):
             else:
                 signatures[object_id] = file_id
         
-        _store(signatures, collection_id, thumbfile_mezzfirst)
-        _store(signatures, entity_id, thumbfile_mezzfirst)
+        _store(signatures, identifier.collection_id, thumbfile_mezzfirst)
+        _store(signatures, identifier.parent_id, thumbfile_mezzfirst)
 
 def _choose_signatures( paths ):
     """Iterate through paths, storing signature_url for each collection, entity.
@@ -1168,10 +1151,10 @@ def _choose_signatures( paths ):
     SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
     signature_files = {}
     for path in paths:
-        model = Identity.model_from_path(path)
-        if model == 'file':
+        identifier = Identifier(path=path)
+        if identifier.model == 'file':
             # decide whether to store this as a collection/entity signature
-            _store_signature_file(signature_files, path, model, SIGNATURE_MASTER_SUBSTITUTE)
+            _store_signature_file(signature_files, identifier, SIGNATURE_MASTER_SUBSTITUTE)
         else:
             # signature_urls will be waiting for collections,entities below
             pass
@@ -1237,25 +1220,24 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     
     successful = 0
     for path in successful_paths:
-        model = Identity.model_from_path(path)
-        object_id = Identity.id_from_path(path)
-        parent_id = Identity.parent_id(object_id)
+        identifier = Identifier(path=path)
+        parent_id = identifier.parent_id()
         
         publicfields = []
-        if public and model:
-            publicfields = public_fields[model]
+        if public and identifier.model:
+            publicfields = public_fields[identifier.model]
         
         additional_fields = {'parent_id': parent_id}
-        if model == 'collection': additional_fields['organization_id'] = parent_id
-        if model == 'entity': additional_fields['collection_id'] = parent_id
-        if model == 'file': additional_fields['entity_id'] = parent_id
-        if model in ['collection', 'entity']:
-            additional_fields['signature_file'] = signature_files.get(object_id, '')
+        if identifier.model == 'collection': additional_fields['organization_id'] = parent_id
+        if identifier.model == 'entity': additional_fields['collection_id'] = parent_id
+        if identifier.model == 'file': additional_fields['entity_id'] = parent_id
+        if identifier.model in ['collection', 'entity']:
+            additional_fields['signature_file'] = signature_files.get(identifier.id, '')
         
         # HERE WE GO!
-        document = load_document_json(path, model, object_id)
+        document = load_document_json(path, identifier.model, identifier.id)
         try:
-            existing = get(hosts, index, model, object_id, fields=[])
+            existing = get(hosts, index, identifier.model, identifier.id, fields=[])
         except:
             existing = None
         result = post(hosts, index, document, publicfields, additional_fields)

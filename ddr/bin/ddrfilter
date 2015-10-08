@@ -4,34 +4,50 @@
 #
 #  
 
-description = """Filters a collection repository for publication; it completely removes items that are non-public or incomplete."""
+description = """
+Filters a repository, completely removing items marked non-public or incomplete."""
 
-epilog = """ddrfilter is a wrapper around the git filter-branch command, which steps through all the commits in a repository's history, running a filter at each step.  This is a destructive operation.  It results in a new repository that contains only the public items from the original, and is thus technically a separate repository.  This new public repository must be kept separate to avoid deleting private items from the original.
+epilog = """
+ddrfilter is a wrapper around the git filter-branch command, which steps through
+all the commits in a repository's history, running a filter at each step.  This
+is a destructive operation!  It results in a new repository that contains only
+the public items from the original, and is thus technically a separate
+repository.  This new public repository must be kept separate to avoid deleting
+private items from the original.
 
-ddrfilter makes a list of items in the original repository that are to be removed, then makes a clone of the repository and its files.  Once it has made the clone it removes the clone's git remotes; this prevents accidental pulls and pushes between the new repository and the original.  The git filter-branch command is then run and non-public items are removed from the repository.
+ddrfilter makes a list of items in the original repository that are to be
+removed, then makes a clone of the repository and its files.  Once it has made
+the clone it removes the clone's git remotes; this prevents accidental pulls and
+pushes between the new repository and the original.  The git filter-branch
+command is then run and non-public items are removed from the repository.
 
 EXAMPLES
 
     # List files to be excluded and quit.
-    $ ddrfilter -l -s /PATH/TO/REPOSITORY/ddr-testing-123
+    $ ddrfilter -l /PATH/TO/REPOSITORY/ddr-testing-123
 
     # Run the filter, copying master, mezzanine, and access files.
-    $ ddrfilter -Mma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+    $ ddrfilter -Mma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
 
-    # Run the filter, copying master, mezzanine, and access files and keeping the temporary repository.
-    $ ddrfilter -k -Mma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+    # Run the filter, copying master, mezzanine, and access files and keeping
+    # the temporary repository.
+    $ ddrfilter -k -Mma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
 
     # Run the filter, copying only the mezzanine and access files.
-    $ ddrfilter -ma -s /PATH/TO/REPOSITORY/ddr-testing-123 -d /DESTINATION/DIR
+    $ ddrfilter -ma -d /DESTINATION/DIR /PATH/TO/REPOSITORY/ddr-testing-123
 
-Due to peculiarities of git filter-branch and to time pressures, the operation is broken up into two phases.  The first phase is this Python command, which does the initial work and then generates a shell script which finishes the job.  The actual filtering is done in the shell script.  Both scripts write to the log file.
+Due to peculiarities of git filter-branch and to time pressures, the operation
+is broken up into two phases.  The first phase is this Python command, which
+does the initial work and then generates a shell script which finishes the job.
+The actual filtering is done in the shell script.  Both scripts write to the log
+file.
 
 At the end the following files will be present in the destination directory:
 
-    FILTER_ddr-testing-141             # temporary repository (by default this is removed)
-    FILTER_ddr-testing-141.sh          # phase II shell script
-    FILTER_ddr-testing-141.log         # log file for both phases of the operation
-    PUBLIC_ddr-testing-141             # final public repository
+    FILTER_ddr-testing-141      # temporary repository (removed by default)
+    FILTER_ddr-testing-141.sh   # phase II shell script
+    FILTER_ddr-testing-141.log  # log file for both phases of the operation
+    PUBLIC_ddr-testing-141      # final public repository
 """
 
 # References:
@@ -47,12 +63,15 @@ from datetime import datetime
 import json
 import logging
 import os
+import re
 import sys
 
 import envoy
 import git
 
 from DDR import CONFIG_FILES, NoConfigError
+from DDR import identifier
+from DDR import models
 
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
@@ -114,6 +133,8 @@ def mk_filter_repo_path( source, destdir, status ):
 def clone( source, dest_path ):
     """Clones source repository into destdir.
     
+    TODO use DDR.dvcs
+    
     @param source: Absolute path to source collection repository.
     @param dest_path
     @returns: A GitPython Repository
@@ -128,16 +149,15 @@ def clone( source, dest_path ):
 def annex_list( repo_path, level ):
     """Lists annex files of the specified level.
     
+    TODO use DDR.dvcs
+    
     @param repo_path: Absolute path to repository.
     @param repo: A GitPython Repository
     @param level: String (access, mezzanine, master)
     @returns: list of files, relative to repository directory.
     """
-    if   level == 'access':    match = '*-a.jpg'
-    elif level == 'mezzanine': match = '*-mezzanine-*'
-    elif level == 'master':    match = '*-master-*'
     os.chdir(repo_path)
-    cmd = 'git annex whereis %s' % match
+    cmd = 'git annex whereis %s' % identifier.FILETYPE_MATCH_ANNEX[level]
     r = envoy.run(cmd, timeout=30)
     files = []
     for line in r.std_out.split('\n'):
@@ -147,6 +167,8 @@ def annex_list( repo_path, level ):
     
 def annex_get( repo, filename ):
     """git annex gets the specified file
+    
+    TODO use DDR.dvcs
     
     @param repo: A GitPython Repository
     @param filename: path to file, relative to repository directory
@@ -158,6 +180,8 @@ def annex_get( repo, filename ):
 
 def rm_remotes( repo ):
     """Removes all git and git-annex remotes from the repository.
+    
+    TODO use DDR.dvcs
     
     @param repo: A GitPython Repository
     @return: 0 if ok, list of remotes if not
@@ -181,32 +205,23 @@ def list_json_files(dirname):
     @param path: Absolute path to collection repository directory
     @returns: list of absolute paths
     """
-    paths = []
-    exclude_dirs = ['tmp', '.git']
-    for root, dirs, files in os.walk(dirname):
-        # don't walk .git/ or tmp dirs
-        for d in exclude_dirs:
-            if d in dirs:
-                dirs.remove(d)
-        for f in files:
-            if f.endswith('.json'):
-                paths.append(os.path.join(root, f))
+    paths = models.metadata_files(dirname, recursive=True, force_read=True)
     paths.sort()
     return paths
 
-def is_collection_json( path ):
-    if 'collection.json' in path:
-        return True
-    return False
-def is_entity_json( path ):
-    if 'entity.json' in path:
-        return True
-    return False
-def is_file_json( path ):
-    for x in ['master', 'mezzanine']:
-        if x in os.path.basename(path):
-            return True
-    return False
+MODEL_JSON_REGEX = {}
+for pattern in identifier.PATH_PATTERNS_LOOP:
+    key = pattern[-1]
+    MODEL_JSON_REGEX[key] = re.compile(pattern[0])
+
+def is_collection_json(path):
+    return re.search(MODEL_JSON_REGEX['collection-json'], path)
+
+def is_entity_json(path):
+    return re.search(MODEL_JSON_REGEX['entity-json'], path)
+
+def is_file_json(path):
+    return re.search(MODEL_JSON_REGEX['file-json'], path)
 
 def is_publishable( json_path ):
     """Indicates whether the Collection or Entity is public and complete.
@@ -256,7 +271,7 @@ def is_publishable_file( json_path ):
         if public:
             return True
     return False
-
+    
 def nonpublic_json_files( json_files ):
     """Filters list of json files, returning the ones that are non-public.
     
@@ -265,17 +280,14 @@ def nonpublic_json_files( json_files ):
     """
     paths = []
     for path in json_files:
-        if   is_collection_json(path):
-            if not is_publishable(path):
-                paths.append(path)
-        elif is_entity_json(path):
-            if not is_publishable(path):
-                paths.append(path)
-        elif is_file_json(path):
+        if is_file_json(path):
             if not is_publishable_file(path):
                 paths.append(path)
+        elif is_entity_json(path) or is_collection_json(path):
+            if not is_publishable(path):
+                paths.append(path)
         else:
-            print('UNKNOWN FILE TYPE')
+            print('UNKNOWN FILE TYPE: %s' % path)
             assert False
     return paths
 
@@ -467,12 +479,12 @@ def main():
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-l', '--list', action='store_const', const=1, help='Generate exclusion list from source repository.')
+    parser.add_argument('-k', '--keeptmp', action='store_const', const=1, help='Keep temporary files.')
     parser.add_argument('-M', '--master', action='store_const', const=1, help='git-annex copy master files.')
     parser.add_argument('-m', '--mezzanine', action='store_const', const=1, help='git-annex copy mezzanine files.')
     parser.add_argument('-a', '--access', action='store_const', const=1, help='git-annex copy access files.')
     parser.add_argument('-d', '--destdir', help='Absolute path to directory in which new repository will be placed.')
-    parser.add_argument('-s', '--source', required=True, help='Absolute path to source repository.')
-    parser.add_argument('-k', '--keeptmp', action='store_const', const=1, help='Keep temporary files.')
+    parser.add_argument('source', help='Absolute path to source repository.')
     args = parser.parse_args()
     
     # check args
