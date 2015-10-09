@@ -68,10 +68,10 @@ setup(
         'bin/ddr-checkbinaries',
         'bin/ddr-export',
         'bin/ddr-import',
-        'bin/ddrfilter',
+        'bin/ddr-filter',
         'bin/ddr-index',
-        'bin/ddrmassupdate',
-        'bin/ddrpubcopy',
+        'bin/ddr-massupdate',
+        'bin/ddr-pubcopy',
         'bin/ddrdensho255fix',
     ],
 )
