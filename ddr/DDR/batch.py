@@ -12,7 +12,6 @@ from DDR import TEMPLATE_EJSON
 from DDR import TEMPLATE_METS
 from DDR import natural_sort
 from DDR import changelog
-from DDR import commands
 from DDR import dvcs
 from DDR import models
 from DDR.identifier import Identifier
