@@ -209,7 +209,7 @@ def _make_annex_description( drive_label=None, hostname=None, partner_host=None,
         description = hostname
     return description
 
-def set_annex_description( repo, annex_status=None, description=None, force=False ):
+def set_annex_description( repo, annex_status=None, description=None, drive_label=None, force=False ):
     """Sets repo's git annex description if not already set.
 
     NOTE: This needs to run git annex status, which takes some time.
@@ -226,6 +226,7 @@ def set_annex_description( repo, annex_status=None, description=None, force=Fals
     @param repo: A GitPython Repo object
     @param annex_status: (optional) Output of "git annex status" (saves some time).
     @param description: Manually supply a new description.
+    @param drive_label: str Required if description is blank!
     @param force: Boolean Apply a new description even if one already exists.
     @return String description if new one was created/applied or None
     """
@@ -238,7 +239,6 @@ def set_annex_description( repo, annex_status=None, description=None, force=Fals
             desc = description
         else:
             # gather information
-            drive_label = storage.drive_label(repo.working_dir)
             hostname = socket.gethostname()
             user_mail = repo.git.config('user.email')
             # generate description

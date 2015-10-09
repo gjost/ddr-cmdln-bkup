@@ -428,6 +428,25 @@ def mount_path( path ):
         return os.sep
     return mount_path(p1)
 
+def _guess_storage_type( mountpath ):
+    """Guess storage type based on output of mount_path().
+    NOTE: Separated from .storage_type() for easier testing.
+    """
+    if mountpath == '/':
+        return 'internal'
+    elif '/media' in mountpath:
+        return 'removable'
+    return 'unknown'
+
+def storage_type( path ):
+    """Indicates whether path points to internal drive, removable storage, etc.
+    """
+    # get mount pount for path
+    # get label for mount at that path
+    # 
+    m = mount_path(path)
+    return _guess_storage_type(m)
+
 def status( path ):
     """Indicates status of storage path.
     

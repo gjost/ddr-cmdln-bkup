@@ -217,7 +217,8 @@ def clone(user_name, user_mail, collection_id, alt_collection_path):
     #
     repo.git.checkout('master')
     repo = dvcs.set_git_configs(repo, user_name, user_mail)
-    dvcs.set_annex_description(repo)
+    drive_label = storage.drive_label(repo.working_dir)
+    dvcs.set_annex_description(repo, drive_label=drive_label)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     return 0,'ok'
@@ -329,7 +330,8 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     repo.git.push(GIT_REMOTE_NAME, 'master')
     logging.debug('OK')
     
-    dvcs.set_annex_description(repo)
+    drive_label = storage.drive_label(repo.working_dir)
+    dvcs.set_annex_description(repo, drive_label=drive_label)
     return 0,'ok'
 
 
@@ -455,7 +457,8 @@ def sync(user_name, user_mail, collection_path):
     )
     repo = dvcs.repository(collection.path, user_name, user_mail)
     logging.debug('repo: %s' % repo)
-    dvcs.set_annex_description(repo)
+    drive_label = storage.drive_label(repo.working_dir)
+    dvcs.set_annex_description(repo, drive_label=drive_label)
     if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
         repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     # list remotes
