@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 import os
 import re
+import sys
 
 class NoConfigError(Exception):
     def __init__(self, value):
@@ -22,6 +23,8 @@ if not configs_read:
 
 INSTALL_PATH = config.get('cmdln','install_path')
 REPO_MODELS_PATH = config.get('cmdln','repo_models_path')
+if REPO_MODELS_PATH not in sys.path:
+    sys.path.append(REPO_MODELS_PATH)
 MEDIA_BASE = config.get('cmdln','media_base')
 LOG_DIR = config.get('local', 'log_dir')
 

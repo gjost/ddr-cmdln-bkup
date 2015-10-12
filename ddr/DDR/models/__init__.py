@@ -29,25 +29,12 @@ from DDR import changelog
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import imaging
-from DDR.identifier import Identifier
+from DDR.identifier import Identifier, MODULES
 from DDR.models.xml import EAD, METS
 
-if REPO_MODELS_PATH not in sys.path:
-    sys.path.append(REPO_MODELS_PATH)
-try:
-    from repo_models import collection as collectionmodule
-    from repo_models import entity as entitymodule
-    from repo_models import files as filemodule
-except ImportError:
-    from DDR.models import collectionmodule
-    from DDR.models import entitymodule
-    from DDR.models import filemodule
-
-MODULES = {
-    'collection': collectionmodule,
-    'entity': entitymodule,
-    'file': filemodule,
-}
+collectionmodule = MODULES['collection']
+entitymodule = MODULES['entity']
+filemodule = MODULES['file']
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(INSTALL_PATH, 'ddr', 'DDR', 'templates')

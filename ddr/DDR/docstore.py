@@ -43,12 +43,10 @@ import os
 
 from elasticsearch import Elasticsearch, TransportError
 
-from DDR import find_meta_files, natural_sort
-from DDR import models
-from DDR.identifier import Identifier
-
 from DDR import MAPPINGS_PATH
 from DDR import FACETS_PATH
+from DDR import find_meta_files, natural_sort
+from DDR.identifier import Identifier, MODULES
 
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
@@ -252,7 +250,7 @@ def _make_mappings( mappings ):
     ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
     for mapping in mappings['documents']:
         model = mapping.keys()[0]
-        module = models.MODULES[model]
+        module = MODULES[model]
         for field in module.FIELDS:
             fname = field['name']
             mapping[model]['properties'][fname] = field['elasticsearch']['properties']
@@ -1011,7 +1009,7 @@ def _public_fields():
     @returns: Dict
     """
     public_fields = {}
-    for model,module in models.MODULES.iteritems():
+    for model,module in MODULES.iteritems():
         mfields = []
         for field in module.FIELDS:
             if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None):

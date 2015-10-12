@@ -28,6 +28,18 @@ MODEL_CLASSES = {
     'repository':   {'module': 'DDR.models', 'class':'Stub'},
 }
 
+# TODO no hard-coding: import using os.listdir
+MODULES = { key:None for key in MODELS }
+try:
+    from repo_models import collection as collectionmodule
+    from repo_models import entity as entitymodule
+    from repo_models import files as filemodule
+    MODULES['collection'] = collectionmodule
+    MODULES['entity'] = entitymodule
+    MODULES['file'] = filemodule
+except ImportError:
+    raise Exception('Could not import repo_models modules!')
+
 # map model names to module files in ddr repo's repo_models
 MODEL_REPO_MODELS = {
     'file':         {'module': 'repo_models.files', 'class':'file', 'as':'filemodule'},
