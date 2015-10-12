@@ -308,7 +308,7 @@ Example:
         exit,msg = annex_status(args.collection)
         print(msg)
     elif args.cmd == 'clocal':
-        collections = collections_local(args.base, args.repository, args.organization)
+        collections = Collection.collection_paths(args.base, args.repository, args.organization)
         msg = '\n'.join(collections)
         if msg:
             print msg

@@ -159,27 +159,6 @@ def storage_status( path ):
     return 0,storage.storage_status(path)
 
 
-
-#@command
-@local_only
-def collections_local(collections_root, repository, organization):
-    """Command-line function for listing collections on the local system.
-    
-    Looks for directories under collection_root with names matching the
-    "{repository}-{organization}-*" pattern and containing ead.xml files.
-    Doesn't check validity beyond that.
-    
-    @param collections_root: Absolute path of dir in which collections are located.
-    @param repository: Repository keyword.
-    @param organization: Organization keyword.
-    @return: list of collection IDs
-    """
-    if not (os.path.exists(collections_root) and os.path.isdir(collections_root)):
-        message = '{} does not exist or is not a directory'.format(collections_root)
-        raise Exception(message)
-    return DDRCollection.collection_paths(collections_root, repository, organization)
-
-
 @command
 @requires_network
 def clone(user_name, user_mail, collection_id, alt_collection_path):
