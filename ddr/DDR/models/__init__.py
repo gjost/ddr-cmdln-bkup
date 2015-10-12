@@ -32,10 +32,6 @@ from DDR import imaging
 from DDR.identifier import Identifier, MODULES
 from DDR.models.xml import EAD, METS
 
-collectionmodule = MODULES['collection']
-entitymodule = MODULES['entity']
-filemodule = MODULES['file']
-
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(INSTALL_PATH, 'ddr', 'DDR', 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
@@ -758,7 +754,8 @@ class Collection( object ):
         @returns: Collection object
         """
         collection = Collection(path)
-        for f in collectionmodule.FIELDS:
+        module = collection.identifier.fields_module()
+        for f in module.FIELDS:
             if hasattr(f, 'name') and hasattr(f, 'initial'):
                 setattr(collection, f['name'], f['initial'])
         return collection
@@ -831,15 +828,18 @@ class Collection( object ):
         return entities
     
     def model_def_commits( self ):
-        return Module(collectionmodule).cmp_model_definition_commits(self)
+        module = self.identifier.fields_module()
+        return Module(module).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(collectionmodule).cmp_model_definition_fields(read_json(self.json_path))
+        module = self.identifier.fields_module()
+        return Module(module).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return Module(collectionmodule).labels_values(self)
+        module = self.identifier.fields_module()
+        return Module(module).labels_values(self)
     
     def inheritable_fields( self ):
         """Returns list of Collection object's field names marked as inheritable.
@@ -848,7 +848,8 @@ class Collection( object ):
         >>> c.inheritable_fields()
         ['status', 'public', 'rights']
         """
-        return Inheritance.inheritable_fields(collectionmodule.FIELDS )
+        module = self.identifier.fields_module()
+        return Inheritance.inheritable_fields(module.FIELDS )
 
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -878,7 +879,8 @@ class Collection( object ):
         
         @param json_text: JSON-formatted text
         """
-        load_json(self, collectionmodule, json_text)
+        module = self.identifier.fields_module()
+        load_json(self, module, json_text)
         # special cases
         if hasattr(self, 'record_created') and self.record_created:
             self.record_created = datetime.strptime(self.record_created, DATETIME_FORMAT)
@@ -896,9 +898,10 @@ class Collection( object ):
         @param doc_metadata: boolean. Insert document_metadata().
         @returns: JSON-formatted text
         """
-        data = prep_json(self, collectionmodule, template=template)
+        module = self.identifier.fields_module()
+        data = prep_json(self, module, template=template)
         if doc_metadata:
-            data.insert(0, document_metadata(collectionmodule, self.path))
+            data.insert(0, document_metadata(module, self.path))
         return format_json(data)
     
     def write_json(self):
@@ -941,13 +944,14 @@ class Collection( object ):
         """
         NAMESPACES = None
         tree = etree.fromstring(self.ead().xml)
-        for f in collectionmodule.FIELDS:
+        module = self.identifier.fields_module()
+        for f in module.FIELDS:
             key = f['name']
             value = ''
             if hasattr(self, f['name']):
                 value = getattr(self, key)
                 # run ead_* functions on field data if present
-                tree = Module(collectionmodule).xml_function(
+                tree = Module(module).xml_function(
                     'ead_%s' % key,
                     tree, NAMESPACES, f,
                     value
@@ -1124,7 +1128,8 @@ class Entity( object ):
         @param path: Absolute path to entity; must end in valid DDR entity id.
         """
         entity = Entity(path)
-        for f in entitymodule.FIELDS:
+        module = self.identifier.fields_module()
+        for f in module.FIELDS:
             if hasattr(f, 'name') and hasattr(f, 'initial'):
                 setattr(entity, f['name'], f['initial'])
         return entity
@@ -1167,18 +1172,22 @@ class Entity( object ):
         return sorted(files, key=lambda f: f.sort)
     
     def model_def_commits( self ):
-        return Module(entitymodule).cmp_model_definition_commits(self)
+        module = self.identifier.fields_module()
+        return Module(module).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(entitymodule).cmp_model_definition_fields(read_json(self.json_path))
+        module = self.identifier.fields_module()
+        return Module(module).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return Module(entitymodule).labels_values(self)
+        module = self.identifier.fields_module()
+        return Module(module).labels_values(self)
 
     def inheritable_fields( self ):
-        return Inheritance.inheritable_fields(entitymodule.FIELDS)
+        module = self.identifier.fields_module()
+        return Inheritance.inheritable_fields(module.FIELDS)
     
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -1212,7 +1221,8 @@ class Entity( object ):
         
         @param json_text: JSON-formatted text
         """
-        load_json(self, entitymodule, json_text)
+        module = self.identifier.fields_module()
+        load_json(self, module, json_text)
         # special cases
         def parsedt(txt):
             d = datetime.now()
@@ -1235,11 +1245,12 @@ class Entity( object ):
         @param doc_metadata: boolean. Insert document_metadata().
         @returns: JSON-formatted text
         """
-        data = prep_json(self, entitymodule,
+        module = self.identifier.fields_module()
+        data = prep_json(self, module,
                          exceptions=['files', 'filemeta'],
                          template=template,)
         if doc_metadata:
-            data.insert(0, document_metadata(entitymodule, self.parent_path))
+            data.insert(0, document_metadata(module, self.parent_path))
         files = []
         if not template:
             for f in self.files:
@@ -1306,13 +1317,14 @@ class Entity( object ):
         NS = NAMESPACES_TAGPREFIX
         ns = NAMESPACES_XPATH
         tree = etree.parse(StringIO(self.mets().xml))
-        for f in entitymodule.FIELDS:
+        module = self.identifier.fields_module()
+        for f in module.FIELDS:
             key = f['name']
             value = ''
             if hasattr(self, f['name']):
                 value = getattr(self, f['name'])
                 # run mets_* functions on field data if present
-                tree = Module(entitymodule).xml_function(
+                tree = Module(module).xml_function(
                     'mets_%s' % key,
                     tree, NAMESPACES, f,
                     value
@@ -2154,15 +2166,18 @@ class File( object ):
         return []
     
     def model_def_commits( self ):
-        return Module(filemodule).cmp_model_definition_commits(self)
+        module = self.identifier.fields_module()
+        return Module(module).cmp_model_definition_commits(self)
     
     def model_def_fields( self ):
-        return Module(filemodule).cmp_model_definition_fields(read_json(self.json_path))
+        module = self.identifier.fields_module()
+        return Module(module).cmp_model_definition_fields(read_json(self.json_path))
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return Module(filemodule).labels_values(self)
+        module = self.identifier.fields_module()
+        return Module(module).labels_values(self)
     
     def files_rel( self ):
         """Returns list of the file, its metadata JSON, and access file, relative to collection.
@@ -2198,7 +2213,8 @@ class File( object ):
         
         @param json_text: JSON-formatted text
         """
-        json_data = load_json(self, filemodule, json_text)
+        module = self.identifier.fields_module()
+        json_data = load_json(self, module, json_text)
         # fill in the blanks
         if self.access_rel:
             access_abs = os.path.join(self.entity_files_path, self.access_rel)
@@ -2222,9 +2238,10 @@ class File( object ):
         @param doc_metadata: boolean. Insert document_metadata().
         @returns: JSON-formatted text
         """
-        data = prep_json(self, filemodule)
+        module = self.identifier.fields_module()
+        data = prep_json(self, module)
         if doc_metadata:
-            data.insert(0, document_metadata(filemodule, self.collection_path))
+            data.insert(0, document_metadata(module, self.collection_path))
         # what we call path_rel in the .json is actually basename
         data.insert(1, {'path_rel': self.basename})
         return format_json(data)
