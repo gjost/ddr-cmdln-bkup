@@ -18,19 +18,6 @@ def test_file_hash():
     assert models.file_hash(path, 'md5') == md5
     os.remove(path)
 
-def test_metadata_files():
-    basedir = '/tmp'
-    cachedir = '.metadata_files'
-    cache_path = os.path.join(basedir, cachedir)
-    if os.path.exists(cache_path):
-        os.remove(cache_path)
-    assert not os.path.exists(cache_path)
-    paths0 = models.metadata_files('/tmp', recursive=True, force_read=True)
-    print('paths: %s' % paths0)
-    assert os.path.exists(cache_path)
-    paths1 = models.metadata_files('/tmp', recursive=True, force_read=True)
-    print('paths: %s' % paths1)
-
 # TODO sort_file_paths
 # TODO document_metadata
 

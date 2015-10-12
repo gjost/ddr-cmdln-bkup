@@ -70,6 +70,7 @@ import envoy
 import git
 
 from DDR import CONFIG_FILES, NoConfigError
+from DDR import find_meta_files
 from DDR import identifier
 from DDR import models
 
@@ -205,7 +206,7 @@ def list_json_files(dirname):
     @param path: Absolute path to collection repository directory
     @returns: list of absolute paths
     """
-    paths = models.metadata_files(dirname, recursive=True, force_read=True)
+    paths = find_meta_files(dirname, recursive=True, force_read=True)
     paths.sort()
     return paths
 

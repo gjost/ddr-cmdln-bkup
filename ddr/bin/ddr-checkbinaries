@@ -14,6 +14,7 @@ Example:
 import argparse
 import os
 
+from DDR import find_meta_files
 from DDR.identifier import Identifier
 from DDR import models
 
@@ -71,7 +72,7 @@ def main():
     
     args = parser.parse_args()
     
-    filepaths = models.metadata_files(args.repo, recursive=1, model='file', force_read=True)
+    filepaths = find_meta_files(args.repo, recursive=1, model='file', force_read=True)
     hits = check_files(filepaths, args.verbose)
 
 

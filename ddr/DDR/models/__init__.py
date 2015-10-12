@@ -24,7 +24,7 @@ from DDR import VERSION, GITOLITE
 from DDR import INSTALL_PATH, REPO_MODELS_PATH, MEDIA_BASE
 from DDR import DATETIME_FORMAT, TIME_FORMAT, LOG_DIR
 from DDR import ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION, ACCESS_FILE_GEOMETRY
-from DDR import format_json, natural_order_string, natural_sort
+from DDR import format_json, find_meta_files, natural_order_string, natural_sort
 from DDR import changelog
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
@@ -82,68 +82,6 @@ def file_hash(path, algo='sha1'):
 
 
 # metadata files: finding, reading, writing ----------------------------
-
-def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False ):
-    """Lists absolute paths to .json files in basedir; saves copy if requested.
-    
-    Skips/excludes .git directories.
-    TODO depth (go down N levels from basedir)
-    
-    @param basedir: Absolute path
-    @param recursive: Whether or not to recurse into subdirectories.
-    @param model: list Restrict to the named model ('collection','entity','file').
-    @param files_first: If True, list files,entities,collections; otherwise sort.
-    @param force_read: If True, always searches for files instead of using cache.
-    @returns: list of paths
-    """
-    def model_exclude(m, p):
-        exclude = 0
-        if m:
-            if (m == 'collection') and not ('collection.json' in p):
-                exclude = 1
-            elif (m == 'entity') and not ('entity.json' in p):
-                exclude = 1
-            elif (m == 'file') and not (('master' in p.lower()) or ('mezz' in p.lower())):
-                exclude = 1
-        return exclude
-    CACHE_FILENAME = '.metadata_files'
-    CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
-    paths = []
-    if os.path.exists(CACHE_PATH) and not force_read:
-        with open(CACHE_PATH, 'r') as f:
-            paths = [line.strip() for line in f.readlines() if '#' not in line]
-    else:
-        excludes = ['.git', 'tmp', '*~']
-        if recursive:
-            for root, dirs, files in os.walk(basedir):
-                # don't go down into .git directory
-                if '.git' in dirs:
-                    dirs.remove('.git')
-                for f in files:
-                    if f.endswith('.json'):
-                        path = os.path.join(root, f)
-                        exclude = [1 for x in excludes if x in path]
-                        modexclude = model_exclude(model, path)
-                        if not (exclude or modexclude):
-                            paths.append(path)
-        else:
-            for f in os.listdir(basedir):
-                if f.endswith('.json'):
-                    path = os.path.join(basedir, f)
-                    exclude = [1 for x in excludes if x in path]
-                    if not exclude:
-                        paths.append(path)
-    # files_first is useful for docstore.index
-    if files_first:
-        collections = []
-        entities = []
-        files = []
-        for f in paths:
-            if f.endswith('collection.json'): collections.append(f)
-            elif f.endswith('entity.json'): entities.append(f)
-            elif f.endswith('.json'): files.append(f)
-        paths = files + entities + collections
-    return paths
 
 def sort_file_paths(json_paths, rank='role-eid-sort'):
     """Sort file JSON paths in human-friendly order.
@@ -494,7 +432,7 @@ class Inheritance(object):
         @return list of paths
         """
         return [
-            p for p in metadata_files(basedir=path, recursive=True)
+            p for p in find_meta_files(basedir=path, recursive=True)
             if os.path.dirname(p) != path
         ]
     
@@ -869,7 +807,7 @@ class Collection( object ):
         >>> c.children()
         [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
         
-        TODO use metadata_files()
+        TODO use find_meta_files()
         
         @param quick: Boolean List only titles and IDs
         """
@@ -1047,7 +985,7 @@ class Collection( object ):
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
         """Returns collection paths.
-        TODO use metadata_files()
+        TODO use find_meta_files()
         """
         paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
@@ -1432,7 +1370,7 @@ class Entity( object ):
     
     def _file_paths( self ):
         """Returns relative paths to payload files.
-        TODO use metadata_files()
+        TODO use find_meta_files()
         """
         paths = []
         prefix_path = self.files_path

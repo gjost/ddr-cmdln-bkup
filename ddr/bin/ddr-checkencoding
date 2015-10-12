@@ -30,6 +30,7 @@ import git
 
 from DDR import models
 from DDR import CONFIG_FILES, NoConfigError
+from DDR import find_meta_files
 
 config = ConfigParser.ConfigParser()
 configs_read = config.read(CONFIG_FILES)
@@ -135,7 +136,7 @@ def main():
     out(args.verbose, repo)
     
     out(args.verbose, 'analyzing')
-    paths = models.metadata_files(repo_path, recursive=True)
+    paths = find_meta_files(repo_path, recursive=True)
     defects = analyze_files(paths, args.verbose)
     
     out(args.verbose, 'cleaning up')

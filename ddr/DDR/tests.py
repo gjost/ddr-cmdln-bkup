@@ -1,5 +1,20 @@
+import os
+
 import DDR
 
+
+def test_find_meta_files():
+    basedir = '/tmp'
+    cachedir = '.metadata_files'
+    cache_path = os.path.join(basedir, cachedir)
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+    assert not os.path.exists(cache_path)
+    paths0 = DDR.find_meta_files('/tmp', recursive=True, force_read=True)
+    print('paths: %s' % paths0)
+    assert os.path.exists(cache_path)
+    paths1 = DDR.find_meta_files('/tmp', recursive=True, force_read=True)
+    print('paths: %s' % paths1)
 
 def test_natural_sort():
     l = ['11', '1', '12', '2', '13', '3']

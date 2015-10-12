@@ -229,7 +229,7 @@ def export(json_paths, class_, module, csv_path):
     # entities
     collection_path = '/var/www/media/base/ddr-test-123'
     entity_paths = []
-    for path in models.metadata_files(basedir=collection_path, recursive=True):
+    for path in find_meta_files(basedir=collection_path, recursive=True):
         if os.path.basename(path) == 'entity.json':
             entity_paths.append(path)
     csv_path = '/tmp/ddr-test-123-entities.csv'
@@ -238,7 +238,7 @@ def export(json_paths, class_, module, csv_path):
     # files
     collection_path = '/var/www/media/base/ddr-test-123'
     file_paths = []
-    for path in models.metadata_files(basedir=collection_path, recursive=True):
+    for path in find_meta_files(basedir=collection_path, recursive=True):
         if ('master' in path) or ('mezzanine' in path):
             file_paths.append(path)
     csv_path = '/tmp/ddr-test-123-files.csv'

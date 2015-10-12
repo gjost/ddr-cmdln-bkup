@@ -40,7 +40,8 @@ import sys
 
 import envoy
 
-from DDR import format_json, models
+from DDR import format_json, find_meta_files
+from DDR import models
 from DDR import identifier
 
 
@@ -79,7 +80,7 @@ def find_files(basedir, filetypes):
     
     Just does stupid matching, not real regex or anything.
     """
-    allpaths = models.metadata_files(basedir, recursive=True, force_read=True)
+    allpaths = find_meta_files(basedir, recursive=True, force_read=True)
     paths = []
     for model in filetypes:
         prog = MODEL_JSON_REGEX['%s-json' % model]

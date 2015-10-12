@@ -43,7 +43,7 @@ import os
 
 from elasticsearch import Elasticsearch, TransportError
 
-from DDR import natural_sort
+from DDR import find_meta_files, natural_sort
 from DDR import models
 from DDR.identifier import Identifier
 
@@ -1200,7 +1200,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
         paths = [path]
     else:
         # files listed first, then entities, then collections
-        paths = models.metadata_files(path, recursive, files_first=1)
+        paths = find_meta_files(path, recursive, files_first=1)
     
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.
