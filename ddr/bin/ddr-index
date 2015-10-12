@@ -285,7 +285,7 @@ def main():
         msg = docstore.set_alias(hosts, args.alias, args.index, args.remove)
         print(msg)
     elif args.cmd == 'mappings':
-        msg = docstore.put_mappings(hosts, args.index, args.path, models.MODELS_DIR)
+        msg = docstore.put_mappings(hosts, args.index, args.path)
         print(msg)
     elif args.cmd == 'facets':
         msg = docstore.put_facets(hosts, args.index, args.path)

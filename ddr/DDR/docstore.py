@@ -13,13 +13,12 @@ INDEX = 'dev'
 PATH = '/var/www/media/ddr'
 
 from DDR import docstore
-from DDR import models
 
 docstore.delete_index(HOSTS, INDEX)
 
 docstore.create_index(HOSTS, INDEX)
 
-docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH, models.MODELS_DIR)
+docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH)
 docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
 
 # Delete a collection
@@ -267,17 +266,16 @@ def _make_mappings( mappings ):
         return mappings
     return []
 
-def put_mappings( hosts, index, mappings_path, models_dir ):
+def put_mappings( hosts, index, mappings_path ):
     """Puts mappings from file into ES.
     
     @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param path: Absolute path to dir containing facet files.
     @param mappings_path: Absolute path to mappings JSON.
-    @param models_dir: Absolute path to dir containing model definitions.
     @returns: JSON dict with status code and response
     """
-    logger.debug('put_mappings(%s, %s, %s, %s)' % (hosts, index, mappings_path, models_dir))
+    logger.debug('put_mappings(%s, %s, %s)' % (hosts, index, mappings_path))
     with open(mappings_path, 'r') as f:
         mappings = json.loads(f.read())
     mappings_list = _make_mappings(mappings)['documents']
@@ -1170,7 +1168,7 @@ def load_document_json( json_path, model, object_id ):
         document.append( {'id':object_id} )
     return document
 
-def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, public=True ):
+def index( hosts, index, path, recursive=False, public=True ):
     """(Re)index with data from the specified directory.
     
     After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
@@ -1183,7 +1181,6 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param path: Absolute path to directory containing object metadata files.
-    @param models_dir: Absolute path to directory containing model JSON files.
     @param recursive: Whether or not to recurse into subdirectories.
     @param public: For publication (fields not marked public will be ommitted).
     @param paths: Absolute paths to directory containing collections.
