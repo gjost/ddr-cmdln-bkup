@@ -20,12 +20,10 @@ import traceback
 import envoy
 from lxml import etree
 
-from DDR import VERSION, GITOLITE
-from DDR import INSTALL_PATH, REPO_MODELS_PATH, MEDIA_BASE
-from DDR import DATETIME_FORMAT, TIME_FORMAT, LOG_DIR
-from DDR import ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION, ACCESS_FILE_GEOMETRY
+from DDR import VERSION
 from DDR import format_json, find_meta_files, natural_order_string, natural_sort
 from DDR import changelog
+from DDR import config
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import imaging
@@ -33,7 +31,7 @@ from DDR.identifier import Identifier, MODULES
 from DDR.models.xml import EAD, METS
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_PATH = os.path.join(INSTALL_PATH, 'ddr', 'DDR', 'templates')
+TEMPLATE_PATH = os.path.join(config.INSTALL_PATH, 'ddr', 'DDR', 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
 MODELS = ['collection', 'entity', 'file']
@@ -113,7 +111,7 @@ def document_metadata(module, document_repo_path):
     """
     data = {
         'application': 'https://github.com/densho/ddr-cmdln.git',
-        'app_commit': dvcs.latest_commit(INSTALL_PATH),
+        'app_commit': dvcs.latest_commit(config.INSTALL_PATH),
         'app_release': VERSION,
         'models_commit': dvcs.latest_commit(Module(module).path),
         'git_version': dvcs.git_version(document_repo_path),
@@ -215,7 +213,7 @@ def prep_json(obj, module, template=False,
             if val:
                 # JSON requires dates to be represented as strings
                 if hasattr(val, 'fromtimestamp') and hasattr(val, 'strftime'):
-                    val = val.strftime(DATETIME_FORMAT)
+                    val = val.strftime(config.DATETIME_FORMAT)
             # end special cases
         item[key] = val
         if key not in exceptions:
@@ -731,7 +729,7 @@ class Collection( object ):
         self.ead_path_rel       = i.path_rel('ead')
         self.files_path_rel     = i.path_rel('files')
         
-        self.git_url = '{}:{}'.format(GITOLITE, self.id)
+        self.git_url = '{}:{}'.format(config.GITOLITE, self.id)
     
     def __repr__(self):
         """Returns string representation of object.
@@ -883,11 +881,11 @@ class Collection( object ):
         load_json(self, module, json_text)
         # special cases
         if hasattr(self, 'record_created') and self.record_created:
-            self.record_created = datetime.strptime(self.record_created, DATETIME_FORMAT)
+            self.record_created = datetime.strptime(self.record_created, config.DATETIME_FORMAT)
         else:
             self.record_created = datetime.now()
         if hasattr(self, 'record_lastmod') and self.record_lastmod:
-            self.record_lastmod = datetime.strptime(self.record_lastmod, DATETIME_FORMAT)
+            self.record_lastmod = datetime.strptime(self.record_lastmod, config.DATETIME_FORMAT)
         else:
             self.record_lastmod = datetime.now()
     
@@ -1227,10 +1225,10 @@ class Entity( object ):
         def parsedt(txt):
             d = datetime.now()
             try:
-                d = datetime.strptime(txt, DATETIME_FORMAT)
+                d = datetime.strptime(txt, config.DATETIME_FORMAT)
             except:
                 try:
-                    d = datetime.strptime(txt, TIME_FORMAT)
+                    d = datetime.strptime(txt, config.TIME_FORMAT)
                 except:
                     pass
             return d
@@ -1459,7 +1457,7 @@ class Entity( object ):
         @returns: absolute path to logfile
         """
         logpath = os.path.join(
-            LOG_DIR, 'addfile', self.parent_id, '%s.log' % self.id)
+            config.LOG_DIR, 'addfile', self.parent_id, '%s.log' % self.id)
         if not os.path.exists(os.path.dirname(logpath)):
             os.makedirs(os.path.dirname(logpath))
         return logpath
@@ -1502,7 +1500,7 @@ class Entity( object ):
         log.ok('data: %s' % data)
         
         tmp_dir = os.path.join(
-            MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
+            config.MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
         dest_dir = self.files_path
         
         log.ok('Checking files/dirs')
@@ -1592,7 +1590,7 @@ class Entity( object ):
             tmp_access_path = imaging.thumbnail(
                 src_path,
                 access_dest_path,
-                geometry=ACCESS_FILE_GEOMETRY)
+                geometry=config.ACCESS_FILE_GEOMETRY)
         except:
             # write traceback to log and continue on
             log.not_ok(traceback.format_exc().strip())
@@ -1820,7 +1818,7 @@ class Entity( object ):
         log.ok('ddrfile: %s' % ddrfile)
         
         tmp_dir = os.path.join(
-            MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
+            config.MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
         dest_dir = self.files_path
         
         log.ok('Checking files/dirs')
@@ -1866,7 +1864,7 @@ class Entity( object ):
             tmp_access_path = imaging.thumbnail(
                 src_path,
                 access_tmp,
-                geometry=ACCESS_FILE_GEOMETRY)
+                geometry=config.ACCESS_FILE_GEOMETRY)
             log.ok('| done')
         except:
             # write traceback to log and continue on
@@ -2333,7 +2331,7 @@ class File( object ):
         """
         return '%s%s.%s' % (
             os.path.splitext(src_abs)[0],
-            ACCESS_FILE_APPEND,
+            config.ACCESS_FILE_APPEND,
             'jpg')
     
     def links_incoming( self ):

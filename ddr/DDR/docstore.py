@@ -42,9 +42,8 @@ import os
 
 from elasticsearch import Elasticsearch, TransportError
 
-from DDR import MAPPINGS_PATH
-from DDR import FACETS_PATH
 from DDR import find_meta_files, natural_sort
+from DDR import config
 from DDR.identifier import Identifier, MODULES
 
 MAX_SIZE = 1000000
@@ -289,7 +288,7 @@ def put_mappings( hosts, index, mappings_path ):
         statuses.append( {'model':model, 'status':status} )
     return statuses
 
-def put_facets( hosts, index, path=FACETS_PATH ):
+def put_facets( hosts, index, path=config.FACETS_PATH ):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
@@ -303,7 +302,7 @@ def put_facets( hosts, index, path=FACETS_PATH ):
     logger.debug('index_facets(%s, %s, %s)' % (hosts, index, path))
     statuses = []
     es = _get_connection(hosts)
-    for facet_json in os.listdir(FACETS_PATH):
+    for facet_json in os.listdir(config.FACETS_PATH):
         facet = facet_json.split('.')[0]
         srcpath = os.path.join(path, facet_json)
         with open(srcpath, 'r') as f:
@@ -312,7 +311,7 @@ def put_facets( hosts, index, path=FACETS_PATH ):
             statuses.append(status)
     return statuses
 
-def list_facets( path=FACETS_PATH ):
+def list_facets( path=config.FACETS_PATH ):
     facets = []
     for filename in os.listdir(path):
         fn,ext = os.path.splitext(filename)

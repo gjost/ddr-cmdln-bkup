@@ -4,14 +4,7 @@ import logging
 from bs4 import BeautifulSoup
 import requests
 
-from DDR import WORKBENCH_URL
-from DDR import WORKBENCH_USERINFO
-from DDR import WORKBENCH_LOGIN_URL
-from DDR import WORKBENCH_LOGOUT_URL
-from DDR import WORKBENCH_LOGIN_TEST
-from DDR import WORKBENCH_NEWCOL_URL
-from DDR import WORKBENCH_NEWENT_URL
-from DDR import WORKBENCH_REGISTER_EIDS_URL
+from DDR import config
 
 MESSAGES = {
     'API_LOGIN_NOT_200': 'Error: status code {} on POST', # status code
@@ -73,7 +66,7 @@ def login(username, password):
     """
     session = requests.Session()
     # load test page to see if already logged in
-    r = session.get(WORKBENCH_LOGIN_TEST)
+    r = session.get(config.WORKBENCH_LOGIN_TEST)
     soup = BeautifulSoup(r.text)
     titletag = soup.find('title')
     if (r.status_code == 200) and not ('Log in' in titletag.string):
@@ -86,7 +79,7 @@ def login(username, password):
     data = {'csrftoken': csrf_token,
             'username': username,
             'password': password,}
-    r1 = session.post(WORKBENCH_LOGIN_URL,
+    r1 = session.post(config.WORKBENCH_LOGIN_URL,
                       headers=headers,
                       cookies=cookies,
                       data=data)
@@ -96,7 +89,7 @@ def login(username, password):
     error_msg = 'Please enter a correct username and password.'
     if r1.text and (error_msg not in r1.text):
         # get user first/last name and email from workbench profile (via API)
-        url = WORKBENCH_USERINFO
+        url = config.WORKBENCH_USERINFO
         r2 = session.get(url)
         logging.debug('r2.status_code %s' % r2.status_code)
         if r2.status_code == 200:
@@ -126,7 +119,7 @@ def logout():
     @returns string: 'ok' or error message
     """
     s = requests.Session()
-    r = s.get(WORKBENCH_LOGOUT_URL)
+    r = s.get(config.WORKBENCH_LOGOUT_URL)
     if r.status_code == 200:
         return 'ok'
     return 'error: unspecified'
@@ -176,7 +169,7 @@ def collections_latest(session, repo, org, num_objects=1):
     @param num_objects: int N most recent IDs to get.
     @returns: list of IDs
     """
-    url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
+    url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
     return _objects_latest(session, url, ('a','collection'), num_objects)
 
 def entities_latest(session, repo, org, cid, num_objects=1):
@@ -196,7 +189,7 @@ def entities_latest(session, repo, org, cid, num_objects=1):
     @param num_objects: int N most recent IDs to get.
     @returns: list of IDs
     """
-    url = '{}/kiroku/{}-{}-{}/'.format(WORKBENCH_URL, repo, org, cid)
+    url = '{}/kiroku/{}-{}-{}/'.format(config.WORKBENCH_URL, repo, org, cid)
     return _objects_latest(session, url, ('td','eid'), num_objects)
 
 def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
@@ -255,8 +248,8 @@ def collections_next(session, repo, org, num_ids=1):
     @param num_ids: int The number of new IDs requested.
     @returns: list of collection_ids or debugging info.
     """
-    new_ids_url = WORKBENCH_NEWCOL_URL.replace('REPO',repo).replace('ORG',org)
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
+    new_ids_url = config.WORKBENCH_NEWCOL_URL.replace('REPO',repo).replace('ORG',org)
+    csrf_token_url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
     tag_class = ['a', 'collection']
     return _objects_next(
         'collection', session, new_ids_url, csrf_token_url, tag_class, num_ids)
@@ -271,8 +264,8 @@ def entities_next(session, repo, org, cid, num_ids=1):
     @param num_ids: int The number of new IDs requested.
     @returns: list of entity_ids or debugging info.
     """
-    new_ids_url = WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',str(cid))
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(WORKBENCH_URL, repo, org)
+    new_ids_url = config.WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',str(cid))
+    csrf_token_url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
     tag_class = ['td', 'eid']
     return _objects_next(
         'entity', session, new_ids_url, csrf_token_url, tag_class, num_ids)
@@ -288,9 +281,9 @@ def register_entity_ids(session, entities):
     """
     collection_id = entities[0].parent_id
     entity_ids = '\n'.join([entity.id for entity in entities])
-    csrf_token_url = '{}/kiroku/{}/'.format(WORKBENCH_URL, collection_id)
+    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, collection_id)
     csrf_token = _get_csrf_token(session, csrf_token_url)
-    register_eids_url = WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
+    register_eids_url = config.WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
     r = session.post(
         register_eids_url,
         headers={'X-CSRFToken': csrf_token},

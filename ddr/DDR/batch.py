@@ -8,8 +8,6 @@ import sys
 
 import unicodecsv as csv
 
-from DDR import TEMPLATE_EJSON
-from DDR import TEMPLATE_METS
 from DDR import natural_sort
 from DDR import changelog
 from DDR import dvcs

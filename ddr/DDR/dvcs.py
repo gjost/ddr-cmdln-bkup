@@ -11,7 +11,7 @@ import envoy
 import git
 import requests
 
-from DDR import CGIT_URL
+from DDR import config
 from DDR import storage
 
 
@@ -470,7 +470,7 @@ def cgit_collection_title(repo, session, timeout=5):
     """
     title = '---'
     URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
-    url = URL_TEMPLATE % (CGIT_URL, repo)
+    url = URL_TEMPLATE % (config.CGIT_URL, repo)
     logging.debug(url)
     try:
         r = session.get(url, timeout=timeout)

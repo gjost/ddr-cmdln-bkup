@@ -7,7 +7,7 @@ import shlex
 import envoy
 import psutil
 
-from DDR import MEDIA_BASE
+from DDR import config
 
 DEVICE_TYPES = ['hdd', 'usb']
 
@@ -347,11 +347,11 @@ def remount( device_file, label ):
     return mount_path
 
 def link(target):
-    """Create symlink to Store from MEDIA_BASE.
+    """Create symlink to Store from config.MEDIA_BASE.
     
     @param target: absolute path to link target
     """
-    link = MEDIA_BASE
+    link = config.MEDIA_BASE
     link_parent = os.path.split(link)[0]
     logger.debug('link: %s -> %s' % (link, target))
     if target and link and link_parent:
@@ -369,12 +369,12 @@ def link(target):
             os.symlink(target, link)
 
 def unlink():
-    """Remove MEDIA_BASE symlink.
+    """Remove config.MEDIA_BASE symlink.
     """
-    target = os.path.realpath(MEDIA_BASE)
-    logger.debug('rm %s (-> %s)' % (MEDIA_BASE, target))
+    target = os.path.realpath(config.MEDIA_BASE)
+    logger.debug('rm %s (-> %s)' % (config.MEDIA_BASE, target))
     try:
-        os.remove(MEDIA_BASE)
+        os.remove(config.MEDIA_BASE)
         logger.debug('ok')
     except OSError:
         pass

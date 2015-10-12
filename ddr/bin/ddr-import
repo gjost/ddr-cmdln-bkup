@@ -31,7 +31,6 @@ Examples:
 
 
 import argparse
-import ConfigParser
 from datetime import datetime
 import getpass
 import json
@@ -40,9 +39,10 @@ import os
 import sys
 
 from DDR import batch
+from DDR.config import REPO_MODELS_PATH
 from DDR import idservice
-from DDR import models
 from DDR import identifier
+from DDR import models
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -50,13 +50,6 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-REPO_MODELS_PATH = config.get('cmdln','repo_models_path')
 VOCABS_PATH = os.path.join(REPO_MODELS_PATH, 'vocab')
 
 

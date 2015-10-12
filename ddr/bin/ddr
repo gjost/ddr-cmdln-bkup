@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 
-from DDR import CONFIG_FILES, NoConfigError
+from DDR.config import CONFIG_FILES, NoConfigError
 from DDR.commands import OPERATIONS, description, epilog
 from DDR.commands import create, clone, destroy, update, sync
 from DDR.commands import status, annex_status
