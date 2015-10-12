@@ -31,10 +31,6 @@ from DDR import dvcs
 from DDR import imaging
 from DDR.identifier import Identifier
 from DDR.models.xml import EAD, METS
-#from DDR import commands
-# NOTE: DDR.commands imports DDR.models.Collection which is a circular import
-# so the following is imported in Entity.add_access
-#from DDR.commands import entity_annex_add
 
 if REPO_MODELS_PATH not in sys.path:
     sys.path.append(REPO_MODELS_PATH)
@@ -2061,15 +2057,15 @@ class Entity( object ):
         # IMPORTANT: changelog is not staged!
         return file_,repo,log
 
-    def rm_file(self, file_, git_name, git_mail, agent ):
+    def prep_rm_file(self, file_):
         """Delete specified file and update Entity.
         
-        @param git_name: str
-        @param git_name: str
-        @param agent: str
+        IMPORTANT: This function modifies entity.json and lists files to remove.
+        The actual file removal and commit is done by commands.file_destroy.
+        
+        @param file_: File
         """
-        from DDR import docstore
-        logger.debug('%s.rm_file(%s, %s, %s, %s)' % (self, file_, git_name, git_mail, agent))
+        logger.debug('%s.rm_file(%s)' % (self, file_))
         # list of files to be *removed*
         rm_files = [
             f for f in file_.files_rel()
@@ -2078,7 +2074,6 @@ class Entity( object ):
             )
         ]
         # remove pointers to file in entity.json
-        # TODO move this to commands.file_destroy or models.Entity
         logger.debug('removing:')
         for f in self.files:
             logger.debug('| %s' % f)
@@ -2089,17 +2084,7 @@ class Entity( object ):
         # list of files to be *updated*
         updated_files = ['entity.json']
         logger.debug('updated_files: %s' % updated_files)
-        # remove and commit
-        from DDR import commands
-        status,message = commands.file_destroy(
-            git_name, git_mail,
-            self.collection_path, self.id,
-            rm_files, updated_files,
-            agent
-        )
-        logger.debug(status)
-        logger.debug(message)
-        return status,message
+        return rm_files,updated_files
 
 
 
