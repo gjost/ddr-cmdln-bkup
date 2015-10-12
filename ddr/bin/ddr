@@ -11,7 +11,7 @@ import sys
 
 from DDR import CONFIG_FILES, NoConfigError
 from DDR.commands import OPERATIONS, description, epilog
-from DDR.commands import collections_local, create, clone, destroy, update, sync
+from DDR.commands import create, clone, destroy, update, sync
 from DDR.commands import status, annex_status
 from DDR.commands import entity_create, entity_destroy, entity_update, entity_annex_add
 from DDR.commands import annex_push, annex_pull
@@ -83,18 +83,6 @@ Example:
     parser_asta.add_argument('-l', '--log', help='Log file..')
     parser_asta.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     parser_asta.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
-    
-    # collections_local
-    cloc_descr,cloc_epilog = split_docstring(collections_local)
-    parser_cloc = subparsers.add_parser('clocal',
-                                        description=cloc_descr, epilog=cloc_epilog,
-                                        formatter_class=formatter,)
-    parser_cloc.set_defaults(func=collections_local)
-    parser_cloc.add_argument('-l', '--log', help='Log file..')
-    parser_cloc.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
-    parser_cloc.add_argument('-b', '--base',       required=True, help='Base path - absolute path to dir where local collections are kept.')
-    parser_cloc.add_argument('-r', '--repository', required=True, help='Repository keyword.')
-    parser_cloc.add_argument('-o', '--organization', required=True, help='Organization keyword.')
     
     # create
     ccre_descr,ccre_epilog = split_docstring(create)
@@ -321,12 +309,6 @@ Example:
     elif args.cmd == 'astatus':
         exit,msg = annex_status(collection)
         print(msg)
-    elif args.cmd == 'clocal':
-        collections = Collection.collection_paths(args.base, args.repository, args.organization)
-        msg = '\n'.join(collections)
-        if msg:
-            print msg
-        sys.exit(0)
     elif args.cmd == 'create':
         templates = args.templates.strip().split(',')
         exit,msg = create(args.user, args.mail, cidentifier, templates, agent=AGENT)
