@@ -42,9 +42,9 @@ import os
 
 from elasticsearch import Elasticsearch, TransportError
 
-from DDR import find_meta_files, natural_sort
 from DDR import config
 from DDR.identifier import Identifier, MODULES
+from DDR import util
 
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
@@ -1127,7 +1127,7 @@ def _store_signature_file( signatures, identifier, master_substitute ):
         def _store( signatures, object_id, file_id ):
             if signatures.get(object_id,None):
                 filenames = [signatures[object_id], file_id]
-                first = natural_sort(filenames)[0]
+                first = util.natural_sort(filenames)[0]
                 if file_id == first:
                     signatures[object_id] = file_id
             else:
@@ -1194,7 +1194,7 @@ def index( hosts, index, path, recursive=False, public=True ):
         paths = [path]
     else:
         # files listed first, then entities, then collections
-        paths = find_meta_files(path, recursive, files_first=1)
+        paths = util.find_meta_files(path, recursive, files_first=1)
     
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.

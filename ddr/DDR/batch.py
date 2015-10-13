@@ -8,12 +8,12 @@ import sys
 
 import unicodecsv as csv
 
-from DDR import natural_sort
 from DDR import changelog
 from DDR import dvcs
 from DDR import models
 from DDR.identifier import Identifier
 from DDR.models import Module
+from DDR import util
 
 COLLECTION_FILES_PREFIX = 'files'
 
@@ -227,7 +227,7 @@ def export(json_paths, class_, module, csv_path):
     # entities
     collection_path = '/var/www/media/base/ddr-test-123'
     entity_paths = []
-    for path in find_meta_files(basedir=collection_path, recursive=True):
+    for path in util.find_meta_files(basedir=collection_path, recursive=True):
         if os.path.basename(path) == 'entity.json':
             entity_paths.append(path)
     csv_path = '/tmp/ddr-test-123-entities.csv'
@@ -236,7 +236,7 @@ def export(json_paths, class_, module, csv_path):
     # files
     collection_path = '/var/www/media/base/ddr-test-123'
     file_paths = []
-    for path in find_meta_files(basedir=collection_path, recursive=True):
+    for path in util.find_meta_files(basedir=collection_path, recursive=True):
         if ('master' in path) or ('mezzanine' in path):
             file_paths.append(path)
     csv_path = '/tmp/ddr-test-123-files.csv'
@@ -250,7 +250,7 @@ def export(json_paths, class_, module, csv_path):
     if module.MODEL == 'file':
         json_paths = models.sort_file_paths(json_paths)
     else:
-        json_paths = natural_sort(json_paths)
+        json_paths = util.natural_sort(json_paths)
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
@@ -864,7 +864,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     logging.info('Staging files to the repo')
     for path in git_files:
         repository.git.add(path)
-    for path in natural_sort(dvcs.list_staged(repository)):
+    for path in util.natural_sort(dvcs.list_staged(repository)):
         if path in git_files:
             logging.debug('| %s' % path)
         else:

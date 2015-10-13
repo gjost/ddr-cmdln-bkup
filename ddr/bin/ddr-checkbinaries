@@ -14,9 +14,9 @@ Example:
 import argparse
 import os
 
-from DDR import find_meta_files
 from DDR.identifier import Identifier
 from DDR import models
+from DDR import util
 
 ALGORITHMS = ['md5', 'sha1', 'sha256']
 
@@ -72,7 +72,7 @@ def main():
     
     args = parser.parse_args()
     
-    filepaths = find_meta_files(args.repo, recursive=1, model='file', force_read=True)
+    filepaths = util.find_meta_files(args.repo, recursive=1, model='file', force_read=True)
     hits = check_files(filepaths, args.verbose)
 
 

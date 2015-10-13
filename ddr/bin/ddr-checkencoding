@@ -27,8 +27,8 @@ import sys
 import chardet
 import git
 
-from DDR import find_meta_files
 from DDR import models
+from DDR import util
 
 
 def out(verbose, text):
@@ -129,7 +129,7 @@ def main():
     out(args.verbose, repo)
     
     out(args.verbose, 'analyzing')
-    paths = find_meta_files(repo_path, recursive=True)
+    paths = util.find_meta_files(repo_path, recursive=True)
     defects = analyze_files(paths, args.verbose)
     
     out(args.verbose, 'cleaning up')

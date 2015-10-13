@@ -21,7 +21,7 @@ import envoy
 from lxml import etree
 
 from DDR import VERSION
-from DDR import format_json, find_meta_files, natural_order_string, natural_sort
+from DDR import format_json
 from DDR import changelog
 from DDR import config
 from DDR.control import CollectionControlFile, EntityControlFile
@@ -31,6 +31,7 @@ from DDR import fileio
 from DDR.identifier import Identifier, MODULES
 from DDR import locking
 from DDR.models.xml import EAD, METS
+from DDR import util
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(config.INSTALL_PATH, 'ddr', 'DDR', 'templates')
@@ -94,7 +95,7 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
             key = '-'.join([role,eid,sort,sha1])
         paths[key] = path
         keys.append(key)
-    keys_sorted = [key for key in natural_sort(keys)]
+    keys_sorted = [key for key in util.natural_sort(keys)]
     paths_sorted = []
     while keys_sorted:
         val = paths.pop(keys_sorted.pop(), None)
@@ -383,7 +384,7 @@ class Inheritance(object):
         @return list of paths
         """
         return [
-            p for p in find_meta_files(basedir=path, recursive=True)
+            p for p in util.find_meta_files(basedir=path, recursive=True)
             if os.path.dirname(p) != path
         ]
     
@@ -659,7 +660,7 @@ class Collection( object ):
         >>> c.children()
         [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
         
-        TODO use find_meta_files()
+        TODO use util.find_meta_files()
         
         @param quick: Boolean List only titles and IDs
         """
@@ -673,7 +674,7 @@ class Collection( object ):
             for eid in os.listdir(self.files_path):
                 path = os.path.join(self.files_path, eid)
                 entity_paths.append(path)
-        entity_paths = natural_sort(entity_paths)
+        entity_paths = util.natural_sort(entity_paths)
         entities = []
         for path in entity_paths:
             if quick:
@@ -846,7 +847,7 @@ class Collection( object ):
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
         """Returns collection paths.
-        TODO use find_meta_files()
+        TODO use util.find_meta_files()
         """
         paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
@@ -857,7 +858,7 @@ class Collection( object ):
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
                     paths.append(colldir)
-        return natural_sort(paths)
+        return util.natural_sort(paths)
     
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
@@ -1241,7 +1242,7 @@ class Entity( object ):
     
     def _file_paths( self ):
         """Returns relative paths to payload files.
-        TODO use find_meta_files()
+        TODO use util.find_meta_files()
         """
         paths = []
         prefix_path = self.files_path
@@ -1250,7 +1251,7 @@ class Entity( object ):
         if os.path.exists(self.files_path):
             for f in os.listdir(self.files_path):
                 paths.append(f.replace(prefix_path, ''))
-        paths = sorted(paths, key=lambda f: natural_order_string(f))
+        paths = sorted(paths, key=lambda f: util.natural_order_string(f))
         return paths
     
     def load_file_objects( self ):
