@@ -34,8 +34,6 @@ MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(config.INSTALL_PATH, 'ddr', 'DDR', 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
 
-MODELS = ['collection', 'entity', 'file']
-
 MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 COLLECTION_FILES_PREFIX = 'files'
