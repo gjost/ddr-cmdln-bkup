@@ -163,29 +163,6 @@ def test_Inheritance_inheritable_fields():
 # TODO Inheritance_update_inheritables
 
 
-# Locking_lock
-# Locking_unlock
-# Locking_locked
-def test_locking():
-    lock_path = '/tmp/test-lock-%s' % datetime.now().strftime('%Y%m%dT%H%M%S')
-    text = 'we are locked. go away.'
-    # before locking
-    assert models.Locking.locked(lock_path) == False
-    assert models.Locking.unlock(lock_path, text) == 'not locked'
-    # locking
-    assert models.Locking.lock(lock_path, text) == 'ok'
-    # locked
-    assert models.Locking.locked(lock_path) == text
-    assert models.Locking.lock(lock_path, text) == 'locked'
-    assert models.Locking.unlock(lock_path, 'not the right text') == 'miss'
-    # unlocking
-    assert models.Locking.unlock(lock_path, text) == 'ok'
-    # unlocked
-    assert models.Locking.locked(lock_path) == False
-    assert models.Locking.unlock(lock_path, text) == 'not locked'
-    assert not os.path.exists(lock_path)
-
-
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
