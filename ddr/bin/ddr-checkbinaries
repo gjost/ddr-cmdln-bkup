@@ -31,13 +31,13 @@ def check_file(json_path, verbose=False):
         return result
     
     mismatches = []
-    md5 = models.file_hash(f.path_abs, 'md5')
+    md5 = util.file_hash(f.path_abs, 'md5')
     if not (md5 == f.md5):
         mismatches.append['md5']
-    sha1 = models.file_hash(f.path_abs, 'sha1')
+    sha1 = util.file_hash(f.path_abs, 'sha1')
     if not (sha1 == f.sha1):
         mismatches.append['sha1']
-    sha256 = models.file_hash(f.path_abs, 'sha256')
+    sha256 = util.file_hash(f.path_abs, 'sha256')
     if not (sha256 == f.sha256):
         mismatches.append['sha256']
     # SHA256 hash from the git-annex filename

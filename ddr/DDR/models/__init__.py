@@ -6,7 +6,6 @@ for history prior to Feb 2015.
 
 from datetime import datetime
 import glob
-import hashlib
 import json
 import logging
 logger = logging.getLogger(__name__)
@@ -41,25 +40,6 @@ MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
 COLLECTION_FILES_PREFIX = 'files'
 ENTITY_FILES_PREFIX = 'files'
-
-
-
-def file_hash(path, algo='sha1'):
-    if algo == 'sha256':
-        h = hashlib.sha256()
-    elif algo == 'md5':
-        h = hashlib.md5()
-    else:
-        h = hashlib.sha1()
-    block_size=1024
-    f = open(path, 'rb')
-    while True:
-        data = f.read(block_size)
-        if not data:
-            break
-        h.update(data)
-    f.close()
-    return h.hexdigest()
 
 
 
@@ -1229,7 +1209,7 @@ class Entity( object ):
             fpath = os.path.join(self.files_path, f)
             # git-annex files are present
             if os.path.exists(fpath) and not os.path.islink(fpath):
-                cs = file_hash(fpath, algo)
+                cs = util.file_hash(fpath, algo)
             # git-annex files NOT present - get checksum from entity._files
             # WARNING: THIS MODULE SHOULD NOT KNOW ANYTHING ABOUT HIGHER-LEVEL CODE!
             elif os.path.islink(fpath) and hasattr(self, '_files'):
@@ -2149,7 +2129,7 @@ class File( object ):
         if os.path.exists and os.access(path_abs, os.R_OK):
             ext = os.path.splitext(path_abs)[1]
             if not sha1:
-                sha1 = file_hash(path_abs, 'sha1')
+                sha1 = util.file_hash(path_abs, 'sha1')
             if sha1:
                 idparts = [a for a in entity.idparts]
                 idparts.append(role)
