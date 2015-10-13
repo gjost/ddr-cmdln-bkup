@@ -36,18 +36,6 @@ TEST_DOCUMENT = """[
     {"description": "DESCRIPTION"}
 ]"""
 
-# TODO read_json
-
-def test_write_json():
-    data = {'a':1, 'b':2}
-    path = '/tmp/ddrlocal.models.write_json.json'
-    models.write_json(data, path)
-    with open(path, 'r') as f:
-        written = f.readlines()
-    assert written == ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
-    # clean up
-    os.remove(path)
-
 def test_load_json():
     document = Document()
     models.load_json(document, testmodule, TEST_DOCUMENT)

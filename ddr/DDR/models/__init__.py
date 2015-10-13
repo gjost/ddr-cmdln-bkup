@@ -27,6 +27,7 @@ from DDR import config
 from DDR.control import CollectionControlFile, EntityControlFile
 from DDR import dvcs
 from DDR import imaging
+from DDR import fileio
 from DDR.identifier import Identifier, MODULES
 from DDR import locking
 from DDR.models.xml import EAD, METS
@@ -116,27 +117,6 @@ def document_metadata(module, document_repo_path):
         'git_version': dvcs.git_version(document_repo_path),
     }
     return data
-
-def read_json(path):
-    """Read text file; make sure text is in UTF-8.
-    
-    @param path: str Absolute path to file.
-    @returns: unicode
-    """
-    # TODO use codecs.open utf-8
-    with open(path, 'r') as f:
-        text = f.read()
-    return text
-
-def write_json(text, path):
-    """Write text to UTF-8 file.
-    
-    @param text: unicode
-    @param path: str Absolute path to file.
-    """
-    # TODO use codecs.open utf-8
-    with open(path, 'w') as f:
-        f.write(text)
 
 def load_json(document, module, json_text):
     """Populates object from JSON-formatted text.
@@ -237,24 +217,11 @@ def from_json(model, json_path, identifier):
             # object_id is in object directory
             document = model(os.path.dirname(json_path), identifier=identifier)
         document_id = document.id  # save this just in case
-        document.load_json(read_json(json_path))
+        document.load_json(fileio.read_text(json_path))
         if not document.id:
             # id gets overwritten if document.json is blank
             document.id = document_id
     return document
-
-def read_xml(path):
-    pass
-
-def write_xml(text, path):
-    """Write text to UTF-8 file.
-    
-    @param text: unicode
-    @param path: str Absolute path to file.
-    """
-    # TODO use codecs.open utf-8
-    with open(path, 'w') as f:
-        f.write(text)
 
 def load_xml():
     pass
@@ -713,7 +680,7 @@ class Collection( object ):
                 # fake Entity with just enough info for lists
                 entity_json_path = os.path.join(path,'entity.json')
                 if os.path.exists(entity_json_path):
-                    for line in read_json(entity_json_path).split('\n'):
+                    for line in fileio.read_text(entity_json_path).split('\n'):
                         if '"title":' in line:
                             e = ListEntity()
                             e.id = Identifier(path=path).id
@@ -734,7 +701,9 @@ class Collection( object ):
     
     def model_def_fields( self ):
         module = self.identifier.fields_module()
-        return Module(module).cmp_model_definition_fields(read_json(self.json_path))
+        return Module(module).cmp_model_definition_fields(
+            fileio.read_text(self.json_path)
+        )
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -808,7 +777,7 @@ class Collection( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
         from DDR.docstore import post_json
@@ -863,7 +832,7 @@ class Collection( object ):
     def write_ead(self):
         """Write EAD XML file to disk.
         """
-        write_xml(self.dump_ead(), self.ead_path)
+        fileio.write_text(self.dump_ead(), self.ead_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -1078,7 +1047,9 @@ class Entity( object ):
     
     def model_def_fields( self ):
         module = self.identifier.fields_module()
-        return Module(module).cmp_model_definition_fields(read_json(self.json_path))
+        return Module(module).cmp_model_definition_fields(
+            fileio.read_text(self.json_path)
+        )
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -1175,7 +1146,7 @@ class Entity( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
         from DDR.docstore import post_json
@@ -1236,7 +1207,7 @@ class Entity( object ):
     def write_mets(self):
         """Write METS XML file to disk.
         """
-        write_xml(self.dump_mets(), self.mets_path)
+        fileio.write_text(self.dump_mets(), self.mets_path)
     
     @staticmethod
     def checksum_algorithms():
@@ -2046,7 +2017,7 @@ class File( object ):
         @returns: DDRFile
         """
         #file_ = File(path_abs=path_abs)
-        #file_.load_json(read_json(file_.json_path))
+        #file_.load_json(fileio.read_text(file_.json_path))
         #return file_
         return from_json(File, path_abs, identifier)
     
@@ -2072,7 +2043,9 @@ class File( object ):
     
     def model_def_fields( self ):
         module = self.identifier.fields_module()
-        return Module(module).cmp_model_definition_fields(read_json(self.json_path))
+        return Module(module).cmp_model_definition_fields(
+            fileio.read_text(self.json_path)
+        )
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -2150,7 +2123,7 @@ class File( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
         from DDR.docstore import post_json
@@ -2247,7 +2220,7 @@ class File( object ):
         if r.std_out:
             jsons = r.std_out.strip().split('\n')
         for filename in jsons:
-            data = json.loads(read_json(filename))
+            data = json.loads(fileio.read_text(filename))
             path_rel = None
             for field in data:
                 if field.get('path_rel',None):

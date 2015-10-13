@@ -41,6 +41,7 @@ import sys
 import envoy
 
 from DDR import format_json, find_meta_files
+from DDR import fileio
 from DDR import models
 from DDR import identifier
 
@@ -88,26 +89,6 @@ def find_files(basedir, filetypes):
         paths.extend(these)
     return paths
 
-def write_json(data, path):
-    """Write JSON using consistent formatting and sorting.
-    
-    For versioning and history to be useful we need data fields to be written
-    in a format that is easy to edit by hand and in which values can be compared
-    from one commit to the next.  This function prints JSON with nice spacing
-    and indentation and with sorted keys, so fields will be in the same relative
-    position across commits.
-    
-    >>> data = {'a':1, 'b':2}
-    >>> path = '/tmp/ddrlocal.models.write_json.json'
-    >>> write_json(data, path)
-    >>> with open(path, 'r') as f:
-    ...     print(f.readlines())
-    ...
-    ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
-    """
-    with open(path, 'w') as f:
-        f.write(format_json(data))
-
 def update_file(json_path, field_name, new_value):
     """Updates specified field in json file with a value and saves.
     """
@@ -119,7 +100,7 @@ def update_file(json_path, field_name, new_value):
         if fname == field_name:
             field[fname] = new_value
     
-    write_json(data, json_path)
+    fileio.write_text(formmat_json(data), json_path)
 
 
 
