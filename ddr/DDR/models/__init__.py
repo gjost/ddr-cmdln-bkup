@@ -279,7 +279,9 @@ class Module(object):
         @param module: collection, entity, files model definitions module
         """
         self.module = module
-        self.path = self.module.__file__.replace('.pyc', '.py')
+        self.path = None
+        if self.module and self.module.__file__:
+            self.path = self.module.__file__.replace('.pyc', '.py')
     
     def is_valid(self):
         """Indicates whether this is a proper module
@@ -288,6 +290,8 @@ class Module(object):
     
         @returns: Boolean,str message
         """
+        if not self.module:
+            return False,"%s has no module object." % self
         # Is the module located in a 'ddr' Repository repo?
         # collection.__file__ == absolute path to the module
         match = 'ddr/repo_models'
