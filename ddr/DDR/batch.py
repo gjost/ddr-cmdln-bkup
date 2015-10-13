@@ -11,8 +11,8 @@ import unicodecsv as csv
 from DDR import changelog
 from DDR import dvcs
 from DDR import models
+from DDR import modules
 from DDR.identifier import Identifier
-from DDR.models import Module
 from DDR import util
 
 COLLECTION_FILES_PREFIX = 'files'
@@ -202,7 +202,7 @@ def dump_object(obj, module, field_names):
     @param field_names: 
     @returns: list of values
     """
-    # seealso DDR.models.Module.function
+    # seealso DDR.modules.Module.function
     values = []
     for field_name in field_names:
         value = ''
@@ -211,7 +211,7 @@ def dump_object(obj, module, field_names):
             val = obj.id
         elif hasattr(obj, field_name):
             # run csvdump_* functions on field data if present
-            val = Module(module).function(
+            val = modules.Module(module).function(
                 'csvdump_%s' % field_name,
                 getattr(obj, field_name)
             )
@@ -429,11 +429,11 @@ def validate_row(module, headers, valid_values, rowd):
     """
     invalid = []
     for field in headers:
-        value = Module(module).function(
+        value = modules.Module(module).function(
             'csvload_%s' % field,
             rowd[field]
         )
-        valid = Module(module).function(
+        valid = modules.Module(module).function(
             'csvvalidate_%s' % field,
             [valid_values, value]
         )
@@ -505,7 +505,7 @@ def csvload_entity(entity, module, field_names, rowd):
     entity.modified = 0
     for field in field_names:
         oldvalue = getattr(entity, field, '')
-        value = Module(module).function(
+        value = modules.Module(module).function(
             'csvload_%s' % field,
             rowd[field]
         )
@@ -733,7 +733,7 @@ def csvload_file(file_, module, field_names, rowd):
     file_.modified = 0
     for field in field_names:
         oldvalue = getattr(file_, field, '')
-        value = Module(module).function(
+        value = modules.Module(module).function(
             'csvload_%s' % field,
             rowd[field]
         )
