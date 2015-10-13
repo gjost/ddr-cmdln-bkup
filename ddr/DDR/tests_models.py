@@ -122,22 +122,6 @@ def test_Module_cmp_model_definition_fields():
     ) == ([],['description'])
 
 
-MODEL_FIELDS_INHERITABLE = [
-    {'name':'id',},
-    {'name':'record_created',},
-    {'name':'record_lastmod',},
-    {'name':'status', 'inheritable':True,},
-    {'name':'public', 'inheritable':True,},
-    {'name':'title',},
-]
-def test_Inheritance_inheritable_fields():
-    assert models.Inheritance.inheritable_fields(MODEL_FIELDS_INHERITABLE) == ['status','public']
-
-# TODO Inheritance_inherit
-# TODO Inheritance_selected_inheritables
-# TODO Inheritance_update_inheritables
-
-
 def test_Collection__init__():
     c = models.Collection('/tmp/ddr-testing-123')
     assert c.path == '/tmp/ddr-testing-123'
