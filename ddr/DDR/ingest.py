@@ -148,9 +148,11 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     file_ = file_class(path_abs=dest_path, identifier=fidentifier)
     file_.basename_orig = os.path.basename(src_path)
     # add extension to path_abs
-    file_.ext = os.path.splitext(file_.basename_orig)[1]
-    file_.path_abs = file_.path_abs + file_.ext
-    log.ok('file_.ext %s' % file_.ext)
+    basename_ext = os.path.splitext(file_.basename_orig)[1]
+    path_abs_ext = os.path.splitext(file_.path_abs)[1]
+    if basename_ext and not path_abs_ext:
+        file_.path_abs = file_.path_abs + basename_ext
+        log.ok('basename_ext %s' % basename_ext)
     log.ok('file_.path_abs %s' % file_.path_abs)
     file_.size = os.path.getsize(src_path)
     file_.role = role
