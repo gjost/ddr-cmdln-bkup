@@ -509,7 +509,15 @@ class Collection( object ):
         fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
-        return docstore.post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+        # NOTE: this is same basic code as docstore.index
+        return docstore.post(
+            hosts, index,
+            docstore.load_document_json(self.json_path, self.identifier.model, self.id),
+            docstore.public_fields().get(self.identifier.model, []),
+            {
+                'parent_id': self.parent_id,
+            }
+        )
     
     def lock( self, text ): return locking.lock(self.lock_path, text)
     def unlock( self, text ): return locking.unlock(self.lock_path, text)
@@ -853,7 +861,15 @@ class Entity( object ):
         fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
-        return docstore.post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+        # NOTE: this is same basic code as docstore.index
+        return docstore.post(
+            hosts, index,
+            docstore.load_document_json(self.json_path, self.identifier.model, self.id),
+            docstore.public_fields().get(self.identifier.model, []),
+            {
+                'parent_id': self.parent_id,
+            }
+        )
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -1295,8 +1311,17 @@ class File( object ):
         """
         fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
-    def post_json(self, hosts, index):
-        return docstore.post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+    def post_json(self, hosts, index, public=False):
+        # NOTE: this is same basic code as docstore.index
+        return docstore.post(
+            hosts, index,
+            docstore.load_document_json(self.json_path, self.identifier.model, self.id),
+            docstore.public_fields().get(self.identifier.model, []),
+            {
+                'parent_id': self.parent_id,
+                'entity_id': self.parent_id,
+            }
+        )
     
     @staticmethod
     def file_name( entity, path_abs, role, sha1=None ):
