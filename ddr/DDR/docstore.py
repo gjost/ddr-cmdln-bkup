@@ -1135,8 +1135,8 @@ def _store_signature_file( signatures, identifier, master_substitute ):
             else:
                 signatures[object_id] = file_id
         
-        _store(signatures, identifier.collection_id, thumbfile_mezzfirst)
-        _store(signatures, identifier.parent_id, thumbfile_mezzfirst)
+        _store(signatures, identifier.collection_id(), thumbfile_mezzfirst)
+        _store(signatures, identifier.parent_id(), thumbfile_mezzfirst)
 
 def _choose_signatures( paths ):
     """Iterate through paths, storing signature_url for each collection, entity.
