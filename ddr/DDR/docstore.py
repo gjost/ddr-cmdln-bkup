@@ -1007,11 +1007,13 @@ def _public_fields():
     """
     public_fields = {}
     for model,module in MODULES.iteritems():
-        mfields = []
-        for field in module.FIELDS:
-            if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None):
-                mfields.append(field['name'])
-        public_fields[model] = mfields
+        if module:
+            mfields = [
+                field['name']
+                for field in module.FIELDS
+                if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None)
+            ]
+            public_fields[model] = mfields
     # add dynamically created fields
     public_fields['file'].append('path_rel')
     public_fields['file'].append('id')
