@@ -998,7 +998,7 @@ def delete( hosts, index, document_id, recursive=False ):
 
 # index ----------------------------------------------------------------
 
-def _public_fields():
+def public_fields():
     """Lists public fields for each model
     
     IMPORTANT: Adds certain dynamically-created fields
@@ -1189,7 +1189,7 @@ def index( hosts, index, path, recursive=False, public=True ):
     """
     logger.debug('index(%s, %s, %s)' % (hosts, index, path))
     
-    public_fields = _public_fields()
+    publicfields = public_fields()
     
     # process a single file if requested
     if os.path.isfile(path):
@@ -1219,9 +1219,9 @@ def index( hosts, index, path, recursive=False, public=True ):
         identifier = Identifier(path=path)
         parent_id = identifier.parent_id()
         
-        publicfields = []
+        document_pub_fields = []
         if public and identifier.model:
-            publicfields = public_fields[identifier.model]
+            document_pub_fields = publicfields[identifier.model]
         
         additional_fields = {'parent_id': parent_id}
         if identifier.model == 'collection': additional_fields['organization_id'] = parent_id
@@ -1236,7 +1236,7 @@ def index( hosts, index, path, recursive=False, public=True ):
             existing = get(hosts, index, identifier.model, identifier.id, fields=[])
         except:
             existing = None
-        result = post(hosts, index, document, publicfields, additional_fields)
+        result = post(hosts, index, document, document_pub_fields, additional_fields)
         # success: created, or version number incremented
         if result.get('_id', None):
             if existing:
