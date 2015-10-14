@@ -1024,6 +1024,9 @@ class Entity( object ):
         # just do nothing
         return None
 
+    def addfile_logger(self):
+        return ingest.addfile_logger(self)
+    
     def add_file(self, src_path, role, data, git_name, git_mail, agent=''):
         return ingest.add_file(self, src_path, role, data, git_name, git_mail, agent)
     
