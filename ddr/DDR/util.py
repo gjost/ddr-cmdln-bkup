@@ -3,7 +3,7 @@ import os
 import re
 
 
-def find_meta_files( basedir, recursive=False, model=None, files_first=False, force_read=False ):
+def find_meta_files( basedir, recursive=False, model=None, files_first=False, force_read=False, testing=False ):
     """Lists absolute paths to .json files in basedir; saves copy if requested.
     
     Skips/excludes .git directories.
@@ -14,6 +14,7 @@ def find_meta_files( basedir, recursive=False, model=None, files_first=False, fo
     @param model: list Restrict to the named model ('collection','entity','file').
     @param files_first: If True, list files,entities,collections; otherwise sort.
     @param force_read: If True, always searches for files instead of using cache.
+    @param testing: boolean Allow 'tmp' in paths.
     @returns: list of paths
     """
     def model_exclude(m, p):
@@ -34,7 +35,9 @@ def find_meta_files( basedir, recursive=False, model=None, files_first=False, fo
         with open(CACHE_PATH, 'r') as f:
             paths = [line.strip() for line in f.readlines() if '#' not in line]
     else:
-        excludes = ['.git', 'tmp', '*~']
+        excludes = ['.git', '*~']
+        if not testing:
+            excludes.append('tmp')
         if recursive:
             for root, dirs, files in os.walk(basedir):
                 # don't go down into .git directory

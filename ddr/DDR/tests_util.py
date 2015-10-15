@@ -1,21 +1,91 @@
 from datetime import datetime
 import os
+import shutil
 
 import util
 
 
+
+SAMPLE_DIRS = [
+    '.git',
+    'files',
+    'files/ddr-test-123-1',
+    'files/ddr-test-123-2',
+    'files/ddr-test-123-2/files',
+]
+SAMPLE_FILES = [
+    'collection.json',
+    '.git/config',
+    '.gitignore',
+    'files/ddr-test-123-1/entity.json',
+    'files/ddr-test-123-1/changelog',
+    'files/ddr-test-123-2/entity.json',
+    'files/ddr-test-123-2/control',
+    'files/ddr-test-123-2/files/ddr-test-123-2-master-abc123.jpg',
+    'files/ddr-test-123-2/files/ddr-test-123-2-master-abc123.json',
+]
+META_ALL = [
+    'collection.json',
+    'files/ddr-test-123-1/entity.json',
+    'files/ddr-test-123-2/entity.json',
+    'files/ddr-test-123-2/files/ddr-test-123-2-master-abc123.json',
+]
+META_MODEL = {
+    'collection': [
+        'collection.json',
+    ],
+    'entity': [
+        'files/ddr-test-123-1/entity.json',
+        'files/ddr-test-123-2/entity.json',
+    ],
+    'file': [
+        'files/ddr-test-123-2/files/ddr-test-123-2-master-abc123.json',
+    ],
+}
+
 def test_find_meta_files():
-    basedir = '/tmp'
-    cachedir = '.metadata_files'
-    cache_path = os.path.join(basedir, cachedir)
+    basedir = '/tmp/DDR_test_utils'
+    if os.path.exists(basedir):
+        shutil.rmtree(basedir, ignore_errors=1)
+    
+    # build sample repo
+    sampledir = os.path.join(basedir, 'ddr-test-123')
+    for d in SAMPLE_DIRS:
+        path = os.path.join(sampledir, d)
+        os.makedirs(path)
+    for fn in SAMPLE_FILES:
+        path = os.path.join(sampledir, fn)
+        with open(path, 'w') as f:
+            f.write('testing')
+    
+    # cache
+    cache_path = os.path.join(basedir, 'cache')
     if os.path.exists(cache_path):
         os.remove(cache_path)
     assert not os.path.exists(cache_path)
-    paths0 = util.find_meta_files('/tmp', recursive=True, force_read=True)
-    print('paths: %s' % paths0)
-    assert os.path.exists(cache_path)
-    paths1 = util.find_meta_files('/tmp', recursive=True, force_read=True)
-    print('paths: %s' % paths1)
+
+    def clean(paths):
+        base = '%s/' % sampledir
+        cleaned = [path.replace(base, '') for path in paths]
+        cleaned.sort()
+        return cleaned
+    
+    paths0 = clean(util.find_meta_files(sampledir, recursive=True, force_read=True, testing=1))
+    assert paths0 == META_ALL
+
+    for model in ['collection', 'entity', 'file']:
+        paths2 = clean(util.find_meta_files(sampledir, model=model, recursive=True, force_read=True, testing=1))
+        assert paths2 == META_MODEL[model]
+    
+    paths3 = clean(util.find_meta_files(sampledir, recursive=False, force_read=True, testing=1))
+    assert paths3 == META_MODEL['collection']
+    
+    paths4 = clean(util.find_meta_files(sampledir, recursive=True, force_read=True, files_first=True, testing=1))
+    assert paths4 == META_ALL
+    
+    paths5 = clean(util.find_meta_files(sampledir, recursive=True, force_read=False, testing=1))
+    assert paths5 == META_ALL
+
 
 def test_natural_sort():
     l = ['11', '1', '12', '2', '13', '3']
