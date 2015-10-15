@@ -1,17 +1,24 @@
 import ConfigParser
 import sys
 
+CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
+
+
 class NoConfigError(Exception):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return repr(self.value)
 
-CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
+def read_configs(paths):
+    config = ConfigParser.ConfigParser()
+    configs_read = config.read(paths)
+    if not configs_read:
+        raise NoConfigError('No config file!')
+    return config
+
+
+config = read_configs(CONFIG_FILES)
 
 DEBUG = config.get('cmdln', 'debug')
 
