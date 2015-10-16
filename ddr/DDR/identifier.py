@@ -313,11 +313,12 @@ def identify_filepath(path):
     elif 'master' in path: ftype = 'master'
     return ftype
 
-def set_idparts(i, groupdict):
+def set_idparts(i, groupdict, components=ID_COMPONENTS):
     """Sets keys,values of groupdict as attributes of identifier.
     
     @param i: Identifier
     @param groupdict: dict
+    @param components: list [optional]
     """
     i.basepath = groupdict.get('basepath', None)
     if i.basepath:
@@ -325,7 +326,7 @@ def set_idparts(i, groupdict):
     # list of object ID components
     i.parts = OrderedDict([
         (key, groupdict[key])
-        for key in ID_COMPONENTS
+        for key in components
         if groupdict.get(key)
     ])
     # set object attributes with numbers as ints
@@ -333,43 +334,46 @@ def set_idparts(i, groupdict):
         if val.isdigit():
             i.parts[key] = int(val)
 
-def format_id(i, model):
+def format_id(i, model, templates=ID_TEMPLATES):
     """Format ID for the requested model using ID_TEMPLATES.
     
     Hint: you can get parent IDs from an Identifier.
     
     @param i: Identifier
     @param model: str A legal model keyword
+    @param templates: [optional] dict of str templates keyed to models
     @returns: str
     """
-    return ID_TEMPLATES[model].format(**i.parts)
+    return templates[model].format(**i.parts)
 
-def format_path(i, model, path_type):
+def format_path(i, model, path_type, templates=PATH_TEMPLATES):
     """Format absolute or relative path using PATH_TEMPLATES.
     
     @param i: Identifier
     @param model: str A legal model keyword
     @param path_type: str 'abs' or 'rel'
+    @param templates: [optional] dict of str templates keyed to models
     @returns: str or None
     """
     key = '-'.join([model, path_type])
-    template = PATH_TEMPLATES.get(key, None)
+    template = templates.get(key, None)
     if template:
         kwargs = {key: val for key,val in i.parts.items()}
         kwargs['basepath'] = i.basepath
         return template.format(**kwargs)
     return None
 
-def format_url(i, model, url_type):
+def format_url(i, model, url_type, templates=URL_TEMPLATES):
     """Format URL using URL_TEMPLATES.
     
     @param i: Identifier
     @param model: str A legal model keyword
     @param url_type: str 'public' or 'editor'
+    @param templates: [optional] dict of str templates keyed to models
     @returns: str
     """
     try:
-        template = URL_TEMPLATES[url_type][model]
+        template = templates[url_type][model]
         return template.format(**i.parts)
     except KeyError:
         return None
@@ -516,15 +520,16 @@ class Identifier(object):
         return {}
 
     @staticmethod
-    def valid(idparts):
+    def valid(idparts, components=VALID_COMPONENTS):
         """Checks if all non-int ID components are valid.
         
         @param idparts: dict
+        @param components: dict 
         @returns: True or dict containing name of invalid component
         """
         invalid = [
-            key for key in VALID_COMPONENTS.iterkeys()
-            if idparts[key] not in VALID_COMPONENTS[key]
+            key for key in components.iterkeys()
+            if idparts.get(key) and (idparts[key] not in components[key])
         ]
         if not invalid:
             return True
