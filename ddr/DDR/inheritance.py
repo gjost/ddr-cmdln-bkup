@@ -4,14 +4,14 @@ from DDR import identifier
 from DDR import util
 
 
-def _child_jsons( path ):
+def _child_jsons( path, testing=False ):
     """List all the .json files under path directory; excludes specified dir.
     
     @param path: Absolute directory path.
     @return list of paths
     """
     return [
-        p for p in util.find_meta_files(basedir=path, recursive=True)
+        p for p in util.find_meta_files(basedir=path, recursive=True, testing=testing)
         if os.path.dirname(p) != path
     ]
 
