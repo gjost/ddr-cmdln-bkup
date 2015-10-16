@@ -118,7 +118,8 @@ FILETYPE_MATCH_ANNEX = {
 #
 
 def _compile_patterns(patterns):
-    """Replace str regexes with compiled regular expression objects."""
+    """Replace str regexes with compiled regular expression objects.
+    """
     new = []
     for p in patterns:
         pattern = [x for x in p]
@@ -298,8 +299,10 @@ def identify_object(text, patterns):
     return model,groupdict
 
 def identify_filepath(path):
-    """
+    """Indicates file role or if path is an access file.
+    
     TODO use VALID_COMPONENTS or similar rather than hard-coding
+    Probably better to do the access file matching separately
     
     @param text: str Text string to look for
     @returns: str File type or None
@@ -311,6 +314,11 @@ def identify_filepath(path):
     return ftype
 
 def set_idparts(i, groupdict):
+    """Sets keys,values of groupdict as attributes of identifier.
+    
+    @param i: Identifier
+    @param groupdict: dict
+    """
     i.basepath = groupdict.get('basepath', None)
     if i.basepath:
         i.basepath = os.path.normpath(i.basepath)
@@ -367,7 +375,10 @@ def format_url(i, model, url_type):
         return None
 
 def matches_pattern(text, patterns):
-    """
+    """True if text matches one of patterns
+    
+    Used for telling what kind of pattern (id, path, url) an arg is.
+    
     @param text: str
     @returns: dict of idparts including model
     """
@@ -408,6 +419,12 @@ def _is_abspath(text):
     return False
 
 def _parse_args_kwargs(keys, args, kwargs):
+    """Attempts to convert Identifier.__init__ args to kwargs.
+    
+    @param keys: list Whitelist of accepted kwargs
+    @param args: list
+    @param kwargs: dict
+    """
     # TODO there's probably something in stdlib for this...
     blargs = {key:None for key in keys}
     if args:
@@ -643,6 +660,8 @@ class Identifier(object):
         return parts
 
     def fields_module(self, mappings=MODEL_REPO_MODELS):
+        """Identifier's fields definitions module from repo_models.
+        """
         return module_for_name(
             mappings[self.model]['module']
         )
@@ -656,14 +675,20 @@ class Identifier(object):
         )
     
     def object(self, mappings=MODEL_CLASSES):
+        """The object identified by the Identifier.
+        """
         return self.object_class(mappings).from_identifier(self)
     
     def collection_id(self):
+        """ID of the collection to which the Identifier belongs, if any.
+        """
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection IDs' % self.model.capitalize())
         return format_id(self, 'collection')
     
     def collection_path(self):
+        """Absolute path of the collection to which the Identifier belongs, if any.
+        """
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection paths' % self.model.capitalize())
         if not self.basepath:
@@ -671,10 +696,13 @@ class Identifier(object):
         return os.path.normpath(format_path(self, 'collection', 'abs'))
     
     def collection(self):
+        """Collection object to which the Identifier belongs, if any.
+        """
         return self.__class__(id=self.collection_id(), base_path=self.basepath)
     
     def parent_id(self, stubs=False):
-        """
+        """ID of the Identifier's parent, if any.
+        
         @param stubs: boolean Whether or not to include Stub objects.
         """
         if stubs:
