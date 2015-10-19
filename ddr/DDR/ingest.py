@@ -62,22 +62,6 @@ def addfile_logger(entity):
     log.logpath = _log_path(entity)
     return log
 
-def _predict_staged(entity, already, planned):
-    """Predict which files will be staged, accounting for modifications
-    
-    When running a batch import there will already be staged files when this function is called.
-    Some files to be staged will be modifications (e.g. entity.json).
-    Predicts the list of files that will be staged if this round of add_file succeeds.
-    how many files SHOULD be staged after we run this?
-    
-    @param already: list Files already staged.
-    @param planned: list Files to be added/modified in this operation.
-    @returns: list
-    """
-    additions = [path for path in planned if path not in already]
-    total = already + additions
-    return total
-
 def check_dir(label, path, log, mkdir=False, perm=os.W_OK):
     log.ok('%s: %s' % (label, path))
     if mkdir and not os.path.exists(path):
@@ -200,6 +184,22 @@ def move_existing_files_back(files, log):
     if not os.path.exists(entity.json_path):
         log.crash('Failed to place entity.json in destination repo')
 
+def predict_staged(already, planned):
+    """Predict which files will be staged, accounting for modifications
+    
+    When running a batch import there will already be staged files when this function is called.
+    Some files to be staged will be modifications (e.g. entity.json).
+    Predicts the list of files that will be staged if this round of add_file succeeds.
+    how many files SHOULD be staged after we run this?
+    
+    @param already: list Files already staged.
+    @param planned: list Files to be added/modified in this operation.
+    @returns: list
+    """
+    additions = [path for path in planned if path not in already]
+    total = already + additions
+    return total
+
 def stage_files(entity, git_files, annex_files, new_files, log):
     repo = dvcs.repository(entity.collection_path)
     log.ok('| repo %s' % repo)
@@ -211,7 +211,7 @@ def stage_files(entity, git_files, annex_files, new_files, log):
     # stage_new       Files that are being added.
     stage_planned = git_files + annex_files
     stage_already = dvcs.list_staged(repo)
-    stage_predicted = _predict_staged(entity, stage_already, stage_planned)
+    stage_predicted = predict_staged(stage_already, stage_planned)
     stage_new = [x for x in stage_planned if x not in stage_already]
     log.ok('| %s files to stage:' % len(stage_planned))
     for sp in stage_planned:
