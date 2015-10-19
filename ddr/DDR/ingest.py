@@ -37,6 +37,11 @@ class AddFileLogger():
                 log = f.read()
         return log
 
+    def crash(self, msg):
+        """Write to addfile log and raise an exception."""
+        self.not_ok(msg)
+        raise Exception(msg)
+
 def _log_path(entity):
     """Generates path to collection addfiles.log.
     
@@ -73,227 +78,131 @@ def _predict_staged(entity, already, planned):
     total = already + additions
     return total
 
-def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
-    """Add file to entity
-    
-    This method breaks out of OOP and manipulates entity.json directly.
-    Thus it needs to lock to prevent other edits while it does its thing.
-    Writes a log to ${entity}/addfile.log, formatted in pseudo-TAP.
-    This log is returned along with a File object.
-    
-    IMPORTANT: Files are only staged! Be sure to commit!
-    
-    @param src_path: Absolute path to an uploadable file.
-    @param role: Keyword of a file role.
-    @param data: 
-    @param git_name: Username of git committer.
-    @param git_mail: Email of git committer.
-    @param agent: (optional) Name of software making the change.
-    @return File,repo,log
-    """
-    f = None
-    repo = None
-    log = addfile_logger(entity)
-    
-    def crash(msg):
-        """Write to addfile log and raise an exception."""
-        log.not_ok(msg)
-        raise Exception(msg)
-    
-    log.ok('------------------------------------------------------------------------')
-    log.ok('DDR.models.Entity.add_file: START')
-    log.ok('entity: %s' % entity.id)
-    log.ok('data: %s' % data)
-    
-    tmp_dir = os.path.join(
-        config.MEDIA_BASE, 'tmp', 'file-add', entity.parent_id, entity.id)
-    dest_dir = entity.files_path
-    
-    log.ok('Checking files/dirs')
-    def check_dir(label, path, mkdir=False, perm=os.W_OK):
-        log.ok('%s: %s' % (label, path))
-        if mkdir and not os.path.exists(path):
-            os.makedirs(path)
-        if not os.path.exists(path): crash('%s does not exist' % label)
-        if not os.access(path, perm): crash('%s not has permission %s' % (label, permission))
-    check_dir('| src_path', src_path, mkdir=False, perm=os.R_OK)
-    check_dir('| tmp_dir', tmp_dir, mkdir=True, perm=os.W_OK)
-    check_dir('| dest_dir', dest_dir, mkdir=True, perm=os.W_OK)
-    
-    log.ok('Checksumming')
+def check_dir(label, path, log, mkdir=False, perm=os.W_OK):
+    log.ok('%s: %s' % (label, path))
+    if mkdir and not os.path.exists(path):
+        os.makedirs(path)
+    if not os.path.exists(path):
+        log.crash('%s does not exist' % label)
+    if not os.access(path, perm):
+        log.crash('%s not has permission %s' % (label, permission))
+
+def checksums(src_path, log):
     md5    = util.file_hash(src_path, 'md5');    log.ok('| md5: %s' % md5)
     sha1   = util.file_hash(src_path, 'sha1');   log.ok('| sha1: %s' % sha1)
     sha256 = util.file_hash(src_path, 'sha256'); log.ok('| sha256: %s' % sha256)
-    if not sha1 and md5 and sha256:
-        crash('Could not calculate checksums')
-    
-    log.ok('Identifier')
-    idparts = {
-        'role': role,
-        'sha1': sha1[:10],
-    }
-    log.ok('| idparts %s' % idparts)
-    fidentifier = entity.identifier.child('file', idparts, entity.identifier.basepath)
-    log.ok('| identifier %s' % fidentifier)
-    
-    log.ok('Destination path')
-    src_ext = os.path.splitext(src_path)[1]
-    dest_basename = '{}{}'.format(fidentifier.id, src_ext)
-    log.ok('| dest_basename %s' % dest_basename)
-    dest_path = os.path.join(dest_dir, dest_basename)
-    log.ok('| dest_path %s' % dest_path)
-    
-    log.ok('File object')
-    file_class = fidentifier.object_class()
-    file_ = file_class(path_abs=dest_path, identifier=fidentifier)
-    file_.basename_orig = os.path.basename(src_path)
-    # add extension to path_abs
-    basename_ext = os.path.splitext(file_.basename_orig)[1]
-    path_abs_ext = os.path.splitext(file_.path_abs)[1]
-    if basename_ext and not path_abs_ext:
-        file_.path_abs = file_.path_abs + basename_ext
-        log.ok('basename_ext %s' % basename_ext)
-    log.ok('file_.path_abs %s' % file_.path_abs)
-    file_.size = os.path.getsize(src_path)
-    file_.role = role
-    file_.sha1 = sha1
-    file_.md5 = md5
-    file_.sha256 = sha256
-    log.ok('| file_ %s' % file_)
-    log.ok('| file_.basename_orig: %s' % file_.basename_orig)
-    log.ok('| file_.path_abs: %s' % file_.path_abs)
-    log.ok('| file_.size: %s' % file_.size)
-    # form data
-    for field in data:
-        setattr(file_, field, data[field])
-    
-    log.ok('Copying to work dir')
-    log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
-    tmp_path = os.path.join(tmp_dir, file_.basename_orig)
+    if not (sha1 and md5 and sha256):
+        log.crash('Could not calculate checksums')
+    return md5,sha1,sha256
+
+def destination_path(src_path, entity, file_id):
+    src_basename = os.path.basename(src_path)
+    src_ext = os.path.splitext(src_basename)[1]
+    dest_dir = entity.files_path
+    dest_basename = '{}{}'.format(file_id, src_ext)
+    return os.path.join(dest_dir, dest_basename)
+
+def temporary_path(base_dir, entity, src_path):
+    src_basename = os.path.basename(src_path)
+    return os.path.join(
+        base_dir,
+        'tmp', 'file-add',
+        entity.parent_id,
+        entity.id,
+        src_basename
+    )
+
+def temporary_path_renamed(tmp_path, dest_path):
+    return os.path.join(
+        os.path.dirname(tmp_path),
+        os.path.basename(dest_path)
+    )
+
+def access_path(file_class, tmp_path_renamed):
+    access_filename = file_class.access_filename(tmp_path_renamed)
+    return os.path.join(
+        os.path.dirname(tmp_path_renamed),
+        os.path.basename(access_filename)
+    )
+
+def copy_to_workdir(src_path, tmp_path, tmp_path_renamed, log):
     log.ok('| cp %s %s' % (src_path, tmp_path))
     shutil.copy(src_path, tmp_path)
     os.chmod(tmp_path, 0644)
     if os.path.exists(tmp_path):
         log.ok('| done')
     else:
-        crash('Copy failed!')
-    
-    tmp_path_renamed = os.path.join(os.path.dirname(tmp_path), dest_basename)
-    log.ok('Renaming %s -> %s' % (os.path.basename(tmp_path), dest_basename))
+        log.crash('Copy failed!')
+    log.ok('| Renaming %s -> %s' % (
+        os.path.basename(tmp_path),
+        os.path.basename(tmp_path_renamed)
+    ))
     os.rename(tmp_path, tmp_path_renamed)
     if not os.path.exists(tmp_path_renamed) and not os.path.exists(tmp_path):
-        crash('File rename failed: %s -> %s' % (tmp_path, tmp_path_renamed))
-    
-    log.ok('Extracting XMP data')
-    file_.xmp = imaging.extract_xmp(src_path)
-    
-    log.ok('Making access file')
-    access_filename = file_class.access_filename(tmp_path_renamed)
-    access_dest_path = os.path.join(tmp_dir, os.path.basename(access_filename))
-    log.ok('src_path %s' % src_path)
-    log.ok('access_filename %s' % access_filename)
-    log.ok('access_dest_path %s' % access_dest_path)
-    log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
-    tmp_access_path = None
+        log.crash('File rename failed: %s -> %s' % (tmp_path, tmp_path_renamed))
+
+def make_access_file(src_path, access_dest_path, log):
+    log.ok('| %s' % access_dest_path)
     try:
         tmp_access_path = imaging.thumbnail(
             src_path,
             access_dest_path,
             geometry=config.ACCESS_FILE_GEOMETRY
         )
+        log.ok('| done')
     except:
         # write traceback to log and continue on
         log.not_ok(traceback.format_exc().strip())
-    if tmp_access_path and os.path.exists(tmp_access_path):
-        log.ok('| attaching access file')
-        #dest_access_path = os.path.join('files', os.path.basename(tmp_access_path))
-        #log.ok('dest_access_path: %s' % dest_access_path)
-        file_.set_access(tmp_access_path, entity)
-        log.ok('| file_.access_rel: %s' % file_.access_rel)
-        log.ok('| file_.access_abs: %s' % file_.access_abs)
-    else:
-        log.not_ok('no access file')
-    
-    log.ok('Attaching file to entity')
-    entity.files.append(file_)
-    if file_ in entity.files:
-        log.ok('| done')
-    else:
-        crash('Could not add file to entity.files!')
-    
-    log.ok('Writing file metadata')
-    tmp_file_json = os.path.join(tmp_dir, os.path.basename(file_.json_path))
-    log.ok(tmp_file_json)
-    fileio.write_text(file_.dump_json(), tmp_file_json)
-    if os.path.exists(tmp_file_json):
-        log.ok('| done')
-    else:
-        crash('Could not write file metadata %s' % tmp_file_json)
-    
-    log.ok('Writing entity metadata')
-    tmp_entity_json = os.path.join(tmp_dir, os.path.basename(entity.json_path))
-    log.ok(tmp_entity_json)
-    fileio.write_text(entity.dump_json(), tmp_entity_json)
-    if os.path.exists(tmp_entity_json):
-        log.ok('| done')
-    else:
-        crash('Could not write entity metadata %s' % tmp_entity_json)
-    
-    # WE ARE NOW MAKING CHANGES TO THE REPO ------------------------
-    
-    log.ok('Moving files to dest_dir')
-    new_files = [
-        [tmp_path_renamed, file_.path_abs],
-        [tmp_file_json, file_.json_path],
-    ]
-    if tmp_access_path and os.path.exists(tmp_access_path):
-        new_files.append([tmp_access_path, file_.access_abs])
-    mvfiles_failures = []
-    for tmp,dest in new_files:
+        tmp_access_path = None
+    return tmp_access_path
+
+def write_object_metadata(obj, tmp_dir, log):
+    tmp_json = os.path.join(tmp_dir, os.path.basename(obj.json_path))
+    log.ok('| %s' % tmp_json)
+    fileio.write_text(obj.dump_json(), tmp_json)
+    if not os.path.exists(tmp_json):
+        log.crash('Could not write file metadata %s' % tmp_json)
+    return tmp_json
+
+def move_files(files, log):
+    failures = []
+    for tmp,dest in files:
         log.ok('| mv %s %s' % (tmp,dest))
         os.rename(tmp,dest)
         if not os.path.exists(dest):
             log.not_ok('FAIL')
-            mvfiles_failures.append(tmp)
+            failures.append(tmp)
             break
-    # one of new_files failed to copy, so move all back to tmp
-    if mvfiles_failures:
-        log.not_ok('%s failures: %s' % (len(mvfiles_failures), mvfiles_failures))
-        log.not_ok('Moving files back to tmp_dir')
-        try:
-            for tmp,dest in new_files:
-                log.ok('| mv %s %s' % (dest,tmp))
-                os.rename(dest,tmp)
-                if not os.path.exists(tmp) and not os.path.exists(dest):
-                    log.not_ok('FAIL')
-        except:
-            msg = "Unexpected error:", sys.exc_info()[0]
-            log.not_ok(msg)
-            raise
-        finally:
-            crash('Failed to place one or more files to destination repo')
-    else:
-        log.ok('| all files moved')
-    # entity metadata will only be copied if everything else was moved
-    log.ok('Moving entity.json to dest_dir')
+    return failures
+
+def move_new_files_back(files, failures, log):
+    # one of files failed to copy, so move all back to tmp
+    # these are new files
+    log.not_ok('%s failures: %s' % (len(failures), failures))
+    log.not_ok('Moving files back to tmp_dir')
+    try:
+        for tmp,dest in files:
+            log.ok('| mv %s %s' % (dest,tmp))
+            os.rename(dest,tmp)
+            if not os.path.exists(tmp) and not os.path.exists(dest):
+                log.not_ok('FAIL')
+    except:
+        msg = "Unexpected error:", sys.exc_info()[0]
+        log.not_ok(msg)
+        raise
+    finally:
+        log.crash('Failed to place one or more files to destination repo')
+
+def move_existing_files_back(files, log):
+    # these are files that already exist in repo
     log.ok('| mv %s %s' % (tmp_entity_json, entity.json_path))
     os.rename(tmp_entity_json, entity.json_path)
     if not os.path.exists(entity.json_path):
-        crash('Failed to place entity.json in destination repo')
-    
-    log.ok('Staging files')
-    repo = dvcs.repository(file_.collection_path)
+        log.crash('Failed to place entity.json in destination repo')
+
+def stage_files(entity, git_files, annex_files, new_files, log):
+    repo = dvcs.repository(entity.collection_path)
     log.ok('| repo %s' % repo)
-    log.ok('file_.json_path_rel %s' % file_.json_path_rel)
-    git_files = [
-        entity.json_path_rel,
-        file_.json_path_rel
-    ]
-    annex_files = [
-        file_.path_abs.replace('%s/' % file_.collection_path, '')
-    ]
-    if file_.access_abs and os.path.exists(file_.access_abs):
-        annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
     # These vars will be used to determine if stage operation is successful.
     # If called in batch operation there may already be staged files.
     # stage_planned   Files added/modified by this function call
@@ -339,7 +248,159 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
                 log.not_ok('| mv %s %s' % (dest,tmp))
                 os.rename(dest,tmp)
             log.not_ok('finished cleanup. good luck...')
-            raise crash('Add file aborted, see log file for details.')
+            log.crash('Add file aborted, see log file for details.')
+    return repo
+
+def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
+    """Add file to entity
+    
+    This method breaks out of OOP and manipulates entity.json directly.
+    Thus it needs to lock to prevent other edits while it does its thing.
+    Writes a log to ${entity}/addfile.log, formatted in pseudo-TAP.
+    This log is returned along with a File object.
+    
+    IMPORTANT: Files are only staged! Be sure to commit!
+    
+    @param src_path: Absolute path to an uploadable file.
+    @param role: Keyword of a file role.
+    @param data: 
+    @param git_name: Username of git committer.
+    @param git_mail: Email of git committer.
+    @param agent: (optional) Name of software making the change.
+    @return File,repo,log
+    """
+    f = None
+    repo = None
+    log = addfile_logger(entity)
+    
+    log.ok('------------------------------------------------------------------------')
+    log.ok('DDR.models.Entity.add_file: START')
+    log.ok('entity: %s' % entity.id)
+    log.ok('data: %s' % data)
+    
+    log.ok('Examining source file')
+    check_dir('| src_path', src_path, log, mkdir=False, perm=os.R_OK)
+    
+    src_size = os.path.getsize(src_path)
+    log.ok('| file size %s' % src_size)
+    # TODO check free space on dest
+    
+    md5,sha1,sha256 = checksums(src_path, log)
+    
+    log.ok('| extracting XMP data')
+    xmp = imaging.extract_xmp(src_path)
+    
+    log.ok('Identifier')
+    # note: we can't make this until we have the sha1
+    idparts = {
+        'role': role,
+        'sha1': sha1[:10],
+    }
+    log.ok('| idparts %s' % idparts)
+    fidentifier = entity.identifier.child('file', idparts, entity.identifier.basepath)
+    log.ok('| identifier %s' % fidentifier)
+    file_class = fidentifier.object_class()
+    
+    dest_path = destination_path(src_path, entity, fidentifier.id)
+    tmp_path = temporary_path(config.MEDIA_BASE, entity, src_path)
+    tmp_path_renamed = temporary_path_renamed(tmp_path, dest_path)
+    access_dest_path = access_path(file_class, tmp_path_renamed)
+    dest_dir = os.path.dirname(dest_path)
+    tmp_dir = os.path.dirname(tmp_path)
+    
+    log.ok('Checking files/dirs')
+    check_dir('| tmp_dir', tmp_dir, log, mkdir=True, perm=os.W_OK)
+    check_dir('| dest_dir', dest_dir, log, mkdir=True, perm=os.W_OK)
+    
+    log.ok('Copying to work dir')
+    copy_to_workdir(src_path, tmp_path, tmp_path_renamed, log)
+    
+    log.ok('Making access file')
+    tmp_access_path = make_access_file(src_path, access_dest_path, log)
+    
+    log.ok('File object')
+    file_ = file_class(path_abs=dest_path, identifier=fidentifier)
+    file_.basename_orig = os.path.basename(src_path)
+    # add extension to path_abs
+    basename_ext = os.path.splitext(file_.basename_orig)[1]
+    path_abs_ext = os.path.splitext(file_.path_abs)[1]
+    if basename_ext and not path_abs_ext:
+        file_.path_abs = file_.path_abs + basename_ext
+        log.ok('| basename_ext %s' % basename_ext)
+    file_.size = src_size
+    file_.role = role
+    file_.sha1 = sha1
+    file_.md5 = md5
+    file_.sha256 = sha256
+    file_.xmp = xmp
+    log.ok('| file_ %s' % file_)
+    log.ok('| file_.basename_orig: %s' % file_.basename_orig)
+    log.ok('| file_.path_abs: %s' % file_.path_abs)
+    log.ok('| file_.size: %s' % file_.size)
+    # form data
+    for field in data:
+        setattr(file_, field, data[field])
+    
+    log.ok('Attaching access file')
+    if tmp_access_path and os.path.exists(tmp_access_path):
+        file_.set_access(tmp_access_path, entity)
+        log.ok('| file_.access_rel: %s' % file_.access_rel)
+        log.ok('| file_.access_abs: %s' % file_.access_abs)
+    else:
+        log.not_ok('no access file')
+    
+    log.ok('Attaching file to entity')
+    entity.files.append(file_)
+    if file_ in entity.files:
+        log.ok('| done')
+    else:
+        log.crash('Could not add file to entity.files!')
+    
+    log.ok('Writing object metadata')
+    tmp_file_json = write_object_metadata(file_, tmp_dir, log)
+    tmp_entity_json = write_object_metadata(entity, tmp_dir, log)
+    
+    # WE ARE NOW MAKING CHANGES TO THE REPO ------------------------
+    
+    log.ok('Moving files to dest_dir')
+    new_files = [
+        (tmp_path_renamed, file_.path_abs),
+        (tmp_file_json, file_.json_path),
+    ]
+    if tmp_access_path and os.path.exists(tmp_access_path):
+        new_files.append(
+            (tmp_access_path, file_.access_abs)
+        )
+    mvnew_fails = move_files(new_files, log)
+    if mvnew_fails:
+        log.not_ok('Failed to place one or more new files to destination repo')
+        move_new_files_back(new_files, mvnew_fails, log)
+    else:
+        log.ok('| all files moved')
+    
+    # entity metadata will only be copied if everything else was moved
+    log.ok('Moving entity.json to dest_dir')
+    existing_files = [
+        (tmp_entity_json, entity.json_path)
+    ]
+    mvold_fails = move_files(existing_files, log)
+    if mvold_fails:
+        log.not_ok('Failed to update metadata in destination repo')
+        move_existing_files_back(existing_files, mvold_fails, log)
+    else:
+        log.ok('| all files moved')
+    
+    log.ok('Staging files')
+    git_files = [
+        entity.json_path_rel,
+        file_.json_path_rel
+    ]
+    annex_files = [
+        file_.path_abs.replace('%s/' % file_.collection_path, '')
+    ]
+    if file_.access_abs and os.path.exists(file_.access_abs):
+        annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
+    repo = stage_files(entity, git_files, annex_files, new_files, log)
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!
@@ -365,11 +426,6 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     repo = None
     log = addfile_logger(entity)
     
-    def crash(msg):
-        """Write to addfile log and raise an exception."""
-        log.not_ok(msg)
-        raise Exception(msg)
-    
     src_path = ddrfile.path_abs
     
     log.ok('------------------------------------------------------------------------')
@@ -382,15 +438,9 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     dest_dir = entity.files_path
     
     log.ok('Checking files/dirs')
-    def check_dir(label, path, mkdir=False, perm=os.W_OK):
-        log.ok('%s: %s' % (label, path))
-        if mkdir and not os.path.exists(path):
-            os.makedirs(path)
-        if not os.path.exists(path): crash('%s does not exist' % label)
-        if not os.access(path, perm): crash('%s not has permission %s' % (label, permission))
-    check_dir('| src_path', src_path, mkdir=False, perm=os.R_OK)
-    check_dir('| tmp_dir', tmp_dir, mkdir=True, perm=os.W_OK)
-    check_dir('| dest_dir', dest_dir, mkdir=True, perm=os.W_OK)
+    check_dir('| src_path', src_path, log, mkdir=False, perm=os.R_OK)
+    check_dir('| tmp_dir', tmp_dir, log, mkdir=True, perm=os.W_OK)
+    check_dir('| dest_dir', dest_dir, log, mkdir=True, perm=os.W_OK)
     
     #log.ok('Checksumming')
     
@@ -434,7 +484,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     if tmp_access_path and os.path.exists(tmp_access_path):
         log.ok('| access file exists')
     else:
-        crash('Failed to make an access file from %s' % src_path)
+        log.crash('Failed to make an access file from %s' % src_path)
     
     #log.ok('Attaching file to entity')
     
@@ -445,7 +495,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     if os.path.exists(tmp_file_json):
         log.ok('| done')
     else:
-        crash('Could not write file metadata %s' % tmp_file_json)
+        log.crash('Could not write file metadata %s' % tmp_file_json)
     
     #log.ok('Writing entity metadata')
     
@@ -478,7 +528,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
             log.not_ok(msg)
             raise
         finally:
-            crash('Failed to place one or more files to destination repo')
+            log.crash('Failed to place one or more files to destination repo')
     else:
         log.ok('| all files moved')
     # file metadata will only be copied if everything else was moved
@@ -486,7 +536,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     log.ok('| mv %s %s' % (tmp_file_json, file_.json_path))
     os.rename(tmp_file_json, file_.json_path)
     if not os.path.exists(file_.json_path):
-        crash('Failed to place file metadata in destination repo')
+        log.crash('Failed to place file metadata in destination repo')
     
     log.ok('Staging files')
     repo = dvcs.repository(file_.collection_path)
@@ -548,7 +598,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
                 log.not_ok('| mv %s %s' % (dest,tmp))
                 os.rename(dest,tmp)
             log.not_ok('finished cleanup. good luck...')
-            raise crash('Add file aborted, see log file for details.')
+            log.crash('Add file aborted, see log file for details.')
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!
