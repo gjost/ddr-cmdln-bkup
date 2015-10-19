@@ -433,71 +433,37 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     log.ok('entity: %s' % entity.id)
     log.ok('ddrfile: %s' % ddrfile)
     
-    tmp_dir = os.path.join(
-        config.MEDIA_BASE, 'tmp', 'file-add', entity.parent_id, entity.id)
-    dest_dir = entity.files_path
-    
     log.ok('Checking files/dirs')
     check_dir('| src_path', src_path, log, mkdir=False, perm=os.R_OK)
-    check_dir('| tmp_dir', tmp_dir, log, mkdir=True, perm=os.W_OK)
-    check_dir('| dest_dir', dest_dir, log, mkdir=True, perm=os.W_OK)
-    
-    #log.ok('Checksumming')
     
     log.ok('Identifier')
     log.ok('| file_id %s' % ddrfile.id)
     log.ok('| basepath %s' % entity.identifier.basepath)
     fidentifier = identifier.Identifier(ddrfile.id, entity.identifier.basepath)
     log.ok('| identifier %s' % fidentifier)
-    
-    #log.ok('Destination path')
-    
-    log.ok('File object')
     file_class = fidentifier.object_class()
-    file_ = file_class(path_abs=src_path, identifier=fidentifier)
-    log.ok('| file_ %s' % file_)
+
+    dest_path = destination_path(src_path, entity, fidentifier.id)
+    tmp_path = temporary_path(config.MEDIA_BASE, entity, src_path)
+    tmp_path_renamed = temporary_path_renamed(tmp_path, dest_path)
+    access_dest_path = access_path(file_class, tmp_path_renamed)
+    dest_dir = os.path.dirname(dest_path)
+    tmp_dir = os.path.dirname(tmp_path)
     
-    #log.ok('Copying to work dir')
-    #log.ok('Extracting XMP data')
+    log.ok('Checking files/dirs')
+    check_dir('| tmp_dir', tmp_dir, log, mkdir=True, perm=os.W_OK)
+    check_dir('| dest_dir', dest_dir, log, mkdir=True, perm=os.W_OK)
     
     log.ok('Making access file')
-    access_filename = os.path.basename(file_class.access_filename(src_path))
-    access_tmp = os.path.join(tmp_dir, access_filename)
-    log.ok('| src_path %s' % src_path)
-    log.ok('| access_filename %s' % access_filename)
-    log.ok('| file_.access_rel: %s' % file_.access_rel)
-    log.ok('| file_.access_abs: %s' % file_.access_abs)
-    log.ok('| access_tmp %s' % access_tmp)
-    log.ok('| tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
-    tmp_access_path = None
-    try:
-        log.ok('| creating thumbnail: %s' % tmp_access_path)
-        tmp_access_path = imaging.thumbnail(
-            src_path,
-            access_tmp,
-            geometry=config.ACCESS_FILE_GEOMETRY
-        )
-        log.ok('| done')
-    except:
-        # write traceback to log and continue on
-        log.not_ok(traceback.format_exc().strip())
-    if tmp_access_path and os.path.exists(tmp_access_path):
-        log.ok('| access file exists')
-    else:
-        log.crash('Failed to make an access file from %s' % src_path)
+    tmp_access_path = make_access_file(src_path, access_dest_path, log)
     
-    #log.ok('Attaching file to entity')
+    log.ok('File object')
+    file_ = ddrfile
+    log.ok('| file_ %s' % file_)
     
-    log.ok('Writing file metadata')
-    tmp_file_json = os.path.join(tmp_dir, os.path.basename(file_.json_path))
-    log.ok('| %s' % tmp_file_json)
-    fileio.write_text(file_.dump_json(), tmp_file_json)
-    if os.path.exists(tmp_file_json):
-        log.ok('| done')
-    else:
-        log.crash('Could not write file metadata %s' % tmp_file_json)
-    
-    #log.ok('Writing entity metadata')
+    log.ok('Writing object metadata')
+    tmp_file_json = write_object_metadata(file_, tmp_dir, log)
+    #tmp_entity_json
     
     # WE ARE NOW MAKING CHANGES TO THE REPO ------------------------
     
@@ -505,100 +471,33 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     new_files = []
     if tmp_access_path and os.path.exists(tmp_access_path):
         new_files.append([tmp_access_path, file_.access_abs])
-    mvfiles_failures = []
-    for tmp,dest in new_files:
-        log.ok('| mv %s %s' % (tmp,dest))
-        os.rename(tmp,dest)
-        if not os.path.exists(dest):
-            log.not_ok('FAIL')
-            mvfiles_failures.append(tmp)
-            break
-    # one of new_files failed to copy, so move all back to tmp
-    if mvfiles_failures:
-        log.not_ok('%s failures: %s' % (len(mvfiles_failures), mvfiles_failures))
-        log.not_ok('Moving files back to tmp_dir')
-        try:
-            for tmp,dest in new_files:
-                log.ok('| mv %s %s' % (dest,tmp))
-                os.rename(dest,tmp)
-                if not os.path.exists(tmp) and not os.path.exists(dest):
-                    log.not_ok('FAIL')
-        except:
-            msg = "Unexpected error:", sys.exc_info()[0]
-            log.not_ok(msg)
-            raise
-        finally:
-            log.crash('Failed to place one or more files to destination repo')
+    mvnew_fails = move_files(new_files, log)
+    if mvnew_fails:
+        log.not_ok('Failed to place one or more new files to destination repo')
+        move_new_files_back(new_files, mvnew_fails, log)
     else:
         log.ok('| all files moved')
+    
     # file metadata will only be copied if everything else was moved
     log.ok('Moving file .json to dest_dir')
-    log.ok('| mv %s %s' % (tmp_file_json, file_.json_path))
-    os.rename(tmp_file_json, file_.json_path)
-    if not os.path.exists(file_.json_path):
-        log.crash('Failed to place file metadata in destination repo')
+    existing_files = [
+        (tmp_file_json, file_.json_path)
+    ]
+    mvold_fails = move_files(existing_files, log)
+    if mvold_fails:
+        log.not_ok('Failed to update metadata in destination repo')
+        move_existing_files_back(existing_files, mvold_fails, log)
+    else:
+        log.ok('| all files moved')
     
     log.ok('Staging files')
-    repo = dvcs.repository(file_.collection_path)
-    log.ok('| repo %s' % repo)
     git_files = [
         file_.json_path_rel
     ]
     annex_files = [
         file_.access_rel
     ]
-    # These vars will be used to determine if stage operation is successful.
-    # If called in batch operation there may already be staged files.
-    # stage_planned   Files added/modified by this function call
-    # stage_already   Files that were already staged
-    # stage_predicted List of staged files that should result from this operation.
-    # stage_new       Files that are being added.
-    stage_planned = git_files + annex_files
-    stage_already = dvcs.list_staged(repo)
-    stage_predicted = _predict_staged(entity, stage_already, stage_planned)
-    stage_new = [x for x in stage_planned if x not in stage_already]
-    log.ok('| %s to stage:' % len(stage_planned))
-    log.ok('| %s git files:' % len(git_files))
-    for sp in git_files:
-        log.ok('|   %s' % sp)
-    log.ok('| %s annex files:' % len(annex_files))
-    for sp in annex_files:
-        log.ok('|   %s' % sp)
-    stage_ok = False
-    staged = []
-    assert False
-    try:
-        log.ok('dvcs.stage(%s, %s, %s)' % (repo, git_files, annex_files))
-        dvcs.stage(repo, git_files, annex_files)
-        staged = dvcs.list_staged(repo)
-    except:
-        # FAILED! print traceback to addfile log
-        log.not_ok(traceback.format_exc().strip())
-    finally:
-        log.ok('| %s files staged:' % len(staged))
-        for sp in staged:
-            log.ok('|   %s' % sp)
-        if len(staged) == len(stage_predicted):
-            log.ok('| %s files staged (%s new, %s modified)' % (
-                len(staged), len(stage_new), len(stage_already))
-            )
-            stage_ok = True
-        else:
-            log.not_ok('%s new files staged (should be %s)' % (
-                len(staged), len(stage_predicted))
-            )
-        if not stage_ok:
-            log.not_ok('File staging aborted. Cleaning up')
-            # try to pick up the pieces
-            # mv files back to tmp_dir
-            # TODO Properly clean up git-annex-added files.
-            #      This clause moves the *symlinks* to annex files but leaves
-            #      the actual binaries in the .git/annex objects dir.
-            for tmp,dest in new_files:
-                log.not_ok('| mv %s %s' % (dest,tmp))
-                os.rename(dest,tmp)
-            log.not_ok('finished cleanup. good luck...')
-            log.crash('Add file aborted, see log file for details.')
+    repo = stage_files(entity, git_files, annex_files, new_files, log)
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!
