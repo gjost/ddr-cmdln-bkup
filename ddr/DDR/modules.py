@@ -96,8 +96,21 @@ class Module(object):
                 )
                 lv.append( {'label':label, 'value':value,} )
         return lv
+
+    def _parse_commit(self, text):
+        return text.strip().split(' ')[0]
     
-    def cmp_model_definition_commits(self, document):
+    def document_commit(self, document):
+        doc_metadata = getattr(document, 'json_metadata', {})
+        if doc_metadata:
+            document_commit_raw = doc_metadata.get('models_commit','')
+            return self._parse_commit(document_commit_raw)
+        return None
+
+    def module_commit(self):
+        return self._parse_commit(dvcs.latest_commit(self.path))
+        
+    def cmp_model_definition_commits(self, document_commit, module_commit):
         """Indicate document's model defs are newer or older than module's.
         
         Prepares repository and document/module commits to be compared
@@ -107,33 +120,29 @@ class Module(object):
         than the module.
         
         @param document: A Collection, Entity, or File object.
-        @returns: -1, 0, 1, 128 (A older than B, same, A newer than B, error)
+        @returns: dict See DDR.dvcs.cmp_commits
         """
-        def parse(txt):
-            return txt.strip().split(' ')[0]
-        module_commit_raw = dvcs.latest_commit(self.path)
-        module_defs_commit = parse(module_commit_raw)
-        if not module_defs_commit:
-            return 128
-        doc_metadata = getattr(document, 'json_metadata', {})
-        document_commit_raw = doc_metadata.get('models_commit','')
-        document_defs_commit = parse(document_commit_raw)
-        if not document_defs_commit:
-            return -1
-        repo = dvcs.repository(self.path)
-        return dvcs.cmp_commits(repo, document_defs_commit, module_defs_commit)
+        return dvcs.cmp_commits(
+            dvcs.repository(self.path),
+            document_commit,
+            module_commit
+        )
     
     def cmp_model_definition_fields(self, document_json):
         """Indicate whether module adds or removes fields from document
         
         @param document_json: Raw contents of document *.json file
-        @returns: list,list Lists of added,removed field names.
+        @returns: dict {'added': [], 'removed': []} Lists of added,removed field names.
         """
+        data = json.loads(document_json)
         # First item in list is document metadata, everything else is a field.
-        document_fields = [field.keys()[0] for field in json.loads(document_json)[1:]]
+        document_fields = [field.keys()[0] for field in data[1:]]
         module_fields = [field['name'] for field in getattr(self.module, 'FIELDS')]
         # models.load_json() uses MODULE.FIELDS, so get list of fields
         # directly from the JSON document.
         added = [field for field in module_fields if field not in document_fields]
         removed = [field for field in document_fields if field not in module_fields]
-        return added,removed
+        return {
+            'added': added,
+            'removed': removed
+        }
