@@ -117,9 +117,9 @@ def load_json(document, module, json_text):
             {'title': 'ERROR: COULD NOT READ DATA (.JSON) FILE!'},
             {'_error': 'Error: ValueError during read load_json.'},
         ]
-    ## software and commit metadata
-    #if data:
-    #    setattr(document, 'json_metadata', data[0])
+    # software and commit metadata
+    if json_data and ('git_version' in json_data[0].keys()):
+        setattr(document, 'json_metadata', json_data[0])
     # field values from JSON
     for mf in module.FIELDS:
         for f in json_data:
