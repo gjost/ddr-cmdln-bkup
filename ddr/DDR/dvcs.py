@@ -33,7 +33,9 @@ def repository(path, user_name=None, user_mail=None):
     @return: GitPython repo object
     """
     repo = git.Repo(path)
-    return set_git_configs(repo, user_name, user_mail)
+    if user_name and user_mail:
+        return set_git_configs(repo, user_name, user_mail)
+    return repo
 
 def git_version(repo_path=None):
     """Returns version info for Git and git-annex.
