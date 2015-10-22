@@ -107,7 +107,7 @@ class Module(object):
         than the module.
         
         @param document: A Collection, Entity, or File object.
-        @returns: int
+        @returns: -1, 0, 1, 128 (A older than B, same, A newer than B, error)
         """
         def parse(txt):
             return txt.strip().split(' ')[0]

@@ -118,7 +118,7 @@ def cmp_commits(repo, a, b, abbrev=False):
     @param a: str A commit hash.
     @param b: str A commit hash.
     @param abbrev: Boolean If True use abbreviated commit hash.
-    @returns: -1, 0, 1
+    @returns: -1, 0, 1 (A older than B, same, A newer than B)
     """
     if abbrev:
         fmt = '--pretty=%h'
