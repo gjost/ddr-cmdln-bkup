@@ -40,13 +40,13 @@ def test_latest_commit():
 
 def test_parse_cmp_commits():
     log = '\n'.join(['e3bde9b', '8adad36', 'c63ec7c', 'eefe033', 'b10b4cd'])
-    later = 'e3bde9b'
-    earlier = '8adad36'
-    assert dvcs._parse_cmp_commits(log, earlier,later, abbrev=True) == -1
-    assert dvcs._parse_cmp_commits(log, earlier,earlier, abbrev=True) == 0
-    assert dvcs._parse_cmp_commits(log, later,earlier, abbrev=True) == 1
-    assert_raises(ValueError, dvcs._parse_cmp_commits, log, earlier,'123', True)
-    assert_raises(ValueError, dvcs._parse_cmp_commits, log, '123',later, True)
+    A = '8adad36'
+    B = 'e3bde9b'
+    assert dvcs._parse_cmp_commits(log, A,B) == {'a':A, 'b':B, 'op':'lt'}
+    assert dvcs._parse_cmp_commits(log, A,A) == {'a':A, 'b':A, 'op':'eq'}
+    assert dvcs._parse_cmp_commits(log, B,A) == {'a':B, 'b':A, 'op':'gt'}
+    assert_raises(ValueError, dvcs._parse_cmp_commits, log, A,'123')
+    assert_raises(ValueError, dvcs._parse_cmp_commits, log, '123',B)
 
 # cmp_commits
 
