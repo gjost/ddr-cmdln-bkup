@@ -64,8 +64,6 @@ def test_Collection_path_absrel():
 
 # TODO Collection.create
 # TODO Collection.from_json
-# TODO Collection.model_def_commits
-# TODO Collection.model_def_fields
 # TODO Collection.labels_values
 # TODO Collection.inheritable_fields
 # TODO Collection.load_json
@@ -147,8 +145,6 @@ def test_Entity_path_absrel():
 # TODO Entity.__repr__
 # TODO Entity.create
 # TODO Entity.from_json
-# TODO Entity.model_def_commits
-# TODO Entity.model_def_fields
 # TODO Entity.labels_values
 # TODO Entity.inherit
 # TODO Entity.inheritable_fields
@@ -210,8 +206,6 @@ def test_Entity_checksum_algorithms():
 
 # TODO File.__init__
 # TODO File.__repr__
-# TODO File.model_def_commits
-# TODO File.model_def_fields
 # TODO File.labels_values
 # TODO File.files_rel
 # TODO File.present

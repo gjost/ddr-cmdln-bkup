@@ -424,16 +424,6 @@ class Collection( object ):
                 entities.append(entity)
         return entities
     
-    def model_def_commits( self ):
-        module = self.identifier.fields_module()
-        return modules.Module(module).cmp_model_definition_commits(self)
-    
-    def model_def_fields( self ):
-        module = self.identifier.fields_module()
-        return modules.Module(module).cmp_model_definition_fields(
-            fileio.read_text(self.json_path)
-        )
-    
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
@@ -752,16 +742,6 @@ class Entity( object ):
         else:
             files = [f for f in self._file_objects]
         return sorted(files, key=lambda f: f.sort)
-    
-    def model_def_commits( self ):
-        module = self.identifier.fields_module()
-        return modules.Module(module).cmp_model_definition_commits(self)
-    
-    def model_def_fields( self ):
-        module = self.identifier.fields_module()
-        return modules.Module(module).cmp_model_definition_fields(
-            fileio.read_text(self.json_path)
-        )
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
@@ -1222,16 +1202,6 @@ class File( object ):
 
     def children( self, quick=None ):
         return []
-    
-    def model_def_commits( self ):
-        module = self.identifier.fields_module()
-        return modules.Module(module).cmp_model_definition_commits(self)
-    
-    def model_def_fields( self ):
-        module = self.identifier.fields_module()
-        return modules.Module(module).cmp_model_definition_fields(
-            fileio.read_text(self.json_path)
-        )
     
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
