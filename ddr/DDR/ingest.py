@@ -42,24 +42,34 @@ class AddFileLogger():
         self.not_ok(msg)
         raise Exception(msg)
 
-def _log_path(entity):
+def _log_path(eidentifier, base_dir=config.LOG_DIR):
     """Generates path to collection addfiles.log.
     
     Previously each entity had its own addfile.log.
     Going forward each collection will have a single log file.
         /STORE/log/REPO-ORG-CID-addfile.log
     
+    @param eidentifier: Identifier (Entity)
+    @param base_dir: [optional] str
     @returns: absolute path to logfile
     """
-    logpath = os.path.join(
-        config.LOG_DIR, 'addfile', entity.parent_id, '%s.log' % entity.id)
-    if not os.path.exists(os.path.dirname(logpath)):
-        os.makedirs(os.path.dirname(logpath))
-    return logpath
+    return os.path.join(
+        base_dir, 'addfile',
+        eidentifier.parent_id(),
+        '%s.log' % eidentifier.id
+    )
 
-def addfile_logger(entity):
+def addfile_logger(eidentifier, base_dir=config.LOG_DIR):
+    """
+    @param eidentifier: Identifier (Entity)
+    @param base_dir: [optional] str
+    @returns: AddFileLogger
+    """
     log = AddFileLogger()
-    log.logpath = _log_path(entity)
+    log.logpath = _log_path(eidentifier, base_dir)
+    logdir = os.path.dirname(log.logpath)
+    if not os.path.exists(logdir):
+        os.makedirs(logdir)
     return log
 
 def check_dir(label, path, log, mkdir=False, perm=os.W_OK):
@@ -68,8 +78,11 @@ def check_dir(label, path, log, mkdir=False, perm=os.W_OK):
         os.makedirs(path)
     if not os.path.exists(path):
         log.crash('%s does not exist' % label)
+        return False
     if not os.access(path, perm):
-        log.crash('%s not has permission %s' % (label, permission))
+        log.crash('%s not has permission %s' % (label, perm))
+        return False
+    return True
 
 def checksums(src_path, log):
     md5    = util.file_hash(src_path, 'md5');    log.ok('| md5: %s' % md5)
@@ -79,20 +92,19 @@ def checksums(src_path, log):
         log.crash('Could not calculate checksums')
     return md5,sha1,sha256
 
-def destination_path(src_path, entity, file_id):
+def destination_path(src_path, dest_dir, fidentifier):
     src_basename = os.path.basename(src_path)
     src_ext = os.path.splitext(src_basename)[1]
-    dest_dir = entity.files_path
-    dest_basename = '{}{}'.format(file_id, src_ext)
+    dest_basename = '{}{}'.format(fidentifier.id, src_ext)
     return os.path.join(dest_dir, dest_basename)
 
-def temporary_path(base_dir, entity, src_path):
+def temporary_path(src_path, base_dir, fidentifier):
     src_basename = os.path.basename(src_path)
     return os.path.join(
         base_dir,
         'tmp', 'file-add',
-        entity.parent_id,
-        entity.id,
+        fidentifier.collection_id(),
+        fidentifier.parent_id(),
         src_basename
     )
 
@@ -159,23 +171,27 @@ def move_files(files, log):
             break
     return failures
 
+def reverse_files_list(files):
+    return [(dest,tmp) for tmp,dest in files]
+
 def move_new_files_back(files, failures, log):
     # one of files failed to copy, so move all back to tmp
     # these are new files
     log.not_ok('%s failures: %s' % (len(failures), failures))
-    log.not_ok('Moving files back to tmp_dir')
+    log.not_ok('Moving new files back to tmp_dir')
+    reverse = reverse_files_list(files)
+    fails = []
     try:
-        for tmp,dest in files:
-            log.ok('| mv %s %s' % (dest,tmp))
-            os.rename(dest,tmp)
-            if not os.path.exists(tmp) and not os.path.exists(dest):
-                log.not_ok('FAIL')
+        fails = move_files(files, log)
     except:
         msg = "Unexpected error:", sys.exc_info()[0]
         log.not_ok(msg)
         raise
     finally:
-        log.crash('Failed to place one or more files to destination repo')
+        log.not_ok('Failed to place one or more files to destination repo')
+        for fail in fails:
+            log.not_ok('| %s' % fail)
+        log.crash('Bailing out. We are done here.')
 
 def move_existing_files_back(files, log):
     # these are files that already exist in repo
@@ -201,6 +217,7 @@ def predict_staged(already, planned):
     return total
 
 def stage_files(entity, git_files, annex_files, new_files, log):
+    # TODO move to DDR.dvcs?
     repo = dvcs.repository(entity.collection_path)
     log.ok('| repo %s' % repo)
     # These vars will be used to determine if stage operation is successful.
@@ -271,7 +288,7 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     """
     f = None
     repo = None
-    log = addfile_logger(entity)
+    log = addfile_logger(entity.identifier)
     
     log.ok('------------------------------------------------------------------------')
     log.ok('DDR.models.Entity.add_file: START')
@@ -301,8 +318,8 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     log.ok('| identifier %s' % fidentifier)
     file_class = fidentifier.object_class()
     
-    dest_path = destination_path(src_path, entity, fidentifier.id)
-    tmp_path = temporary_path(config.MEDIA_BASE, entity, src_path)
+    dest_path = destination_path(src_path, entity.files_path, fidentifier)
+    tmp_path = temporary_path(src_path, config.MEDIA_BASE, fidentifier)
     tmp_path_renamed = temporary_path_renamed(tmp_path, dest_path)
     access_dest_path = access_path(file_class, tmp_path_renamed)
     dest_dir = os.path.dirname(dest_path)
@@ -424,7 +441,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     """
     f = None
     repo = None
-    log = addfile_logger(entity)
+    log = addfile_logger(entity.identifier)
     
     src_path = ddrfile.path_abs
     
@@ -443,8 +460,8 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     log.ok('| identifier %s' % fidentifier)
     file_class = fidentifier.object_class()
 
-    dest_path = destination_path(src_path, entity, fidentifier.id)
-    tmp_path = temporary_path(config.MEDIA_BASE, entity, src_path)
+    dest_path = destination_path(src_path, entity.files_path, fidentifier)
+    tmp_path = temporary_path(src_path, config.MEDIA_BASE, fidentifier)
     tmp_path_renamed = temporary_path_renamed(tmp_path, dest_path)
     access_dest_path = access_path(file_class, tmp_path_renamed)
     dest_dir = os.path.dirname(dest_path)
