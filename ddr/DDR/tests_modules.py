@@ -124,27 +124,31 @@ def test_Module_document_commit():
 
 def test_Module_cmp_model_definition_fields():
     module = TestModule()
+    module.FIELDS = [
+        {'name': 'id',},
+        {'name': 'modified',},
+        {'name': 'title',},
+    ]
+    m = modules.Module(module)
     data = [
+        {},  # json_metadata
         {'id': 'ddr-test-123'},
         {'modified': '2015-10-20T15:42:26'},
         {'title': 'labels_values'},
     ]
-    print('data %s' % data)
-    json_text = json.dumps(data)
-    m = modules.Module(module)
-    print('m %s' % m)
-    print('m.module.FIELDS %s' % m.module.FIELDS)
-    out = m.cmp_model_definition_fields(json_text)
-    print(out)
-    assert out == {'removed': [], 'added': []}
     
-    document.append( {'new': 'new field'} )
-    assert modules.Module(module).cmp_model_definition_fields(
-        json.dumps(document)
-    ) == {'removed': [], 'added': ['new']}
+    expected0 = {'removed': [], 'added': []}
+    out0 = m.cmp_model_definition_fields(json.dumps(data))
     
-    document.pop()
-    document.pop()
-    assert modules.Module(module).cmp_model_definition_fields(
-        json.dumps(document)
-    ) == {'removed': ['description'], 'added': []}
+    data.append( {'new': 'new field'} )
+    expected1 = {'removed': [], 'added': ['new']}
+    out1 = m.cmp_model_definition_fields(json.dumps(data))
+    
+    data.pop()  # rm new
+    data.pop()  # rm title
+    expected2 = {'removed': ['title'], 'added': []}
+    out2 = m.cmp_model_definition_fields(json.dumps(data))
+    
+    assert out0 == expected0
+    assert out1 == expected1
+    assert out2 == expected2

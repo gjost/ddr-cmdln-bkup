@@ -140,8 +140,8 @@ class Module(object):
         module_fields = [field['name'] for field in getattr(self.module, 'FIELDS')]
         # models.load_json() uses MODULE.FIELDS, so get list of fields
         # directly from the JSON document.
-        added = [field for field in module_fields if field not in document_fields]
-        removed = [field for field in document_fields if field not in module_fields]
+        added = [field for field in document_fields if field not in module_fields]
+        removed = [field for field in module_fields if field not in document_fields]
         return {
             'added': added,
             'removed': removed

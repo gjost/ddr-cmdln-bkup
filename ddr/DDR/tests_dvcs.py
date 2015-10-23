@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import re
+import shutil
 
 from nose.tools import assert_raises
 import git
@@ -8,7 +9,27 @@ import git
 import dvcs
 
 
-# set_git_configs
+def make_repo(path, files=[]):
+    repo = git.Repo.init(path)
+    # create empty files
+    for fn in files:
+        fpath = os.path.join(path, fn)
+        open(fpath, 'wb').close()
+    repo.index.add(files)
+    repo.index.commit('initial commit')
+    return repo
+
+def clone_repo(repo, path):
+    return repo.clone(path)
+    
+def annex_init(repo):
+    repo.git.annex('init')
+
+def cleanup_repo(path):
+    shutil.rmtree(path, ignore_errors=True)
+
+
+# TODO set_git_configs
 
 def test_repository():
     # set_git_configs
@@ -31,12 +52,22 @@ def test_git_version():
     assert 'local repository version' in out
 
 def test_latest_commit():
-    repo = dvcs.latest_commit(git.Repo(os.getcwd()))
-    path = dvcs.latest_commit(os.getcwd())
-    nopath = dvcs.latest_commit()
-    assert nopath == path == repo
+    basedir = '/tmp/test-ddr-dvcs'
+    path = os.path.join(basedir, 'testrepo')
+    # rm existing
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    # set up repos
+    repo = make_repo(path, ['testing'])
+    # test at repo root
+    out1 = dvcs.latest_commit(path)
+    # test individual file
+    path_to_file = os.path.join(path, 'testing')
+    out2 = dvcs.latest_commit(path_to_file)
+    # analyze
     regex = r'([0123456789abcdef]+)\s+\([a-zA-Z]+, [a-zA-Z-]+\) ([0-9-]+) ([0-9:]+) (-[0-9]+)'
-    assert re.match(regex, repo)
+    assert re.match(regex, out1)
+    assert re.match(regex, out2)
 
 def test_parse_cmp_commits():
     log = '\n'.join(['e3bde9b', '8adad36', 'c63ec7c', 'eefe033', 'b10b4cd'])
@@ -48,7 +79,7 @@ def test_parse_cmp_commits():
     assert_raises(ValueError, dvcs._parse_cmp_commits, log, A,'123')
     assert_raises(ValueError, dvcs._parse_cmp_commits, log, '123',B)
 
-# cmp_commits
+# TODO cmp_commits
 
 def test_compose_commit_message():
     title = 'made-up title'
@@ -92,26 +123,100 @@ def test_parse_annex_description():
     assert dvcs._parse_annex_description(SAMPLE_ANNEX_STATUS, uuid0) == None
     assert dvcs._parse_annex_description(SAMPLE_ANNEX_STATUS, uuid1) == 'ddrworkstation'
 
-# get_annex_description
+# TODO get_annex_description
 
-def test_make_annex_description():
+def test_annex_init_description():
     dl = 'WD201405'
     hn = 'ddrworkstation'
     ph = 'testing'
     ml = 'gjost@densho.org'
     # drive label
-    assert dvcs._make_annex_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
+    assert dvcs.annex_init_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
     # hostname:domainname
     expected1 = 'ddrworkstation:densho.org'
-    assert dvcs._make_annex_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
+    assert dvcs.annex_init_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
     # hostname
-    assert dvcs._make_annex_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
+    assert dvcs.annex_init_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
     # TODO Test doesn't cover all possibile combinations!!!
 
-# set_annex_description
-# fetch
-# repo_status
-# annex_status
+def test_set_annex_description():
+    path = '/tmp/test-ddr-dvcs/test-repo'
+    
+    repo = make_repo(path, ['testing'])
+    annex_init(repo)
+    out0 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, description='testing')
+    expected0 = 'testing'
+    cleanup_repo(path)
+    
+    repo = make_repo(path, ['testing'])
+    annex_init(repo)
+    out1 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, drive_label='usb2015')
+    expected1 = 'usb2015'
+    cleanup_repo(path)
+    
+    repo = make_repo(path, ['testing'])
+    annex_init(repo)
+    out2 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='machine',)
+    expected2 = 'machine'
+    cleanup_repo(path)
+    
+    repo = make_repo(path, ['testing'])
+    annex_init(repo)
+    out3 = dvcs.set_annex_description(
+        repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='pnr',
+    )
+    expected3 = 'pnr:densho.org'
+    cleanup_repo(path)
+    
+    assert out0 == expected0
+    assert out1 == expected1
+    assert out2 == expected2
+    assert out3 == expected3
+
+# TODO fetch
+
+STATUS_LONG = """# On branch master
+nothing to commit (working directory clean)"""
+
+STATUS_SHORT = """## master"""
+
+def test_repo_status():
+    path = '/tmp/test-ddr-dvcs/test-repo'
+    repo = make_repo(path, ['testing'])
+    out0 = dvcs.repo_status(path, short=False)
+    out1 = dvcs.repo_status(path, short=True)
+    cleanup_repo(path)
+    assert out0 == STATUS_LONG
+    assert out1 == STATUS_SHORT
+
+ANNEX_STATUS = """root: DEBUG: 
+supported backends: SHA256 SHA1 SHA512 SHA224 SHA384 SHA256E SHA1E SHA512E SHA224E SHA384E WORM URL
+supported remote types: git S3 bup directory rsync web hook
+trusted repositories: 0
+semitrusted repositories: 2
+        00000000-0000-0000-0000-000000000001 -- web
+        6a1a6842-7916-11e5-bae8-87adf3053078 -- here
+untrusted repositories: 0
+dead repositories: 0
+available local disk space: 2 gigabytes (+1 megabyte reserved)
+local annex keys: 0
+local annex size: 0 bytes
+known annex keys: 0
+known annex size: 0 bytes
+bloom filter size: 16 mebibytes (0% full)
+backend usage: 
+"""
+
+def test_annex_status():
+    path = '/tmp/test-ddr-dvcs/test-repo'
+    repo = make_repo(path, ['testing'])
+    annex_init(repo)
+    status = dvcs.annex_status(path)
+    cleanup_repo(path)
+    assert 'trusted repositories' in status
+    assert 'semitrusted repositories' in status
+    assert ' -- here' in status
+    assert 'local annex keys: ' in status
 
 GITANNEX_WHEREIS = """FATAL: ddr-testing-141.git ddr DENIED
 
@@ -134,7 +239,7 @@ GITANNEX_WHEREIS_EXPECTED = ['WD5000BMV-2', 'pnr_tmp-ddr']
 def test_parse_annex_whereis():
     assert dvcs._parse_annex_whereis(GITANNEX_WHEREIS) == GITANNEX_WHEREIS_EXPECTED
 
-# annex_whereis_file
+# TODO annex_whereis_file
 
 GITOLITE_INFO_OK = """hello ddr, this is git@mits running gitolite3 v3.2-19-gb9bbb78 on git 1.7.2.5
 
@@ -148,17 +253,22 @@ GITOLITE_INFO_OK = """hello ddr, this is git@mits running gitolite3 v3.2-19-gb9b
  R W	ddr-testing-101
 """
 GITOLITE_ORGS_EXPECTED = ['ddr-densho', 'ddr-testing']
+GITOLITE_REPOS_EXPECTED = ['ddr-densho', 'ddr-densho-1', 'ddr-testing', 'ddr-testing-101']
 
 def test_gitolite_info_authorized():
     assert dvcs._gitolite_info_authorized(GITOLITE_INFO_OK) == True
     assert dvcs._gitolite_info_authorized('') == False
 
-# gitolite_connect_ok
+# TODO gitolite_connect_ok
 
 def test_gitolite_orgs():
     assert dvcs.gitolite_orgs(GITOLITE_INFO_OK) == GITOLITE_ORGS_EXPECTED
 
-# gitolite_info
+def test_gitolite_repos():
+    out = dvcs.gitolite_repos(GITOLITE_INFO_OK)
+    assert dvcs.gitolite_repos(GITOLITE_INFO_OK) == GITOLITE_REPOS_EXPECTED
+    
+# TODO gitolite_info
 
 GIT_DIFF_MODIFIED = """collection.json
 files/ddr-densho-10-1/entity.json
@@ -173,7 +283,7 @@ GIT_DIFF_MODIFIED_EXPECTED = [
 def test_parse_list_modified():
     assert dvcs._parse_list_modified(GIT_DIFF_MODIFIED) == GIT_DIFF_MODIFIED_EXPECTED
 
-# list_modified
+# TODO list_modified
 
 GIT_DIFF_STAGED = """collection.json
 files/ddr-densho-10-1/entity.json
@@ -188,7 +298,7 @@ GIT_DIFF_STAGED_EXPECTED = [
 def test_parse_list_staged():
     assert dvcs._parse_list_staged(GIT_DIFF_STAGED) == GIT_DIFF_STAGED_EXPECTED
 
-# list_staged
+# TODO list_staged
 
 SAMPLE_COMMIT_LOG = """
 commit 4df7877f43a10873ced2c484cc9f65605ee4ca68
@@ -212,7 +322,7 @@ SAMPLE_COMMIT_LOG_PARSED = [
 def test_parse_list_committed():
     assert dvcs._parse_list_committed(SAMPLE_COMMIT_LOG) == SAMPLE_COMMIT_LOG_PARSED
 
-# list_committed
+# TODO list_committed
 # TODO commit
 
 SAMPLE_CONFLICTED_0 = """
@@ -231,7 +341,7 @@ def test_parse_list_conflicted():
     assert dvcs._parse_list_conflicted(SAMPLE_CONFLICTED_0) == SAMPLE_CONFLICTED_0_EXPECTED
     assert dvcs._parse_list_conflicted(SAMPLE_CONFLICTED_1) == SAMPLE_CONFLICTED_1_EXPECTED
 
-# list_conflicted
+# TODO list_conflicted
 
 CONFLICTED_JSON_TEXT = """{
     {
@@ -357,13 +467,102 @@ def test_conflicted():
 # TODO repos
 
 def test_is_local():
-    url0 = '/tmp/ddr-testing-141.git'
-    url1 = 'git@mits.densho.org:ddr-testing-141.git'
-    assert dvcs.is_local(url0) == 1
-    assert dvcs.is_local(url1) == 0
+    url0 = ''
+    url1 = '/tmp/ddr-testing-141.git'
+    url2 = 'git@mits.densho.org:ddr-testing-141.git'
+    assert dvcs.is_local(url0) == -1
+    assert dvcs.is_local(url1) == 1
+    assert dvcs.is_local(url2) == 0
 
-# TODO local_exists
-# TODO is_clone
-# TODO remotes
+def test_local_exists():
+    assert dvcs.local_exists('/tmp') == 1
+    assert dvcs.local_exists('/abcde12345') == 0
+    
+def test_is_clone():
+    basedir = '/tmp/test-ddr-dvcs'
+    path0 = os.path.join(basedir, 'testrepo0')
+    path1 = os.path.join(basedir, 'testrepo1')
+    path2 = os.path.join(basedir, 'clone')
+    # rm existing
+    if os.path.exists(path0):
+        shutil.rmtree(path0)
+    if os.path.exists(path1):
+        shutil.rmtree(path1)
+    if os.path.exists(path2):
+        shutil.rmtree(path2)
+    # set up repos
+    repo0 = make_repo(path0, ['test'])
+    repo1 = make_repo(path1, ['testing'])
+    clone = clone_repo(repo1, path2)
+    # test
+    assert dvcs.is_clone(path0, path1, 1) == 0
+    assert dvcs.is_clone(path1, path0, 1) == 0
+    assert dvcs.is_clone(path0, path2, 1) == 0
+    assert dvcs.is_clone(path1, path2, 1) == 1
+    assert dvcs.is_clone(path1, '/tmp', 1) == -1
+
+def test_remotes():
+    basedir = '/tmp/test-ddr-dvcs'
+    path_orig = os.path.join(basedir, 'testrepo1')
+    path_clon = os.path.join(basedir, 'clone')
+    # rm existing
+    if os.path.exists(path_orig):
+        shutil.rmtree(path_orig)
+    if os.path.exists(path_clon):
+        shutil.rmtree(path_clon)
+    # set up repos
+    repo1 = make_repo(path_orig, ['testing'])
+    clone = clone_repo(repo1, path_clon)
+    # clone lists origin in remotes, origin doesn't know the clone
+    expected1 = []
+    expected2 = [
+        {
+            'name': 'origin',
+            'url': os.path.join(path_orig, '.git'),
+            'fetch': '+refs/heads/*:refs/remotes/origin/*',
+            'clone': 1,
+            'local': 1,
+            'local_exists': 1,
+        }
+    ]
+    # test
+    assert dvcs.remotes(path_orig) == expected1
+    assert dvcs.remotes(path_clon) == expected2
+
 # TODO repos_remotes
-# TODO annex_file_targets
+
+def test_annex_file_targets():
+    basedir = '/tmp/test-ddr-dvcs'
+    path = os.path.join(basedir, 'test-repo')
+    repo = make_repo(path, ['testing'])
+    annex_init(repo)
+    for filename in ['test1', 'test2']:
+        fpath = os.path.join(path, filename)
+        with open(fpath, 'wb') as f:
+            f.write('fsaf;laksjf;lsakjf;aslkfj;aslkfj;salkjf;sadlkfj')
+        repo.git.annex('add', filename)
+    repo.index.commit('added files')
+    targets_abs = dvcs.annex_file_targets(path, relative=False)
+    targets_rel = dvcs.annex_file_targets(path, relative=True)
+    expected_abs = [
+        (
+            '/tmp/test-ddr-dvcs/test-repo/test1',
+            '/tmp/test-ddr-dvcs/test-repo/.git/annex/objects/5j/16/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb'
+        ),
+        (
+            '/tmp/test-ddr-dvcs/test-repo/test2',
+            '/tmp/test-ddr-dvcs/test-repo/.git/annex/objects/5j/16/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb'
+        )
+    ]
+    expected_rel = [
+        (
+            'test1',
+            '.git/annex/objects/5j/16/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb'
+        ),
+        (
+            'test2',
+            '.git/annex/objects/5j/16/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb/SHA256-s47--8a8991f351d1343597befe0ef303baef06d56638142652e912fbd2102d4c1ffb'
+        )
+    ]
+    assert targets_abs == expected_abs
+    assert targets_rel == expected_rel
