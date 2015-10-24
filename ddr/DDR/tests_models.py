@@ -1,12 +1,62 @@
 from datetime import datetime
 import json
 import os
+import shutil
 
 import models
+import identifier
 
+BASEDIR = '/tmp/test-ddr-models'
+MEDIA_BASE = os.path.join(BASEDIR, 'ddr')
 
-# TODO sort_file_paths
-# TODO document_metadata
+class TestModule(object):
+    __name__ = 'TestModule'
+    __file__ = 'ddr/repo_models'
+    FIELDS = [
+        {
+            'name': 'id',
+            'model_type': str,
+            'form': {
+                'label': 'Object ID',
+            },
+            'default': '',
+        },
+        {
+            'name': 'timestamp',
+            'model_type': datetime,
+            'form': {
+                'label': 'Last Modified',
+            },
+            'default': '',
+        },
+        {
+            'name': 'status',
+            'model_type': str,
+            'form': {
+                'label': 'Status',
+            },
+            'default': '',
+        },
+        {
+            'name': 'title',
+            'model_type': str,
+            'form': {
+                'label': 'Title',
+            },
+            'default': '',
+        },
+        {
+            'name': 'description',
+            'model_type': str,
+            'form': {
+                'label': 'Description',
+            },
+            'default': '',
+        },
+    ]
+
+class TestDocument():
+    pass
 
 TEST_DOCUMENT = """[
     {
@@ -23,9 +73,18 @@ TEST_DOCUMENT = """[
     {"description": "DESCRIPTION"}
 ]"""
 
+
+# TODO sort_file_paths
+# TODO object_metadata
+# TODO is_object_metadata
+
 def test_load_json():
+    class Document(object):
+        pass
+    
     document = Document()
-    models.load_json(document, testmodule, TEST_DOCUMENT)
+    module = TestModule()
+    models.load_json(document, module, TEST_DOCUMENT)
     assert document.id == 'ddr-test-123'
     assert document.timestamp == u'2014-09-19T03:14:59'
     assert document.status == 1
@@ -34,82 +93,88 @@ def test_load_json():
 
 # TODO prep_json
 # TODO from_json
+# TODO load_xml
+# TODO prep_xml
+# TODO from_xml
 
+
+# TODO Stub
+
+
+# Collection
 
 def test_Collection__init__():
-    c = models.Collection('/tmp/ddr-testing-123')
-    assert c.path == '/tmp/ddr-testing-123'
-    assert c.path_rel == 'ddr-testing-123'
-    assert c.root == '/tmp'
+    cid = 'ddr-testing-123'
+    path_abs = os.path.join(MEDIA_BASE, cid)
+    c = models.Collection(path_abs)
+    assert c.root == MEDIA_BASE
     assert c.id == 'ddr-testing-123'
-    assert c.annex_path == '/tmp/ddr-testing-123/.git/annex'
-    assert c.annex_path_rel == '.git/annex'
-    assert c.changelog_path == '/tmp/ddr-testing-123/changelog'
-    assert c.control_path == '/tmp/ddr-testing-123/control'
-    assert c.files_path == '/tmp/ddr-testing-123/files'
-    assert c.lock_path == '/tmp/ddr-testing-123/lock'
-    assert c.gitignore_path == '/tmp/ddr-testing-123/.gitignore'
-    assert c.changelog_path_rel == 'changelog'
-    assert c.control_path_rel == 'control'
-    assert c.files_path_rel == 'files'
+    assert c.path == path_abs
+    assert c.path_abs == path_abs
+    assert c.gitignore_path == os.path.join(path_abs, '.gitignore')
+    assert c.annex_path == os.path.join(path_abs, '.git/annex')
+    assert c.files_path == os.path.join(path_abs, 'files')
+    assert c.lock_path == os.path.join(path_abs, 'lock')
+    assert c.control_path == os.path.join(path_abs, 'control')
+    assert c.changelog_path == os.path.join(path_abs, 'changelog')
+    assert c.path_rel == None
     assert c.gitignore_path_rel == '.gitignore'
+    assert c.annex_path_rel == '.git/annex'
+    assert c.files_path_rel == 'files'
+    assert c.control_path_rel == 'control'
+    assert c.changelog_path_rel == 'changelog'
     # TODO assert c.git_url
 
 # TODO Collection.__repr__
-
-def test_Collection_path_absrel():
-    c = models.Collection('/tmp/ddr-testing-123')
-    assert c._path_absrel('path/to/file') == '/tmp/ddr-testing-123/path/to/file'
-    assert c._path_absrel('path/to/file', rel=True) == 'path/to/file'
-
 # TODO Collection.create
+# TODO Collection.from_identifier
 # TODO Collection.from_json
+# TODO Collection.parent
+# TODO Collection.children
 # TODO Collection.labels_values
 # TODO Collection.inheritable_fields
+# TODO Collection.selected_inheritables
+# TODO Collection.update_inheritables
 # TODO Collection.load_json
 # TODO Collection.dump_json
 # TODO Collection.write_json
+# TODO Collection.post_json
 
-# Collection.locking
+# Collection.lock
 # Collection.unlock
 # Collection.locked
 def test_Collection_locking():
-    c = models.Collection('/tmp/ddr-testing-123')
-    text = 'we are locked. go away.'
-    os.mkdir(c.path)
+    cid = 'ddr-testing-123'
+    path_abs = os.path.join(MEDIA_BASE, cid)
+    c = models.Collection(path_abs)
+    text = 'testing'
+    # prep
+    if os.path.exists(path_abs):
+        shutil.rmtree(path_abs)
+    os.makedirs(c.path)
     # before locking
-    assert models.locked(c.lock_path) == False
-    assert models.unlock(c.lock_path, text) == 'not locked'
-    # locking
-    assert models.lock(c.lock_path, text) == 'ok'
-    # locked
-    assert models.locked(c.lock_path) == text
-    assert models.lock(c.lock_path, text) == 'locked'
-    assert models.unlock(c.lock_path, 'not the right text') == 'miss'
-    # unlocking
-    assert models.unlock(c.lock_path, text) == 'ok'
-    # unlocked
-    assert models.locked(c.lock_path) == False
-    assert models.unlock(c.lock_path, text) == 'not locked'
+    assert c.locked() == False
     assert not os.path.exists(c.lock_path)
-    os.rmdir(c.path)
+    # locking
+    assert c.lock(text) == 'ok'
+    # locked
+    assert c.locked() == text
+    assert os.path.exists(c.lock_path)
+    # unlocking
+    assert c.unlock(text) == 'ok'
+    assert c.locked() == False
+    assert not os.path.exists(c.lock_path)
+    # clean up
+    if os.path.exists(path_abs):
+        shutil.rmtree(path_abs)
 
-def test_Collection_changelog():
-    c = models.Collection('/tmp/ddr-testing-123')
-    assert c.changelog() == '/tmp/ddr-testing-123/changelog is empty or missing'
-    # TODO test reading changelog
-
-# TODO Collection.children
+# TODO Collection.changelog
 # TODO Collection.control
 # TODO Collection.ead
 # TODO Collection.dump_ead
+# TODO Collection.write_ead
 # TODO Collection.gitignore
 # TODO Collection.collection_paths
-
-def test_Collection_entity_path():
-    c = models.Collection('/tmp/ddr-testing-123')
-    assert c.entity_path('11') == '/tmp/ddr-testing-123/files/11'
-
 # TODO Collection.repo_fetch
 # TODO Collection.repo_status
 # TODO Collection.repo_annex_status
@@ -121,70 +186,87 @@ def test_Collection_entity_path():
 
 
 def test_Entity__init__():
-    e = models.Entity('/tmp/ddr-testing-123/files/1')
-    assert e.path == '/tmp/ddr-testing-123/files/1'
-    assert e.path_rel == 'ddr-testing-123/files/1'
-    assert e.root == '/tmp'
-    assert e.parent_path == '/tmp/ddr-testing-123'
-    assert e.id == 'ddr-testing-123-1'
-    assert e.parent_id == 'ddr-testing-123'
-    assert e.lock_path == '/tmp/ddr-testing-123/files/1/lock'
-    assert e.changelog_path == '/tmp/ddr-testing-123/files/1/changelog'
-    assert e.control_path == '/tmp/ddr-testing-123/files/1/control'
-    assert e.files_path == '/tmp/ddr-testing-123/files/1/files'
-    assert e.changelog_path_rel == 'files/1/changelog'
-    assert e.control_path_rel == 'files/1/control'
-    assert e.files_path_rel == 'files/1/files'
+    collection_id = 'ddr-testing-123'
+    entity_id = 'ddr-testing-123-456'
+    collection_path = os.path.join(MEDIA_BASE, collection_id)
+    path_abs = os.path.join(collection_path, 'files', entity_id)
+    e = models.Entity(path_abs)
+    assert e.parent_path == collection_path
+    assert e.parent_id == collection_id
+    assert e.root == MEDIA_BASE
+    assert e.id == 'ddr-testing-123-456'
+    assert e.path == path_abs
+    assert e.path_abs == path_abs
+    assert e.files_path == os.path.join(path_abs, 'files')
+    assert e.lock_path == os.path.join(path_abs, 'lock')
+    assert e.control_path == os.path.join(path_abs, 'control')
+    assert e.changelog_path == os.path.join(path_abs, 'changelog')
+    assert e.path_rel == 'files/ddr-testing-123-456'
+    assert e.files_path_rel == 'files/ddr-testing-123-456/files'
+    assert e.control_path_rel == 'files/ddr-testing-123-456/control'
+    assert e.changelog_path_rel == 'files/ddr-testing-123-456/changelog'
 
-def test_Entity_path_absrel():
-    e = models.Entity('/tmp/ddr-testing-123/files/1')
-    assert e._path_absrel('filename') == '/tmp/ddr-testing-123/files/1/filename'
-    assert e._path_absrel('filename', rel=True) == 'files/1/filename'
-
-# TODO Entity._path_absrel
 # TODO Entity.__repr__
 # TODO Entity.create
+# TODO Entity.from_identifier
 # TODO Entity.from_json
+# TODO Entity.parent
+# TODO Entity.children
 # TODO Entity.labels_values
-# TODO Entity.inherit
 # TODO Entity.inheritable_fields
+# TODO Entity.selected_inheritables
+# TODO Entity.update_inheritables
+# TODO Entity.inherit
 
-# Entity.locking
+# Entity.lock
 # Entity.unlock
 # Entity.locked
 def test_Entity_locking():
-    e = models.Entity('/tmp/ddr-testing-123-1')
-    text = 'we are locked. go away.'
-    os.mkdir(e.path)
+    collection_id = 'ddr-testing-123'
+    entity_id = 'ddr-testing-123-456'
+    collection_path = os.path.join(MEDIA_BASE, collection_id)
+    path_abs = os.path.join(collection_path, 'files', entity_id)
+    e = models.Entity(path_abs)
+    text = 'testing'
+    # prep
+    if os.path.exists(path_abs):
+        shutil.rmtree(path_abs)
+    os.makedirs(e.path)
     # before locking
-    assert models.locked(e.lock_path) == False
-    assert models.unlock(e.lock_path, text) == 'not locked'
-    # locking
-    assert models.lock(e.lock_path, text) == 'ok'
-    # locked
-    assert models.locked(e.lock_path) == text
-    assert models.lock(e.lock_path, text) == 'locked'
-    assert models.unlock(e.lock_path, 'not the right text') == 'miss'
-    # unlocking
-    assert models.unlock(e.lock_path, text) == 'ok'
-    # unlocked
-    assert models.locked(e.lock_path) == False
-    assert models.unlock(e.lock_path, text) == 'not locked'
+    assert e.locked() == False
     assert not os.path.exists(e.lock_path)
-    os.rmdir(e.path)
+    # locking
+    assert e.lock(text) == 'ok'
+    # locked
+    assert e.locked() == text
+    assert os.path.exists(e.lock_path)
+    # unlocking
+    assert e.unlock(text) == 'ok'
+    assert e.locked() == False
+    assert not os.path.exists(e.lock_path)
+    # clean up
+    if os.path.exists(path_abs):
+        shutil.rmtree(path_abs)
 
 # TODO Entity.load_json
 # TODO Entity.dump_json
 # TODO Entity.write_json
+# TODO Entity.post_json
 
 def test_Entity_changelog():
-    e = models.Entity('/tmp/ddr-testing-123/files/1')
-    assert e.changelog() == '/tmp/ddr-testing-123/files/1/changelog is empty or missing'
+    collection_id = 'ddr-testing-123'
+    entity_id = 'ddr-testing-123-456'
+    collection_path = os.path.join(MEDIA_BASE, collection_id)
+    path_abs = os.path.join(collection_path, 'files', entity_id)
+    e = models.Entity(path_abs)
+    changelog_path = os.path.join(path_abs, 'changelog')
+    assert e.changelog() == '%s is empty or missing' % changelog_path
     # TODO test reading changelog
 
 # TODO Entity.control
 # TODO Entity.mets
 # TODO Entity.dump_mets
+# TODO Entity.write_mets
 
 def test_Entity_checksum_algorithms():
     assert models.Entity.checksum_algorithms() == ['md5', 'sha1', 'sha256']
@@ -192,29 +274,31 @@ def test_Entity_checksum_algorithms():
 # TODO Entity.checksums
 # TODO Entity.file_paths
 # TODO Entity.load_file_objects
-# TODO Entity.files_master
-# TODO Entity.files_mezzanine
 # TODO Entity.detect_file_duplicates
 # TODO Entity.rm_file_duplicates
 # TODO Entity.file
-# TODO Entity._addfile_log_path
 # TODO Entity.addfile_logger
 # TODO Entity.add_file
-# TODO Entity.add_file_commit
 # TODO Entity.add_access
+# TODO Entity.add_file_commit
+# TODO Entity.prep_rm_file
 
 
 # TODO File.__init__
 # TODO File.__repr__
+# TODO File.from_identifer
+# TODO File.from_json
+# TODO File.parent
+# TODO File.children
 # TODO File.labels_values
 # TODO File.files_rel
 # TODO File.present
 # TODO File.access_present
 # TODO File.inherit
-# TODO File.from_json
 # TODO File.load_json
 # TODO File.dump_json
 # TODO File.write_json
+# TODO File.post_json
 # TODO File.file_name
 # TODO File.set_path
 # TODO File.set_access

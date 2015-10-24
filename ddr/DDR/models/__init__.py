@@ -687,7 +687,7 @@ class Entity( object ):
         self.collection_path = i.collection_path()
         self.parent_path = i.parent_path()
         
-        self.root = os.path.split(self.parent_path)[0]
+        self.root = os.path.dirname(self.parent_path)
         self.json_path = i.path_abs('json')
         self.changelog_path = i.path_abs('changelog')
         self.control_path = i.path_abs('control')
