@@ -49,7 +49,7 @@ def test_make_convert_cmd():
         dest='/tmp/file-thumb.jpg',
         geometry='100x100'
     )
-    assert cmd == "convert /tmp/file.tif[0] -resize '100x100' /tmp/file-thumb.jpg"
+    assert cmd == "convert /tmp/file.tif -resize '100x100' /tmp/file-thumb.jpg"
 
 # test_thumbnail
 # test_extract_xmp
