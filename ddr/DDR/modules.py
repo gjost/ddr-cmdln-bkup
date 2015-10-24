@@ -101,7 +101,7 @@ class Module(object):
         return text.strip().split(' ')[0]
     
     def document_commit(self, document):
-        doc_metadata = getattr(document, 'json_metadata', {})
+        doc_metadata = getattr(document, 'object_metadata', {})
         if doc_metadata:
             document_commit_raw = doc_metadata.get('models_commit','')
             return self._parse_commit(document_commit_raw)

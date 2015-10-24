@@ -107,14 +107,14 @@ def test_Module_document_commit():
     module = TestModule()
     # commit exists
     document = TestDocument()
-    document.json_metadata = {
+    document.object_metadata = {
         "models_commit": "20dd4e2096e6f9a9eb7c2db52907b094f41f58de  2015-10-13 17:08:43 -0700",
     }
     expected = '20dd4e2096e6f9a9eb7c2db52907b094f41f58de'
     assert modules.Module(module).document_commit(document) == expected
     # no commit
     document = TestDocument()
-    document.json_metadata = {}
+    document.object_metadata = {}
     expected = None
     assert modules.Module(module).document_commit(document) == expected
 
@@ -131,7 +131,7 @@ def test_Module_cmp_model_definition_fields():
     ]
     m = modules.Module(module)
     data = [
-        {},  # json_metadata
+        {},  # object_metadata
         {'id': 'ddr-test-123'},
         {'modified': '2015-10-20T15:42:26'},
         {'title': 'labels_values'},

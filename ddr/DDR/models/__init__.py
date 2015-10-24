@@ -83,11 +83,11 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
             paths_sorted.append(val)
     return paths_sorted
 
-def document_metadata(module, document_repo_path):
+def object_metadata(module, repo_path):
     """Metadata for the ddrlocal/ddrcmdln and models definitions used.
     
     @param module: collection, entity, files model definitions module
-    @param document_repo_path: Absolute path to root of document's repo
+    @param repo_path: Absolute path to root of object's repo
     @returns: dict
     """
     data = {
@@ -95,9 +95,20 @@ def document_metadata(module, document_repo_path):
         'app_commit': dvcs.latest_commit(config.INSTALL_PATH),
         'app_release': VERSION,
         'models_commit': dvcs.latest_commit(modules.Module(module).path),
-        'git_version': dvcs.git_version(document_repo_path),
+        'git_version': dvcs.git_version(repo_path),
     }
     return data
+
+def is_object_metadata(data):
+    """Indicate whether json_data field is the object_metadata field.
+    
+    @param data: list of dicts
+    @returns: boolean
+    """
+    for key in ['app_commit', 'app_release']:
+        if key in data.keys():
+            return True
+    return False
 
 def load_json(document, module, json_text):
     """Populates object from JSON-formatted text.
@@ -118,8 +129,10 @@ def load_json(document, module, json_text):
             {'_error': 'Error: ValueError during read load_json.'},
         ]
     # software and commit metadata
-    if json_data and ('git_version' in json_data[0].keys()):
-        setattr(document, 'json_metadata', json_data[0])
+    for field in json_data:
+        if is_object_metadata(field):
+            setattr(document, 'object_metadata', field)
+            break
     # field values from JSON
     for mf in module.FIELDS:
         for f in json_data:
@@ -484,13 +497,13 @@ class Collection( object ):
         """Dump Collection data to JSON-formatted text.
         
         @param template: [optional] Boolean. If true, write default values for fields.
-        @param doc_metadata: boolean. Insert document_metadata().
+        @param doc_metadata: boolean. Insert object_metadata().
         @returns: JSON-formatted text
         """
         module = self.identifier.fields_module()
         data = prep_json(self, module, template=template)
         if doc_metadata:
-            data.insert(0, document_metadata(module, self.path))
+            data.insert(0, object_metadata(module, self.path))
         return format_json(data)
     
     def write_json(self):
@@ -806,7 +819,7 @@ class Entity( object ):
         """Dump Entity data to JSON-formatted text.
         
         @param template: [optional] Boolean. If true, write default values for fields.
-        @param doc_metadata: boolean. Insert document_metadata().
+        @param doc_metadata: boolean. Insert object_metadata().
         @returns: JSON-formatted text
         """
         module = self.identifier.fields_module()
@@ -814,7 +827,7 @@ class Entity( object ):
                          exceptions=['files', 'filemeta'],
                          template=template,)
         if doc_metadata:
-            data.insert(0, document_metadata(module, self.parent_path))
+            data.insert(0, object_metadata(module, self.parent_path))
         files = []
         if not template:
             for f in self.files:
@@ -1265,13 +1278,13 @@ class File( object ):
     def dump_json(self, doc_metadata=False):
         """Dump File data to JSON-formatted text.
         
-        @param doc_metadata: boolean. Insert document_metadata().
+        @param doc_metadata: boolean. Insert object_metadata().
         @returns: JSON-formatted text
         """
         module = self.identifier.fields_module()
         data = prep_json(self, module)
         if doc_metadata:
-            data.insert(0, document_metadata(module, self.collection_path))
+            data.insert(0, object_metadata(module, self.collection_path))
         # what we call path_rel in the .json is actually basename
         data.insert(1, {'path_rel': self.basename})
         return format_json(data)
