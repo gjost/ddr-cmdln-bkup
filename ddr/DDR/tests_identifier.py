@@ -30,7 +30,6 @@ def test_identify_object():
     id2_expected_gd = None
     assert identifier.identify_object(id0, patterns) == (id0_expected_model,id0_expected_gd) 
     assert identifier.identify_object(id1, patterns) == (id1_expected_model,id1_expected_gd)
-    print(identifier.identify_object(id2, patterns))
     assert identifier.identify_object(id2, patterns) == (id2_expected_model,id2_expected_gd)
 
 def test_identify_filepath():
@@ -40,7 +39,13 @@ def test_identify_filepath():
     assert identifier.identify_filepath('nothing in particular') == None
 
 def test_set_idparts():
-    assert False
+    i = identifier.Identifier('ddr-test-123-456-master-abcde12345', '/tmp')
+    assert i.parts['repo'] == 'ddr'
+    assert i.parts['org'] == 'test'
+    assert i.parts['cid'] == 123
+    assert i.parts['eid'] == 456
+    assert i.parts['role'] == 'master'
+    assert i.parts['sha1'] == 'abcde12345'
 
 def test_format_id():
     templates = {
@@ -83,8 +88,11 @@ def test_format_path():
     path3 = identifier.format_path(identifier.Identifier(i1, basepath), 'entity', 'meta-rel', templates)
     assert path3 == None
     # no basepath in identifier
-    path4 = identifier.format_path(identifier.Identifier(i0), 'collection', 'abs', templates)
-    assert path4 == None
+    assert_raises(
+        Exception,
+        identifier.format_path,
+        identifier.Identifier(i0), 'collection', 'abs', templates
+    )
 
 def test_format_url():
     templates = {
@@ -97,6 +105,7 @@ def test_format_url():
             'collection':   '/{repo}/{org}/{cid}',
         },
     }
+    basepath = '/tmp'
     i0 = 'ddr-test-123'
     i1 = 'ddr-test-123-456'
     i0_edt_expected = '/ui/ddr-test-123'
@@ -419,8 +428,8 @@ def test_file_from_path():
 # from_url -------------------------------------------------------------
 
 def test_repository_from_url():
-    i0 = identifier.Identifier('http://192.168.56.101/ddr')
-    i1 = identifier.Identifier('http://192.168.56.101/ddr/', BASE_PATH)
+    i0 = identifier.Identifier(url='http://192.168.56.101/ddr')
+    i1 = identifier.Identifier(url='http://192.168.56.101/ddr/', base_path=BASE_PATH)
     print('i0 %s' % i0)
     assert str(i0)  == str(i1)  == REPO_REPR
     assert i0.id    == i1.id    == REPO_ID
@@ -429,8 +438,8 @@ def test_repository_from_url():
     assert i1.basepath == BASE_PATH
 
 def test_organization_from_url():
-    i0 = identifier.Identifier('http://192.168.56.101/ddr/test')
-    i1 = identifier.Identifier('http://192.168.56.101/ddr/test/', BASE_PATH)
+    i0 = identifier.Identifier(url='http://192.168.56.101/ddr/test')
+    i1 = identifier.Identifier(url='http://192.168.56.101/ddr/test/', base_path=BASE_PATH)
     assert str(i0)  == str(i1)  == ORG_REPR
     assert i0.id    == i1.id    == ORG_ID
     assert i0.model == i1.model == ORG_MODEL
@@ -438,10 +447,15 @@ def test_organization_from_url():
     assert i1.basepath == BASE_PATH
 
 def test_collection_from_url():
-    i0 = identifier.Identifier('http://192.168.56.101/ddr/test/123')
-    i1 = identifier.Identifier('http://192.168.56.101/ddr/test/123/')
-    i2 = identifier.Identifier('http://192.168.56.101/ddr/test/123/', BASE_PATH)
-    assert_raises(Exception, identifier.Identifier, 'http://192.168.56.101/ddr/test/123/', 'ddr/test/123')
+    i0 = identifier.Identifier(url='http://192.168.56.101/ddr/test/123')
+    i1 = identifier.Identifier(url='http://192.168.56.101/ddr/test/123/')
+    i2 = identifier.Identifier(url='http://192.168.56.101/ddr/test/123/', base_path=BASE_PATH)
+    assert_raises(
+        Exception,
+        identifier.Identifier,
+        url='http://192.168.56.101/ddr/test/123/',
+        base_path='ddr/test/123'
+    )
     assert str(i0)  == str(i1)  == COLLECTION_REPR
     assert i0.id    == i1.id    == COLLECTION_ID
     assert i0.model == i1.model == COLLECTION_MODEL
@@ -449,9 +463,14 @@ def test_collection_from_url():
     assert i2.basepath == BASE_PATH
 
 def test_entity_from_url():
-    i0 = identifier.Identifier('http://192.168.56.101/ddr/test/123/456')
-    i1 = identifier.Identifier('http://192.168.56.101/ddr/test/123/456/', BASE_PATH)
-    assert_raises(Exception, identifier.Identifier, 'http://192.168.56.101/ddr/test/123/456/', 'ddr/test/123/456')
+    i0 = identifier.Identifier(url='http://192.168.56.101/ddr/test/123/456')
+    i1 = identifier.Identifier(url='http://192.168.56.101/ddr/test/123/456/', base_path=BASE_PATH)
+    assert_raises(
+        Exception,
+        identifier.Identifier,
+        url='http://192.168.56.101/ddr/test/123/456/',
+        base_path='ddr/test/123/456'
+    )
     assert str(i0)  == str(i1)  == ENTITY_REPR
     assert i0.id    == i1.id    == ENTITY_ID
     assert i0.model == i1.model == ENTITY_MODEL
@@ -462,17 +481,17 @@ def test_entity_from_url():
 
 def test_file_from_url():
     i0 = identifier.Identifier(
-        'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5'
+        url='http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5'
     )
     i1 = identifier.Identifier(
-        'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
-        BASE_PATH
+        url='http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
+        base_path=BASE_PATH
     )
     assert_raises(
         Exception,
         identifier.Identifier,
-        'http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
-        'ddr/test/123/456/master/a1b2c3d4e5'
+        url='http://192.168.56.101/ddr/test/123/456/master/a1b2c3d4e5/',
+        base_path='ddr/test/123/456/master/a1b2c3d4e5'
     )
     assert str(i0)  == str(i1)  == FILE_REPR
     assert i0.id    == i1.id    == FILE_ID

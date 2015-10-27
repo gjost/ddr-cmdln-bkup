@@ -286,14 +286,13 @@ def identify_object(text, patterns):
     @param patterns: list Patterns in which to look
     @returns: dict groupdict resulting from successful regex match
     """
-    model = ''
-    groupdict = {}
+    model = None
+    groupdict = None
     for tpl in patterns:
         pattern = tpl[0]
-        model = tpl[-1]
         m = re.match(pattern, text)
         if m:
-            model = model
+            model = tpl[-1]
             groupdict = m.groupdict()
             break
     return model,groupdict
@@ -355,6 +354,8 @@ def format_path(i, model, path_type, templates=PATH_TEMPLATES):
     @param templates: [optional] dict of str templates keyed to models
     @returns: str or None
     """
+    if path_type and (path_type == 'abs') and (not i.basepath):
+        raise MissingBasepathException('%s basepath not set.'% i)
     key = '-'.join([model, path_type])
     template = templates.get(key, None)
     if template:
@@ -644,7 +645,8 @@ class Identifier(object):
             base_path = os.path.normpath(base_path)
         self.method = 'url'
         self.raw = url
-        urlpath = urlparse(url).path
+        urlpath = urlparse(url).path  # ignore domain and queries
+        urlpath = os.path.normpath(urlpath)
         model,groupdict = identify_object(urlpath, URL_PATTERNS)
         if not groupdict:
             raise MalformedURLException('Malformed URL: "%s"' % url)
