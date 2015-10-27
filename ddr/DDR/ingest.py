@@ -16,6 +16,9 @@ from DDR import util
 class AddFileLogger():
     logpath = None
     
+    def __repr__(self):
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.logpath)
+    
     def entry(self, ok, msg ):
         """Returns log of add_files activity; adds an entry if status,msg given.
         
@@ -73,7 +76,7 @@ def addfile_logger(eidentifier, base_dir=config.LOG_DIR):
     return log
 
 def check_dir(label, path, log, mkdir=False, perm=os.W_OK):
-    log.ok('%s: %s' % (label, path))
+    log.ok('check dir %s (%s)' % (path, label))
     if mkdir and not os.path.exists(path):
         os.makedirs(path)
     if not os.path.exists(path):

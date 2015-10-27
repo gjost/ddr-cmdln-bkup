@@ -19,6 +19,9 @@ from models import Entity, File
 # TODO test_AddFileLogger_log
 # TODO test_AddFileLogger_crash
 
+TEST_IMG_URL = 'https://web.archive.org/web/20011221151014im_/http://densho.org/images/logo.jpg'
+TEST_IMG_PATH = '/tmp/ddr-test-imaging.jpg'
+
 BASEDIR = '/tmp/test-ddr-ingest'
 
 def test_log_path():
@@ -33,10 +36,10 @@ def test_check_dir():
     eid = 'ddr-test-123-456'
     log = ingest.addfile_logger(identifier.Identifier(eid), BASEDIR)
     label = 'testing'
-    assert ingest.check_dir('/tmp', '/tmp ', log)
+    assert ingest.check_dir('tmp', '/tmp', log)
     assert_raises(
         Exception,
-        ingest.check_dir, '/var', '/var', log
+        ingest.check_dir, 'var', '/var', log
     )
 
 # TODO test_checksums
@@ -101,20 +104,23 @@ def test_copy_to_workdir():
 def test_make_access_file():
     # inputs
     src_path = os.path.join(BASEDIR, 'src', 'somefile.png')
-    access_dest_path = os.path.join(BASEDIR, 'tmp', 'ddr-test-123-456-master-abc123-a.jpg')
+    access_dest_path = os.path.join(BASEDIR, 'ddr-test-123-456-master-abc123-a.jpg')
     expected = access_dest_path
     log = ingest.addfile_logger(identifier.Identifier('ddr-test-123-456'), BASEDIR)
     # no src_path so fails
     assert ingest.make_access_file(src_path, access_dest_path, log) == None
-    # TODO use a test jpg
-    test_file_url = 'http://ddr.densho.org/assets/images/denshoLogo-black-notext-150x104.png'
+    # prep
+    if os.path.exists(access_dest_path):
+        os.remove(access_dest_path)
+    # arrange test jpg
+    src_path = TEST_IMG_PATH
     if not os.path.exists(src_path):
         os.makedirs(os.path.dirname(src_path))
-        result = urllib.urlretrieve(test_file_url, src_path)
-        print(result)
-    out = ingest.make_access_file(src_path, access_dest_path, log)
-    print(out)
-    assert False
+        urllib.urlretrieve(TEST_IMG_URL, TEST_IMG_PATH)
+    assert ingest.make_access_file(src_path, access_dest_path, log) == access_dest_path
+    # clean up
+    if os.path.exists(access_dest_path):
+        os.remove(access_dest_path)
 
 # TODO test_write_object_metadata
 
@@ -172,10 +178,7 @@ def test_predict_staged():
     expected = ['a', 'b', 'c', 'd']
     assert ingest.predict_staged(already, planned) == expected
 
-def test_stage_files():
-    
-    assert False
-
+# TODO test_stage_files
 # TODO test_add_file
 # TODO test_add_access
 # TODO test_add_file_commit
