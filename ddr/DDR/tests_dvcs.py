@@ -125,18 +125,18 @@ def test_parse_annex_description():
 
 # TODO get_annex_description
 
-def test_annex_init_description():
+def test_set_annex_description():
     dl = 'WD201405'
     hn = 'ddrworkstation'
     ph = 'testing'
     ml = 'gjost@densho.org'
     # drive label
-    assert dvcs.annex_init_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
+    assert dvcs.set_annex_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
     # hostname:domainname
     expected1 = 'ddrworkstation:densho.org'
-    assert dvcs.annex_init_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
+    assert dvcs.set_annex_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
     # hostname
-    assert dvcs.annex_init_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
+    assert dvcs.set_annex_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
     # TODO Test doesn't cover all possibile combinations!!!
 
 def test_set_annex_description():
