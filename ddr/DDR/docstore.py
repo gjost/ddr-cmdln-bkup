@@ -1061,9 +1061,9 @@ def _file_parent_ids(identifier):
     @returns: parent_ids
     """
     if identifier.model == 'file':
-        return [identifier.collection_id, identifier.parent_id()]
+        return [identifier.collection_id(), identifier.parent_id()]
     elif identifier.model == 'entity':
-        return [identifier.collection_id]
+        return [identifier.collection_id()]
     return []
 
 def _publishable_or_not( paths, parents ):
