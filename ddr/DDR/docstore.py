@@ -998,7 +998,7 @@ def delete( hosts, index, document_id, recursive=False ):
 
 # index ----------------------------------------------------------------
 
-def public_fields():
+def public_fields(modules=MODULES):
     """Lists public fields for each model
     
     IMPORTANT: Adds certain dynamically-created fields
@@ -1006,7 +1006,7 @@ def public_fields():
     @returns: Dict
     """
     public_fields = {}
-    for model,module in MODULES.iteritems():
+    for model,module in modules.iteritems():
         if module:
             mfields = [
                 field['name']
