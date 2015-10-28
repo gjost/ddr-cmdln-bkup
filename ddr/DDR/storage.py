@@ -34,7 +34,7 @@ DEVICE_STATES = {
 }
 
 
-def device_actions(device):
+def device_actions(device, states=DEVICE_STATES):
     """Given device from devices(), return possible actions.
     
     @param device: dict
@@ -47,17 +47,9 @@ def device_actions(device):
     if device['linked']:  state.append('l')
     else:                 state.append('-')
     state = ''.join(state)
-    return DEVICE_STATES[devicetype][state]
+    return states[devicetype][state]
 
-def local_devices(udisks_dump_stdout):
-    """Parse the output of 'udisks --dump'
-    
-    NOTE: Separated from .devices() for easier testing.
-    NOTE: This is probably unique to VirtualBox!
-    
-    @param udisks_dump_stdout: str Output of "udisks --dump".
-    @returns: list of dicts containing device info.
-    """
+def _parse_udisks_dump(udisks_dump_stdout):
     chunks = udisks_dump_stdout.split('========================================================================\n')
     udisks_dump_stdout = None
     # get sdb* devices (sdb1, sdb2, etc)
@@ -133,6 +125,18 @@ def local_devices(udisks_dump_stdout):
     for device in devices:
         if (device['devicetype'] == 'hdd') and (not device['mounted']):
             devices.remove(device)
+    return devices
+    
+def local_devices(udisks_dump_stdout):
+    """Parse the output of 'udisks --dump'
+    
+    NOTE: Separated from .devices() for easier testing.
+    NOTE: This is probably unique to VirtualBox!
+    
+    @param udisks_dump_stdout: str Output of "udisks --dump".
+    @returns: list of dicts containing device info.
+    """
+    devices = _parse_udisks_dump(udisks_dump_stdout)
     # While device is being mounted
     # - udisks --dump will list device as unmounted with no mountpath
     # - psutils will show a 'mount' process for the device/mountpath
