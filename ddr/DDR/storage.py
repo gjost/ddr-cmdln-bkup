@@ -195,12 +195,7 @@ def find_store_dirs(base, marker, levels=2, excludes=['.git']):
         if (depth >= levels) or (marker in files):
             # don't go any further down
             del dirs[:]
-    sdirs = []
-    for h in hits:
-        d = os.path.dirname(h)
-        if d not in sdirs:
-            sdirs.append(d)
-    return sdirs
+    return hits
 
 def local_stores(devices, levels=3, symlink=None):
     """List Stores on local devices (HDD, USB).
