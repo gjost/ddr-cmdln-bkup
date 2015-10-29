@@ -1,8 +1,10 @@
 from datetime import datetime
 import os
+import shutil
 
 import storage
 
+BASEDIR = '/tmp/ddr-test-storage'
 
 """
 NOTE: Some of the functions in DDR.storage are impossible to test reliably
@@ -53,8 +55,67 @@ def test_parse_udisks_dump():
     assert storage._parse_udisks_dump(INPUT_REMOVABLES) == EXPECTED_REMOVABLES
 
 # TODO local_devices
-# TODO nfs_devices
-# TODO find_store_dirs
+
+INPUT_NFS = """
+Filesystem               Type     1K-blocks      Used Available Use% Mounted on
+rootfs                   rootfs     7627880   4895904   2344496  68% /
+udev                     devtmpfs     10240         0     10240   0% /dev
+tmpfs                    tmpfs       103412       340    103072   1% /run
+/dev/mapper/partner-root ext4       7627880   4895904   2344496  68% /
+tmpfs                    tmpfs         5120         0      5120   0% /run/lock
+tmpfs                    tmpfs       206820        68    206752   1% /run/shm
+/dev/sda1                ext2        233191     19378    201372   9% /boot
+/dev/sdb1                ext4       1031064    423188    555500  44% /media/ddrworkstation
+none                     vboxsf   472290592 292421964 179868628  62% /media/sf_ddrshared
+/mnt/something1          nfs      123456789     12345 123444444  10% /mnt/something2
+"""
+
+def test_nfs_devices():
+    out = storage.nfs_devices(INPUT_NFS)
+    expected = [
+        {
+            'devicefile': '/mnt/something1',
+            'mountpath': '/mnt/something2',
+            'label': '/mnt/something1',
+            'devicetype': 'nfs',
+            'actions': [],
+            'mounted': False,
+            'basepath': None,
+            'fstype': 'nfs',
+            'linked': 0,
+        }
+    ]
+    assert out == expected
+
+FIND_STORE_DIRS = [
+    os.path.join(BASEDIR, 'find_store_dirs', 'tmp'),
+    os.path.join(BASEDIR, 'find_store_dirs', 'ddr-test-123'),
+    os.path.join(BASEDIR, 'find_store_dirs', 'ddr-test-123', '.git'),
+    os.path.join(BASEDIR, 'find_store_dirs', 'ddr-test-124'),
+    os.path.join(BASEDIR, 'find_store_dirs', 'ddr-test-124', '.git'),
+]
+FIND_STORE_FILES = [
+    os.path.join(BASEDIR, 'find_store_dirs', 'tmp', 'whatever'),
+    os.path.join(BASEDIR, 'find_store_dirs', 'ddr-test-123', 'collection.json'),
+    os.path.join(BASEDIR, 'find_store_dirs', 'ddr-test-124', 'collection.json'),
+]
+
+def test_find_store_dirs():
+    basedir = os.path.join(BASEDIR, 'find_store_dirs')
+    if os.path.exists(basedir):
+        shutil.rmtree(basedir)
+    os.makedirs(basedir)
+    for d in FIND_STORE_DIRS:
+        os.makedirs(d)
+    for fn in FIND_STORE_FILES:
+        with open(fn, 'w') as f:
+            f.write('testing')
+    EXPECTED = [
+        '/tmp/ddr-test-storage/find_store_dirs/ddr-test-123',
+        '/tmp/ddr-test-storage/find_store_dirs/ddr-test-124'
+    ]
+    assert storage.find_store_dirs(BASEDIR, 'collection.json', levels=2) == EXPECTED
+
 # TODO local_stores
 # TODO nfs_stores
 # TODO devices
@@ -212,6 +273,39 @@ Showing information for /org/freedesktop/UDisks/devices/sdc1
   version:                     
   uuid:                        408A51BE8A51B160
   label:                       WD5000BMV-2
+
+========================================================================
+Showing information for /org/freedesktop/UDisks/devices/sdd
+  native-path:                 /sys/devices/pci0000:00/0000:00:0d.0/host
+  device:                      8:16
+  device-file:                 /dev/sdd
+    presentation:              /dev/sdd
+    by-id:                     /dev/disk/by-id/ata-VBOX_HARDDISK_VABC123
+    by-id:                     /dev/disk/by-id/scsi-SATA_VBOX_HARDDISK_V
+    by-path:                   /dev/disk/by-path/pci-0000:00:0d.0-scsi-1
+  detected at:                 Tue 27 May 2014 10:33:21 AM PDT
+  system internal:             1
+
+========================================================================
+Showing information for /org/freedesktop/UDisks/devices/sdd1
+  native-path:                 /sys/devices/pci0000:00/0000:00:0d.0/host
+  device:                      8:17
+  device-file:                 /dev/sdd1
+    presentation:              /dev/sdd1
+    by-id:                     /dev/disk/by-id/ata-VBOX_HARDDISK_ABC1234
+    by-id:                     /dev/disk/by-id/scsi-SATA_VBOX_HARDDISK_A
+    by-id:                     /dev/disk/by-uuid/fe7bd887-8956-02c4-6068
+    by-path:                   /dev/disk/by-path/pci-0000:00:0d.0-scsi-1
+  system internal:             1
+  removable:                   0
+  is read only:                0
+  is mounted:                  0
+  mount paths:             /media/ddrnotmounted
+  usage:                       filesystem
+  type:                        ext4
+  version:                     1.0
+  uuid:                        fe7bd878-8965-02c4-6068-b367f0c3b25b
+  label:                       
 
 ========================================================================
 Showing information for /org/freedesktop/UDisks/devices/sr0
