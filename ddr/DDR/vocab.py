@@ -108,10 +108,10 @@ CSV_HEADERS = [
     'title',
     'parent_id',
     'weight',
-    'encyc_urls',
-    'description',
     'created',
     'modified',
+    'encyc_urls',
+    'description',
 ]
 CSV_DELIMITER = ','
 CSV_QUOTECHAR = '"'
@@ -327,7 +327,7 @@ class Index( object ):
         @returns: list
         """
         urls = []
-        for part in t[col].split(';'):
+        for part in text.split(';'):
             if part.strip():
                 urls.append(part.strip())
         uris = []
@@ -493,16 +493,19 @@ class Term( object ):
         @param t: dict
         @returns: Term object
         """
+        def getstr(t, fieldname, default=None):
+            if t.get(fieldname):
+                return t[fieldname].strip()
+            return default
+        
         term = Term()
         term.id = int(t['id'])
         term.parent_id = int(t['parent_id'])
-        if t.get('created', None):
-            term.created = parser.parse(t['created'].strip())
-        if t.get('modified', None):
-            term.modified = parser.parse(t['modified'].strip())
-        term._title = t['_title'].strip()
-        term.title = t['title'].strip()
-        term.description = t['description'].strip()
+        term.created = parser.parse(getstr(t, 'created', ''))
+        term.modified = parser.parse(getstr(t, 'modified', ''))
+        term._title = getstr(t, '_title', '')
+        term.title = getstr(t, 'title', '')
+        term.description = getstr(t, 'description', '')
         # parse list from string in CSV
         encyc_urls = t.get('encyc_urls', [])
         if encyc_urls:

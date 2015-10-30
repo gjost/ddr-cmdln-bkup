@@ -1,4 +1,6 @@
 from datetime import datetime
+import json
+import os
 import vocab
 
 
@@ -37,7 +39,8 @@ def test_objects():
     
     music = index.get(id=1)
     assert index._parent(music) == None
-    assert index._siblings(music) == None
+    print('index._siblings(music) %s' % index._siblings(music))
+    assert index._siblings(music) == []
     assert len(index._children(music)) == 3
     
     electronic = index.get(title='electronic')
@@ -57,9 +60,7 @@ def test_objects():
     assert index._siblings(experimental)[0].id == 9
     assert index._siblings(experimental)[0].title == 'dance'
     assert index._children(experimental) == []
-
-    assert index.dump_terms_json(id='music', title='Music', description='genres of music') == TERMS_JSON
-    assert index.dump_terms_text() == TERMS_TEXT.strip()
+    
     assert index.menu_choices() == MENU_CHOICES
 
 # Term.__init__
@@ -70,40 +71,55 @@ def test_objects():
 def test_csv():
     filename = '/tmp/vocab-index-%s' % datetime.now().strftime('%Y%m%d-%H%M%S')
     filename_csv = '%s.csv' % filename
+    # prep
+    terms_csv = TERMS_CSV.strip()
     with open(filename_csv, 'w') as f0:
-        f0.write(TERMS_CSV.strip())
+        f0.write(terms_csv)
     # load file
     index = vocab.Index()
-    index.load_csv(filename_csv)
-    assert index.dump_terms_csv().strip() == TERMS_CSV.strip()
+    with open(filename_csv, 'r') as f1:
+        text = f1.read().strip()
+        index.load_csv(text)
+    out = index.dump_csv().strip().replace('\r', '\n').replace('\n\n', '\n')
+    terms_csv = terms_csv.strip().replace('\r', '\n').replace('\n\n', '\n')
+    assert out == terms_csv
+    # clean up
     os.remove(filename_csv)
 
 def test_json():
     filename = '/tmp/vocab-index-%s' % datetime.now().strftime('%Y%m%d-%H%M%S')
-    filename_csv = '%s.csv' % filename
     filename_json = '%s.json' % filename
-    with open(filename_csv, 'w') as f0:
-        f0.write(TERMS_CSV.strip())
+    # prep
+    with open(filename_json, 'w') as f0:
+        f0.write(json.dumps(TERMS_JSON))
     # load file
     index = vocab.Index()
-    index.load_csv(filename_csv)
-    assert index.dump_terms_json(id='music', title='Music', description='genres of music') == TERMS_JSON
-    os.remove(filename_csv)
+    with open(filename_json, 'r') as f1:
+        index.load_json(f1.read())
+    out = json.loads(index.dump_json())
+    assert out == TERMS_JSON
+    # clean up
     os.remove(filename_json)
 
 
+#Expected these headers:
+#['id', '_title', 'title', 'parent_id', 'weight', 'encyc_urls', 'description', 'created', 'modified']
+
 TERMS_CSV = """
-id,title,title_display,parent_id,change notes,weight,encyc_links,description,created,modified
-1,,music,0,,0,[],,,
-2,,classical,1,,0,[],,,
-3,,jazz,1,,0,[],,,
-4,,electronic,1,,0,[],,,
-5,,romantic,2,,0,[],,,
-6,,modern,2,,0,[],,,
-7,,traditional,3,,0,[],,,
-8,,fusion,3,,0,[],,,
-9,,dance,4,,0,[],,,
-10,,experimental,4,,0,[],,,
+id,music
+title,Music
+description,genres of music
+id,_title,title,parent_id,weight,created,modified,encyc_urls,description
+1,music,Music,0,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+2,classical,Classical,1,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+3,jazz,Jazz,1,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+4,electronic,Electronic,1,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+5,romantic,Romantic,2,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+6,modern,Modern,2,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+7,traditional,Traditional,3,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+8,fusion,Fusion,3,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+9,dance,Dance,4,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
+10,experimental,Experimental,4,0,2015-10-29T15:52:00,2015-10-29T15:52:00,,descr
 """
 
 TERMS_TEXT = """
@@ -150,7 +166,164 @@ BT electronic
 RT dance
 """
 
-TERMS_JSON = """{"description": "genres of music", "terms": [{"description": "", "weight": 0, "created": null, "title": "music", "modified": null, "_title": null, "parent_id": 0, "encyc_urls": [], "id": 1}, {"description": "", "weight": 0, "created": null, "title": "classical", "modified": null, "_title": null, "parent_id": 1, "encyc_urls": [], "id": 2}, {"description": "", "weight": 0, "created": null, "title": "jazz", "modified": null, "_title": null, "parent_id": 1, "encyc_urls": [], "id": 3}, {"description": "", "weight": 0, "created": null, "title": "electronic", "modified": null, "_title": null, "parent_id": 1, "encyc_urls": [], "id": 4}, {"description": "", "weight": 0, "created": null, "title": "romantic", "modified": null, "_title": null, "parent_id": 2, "encyc_urls": [], "id": 5}, {"description": "", "weight": 0, "created": null, "title": "modern", "modified": null, "_title": null, "parent_id": 2, "encyc_urls": [], "id": 6}, {"description": "", "weight": 0, "created": null, "title": "traditional", "modified": null, "_title": null, "parent_id": 3, "encyc_urls": [], "id": 7}, {"description": "", "weight": 0, "created": null, "title": "fusion", "modified": null, "_title": null, "parent_id": 3, "encyc_urls": [], "id": 8}, {"description": "", "weight": 0, "created": null, "title": "dance", "modified": null, "_title": null, "parent_id": 4, "encyc_urls": [], "id": 9}, {"description": "", "weight": 0, "created": null, "title": "experimental", "modified": null, "_title": null, "parent_id": 4, "encyc_urls": [], "id": 10}], "id": "music", "title": "Music"}"""
+TERMS_JSON = {
+    "id": "music",
+    "title": "Music",
+    "description": "genres of music",
+    "terms": [
+        {
+            "id": 1,
+            "parent_id": 0,
+            "ancestors": [],
+            "siblings": [],
+            "children": [2, 3, 4],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music",
+            "title": "music",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 2,
+            "parent_id": 1,
+            "ancestors": [1],
+            "siblings": [3, 4],
+            "children": [5, 6],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: classical",
+            "title": "classical",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 3,
+            "parent_id": 1,
+            "ancestors": [1],
+            "siblings": [2, 4],
+            "children": [7, 8],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: jazz",
+            "title": "jazz",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 4,
+            "parent_id": 1,
+            "ancestors": [1],
+            "siblings": [2, 3],
+            "children": [9, 10],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: electronic",
+            "title": "electronic",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 5,
+            "parent_id": 2,
+            "ancestors": [1, 2],
+            "siblings": [6],
+            "children": [],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: classical: romantic",
+            "title": "romantic",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 6,
+            "parent_id": 2,
+            "ancestors": [1, 2],
+            "siblings": [5],
+            "children": [],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: classical: modern",
+            "title": "modern",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 7,
+            "parent_id": 3,
+            "ancestors": [1, 3],
+            "siblings": [8],
+            "children": [],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: jazz: traditional",
+            "title": "traditional",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 8,
+            "parent_id": 3,
+            "ancestors": [1, 3],
+            "siblings": [7],
+            "children": [],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: jazz: fusion",
+            "title": "fusion",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 9,
+            "parent_id": 4,
+            "ancestors": [1, 4],
+            "siblings": [10],
+            "children": [],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: electronic: dance",
+            "title": "dance",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        },
+        {
+            "id": 10,
+            "parent_id": 4,
+            "ancestors": [1, 4],
+            "siblings": [9],
+            "children": [],
+            "created": "2015-10-29T00:00:00",
+            "modified": "2015-10-29T00:00:00",
+            "path": "music: electronic: experimental",
+            "title": "experimental",
+            "_title": "",
+            "description": "",
+            "encyc_urls": [],
+            "weight": 0
+        }
+    ],
+}
+
 
 MENU_CHOICES = [
     (1, 'music'), (2, 'classical'), (3, 'jazz'), (4, 'electronic'),
