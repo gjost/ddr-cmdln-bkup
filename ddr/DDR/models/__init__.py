@@ -541,7 +541,7 @@ class Collection( object ):
             docstore.load_document_json(self.json_path, self.identifier.model, self.id),
             docstore.public_fields().get(self.identifier.model, []),
             {
-                'parent_id': self.parent_id,
+                'parent_id': self.identifier.parent_id(),
             }
         )
     
