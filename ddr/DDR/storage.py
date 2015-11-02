@@ -7,7 +7,7 @@ import shlex
 import envoy
 import psutil
 
-from DDR import MEDIA_BASE
+from DDR import config
 
 DEVICE_TYPES = ['hdd', 'usb']
 
@@ -34,7 +34,7 @@ DEVICE_STATES = {
 }
 
 
-def device_actions(device):
+def device_actions(device, states=DEVICE_STATES):
     """Given device from devices(), return possible actions.
     
     @param device: dict
@@ -47,17 +47,9 @@ def device_actions(device):
     if device['linked']:  state.append('l')
     else:                 state.append('-')
     state = ''.join(state)
-    return DEVICE_STATES[devicetype][state]
+    return states[devicetype][state]
 
-def local_devices(udisks_dump_stdout):
-    """Parse the output of 'udisks --dump'
-    
-    NOTE: Separated from .devices() for easier testing.
-    NOTE: This is probably unique to VirtualBox!
-    
-    @param udisks_dump_stdout: str Output of "udisks --dump".
-    @returns: list of dicts containing device info.
-    """
+def _parse_udisks_dump(udisks_dump_stdout):
     chunks = udisks_dump_stdout.split('========================================================================\n')
     udisks_dump_stdout = None
     # get sdb* devices (sdb1, sdb2, etc)
@@ -133,6 +125,18 @@ def local_devices(udisks_dump_stdout):
     for device in devices:
         if (device['devicetype'] == 'hdd') and (not device['mounted']):
             devices.remove(device)
+    return devices
+    
+def local_devices(udisks_dump_stdout):
+    """Parse the output of 'udisks --dump'
+    
+    NOTE: Separated from .devices() for easier testing.
+    NOTE: This is probably unique to VirtualBox!
+    
+    @param udisks_dump_stdout: str Output of "udisks --dump".
+    @returns: list of dicts containing device info.
+    """
+    devices = _parse_udisks_dump(udisks_dump_stdout)
     # While device is being mounted
     # - udisks --dump will list device as unmounted with no mountpath
     # - psutils will show a 'mount' process for the device/mountpath
@@ -191,12 +195,7 @@ def find_store_dirs(base, marker, levels=2, excludes=['.git']):
         if (depth >= levels) or (marker in files):
             # don't go any further down
             del dirs[:]
-    sdirs = []
-    for h in hits:
-        d = os.path.dirname(h)
-        if d not in sdirs:
-            sdirs.append(d)
-    return sdirs
+    return hits
 
 def local_stores(devices, levels=3, symlink=None):
     """List Stores on local devices (HDD, USB).
@@ -347,11 +346,11 @@ def remount( device_file, label ):
     return mount_path
 
 def link(target):
-    """Create symlink to Store from MEDIA_BASE.
+    """Create symlink to Store from config.MEDIA_BASE.
     
     @param target: absolute path to link target
     """
-    link = MEDIA_BASE
+    link = config.MEDIA_BASE
     link_parent = os.path.split(link)[0]
     logger.debug('link: %s -> %s' % (link, target))
     if target and link and link_parent:
@@ -369,12 +368,12 @@ def link(target):
             os.symlink(target, link)
 
 def unlink():
-    """Remove MEDIA_BASE symlink.
+    """Remove config.MEDIA_BASE symlink.
     """
-    target = os.path.realpath(MEDIA_BASE)
-    logger.debug('rm %s (-> %s)' % (MEDIA_BASE, target))
+    target = os.path.realpath(config.MEDIA_BASE)
+    logger.debug('rm %s (-> %s)' % (config.MEDIA_BASE, target))
     try:
-        os.remove(MEDIA_BASE)
+        os.remove(config.MEDIA_BASE)
         logger.debug('ok')
     except OSError:
         pass
@@ -427,6 +426,25 @@ def mount_path( path ):
     if p1 == '':
         return os.sep
     return mount_path(p1)
+
+def _guess_storage_type( mountpath ):
+    """Guess storage type based on output of mount_path().
+    NOTE: Separated from .storage_type() for easier testing.
+    """
+    if mountpath == '/':
+        return 'internal'
+    elif '/media' in mountpath:
+        return 'removable'
+    return 'unknown'
+
+def storage_type( path ):
+    """Indicates whether path points to internal drive, removable storage, etc.
+    """
+    # get mount pount for path
+    # get label for mount at that path
+    # 
+    m = mount_path(path)
+    return _guess_storage_type(m)
 
 def status( path ):
     """Indicates status of storage path.

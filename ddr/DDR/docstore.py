@@ -13,13 +13,12 @@ INDEX = 'dev'
 PATH = '/var/www/media/ddr'
 
 from DDR import docstore
-from DDR import models
 
 docstore.delete_index(HOSTS, INDEX)
 
 docstore.create_index(HOSTS, INDEX)
 
-docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH, models.MODELS_DIR)
+docstore.put_mappings(HOSTS, INDEX, docstore.MAPPINGS_PATH)
 docstore.put_facets(HOSTS, INDEX, docstore.FACETS_PATH)
 
 # Delete a collection
@@ -43,12 +42,9 @@ import os
 
 from elasticsearch import Elasticsearch, TransportError
 
-from DDR import natural_sort
-from DDR import models
-from DDR.identifier import Identifier
-
-from DDR import MAPPINGS_PATH
-from DDR import FACETS_PATH
+from DDR import config
+from DDR.identifier import Identifier, MODULES
+from DDR import util
 
 MAX_SIZE = 1000000
 DEFAULT_PAGE_SIZE = 20
@@ -252,7 +248,7 @@ def _make_mappings( mappings ):
     ID_PROPERTIES = {'type':'string', 'index':'not_analyzed', 'store':True}
     for mapping in mappings['documents']:
         model = mapping.keys()[0]
-        module = models.MODULES[model]
+        module = MODULES[model]
         for field in module.FIELDS:
             fname = field['name']
             mapping[model]['properties'][fname] = field['elasticsearch']['properties']
@@ -269,17 +265,16 @@ def _make_mappings( mappings ):
         return mappings
     return []
 
-def put_mappings( hosts, index, mappings_path, models_dir ):
+def put_mappings( hosts, index, mappings_path ):
     """Puts mappings from file into ES.
     
     @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param path: Absolute path to dir containing facet files.
     @param mappings_path: Absolute path to mappings JSON.
-    @param models_dir: Absolute path to dir containing model definitions.
     @returns: JSON dict with status code and response
     """
-    logger.debug('put_mappings(%s, %s, %s, %s)' % (hosts, index, mappings_path, models_dir))
+    logger.debug('put_mappings(%s, %s, %s)' % (hosts, index, mappings_path))
     with open(mappings_path, 'r') as f:
         mappings = json.loads(f.read())
     mappings_list = _make_mappings(mappings)['documents']
@@ -293,7 +288,7 @@ def put_mappings( hosts, index, mappings_path, models_dir ):
         statuses.append( {'model':model, 'status':status} )
     return statuses
 
-def put_facets( hosts, index, path=FACETS_PATH ):
+def put_facets( hosts, index, path=config.FACETS_PATH ):
     """PUTs facets from file into ES.
     
     curl -XPUT 'http://localhost:9200/meta/facet/format' -d '{ ... }'
@@ -307,7 +302,7 @@ def put_facets( hosts, index, path=FACETS_PATH ):
     logger.debug('index_facets(%s, %s, %s)' % (hosts, index, path))
     statuses = []
     es = _get_connection(hosts)
-    for facet_json in os.listdir(FACETS_PATH):
+    for facet_json in os.listdir(config.FACETS_PATH):
         facet = facet_json.split('.')[0]
         srcpath = os.path.join(path, facet_json)
         with open(srcpath, 'r') as f:
@@ -316,7 +311,7 @@ def put_facets( hosts, index, path=FACETS_PATH ):
             statuses.append(status)
     return statuses
 
-def list_facets( path=FACETS_PATH ):
+def list_facets( path=config.FACETS_PATH ):
     facets = []
     for filename in os.listdir(path):
         fn,ext = os.path.splitext(filename)
@@ -1003,7 +998,7 @@ def delete( hosts, index, document_id, recursive=False ):
 
 # index ----------------------------------------------------------------
 
-def _public_fields():
+def public_fields(modules=MODULES):
     """Lists public fields for each model
     
     IMPORTANT: Adds certain dynamically-created fields
@@ -1011,12 +1006,14 @@ def _public_fields():
     @returns: Dict
     """
     public_fields = {}
-    for model,module in models.MODULES.iteritems():
-        mfields = []
-        for field in module.FIELDS:
-            if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None):
-                mfields.append(field['name'])
-        public_fields[model] = mfields
+    for model,module in modules.iteritems():
+        if module:
+            mfields = [
+                field['name']
+                for field in module.FIELDS
+                if field.get('elasticsearch',None) and field['elasticsearch'].get('public',None)
+            ]
+            public_fields[model] = mfields
     # add dynamically created fields
     public_fields['file'].append('path_rel')
     public_fields['file'].append('id')
@@ -1064,9 +1061,9 @@ def _file_parent_ids(identifier):
     @returns: parent_ids
     """
     if identifier.model == 'file':
-        return [identifier.collection_id, identifier.parent_id()]
+        return [identifier.collection_id(), identifier.parent_id()]
     elif identifier.model == 'entity':
-        return [identifier.collection_id]
+        return [identifier.collection_id()]
     return []
 
 def _publishable_or_not( paths, parents ):
@@ -1132,14 +1129,14 @@ def _store_signature_file( signatures, identifier, master_substitute ):
         def _store( signatures, object_id, file_id ):
             if signatures.get(object_id,None):
                 filenames = [signatures[object_id], file_id]
-                first = natural_sort(filenames)[0]
+                first = util.natural_sort(filenames)[0]
                 if file_id == first:
                     signatures[object_id] = file_id
             else:
                 signatures[object_id] = file_id
         
-        _store(signatures, identifier.collection_id, thumbfile_mezzfirst)
-        _store(signatures, identifier.parent_id, thumbfile_mezzfirst)
+        _store(signatures, identifier.collection_id(), thumbfile_mezzfirst)
+        _store(signatures, identifier.parent_id(), thumbfile_mezzfirst)
 
 def _choose_signatures( paths ):
     """Iterate through paths, storing signature_url for each collection, entity.
@@ -1172,7 +1169,7 @@ def load_document_json( json_path, model, object_id ):
         document.append( {'id':object_id} )
     return document
 
-def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, public=True ):
+def index( hosts, index, path, recursive=False, public=True ):
     """(Re)index with data from the specified directory.
     
     After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
@@ -1185,7 +1182,6 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
     @param path: Absolute path to directory containing object metadata files.
-    @param models_dir: Absolute path to directory containing model JSON files.
     @param recursive: Whether or not to recurse into subdirectories.
     @param public: For publication (fields not marked public will be ommitted).
     @param paths: Absolute paths to directory containing collections.
@@ -1193,14 +1189,14 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
     """
     logger.debug('index(%s, %s, %s)' % (hosts, index, path))
     
-    public_fields = _public_fields()
+    publicfields = public_fields()
     
     # process a single file if requested
     if os.path.isfile(path):
         paths = [path]
     else:
         # files listed first, then entities, then collections
-        paths = models.metadata_files(path, recursive, files_first=1)
+        paths = util.find_meta_files(path, recursive, files_first=1)
     
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.
@@ -1223,9 +1219,9 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
         identifier = Identifier(path=path)
         parent_id = identifier.parent_id()
         
-        publicfields = []
+        document_pub_fields = []
         if public and identifier.model:
-            publicfields = public_fields[identifier.model]
+            document_pub_fields = publicfields[identifier.model]
         
         additional_fields = {'parent_id': parent_id}
         if identifier.model == 'collection': additional_fields['organization_id'] = parent_id
@@ -1240,7 +1236,7 @@ def index( hosts, index, path, models_dir=models.MODELS_DIR, recursive=False, pu
             existing = get(hosts, index, identifier.model, identifier.id, fields=[])
         except:
             existing = None
-        result = post(hosts, index, document, publicfields, additional_fields)
+        result = post(hosts, index, document, document_pub_fields, additional_fields)
         # success: created, or version number incremented
         if result.get('_id', None):
             if existing:

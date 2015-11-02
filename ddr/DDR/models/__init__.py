@@ -2,62 +2,62 @@
 NOTE: Much of the code in this module used to be in ddr-local
 (ddr-local/ddrlocal/ddrlocal/models/__init__.py).  Please refer to that project
 for history prior to Feb 2015.
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
+TODO refactor: keep metadata from json_data
+
+TODO refactor: load json_text into an OrderedDict
+
+TODO refactor: put json_data in a object.source dict like ES does.
+
+This way we don't have to worry about field names conflicting with
+class methods (e.g. Entity.parent).
+
+ACCESS that dict (actually OrderedDict) via object.source() method.
+Lazy loading: don't load unless something needs to access the data
+
+IIRC the only time we need those fields is when we display the object
+to the user.
+
+Also we won't have to reload the flippin' .json file multiple times
+for things like cmp_model_definition_fields.
+
+
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 """
 
 from datetime import datetime
-import glob
-import hashlib
 import json
 import logging
 logger = logging.getLogger(__name__)
 import os
 import re
-import shutil
 from StringIO import StringIO
-import sys
-import traceback
 
 import envoy
 from lxml import etree
 
-from DDR import VERSION, GITOLITE
-from DDR import INSTALL_PATH, REPO_MODELS_PATH, MEDIA_BASE
-from DDR import DATETIME_FORMAT, TIME_FORMAT, LOG_DIR
-from DDR import ACCESS_FILE_APPEND, ACCESS_FILE_EXTENSION, ACCESS_FILE_GEOMETRY
-from DDR import format_json, natural_order_string, natural_sort
+from DDR import VERSION
+from DDR import format_json
 from DDR import changelog
+from DDR import config
 from DDR.control import CollectionControlFile, EntityControlFile
+from DDR import docstore
 from DDR import dvcs
+from DDR import fileio
+from DDR.identifier import Identifier, MODULES
 from DDR import imaging
-from DDR.identifier import Identifier
+from DDR import ingest
+from DDR import inheritance
+from DDR import locking
 from DDR.models.xml import EAD, METS
-#from DDR import commands
-# NOTE: DDR.commands imports DDR.models.Collection which is a circular import
-# so the following is imported in Entity.add_access
-#from DDR.commands import entity_annex_add
-
-if REPO_MODELS_PATH not in sys.path:
-    sys.path.append(REPO_MODELS_PATH)
-try:
-    from repo_models import collection as collectionmodule
-    from repo_models import entity as entitymodule
-    from repo_models import files as filemodule
-except ImportError:
-    from DDR.models import collectionmodule
-    from DDR.models import entitymodule
-    from DDR.models import filemodule
-
-MODULES = {
-    'collection': collectionmodule,
-    'entity': entitymodule,
-    'file': filemodule,
-}
+from DDR import modules
+from DDR import util
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
-TEMPLATE_PATH = os.path.join(INSTALL_PATH, 'ddr', 'DDR', 'templates')
+TEMPLATE_PATH = os.path.join(config.INSTALL_PATH, 'ddr', 'DDR', 'templates')
 GITIGNORE_TEMPLATE = os.path.join(TEMPLATE_PATH, 'gitignore.tpl')
-
-MODELS = ['collection', 'entity', 'file']
 
 MODELS_DIR = '/usr/local/src/ddr-cmdln/ddr/DDR/models'
 
@@ -66,88 +66,7 @@ ENTITY_FILES_PREFIX = 'files'
 
 
 
-def file_hash(path, algo='sha1'):
-    if algo == 'sha256':
-        h = hashlib.sha256()
-    elif algo == 'md5':
-        h = hashlib.md5()
-    else:
-        h = hashlib.sha1()
-    block_size=1024
-    f = open(path, 'rb')
-    while True:
-        data = f.read(block_size)
-        if not data:
-            break
-        h.update(data)
-    f.close()
-    return h.hexdigest()
-
-
-
 # metadata files: finding, reading, writing ----------------------------
-
-def metadata_files( basedir, recursive=False, model=None, files_first=False, force_read=False ):
-    """Lists absolute paths to .json files in basedir; saves copy if requested.
-    
-    Skips/excludes .git directories.
-    TODO depth (go down N levels from basedir)
-    
-    @param basedir: Absolute path
-    @param recursive: Whether or not to recurse into subdirectories.
-    @param model: list Restrict to the named model ('collection','entity','file').
-    @param files_first: If True, list files,entities,collections; otherwise sort.
-    @param force_read: If True, always searches for files instead of using cache.
-    @returns: list of paths
-    """
-    def model_exclude(m, p):
-        exclude = 0
-        if m:
-            if (m == 'collection') and not ('collection.json' in p):
-                exclude = 1
-            elif (m == 'entity') and not ('entity.json' in p):
-                exclude = 1
-            elif (m == 'file') and not (('master' in p.lower()) or ('mezz' in p.lower())):
-                exclude = 1
-        return exclude
-    CACHE_FILENAME = '.metadata_files'
-    CACHE_PATH = os.path.join(basedir, CACHE_FILENAME)
-    paths = []
-    if os.path.exists(CACHE_PATH) and not force_read:
-        with open(CACHE_PATH, 'r') as f:
-            paths = [line.strip() for line in f.readlines() if '#' not in line]
-    else:
-        excludes = ['.git', 'tmp', '*~']
-        if recursive:
-            for root, dirs, files in os.walk(basedir):
-                # don't go down into .git directory
-                if '.git' in dirs:
-                    dirs.remove('.git')
-                for f in files:
-                    if f.endswith('.json'):
-                        path = os.path.join(root, f)
-                        exclude = [1 for x in excludes if x in path]
-                        modexclude = model_exclude(model, path)
-                        if not (exclude or modexclude):
-                            paths.append(path)
-        else:
-            for f in os.listdir(basedir):
-                if f.endswith('.json'):
-                    path = os.path.join(basedir, f)
-                    exclude = [1 for x in excludes if x in path]
-                    if not exclude:
-                        paths.append(path)
-    # files_first is useful for docstore.index
-    if files_first:
-        collections = []
-        entities = []
-        files = []
-        for f in paths:
-            if f.endswith('collection.json'): collections.append(f)
-            elif f.endswith('entity.json'): entities.append(f)
-            elif f.endswith('.json'): files.append(f)
-        paths = files + entities + collections
-    return paths
 
 def sort_file_paths(json_paths, rank='role-eid-sort'):
     """Sort file JSON paths in human-friendly order.
@@ -179,7 +98,7 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
             key = '-'.join([role,eid,sort,sha1])
         paths[key] = path
         keys.append(key)
-    keys_sorted = [key for key in natural_sort(keys)]
+    keys_sorted = [key for key in util.natural_sort(keys)]
     paths_sorted = []
     while keys_sorted:
         val = paths.pop(keys_sorted.pop(), None)
@@ -187,42 +106,32 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
             paths_sorted.append(val)
     return paths_sorted
 
-def document_metadata(module, document_repo_path):
+def object_metadata(module, repo_path):
     """Metadata for the ddrlocal/ddrcmdln and models definitions used.
     
     @param module: collection, entity, files model definitions module
-    @param document_repo_path: Absolute path to root of document's repo
+    @param repo_path: Absolute path to root of object's repo
     @returns: dict
     """
     data = {
         'application': 'https://github.com/densho/ddr-cmdln.git',
-        'app_commit': dvcs.latest_commit(INSTALL_PATH),
+        'app_commit': dvcs.latest_commit(config.INSTALL_PATH),
         'app_release': VERSION,
-        'models_commit': dvcs.latest_commit(Module(module).path),
-        'git_version': dvcs.git_version(document_repo_path),
+        'models_commit': dvcs.latest_commit(modules.Module(module).path),
+        'git_version': dvcs.git_version(repo_path),
     }
     return data
 
-def read_json(path):
-    """Read text file; make sure text is in UTF-8.
+def is_object_metadata(data):
+    """Indicate whether json_data field is the object_metadata field.
     
-    @param path: str Absolute path to file.
-    @returns: unicode
+    @param data: list of dicts
+    @returns: boolean
     """
-    # TODO use codecs.open utf-8
-    with open(path, 'r') as f:
-        text = f.read()
-    return text
-
-def write_json(text, path):
-    """Write text to UTF-8 file.
-    
-    @param text: unicode
-    @param path: str Absolute path to file.
-    """
-    # TODO use codecs.open utf-8
-    with open(path, 'w') as f:
-        f.write(text)
+    for key in ['app_commit', 'app_release']:
+        if key in data.keys():
+            return True
+    return False
 
 def load_json(document, module, json_text):
     """Populates object from JSON-formatted text.
@@ -242,9 +151,11 @@ def load_json(document, module, json_text):
             {'title': 'ERROR: COULD NOT READ DATA (.JSON) FILE!'},
             {'_error': 'Error: ValueError during read load_json.'},
         ]
-    ## software and commit metadata
-    #if data:
-    #    setattr(document, 'json_metadata', data[0])
+    # software and commit metadata
+    for field in json_data:
+        if is_object_metadata(field):
+            setattr(document, 'object_metadata', field)
+            break
     # field values from JSON
     for mf in module.FIELDS:
         for f in json_data:
@@ -298,7 +209,7 @@ def prep_json(obj, module, template=False,
             if val:
                 # JSON requires dates to be represented as strings
                 if hasattr(val, 'fromtimestamp') and hasattr(val, 'strftime'):
-                    val = val.strftime(DATETIME_FORMAT)
+                    val = val.strftime(config.DATETIME_FORMAT)
             # end special cases
         item[key] = val
         if key not in exceptions:
@@ -323,24 +234,11 @@ def from_json(model, json_path, identifier):
             # object_id is in object directory
             document = model(os.path.dirname(json_path), identifier=identifier)
         document_id = document.id  # save this just in case
-        document.load_json(read_json(json_path))
+        document.load_json(fileio.read_text(json_path))
         if not document.id:
             # id gets overwritten if document.json is blank
             document.id = document_id
     return document
-
-def read_xml(path):
-    pass
-
-def write_xml(text, path):
-    """Write text to UTF-8 file.
-    
-    @param text: unicode
-    @param path: str Absolute path to file.
-    """
-    # TODO use codecs.open utf-8
-    with open(path, 'w') as f:
-        f.write(text)
 
 def load_xml():
     pass
@@ -354,354 +252,6 @@ def from_xml():
 
 class Path( object ):
     pass
-
-
-class Module(object):
-    path = None
-
-    def __init__(self, module):
-        """
-        @param module: collection, entity, files model definitions module
-        """
-        self.module = module
-        self.path = self.module.__file__.replace('.pyc', '.py')
-    
-    def is_valid(self):
-        """Indicates whether this is a proper module
-    
-        TODO determine required fields for models
-    
-        @returns: Boolean,str message
-        """
-        # Is the module located in a 'ddr' Repository repo?
-        # collection.__file__ == absolute path to the module
-        match = 'ddr/repo_models'
-        if not match in self.module.__file__:
-            return False,"%s not in 'ddr' Repository repo." % self.module.__name__
-        # is fields var present in module?
-        fields = getattr(self.module, 'FIELDS', None)
-        if not fields:
-            return False,'%s has no FIELDS variable.' % self.module.__name__
-        # is fields var listy?
-        if not isinstance(fields, list):
-            return False,'%s.FIELDS is not a list.' % self.module.__name__
-        return True,'ok'
-    
-    def function(self, function_name, value):
-        """If named function is present in module and callable, pass value to it and return result.
-        
-        Among other things this may be used to prep data for display, prepare it
-        for editing in a form, or convert cleaned form data into Python data for
-        storage in objects.
-        
-        @param function_name: Name of the function to be executed.
-        @param value: A single value to be passed to the function, or None.
-        @returns: Whatever the specified function returns.
-        """
-        if (function_name in dir(self.module)):
-            function = getattr(self.module, function_name)
-            value = function(value)
-        return value
-    
-    def xml_function(self, function_name, tree, NAMESPACES, f, value):
-        """If module function is present and callable, pass value to it and return result.
-        
-        Same as Module.function but with XML we need to pass namespaces lists to
-        the functions.
-        Used in dump_ead(), dump_mets().
-        
-        @param function_name: Name of the function to be executed.
-        @param tree: An lxml tree object.
-        @param NAMESPACES: Dict of namespaces used in the XML document.
-        @param f: Field dict (from MODEL_FIELDS).
-        @param value: A single value to be passed to the function, or None.
-        @returns: Whatever the specified function returns.
-        """
-        if (function_name in dir(self.module)):
-            function = getattr(self.module, function_name)
-            tree = function(tree, NAMESPACES, f, value)
-        return tree
-    
-    def labels_values(self, document):
-        """Apply display_{field} functions to prep object data for the UI.
-        
-        Certain fields require special processing.  For example, structured data
-        may be rendered in a template to generate an HTML <ul> list.
-        If a "display_{field}" function is present in the ddrlocal.models.collection
-        module the contents of the field will be passed to it
-        
-        @param document: Collection, Entity, File document object
-        @returns: list
-        """
-        lv = []
-        for f in self.module.FIELDS:
-            if hasattr(document, f['name']) and f.get('form',None):
-                key = f['name']
-                label = f['form']['label']
-                # run display_* functions on field data if present
-                value = self.function(
-                    'display_%s' % key,
-                    getattr(document, f['name'])
-                )
-                lv.append( {'label':label, 'value':value,} )
-        return lv
-    
-    def cmp_model_definition_commits(self, document):
-        """Indicate document's model defs are newer or older than module's.
-        
-        Prepares repository and document/module commits to be compared
-        by DDR.dvcs.cmp_commits.  See that function for how to interpret
-        the results.
-        Note: if a document has no defs commit it is considered older
-        than the module.
-        
-        @param document: A Collection, Entity, or File object.
-        @returns: int
-        """
-        def parse(txt):
-            return txt.strip().split(' ')[0]
-        module_commit_raw = dvcs.latest_commit(self.path)
-        module_defs_commit = parse(module_commit_raw)
-        if not module_defs_commit:
-            return 128
-        doc_metadata = getattr(document, 'json_metadata', {})
-        document_commit_raw = doc_metadata.get('models_commit','')
-        document_defs_commit = parse(document_commit_raw)
-        if not document_defs_commit:
-            return -1
-        repo = dvcs.repository(self.path)
-        return dvcs.cmp_commits(repo, document_defs_commit, module_defs_commit)
-    
-    def cmp_model_definition_fields(self, document_json):
-        """Indicate whether module adds or removes fields from document
-        
-        @param document_json: Raw contents of document *.json file
-        @returns: list,list Lists of added,removed field names.
-        """
-        # First item in list is document metadata, everything else is a field.
-        document_fields = [field.keys()[0] for field in json.loads(document_json)[1:]]
-        module_fields = [field['name'] for field in getattr(self.module, 'FIELDS')]
-        # models.load_json() uses MODULE.FIELDS, so get list of fields
-        # directly from the JSON document.
-        added = [field for field in module_fields if field not in document_fields]
-        removed = [field for field in document_fields if field not in module_fields]
-        return added,removed
-
-
-class Inheritance(object):
-
-    @staticmethod
-    def _child_jsons( path ):
-        """List all the .json files under path directory; excludes specified dir.
-        
-        @param path: Absolute directory path.
-        @return list of paths
-        """
-        return [
-            p for p in metadata_files(basedir=path, recursive=True)
-            if os.path.dirname(p) != path
-        ]
-    
-    @staticmethod
-    def _selected_field_values( parent_object, inheritables ):
-        """Gets list of selected inherited fieldnames and their values from the parent object
-        
-        @param parent_object
-        @param inheritables
-        @returns: list of (fieldname,value) tuples
-        """
-        field_values = []
-        for field in inheritables:
-            value = getattr(parent_object, field)
-            field_values.append( (field,value) )
-        return field_values
-    
-    @staticmethod
-    def inheritable_fields( MODEL_FIELDS ):
-        """Returns a list of fields that can inherit or grant values.
-        
-        Inheritable fields are marked 'inheritable':True in MODEL_FIELDS.
-        
-        @param MODEL_FIELDS
-        @returns: list
-        """
-        inheritable = []
-        for f in MODEL_FIELDS:
-            if f.get('inheritable', None):
-                inheritable.append(f['name'])
-        return inheritable
-    
-    @staticmethod
-    def selected_inheritables( inheritables, cleaned_data ):
-        """Indicates which inheritable fields from the list were selected in the form.
-        
-        Selector fields are assumed to be BooleanFields named "FIELD_inherit".
-        
-        @param inheritables: List of field/attribute names.
-        @param cleaned_data: form.cleaned_data.
-        @return
-        """
-        fieldnames = {}
-        for field in inheritables:
-            fieldnames['%s_inherit' % field] = field
-        selected = []
-        if fieldnames:
-            for key in cleaned_data.keys():
-                if (key in fieldnames.keys()) and cleaned_data[key]:
-                    selected.append(fieldnames[key])
-        return selected
-        
-    @staticmethod
-    def update_inheritables( parent_object, objecttype, inheritables, cleaned_data ):
-        """Update specified inheritable fields of child objects using form data.
-        
-        @param parent_object: Collection or Entity with values to be inherited.
-        @param cleaned_data: Form cleaned_data from POST.
-        @returns: tuple List of changed object Ids, list of changed objects' JSON files.
-        """
-        child_ids = []
-        changed_files = []
-        # values of selected inheritable fields from parent
-        field_values = Inheritance._selected_field_values(parent_object, inheritables)
-        # load child objects and apply the change
-        if field_values:
-            for json_path in Inheritance._child_jsons(parent_object.path):
-                child = None
-                identifier = Identifier(path=json_path)
-                if identifier.model == 'collection':
-                    child = Collection.from_identifier(identifier)
-                elif identifier.model == 'entity':
-                    child = Entity.from_identifier(identifier)
-                elif identifier.model == 'file':
-                    child = File.from_identifier(identifier)
-                if child:
-                    # set field if exists in child and doesn't already match parent value
-                    changed = False
-                    for field,value in field_values:
-                        if hasattr(child, field):
-                            existing_value = getattr(child,field)
-                            if existing_value != value:
-                                setattr(child, field, value)
-                                changed = True
-                    # write json and add to list of changed IDs/files
-                    if changed:
-                        child.write_json()
-                        if hasattr(child, 'id'):         child_ids.append(child.id)
-                        elif hasattr(child, 'basename'): child_ids.append(child.basename)
-                        changed_files.append(json_path)
-        return child_ids,changed_files
-    
-    @staticmethod
-    def inherit( parent, child ):
-        """Set inheritable fields in child object with values from parent.
-        
-        @param parent: A webui.models.Collection or webui.models.Entity
-        @param child: A webui.models.Entity or webui.models.File
-        """
-        for field in parent.inheritable_fields():
-            if hasattr(parent, field) and hasattr(child, field):
-                setattr(child, field, getattr(parent, field))
-
-
-class Locking(object):
-    
-    @staticmethod
-    def lock( lock_path, text ):
-        """Writes lockfile to collection dir; complains if can't.
-        
-        Celery tasks don't seem to know their own task_id, and there don't
-        appear to be any handlers that can be called just *before* a task
-        is fired. so it appears to be impossible for a task to lock itself.
-        
-        This method should(?) be called immediately after starting the task:
-        >> result = collection_sync.apply_async((args...), countdown=2)
-        >> lock_status = collection.lock(result.task_id)
-        
-        >>> path = '/tmp/ddr-testing-123'
-        >>> os.mkdir(path)
-        >>> c = Collection(path)
-        >>> c.lock('abcdefg')
-        'ok'
-        >>> c.lock('abcdefg')
-        'locked'
-        >>> c.unlock('abcdefg')
-        'ok'
-        >>> os.rmdir(path)
-        
-        TODO return 0 if successful
-        
-        @param lock_path
-        @param text
-        @returns 'ok' or 'locked'
-        """
-        if os.path.exists(lock_path):
-            return 'locked'
-        with open(lock_path, 'w') as f:
-            f.write(text)
-        return 'ok'
-    
-    @staticmethod
-    def unlock( lock_path, text ):
-        """Removes lockfile or complains if can't
-        
-        This method should be called by celery Task.after_return()
-        See "Abstract classes" section of
-        http://celery.readthedocs.org/en/latest/userguide/tasks.html#custom-task-classes
-        
-        >>> path = '/tmp/ddr-testing-123'
-        >>> os.mkdir(path)
-        >>> c = Collection(path)
-        >>> c.lock('abcdefg')
-        'ok'
-        >>> c.unlock('xyz')
-        'task_id miss'
-        >>> c.unlock('abcdefg')
-        'ok'
-        >>> c.unlock('abcdefg')
-        'not locked'
-        >>> os.rmdir(path)
-        
-        TODO return 0 if successful
-        
-        @param lock_path
-        @param text
-        @returns 'ok', 'not locked', 'task_id miss', 'blocked'
-        """
-        if not os.path.exists(lock_path):
-            return 'not locked'
-        with open(lock_path, 'r') as f:
-            lockfile_text = f.read().strip()
-        if lockfile_text and (lockfile_text != text):
-            return 'miss'
-        os.remove(lock_path)
-        if os.path.exists(lock_path):
-            return 'blocked'
-        return 'ok'
-    
-    @staticmethod
-    def locked( lock_path ):
-        """Returns contents of lockfile if collection repo is locked, False if not
-        
-        >>> c = Collection('/tmp/ddr-testing-123')
-        >>> c.locked()
-        False
-        >>> c.lock('abcdefg')
-        'ok'
-        >>> c.locked()
-        'abcdefg'
-        >>> c.unlock('abcdefg')
-        'ok'
-        >>> c.locked()
-        False
-        
-        @param lock_path
-        """
-        if os.path.exists(lock_path):
-            with open(lock_path, 'r') as f:
-                text = f.read().strip()
-            return text
-        return False
-    
 
 
 # objects --------------------------------------------------------------
@@ -814,7 +364,7 @@ class Collection( object ):
         self.ead_path_rel       = i.path_rel('ead')
         self.files_path_rel     = i.path_rel('files')
         
-        self.git_url = '{}:{}'.format(GITOLITE, self.id)
+        self.git_url = '{}:{}'.format(config.GITOLITE, self.id)
     
     def __repr__(self):
         """Returns string representation of object.
@@ -837,7 +387,8 @@ class Collection( object ):
         @returns: Collection object
         """
         collection = Collection(path)
-        for f in collectionmodule.FIELDS:
+        module = collection.identifier.fields_module()
+        for f in module.FIELDS:
             if hasattr(f, 'name') and hasattr(f, 'initial'):
                 setattr(collection, f['name'], f['initial'])
         return collection
@@ -873,7 +424,7 @@ class Collection( object ):
         >>> c.children()
         [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
         
-        TODO use metadata_files()
+        TODO use util.find_meta_files()
         
         @param quick: Boolean List only titles and IDs
         """
@@ -887,14 +438,14 @@ class Collection( object ):
             for eid in os.listdir(self.files_path):
                 path = os.path.join(self.files_path, eid)
                 entity_paths.append(path)
-        entity_paths = natural_sort(entity_paths)
+        entity_paths = util.natural_sort(entity_paths)
         entities = []
         for path in entity_paths:
             if quick:
                 # fake Entity with just enough info for lists
                 entity_json_path = os.path.join(path,'entity.json')
                 if os.path.exists(entity_json_path):
-                    for line in read_json(entity_json_path).split('\n'):
+                    for line in fileio.read_text(entity_json_path).split('\n'):
                         if '"title":' in line:
                             e = ListEntity()
                             e.id = Identifier(path=path).id
@@ -909,16 +460,11 @@ class Collection( object ):
                 entities.append(entity)
         return entities
     
-    def model_def_commits( self ):
-        return Module(collectionmodule).cmp_model_definition_commits(self)
-    
-    def model_def_fields( self ):
-        return Module(collectionmodule).cmp_model_definition_fields(read_json(self.json_path))
-    
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return Module(collectionmodule).labels_values(self)
+        module = self.identifier.fields_module()
+        return modules.Module(module).labels_values(self)
     
     def inheritable_fields( self ):
         """Returns list of Collection object's field names marked as inheritable.
@@ -927,7 +473,8 @@ class Collection( object ):
         >>> c.inheritable_fields()
         ['status', 'public', 'rights']
         """
-        return Inheritance.inheritable_fields(collectionmodule.FIELDS )
+        module = self.identifier.fields_module()
+        return inheritance.inheritable_fields(module.FIELDS )
 
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -938,7 +485,7 @@ class Collection( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: list
         """
-        return Inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
+        return inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
         """Update specified fields of child objects.
@@ -947,7 +494,7 @@ class Collection( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: tuple [changed object Ids],[changed objects' JSON files]
         """
-        return Inheritance.update_inheritables(self, 'collection', inheritables, cleaned_data)
+        return inheritance.update_inheritables(self, 'collection', inheritables, cleaned_data)
     
     def load_json(self, json_text):
         """Populates Collection from JSON-formatted text.
@@ -957,14 +504,15 @@ class Collection( object ):
         
         @param json_text: JSON-formatted text
         """
-        load_json(self, collectionmodule, json_text)
+        module = self.identifier.fields_module()
+        load_json(self, module, json_text)
         # special cases
         if hasattr(self, 'record_created') and self.record_created:
-            self.record_created = datetime.strptime(self.record_created, DATETIME_FORMAT)
+            self.record_created = datetime.strptime(self.record_created, config.DATETIME_FORMAT)
         else:
             self.record_created = datetime.now()
         if hasattr(self, 'record_lastmod') and self.record_lastmod:
-            self.record_lastmod = datetime.strptime(self.record_lastmod, DATETIME_FORMAT)
+            self.record_lastmod = datetime.strptime(self.record_lastmod, config.DATETIME_FORMAT)
         else:
             self.record_lastmod = datetime.now()
     
@@ -972,26 +520,34 @@ class Collection( object ):
         """Dump Collection data to JSON-formatted text.
         
         @param template: [optional] Boolean. If true, write default values for fields.
-        @param doc_metadata: boolean. Insert document_metadata().
+        @param doc_metadata: boolean. Insert object_metadata().
         @returns: JSON-formatted text
         """
-        data = prep_json(self, collectionmodule, template=template)
+        module = self.identifier.fields_module()
+        data = prep_json(self, module, template=template)
         if doc_metadata:
-            data.insert(0, document_metadata(collectionmodule, self.path))
+            data.insert(0, object_metadata(module, self.path))
         return format_json(data)
     
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
-        from DDR.docstore import post_json
-        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+        # NOTE: this is same basic code as docstore.index
+        return docstore.post(
+            hosts, index,
+            docstore.load_document_json(self.json_path, self.identifier.model, self.id),
+            docstore.public_fields().get(self.identifier.model, []),
+            {
+                'parent_id': self.identifier.parent_id(),
+            }
+        )
     
-    def lock( self, text ): return Locking.lock(self.lock_path, text)
-    def unlock( self, text ): return Locking.unlock(self.lock_path, text)
-    def locked( self ): return Locking.locked(self.lock_path)
+    def lock( self, text ): return locking.lock(self.lock_path, text)
+    def unlock( self, text ): return locking.unlock(self.lock_path, text)
+    def locked( self ): return locking.locked(self.lock_path)
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -1020,13 +576,14 @@ class Collection( object ):
         """
         NAMESPACES = None
         tree = etree.fromstring(self.ead().xml)
-        for f in collectionmodule.FIELDS:
+        module = self.identifier.fields_module()
+        for f in module.FIELDS:
             key = f['name']
             value = ''
             if hasattr(self, f['name']):
                 value = getattr(self, key)
                 # run ead_* functions on field data if present
-                tree = Module(collectionmodule).xml_function(
+                tree = modules.Module(module).xml_function(
                     'ead_%s' % key,
                     tree, NAMESPACES, f,
                     value
@@ -1037,7 +594,7 @@ class Collection( object ):
     def write_ead(self):
         """Write EAD XML file to disk.
         """
-        write_xml(self.dump_ead(), self.ead_path)
+        fileio.write_text(self.dump_ead(), self.ead_path)
     
     def gitignore( self ):
         if not os.path.exists(self.gitignore_path):
@@ -1051,7 +608,7 @@ class Collection( object ):
     @staticmethod
     def collection_paths( collections_root, repository, organization ):
         """Returns collection paths.
-        TODO use metadata_files()
+        TODO use util.find_meta_files()
         """
         paths = []
         regex = '^{}-{}-[0-9]+$'.format(repository, organization)
@@ -1062,7 +619,7 @@ class Collection( object ):
                 colldir = os.path.join(collections_root,x)
                 if 'collection.json' in os.listdir(colldir):
                     paths.append(colldir)
-        return natural_sort(paths)
+        return util.natural_sort(paths)
     
     def repo_fetch( self ):
         """Fetch latest changes to collection repo from origin/master.
@@ -1110,30 +667,6 @@ ENTITY_FILE_KEYS = ['path_rel',
                     'md5',
                     'public',]
 
-class EntityAddFileLogger():
-    logpath = None
-    
-    def entry(self, ok, msg ):
-        """Returns log of add_files activity; adds an entry if status,msg given.
-        
-        @param ok: Boolean. ok or not ok.
-        @param msg: Text message.
-        @returns log: A text file.
-        """
-        entry = '[{}] {} - {}\n'.format(datetime.now().isoformat('T'), ok, msg)
-        with open(self.logpath, 'a') as f:
-            f.write(entry)
-    
-    def ok(self, msg): self.entry('ok', msg)
-    def not_ok(self, msg): self.entry('not ok', msg)
-    
-    def log(self):
-        log = ''
-        if os.path.exists(self.logpath):
-            with open(self.logpath, 'r') as f:
-                log = f.read()
-        return log
-
 class Entity( object ):
     root = None
     id = None
@@ -1177,7 +710,7 @@ class Entity( object ):
         self.collection_path = i.collection_path()
         self.parent_path = i.parent_path()
         
-        self.root = os.path.split(self.parent_path)[0]
+        self.root = os.path.dirname(self.parent_path)
         self.json_path = i.path_abs('json')
         self.changelog_path = i.path_abs('changelog')
         self.control_path = i.path_abs('control')
@@ -1203,7 +736,8 @@ class Entity( object ):
         @param path: Absolute path to entity; must end in valid DDR entity id.
         """
         entity = Entity(path)
-        for f in entitymodule.FIELDS:
+        module = self.identifier.fields_module()
+        for f in module.FIELDS:
             if hasattr(f, 'name') and hasattr(f, 'initial'):
                 setattr(entity, f['name'], f['initial'])
         return entity
@@ -1245,19 +779,15 @@ class Entity( object ):
             files = [f for f in self._file_objects]
         return sorted(files, key=lambda f: f.sort)
     
-    def model_def_commits( self ):
-        return Module(entitymodule).cmp_model_definition_commits(self)
-    
-    def model_def_fields( self ):
-        return Module(entitymodule).cmp_model_definition_fields(read_json(self.json_path))
-    
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return Module(entitymodule).labels_values(self)
+        module = self.identifier.fields_module()
+        return modules.Module(module).labels_values(self)
 
     def inheritable_fields( self ):
-        return Inheritance.inheritable_fields(entitymodule.FIELDS)
+        module = self.identifier.fields_module()
+        return inheritance.inheritable_fields(module.FIELDS)
     
     def selected_inheritables(self, cleaned_data ):
         """Returns names of fields marked as inheritable in cleaned_data.
@@ -1268,7 +798,7 @@ class Entity( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: list
         """
-        return Inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
+        return inheritance.selected_inheritables(self.inheritable_fields(), cleaned_data)
     
     def update_inheritables( self, inheritables, cleaned_data ):
         """Update specified fields of child objects.
@@ -1277,29 +807,30 @@ class Entity( object ):
         @param cleaned_data: dict Fieldname:value pairs.
         @returns: tuple [changed object Ids],[changed objects' JSON files]
         """
-        return Inheritance.update_inheritables(self, 'entity', inheritables, cleaned_data)
+        return inheritance.update_inheritables(self, 'entity', inheritables, cleaned_data)
     
     def inherit( self, parent ):
-        Inheritance.inherit( parent, self )
+        inheritance.inherit( parent, self )
     
-    def lock( self, text ): return Locking.lock(self.lock_path, text)
-    def unlock( self, text ): return Locking.unlock(self.lock_path, text)
-    def locked( self ): return Locking.locked(self.lock_path)
+    def lock( self, text ): return locking.lock(self.lock_path, text)
+    def unlock( self, text ): return locking.unlock(self.lock_path, text)
+    def locked( self ): return locking.locked(self.lock_path)
 
     def load_json(self, json_text):
         """Populate Entity data from JSON-formatted text.
         
         @param json_text: JSON-formatted text
         """
-        load_json(self, entitymodule, json_text)
+        module = self.identifier.fields_module()
+        load_json(self, module, json_text)
         # special cases
         def parsedt(txt):
             d = datetime.now()
             try:
-                d = datetime.strptime(txt, DATETIME_FORMAT)
+                d = datetime.strptime(txt, config.DATETIME_FORMAT)
             except:
                 try:
-                    d = datetime.strptime(txt, TIME_FORMAT)
+                    d = datetime.strptime(txt, config.TIME_FORMAT)
                 except:
                     pass
             return d
@@ -1311,14 +842,15 @@ class Entity( object ):
         """Dump Entity data to JSON-formatted text.
         
         @param template: [optional] Boolean. If true, write default values for fields.
-        @param doc_metadata: boolean. Insert document_metadata().
+        @param doc_metadata: boolean. Insert object_metadata().
         @returns: JSON-formatted text
         """
-        data = prep_json(self, entitymodule,
+        module = self.identifier.fields_module()
+        data = prep_json(self, module,
                          exceptions=['files', 'filemeta'],
                          template=template,)
         if doc_metadata:
-            data.insert(0, document_metadata(entitymodule, self.parent_path))
+            data.insert(0, object_metadata(module, self.parent_path))
         files = []
         if not template:
             for f in self.files:
@@ -1342,11 +874,18 @@ class Entity( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
     def post_json(self, hosts, index):
-        from DDR.docstore import post_json
-        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+        # NOTE: this is same basic code as docstore.index
+        return docstore.post(
+            hosts, index,
+            docstore.load_document_json(self.json_path, self.identifier.model, self.id),
+            docstore.public_fields().get(self.identifier.model, []),
+            {
+                'parent_id': self.parent_id,
+            }
+        )
     
     def changelog( self ):
         if os.path.exists(self.changelog_path):
@@ -1385,13 +924,14 @@ class Entity( object ):
         NS = NAMESPACES_TAGPREFIX
         ns = NAMESPACES_XPATH
         tree = etree.parse(StringIO(self.mets().xml))
-        for f in entitymodule.FIELDS:
+        module = self.identifier.fields_module()
+        for f in module.FIELDS:
             key = f['name']
             value = ''
             if hasattr(self, f['name']):
                 value = getattr(self, f['name'])
                 # run mets_* functions on field data if present
-                tree = Module(entitymodule).xml_function(
+                tree = modules.Module(module).xml_function(
                     'mets_%s' % key,
                     tree, NAMESPACES, f,
                     value
@@ -1402,7 +942,7 @@ class Entity( object ):
     def write_mets(self):
         """Write METS XML file to disk.
         """
-        write_xml(self.dump_mets(), self.mets_path)
+        fileio.write_text(self.dump_mets(), self.mets_path)
     
     @staticmethod
     def checksum_algorithms():
@@ -1423,7 +963,7 @@ class Entity( object ):
             fpath = os.path.join(self.files_path, f)
             # git-annex files are present
             if os.path.exists(fpath) and not os.path.islink(fpath):
-                cs = file_hash(fpath, algo)
+                cs = util.file_hash(fpath, algo)
             # git-annex files NOT present - get checksum from entity._files
             # WARNING: THIS MODULE SHOULD NOT KNOW ANYTHING ABOUT HIGHER-LEVEL CODE!
             elif os.path.islink(fpath) and hasattr(self, '_files'):
@@ -1436,7 +976,7 @@ class Entity( object ):
     
     def _file_paths( self ):
         """Returns relative paths to payload files.
-        TODO use metadata_files()
+        TODO use util.find_meta_files()
         """
         paths = []
         prefix_path = self.files_path
@@ -1445,7 +985,7 @@ class Entity( object ):
         if os.path.exists(self.files_path):
             for f in os.listdir(self.files_path):
                 paths.append(f.replace(prefix_path, ''))
-        paths = sorted(paths, key=lambda f: natural_order_string(f))
+        paths = sorted(paths, key=lambda f: util.natural_order_string(f))
         return paths
     
     def load_file_objects( self ):
@@ -1515,561 +1055,28 @@ class Entity( object ):
                 return f
         # just do nothing
         return None
-    
-    def _addfile_log_path( self ):
-        """Generates path to collection addfiles.log.
-        
-        Previously each entity had its own addfile.log.
-        Going forward each collection will have a single log file.
-            /STORE/log/REPO-ORG-CID-addfile.log
-        
-        @returns: absolute path to logfile
-        """
-        logpath = os.path.join(
-            LOG_DIR, 'addfile', self.parent_id, '%s.log' % self.id)
-        if not os.path.exists(os.path.dirname(logpath)):
-            os.makedirs(os.path.dirname(logpath))
-        return logpath
-    
-    def addfile_logger( self ):
-        log = EntityAddFileLogger()
-        log.logpath = self._addfile_log_path()
-        return log
-    
-    def add_file( self, src_path, role, data, git_name, git_mail, agent='' ):
-        """Add file to entity
-        
-        This method breaks out of OOP and manipulates entity.json directly.
-        Thus it needs to lock to prevent other edits while it does its thing.
-        Writes a log to ${entity}/addfile.log, formatted in pseudo-TAP.
-        This log is returned along with a File object.
-        
-        IMPORTANT: Files are only staged! Be sure to commit!
-        
-        @param src_path: Absolute path to an uploadable file.
-        @param role: Keyword of a file role.
-        @param data: 
-        @param git_name: Username of git committer.
-        @param git_mail: Email of git committer.
-        @param agent: (optional) Name of software making the change.
-        @return File,repo,log
-        """
-        f = None
-        repo = None
-        log = self.addfile_logger()
-        
-        def crash(msg):
-            """Write to addfile log and raise an exception."""
-            log.not_ok(msg)
-            raise Exception(msg)
 
-        log.ok('------------------------------------------------------------------------')
-        log.ok('DDR.models.Entity.add_file: START')
-        log.ok('entity: %s' % self.id)
-        log.ok('data: %s' % data)
-        
-        tmp_dir = os.path.join(
-            MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
-        dest_dir = self.files_path
-        
-        log.ok('Checking files/dirs')
-        def check_dir(label, path, mkdir=False, perm=os.W_OK):
-            log.ok('%s: %s' % (label, path))
-            if mkdir and not os.path.exists(path):
-                os.makedirs(path)
-            if not os.path.exists(path): crash('%s does not exist' % label)
-            if not os.access(path, perm): crash('%s not has permission %s' % (label, permission))
-        check_dir('| src_path', src_path, mkdir=False, perm=os.R_OK)
-        check_dir('| tmp_dir', tmp_dir, mkdir=True, perm=os.W_OK)
-        check_dir('| dest_dir', dest_dir, mkdir=True, perm=os.W_OK)
-        
-        log.ok('Checksumming')
-        md5    = file_hash(src_path, 'md5');    log.ok('| md5: %s' % md5)
-        sha1   = file_hash(src_path, 'sha1');   log.ok('| sha1: %s' % sha1)
-        sha256 = file_hash(src_path, 'sha256'); log.ok('| sha256: %s' % sha256)
-        if not sha1 and md5 and sha256:
-            crash('Could not calculate checksums')
-        
-        log.ok('Identifier')
-        idparts = {
-            'role': role,
-            'sha1': sha1[:10],
-        }
-        log.ok('| idparts %s' % idparts)
-        fidentifier = self.identifier.child('file', idparts, self.identifier.basepath)
-        log.ok('| identifier %s' % fidentifier)
-        
-        log.ok('Destination path')
-        src_ext = os.path.splitext(src_path)[1]
-        dest_basename = '{}{}'.format(fidentifier.id, src_ext)
-        log.ok('| dest_basename %s' % dest_basename)
-        dest_path = os.path.join(dest_dir, dest_basename)
-        log.ok('| dest_path %s' % dest_path)
-        
-        log.ok('File object')
-        file_ = File(path_abs=dest_path, identifier=fidentifier)
-        file_.basename_orig = os.path.basename(src_path)
-        # add extension to path_abs
-        file_.ext = os.path.splitext(file_.basename_orig)[1]
-        file_.path_abs = file_.path_abs + file_.ext
-        log.ok('file_.ext %s' % file_.ext)
-        log.ok('file_.path_abs %s' % file_.path_abs)
-        file_.size = os.path.getsize(src_path)
-        file_.role = role
-        file_.sha1 = sha1
-        file_.md5 = md5
-        file_.sha256 = sha256
-        log.ok('| file_ %s' % file_)
-        log.ok('| file_.basename_orig: %s' % file_.basename_orig)
-        log.ok('| file_.path_abs: %s' % file_.path_abs)
-        log.ok('| file_.size: %s' % file_.size)
-        # form data
-        for field in data:
-            setattr(file_, field, data[field])
-        
-        log.ok('Copying to work dir')
-        log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
-        tmp_path = os.path.join(tmp_dir, file_.basename_orig)
-        log.ok('| cp %s %s' % (src_path, tmp_path))
-        shutil.copy(src_path, tmp_path)
-        os.chmod(tmp_path, 0644)
-        if os.path.exists(tmp_path):
-            log.ok('| done')
-        else:
-            crash('Copy failed!')
-        
-        tmp_path_renamed = os.path.join(os.path.dirname(tmp_path), dest_basename)
-        log.ok('Renaming %s -> %s' % (os.path.basename(tmp_path), dest_basename))
-        os.rename(tmp_path, tmp_path_renamed)
-        if not os.path.exists(tmp_path_renamed) and not os.path.exists(tmp_path):
-            crash('File rename failed: %s -> %s' % (tmp_path, tmp_path_renamed))
-        
-        log.ok('Extracting XMP data')
-        file_.xmp = imaging.extract_xmp(src_path)
-        
-        log.ok('Making access file')
-        access_filename = File.access_filename(tmp_path_renamed)
-        access_dest_path = os.path.join(tmp_dir, os.path.basename(access_filename))
-        log.ok('src_path %s' % src_path)
-        log.ok('access_filename %s' % access_filename)
-        log.ok('access_dest_path %s' % access_dest_path)
-        log.ok('tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
-        tmp_access_path = None
-        try:
-            tmp_access_path = imaging.thumbnail(
-                src_path,
-                access_dest_path,
-                geometry=ACCESS_FILE_GEOMETRY)
-        except:
-            # write traceback to log and continue on
-            log.not_ok(traceback.format_exc().strip())
-        if tmp_access_path and os.path.exists(tmp_access_path):
-            log.ok('| attaching access file')
-            #dest_access_path = os.path.join('files', os.path.basename(tmp_access_path))
-            #log.ok('dest_access_path: %s' % dest_access_path)
-            file_.set_access(tmp_access_path, self)
-            log.ok('| file_.access_rel: %s' % file_.access_rel)
-            log.ok('| file_.access_abs: %s' % file_.access_abs)
-        else:
-            log.not_ok('no access file')
-        
-        log.ok('Attaching file to entity')
-        self.files.append(file_)
-        if file_ in self.files:
-            log.ok('| done')
-        else:
-            crash('Could not add file to entity.files!')
-        
-        log.ok('Writing file metadata')
-        tmp_file_json = os.path.join(tmp_dir, os.path.basename(file_.json_path))
-        log.ok(tmp_file_json)
-        write_json(file_.dump_json(), tmp_file_json)
-        if os.path.exists(tmp_file_json):
-            log.ok('| done')
-        else:
-            crash('Could not write file metadata %s' % tmp_file_json)
-        
-        log.ok('Writing entity metadata')
-        tmp_entity_json = os.path.join(tmp_dir, os.path.basename(self.json_path))
-        log.ok(tmp_entity_json)
-        write_json(self.dump_json(), tmp_entity_json)
-        if os.path.exists(tmp_entity_json):
-            log.ok('| done')
-        else:
-            crash('Could not write entity metadata %s' % tmp_entity_json)
-        
-        # WE ARE NOW MAKING CHANGES TO THE REPO ------------------------
-        
-        log.ok('Moving files to dest_dir')
-        new_files = [
-            [tmp_path_renamed, file_.path_abs],
-            [tmp_file_json, file_.json_path],
-        ]
-        if tmp_access_path and os.path.exists(tmp_access_path):
-            new_files.append([tmp_access_path, file_.access_abs])
-        mvfiles_failures = []
-        for tmp,dest in new_files:
-            log.ok('| mv %s %s' % (tmp,dest))
-            os.rename(tmp,dest)
-            if not os.path.exists(dest):
-                log.not_ok('FAIL')
-                mvfiles_failures.append(tmp)
-                break
-        # one of new_files failed to copy, so move all back to tmp
-        if mvfiles_failures:
-            log.not_ok('%s failures: %s' % (len(mvfiles_failures), mvfiles_failures))
-            log.not_ok('Moving files back to tmp_dir')
-            try:
-                for tmp,dest in new_files:
-                    log.ok('| mv %s %s' % (dest,tmp))
-                    os.rename(dest,tmp)
-                    if not os.path.exists(tmp) and not os.path.exists(dest):
-                        log.not_ok('FAIL')
-            except:
-                msg = "Unexpected error:", sys.exc_info()[0]
-                log.not_ok(msg)
-                raise
-            finally:
-                crash('Failed to place one or more files to destination repo')
-        else:
-            log.ok('| all files moved')
-        # entity metadata will only be copied if everything else was moved
-        log.ok('Moving entity.json to dest_dir')
-        log.ok('| mv %s %s' % (tmp_entity_json, self.json_path))
-        os.rename(tmp_entity_json, self.json_path)
-        if not os.path.exists(self.json_path):
-            crash('Failed to place entity.json in destination repo')
-        
-        log.ok('Staging files')
-        repo = dvcs.repository(file_.collection_path)
-        log.ok('| repo %s' % repo)
-        log.ok('file_.json_path_rel %s' % file_.json_path_rel)
-        git_files = [
-            self.json_path_rel,
-            file_.json_path_rel
-        ]
-        annex_files = [
-            file_.path_abs.replace('%s/' % file_.collection_path, '')
-        ]
-        if file_.access_abs and os.path.exists(file_.access_abs):
-            annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
-        # These vars will be used to determine if stage operation is successful.
-        # If called in batch operation there may already be staged files.
-        # stage_planned   Files added/modified by this function call
-        # stage_already   Files that were already staged
-        # stage_predicted List of staged files that should result from this operation.
-        # stage_new       Files that are being added.
-        stage_planned = git_files + annex_files
-        stage_already = dvcs.list_staged(repo)
-        stage_predicted = self._addfile_predict_staged(stage_already, stage_planned)
-        stage_new = [x for x in stage_planned if x not in stage_already]
-        log.ok('| %s files to stage:' % len(stage_planned))
-        for sp in stage_planned:
-            log.ok('|   %s' % sp)
-        stage_ok = False
-        staged = []
-        try:
-            dvcs.stage(repo, git_files, annex_files)
-            staged = dvcs.list_staged(repo)
-        except:
-            # FAILED! print traceback to addfile log
-            log.not_ok(traceback.format_exc().strip())
-        finally:
-            log.ok('| %s files staged:' % len(staged))
-            for sp in staged:
-                log.ok('|   %s' % sp)
-            if len(staged) == len(stage_predicted):
-                log.ok('| %s files staged (%s new, %s modified)' % (
-                    len(staged), len(stage_new), len(stage_already))
-                )
-                stage_ok = True
-            else:
-                log.not_ok('%s new files staged (should be %s)' % (
-                    len(staged), len(stage_predicted))
-                )
-            if not stage_ok:
-                log.not_ok('File staging aborted. Cleaning up')
-                # try to pick up the pieces
-                # mv files back to tmp_dir
-                # TODO Properly clean up git-annex-added files.
-                #      This clause moves the *symlinks* to annex files but leaves
-                #      the actual binaries in the .git/annex objects dir.
-                for tmp,dest in new_files:
-                    log.not_ok('| mv %s %s' % (dest,tmp))
-                    os.rename(dest,tmp)
-                log.not_ok('finished cleanup. good luck...')
-                raise crash('Add file aborted, see log file for details.')
-        
-        # IMPORTANT: Files are only staged! Be sure to commit!
-        # IMPORTANT: changelog is not staged!
-        return file_,repo,log
+    def addfile_logger(self):
+        return ingest.addfile_logger(self)
     
-    def _addfile_predict_staged(self, already, planned):
-        """Predict which files will be staged, accounting for modifications
-        
-        When running a batch import there will already be staged files when this function is called.
-        Some files to be staged will be modifications (e.g. entity.json).
-        Predicts the list of files that will be staged if this round of add_file succeeds.
-        how many files SHOULD be staged after we run this?
-        
-        @param already: list Files already staged.
-        @param planned: list Files to be added/modified in this operation.
-        @returns: list
-        """
-        additions = [path for path in planned if path not in already]
-        total = already + additions
-        return total
+    def add_file(self, src_path, role, data, git_name, git_mail, agent=''):
+        return ingest.add_file(self, src_path, role, data, git_name, git_mail, agent)
+    
+    def add_access(self, ddrfile, git_name, git_mail, agent=''):
+        return ingest.add_access(self, ddrfile, git_name, git_mail, agent='')
     
     def add_file_commit(self, file_, repo, log, git_name, git_mail, agent):
-        log.ok('add_file_commit(%s, %s, %s, %s, %s, %s)' % (file_, repo, log, git_name, git_mail, agent))
-        staged = dvcs.list_staged(repo)
-        modified = dvcs.list_modified(repo)
-        if staged and not modified:
-            log.ok('All files staged.')
-            log.ok('Updating changelog')
-            path = file_.path_abs.replace('{}/'.format(self.path), '')
-            changelog_messages = ['Added entity file {}'.format(path)]
-            if agent:
-                changelog_messages.append('@agent: %s' % agent)
-            changelog.write_changelog_entry(
-                self.changelog_path, changelog_messages, git_name, git_mail)
-            log.ok('git add %s' % self.changelog_path_rel)
-            git_files = [self.changelog_path_rel]
-            dvcs.stage(repo, git_files)
-            
-            log.ok('Committing')
-            commit = dvcs.commit(repo, 'Added entity file(s)', agent)
-            log.ok('commit: {}'.format(commit.hexsha))
-            committed = dvcs.list_committed(repo, commit)
-            committed.sort()
-            log.ok('files committed:')
-            for f in committed:
-                log.ok('| %s' % f)
-            
-        else:
-            log.not_ok('%s files staged, %s files modified' % (len(staged),len(modified)))
-            log.not_ok('staged %s' % staged)
-            log.not_ok('modified %s' % modified)
-            log.not_ok('Can not commit!')
-            raise Exception()
-        return file_,repo,log
-    
-    def add_access( self, ddrfile, git_name, git_mail, agent='' ):
-        """Generate new access file for entity
-        
-        This method breaks out of OOP and manipulates entity.json directly.
-        Thus it needs to lock to prevent other edits while it does its thing.
-        Writes a log to ${entity}/addfile.log, formatted in pseudo-TAP.
-        This log is returned along with a File object.
-        
-        TODO Refactor this function! It is waaay too long!
-        
-        @param ddrfile: File
-        @param git_name: Username of git committer.
-        @param git_mail: Email of git committer.
-        @param agent: (optional) Name of software making the change.
-        @return file_ File object
-        """
-        f = None
-        repo = None
-        log = self.addfile_logger()
-        
-        def crash(msg):
-            """Write to addfile log and raise an exception."""
-            log.not_ok(msg)
-            raise Exception(msg)
-        
-        src_path = ddrfile.path_abs
-        
-        log.ok('------------------------------------------------------------------------')
-        log.ok('DDR.models.Entity.add_access: START')
-        log.ok('entity: %s' % self.id)
-        log.ok('ddrfile: %s' % ddrfile)
-        
-        tmp_dir = os.path.join(
-            MEDIA_BASE, 'tmp', 'file-add', self.parent_id, self.id)
-        dest_dir = self.files_path
-        
-        log.ok('Checking files/dirs')
-        def check_dir(label, path, mkdir=False, perm=os.W_OK):
-            log.ok('%s: %s' % (label, path))
-            if mkdir and not os.path.exists(path):
-                os.makedirs(path)
-            if not os.path.exists(path): crash('%s does not exist' % label)
-            if not os.access(path, perm): crash('%s not has permission %s' % (label, permission))
-        check_dir('| src_path', src_path, mkdir=False, perm=os.R_OK)
-        check_dir('| tmp_dir', tmp_dir, mkdir=True, perm=os.W_OK)
-        check_dir('| dest_dir', dest_dir, mkdir=True, perm=os.W_OK)
-        
-        #log.ok('Checksumming')
-        
-        log.ok('Identifier')
-        log.ok('| file_id %s' % ddrfile.id)
-        log.ok('| basepath %s' % self.identifier.basepath)
-        fidentifier = Identifier(ddrfile.id, self.identifier.basepath)
-        log.ok('| identifier %s' % fidentifier)
-        
-        #log.ok('Destination path')
-        
-        log.ok('File object')
-        file_ = File(path_abs=src_path, identifier=fidentifier)
-        log.ok('| file_ %s' % file_)
-        
-        #log.ok('Copying to work dir')
-        #log.ok('Extracting XMP data')
-        
-        log.ok('Making access file')
-        access_filename = os.path.basename(File.access_filename(src_path))
-        access_tmp = os.path.join(tmp_dir, access_filename)
-        log.ok('| src_path %s' % src_path)
-        log.ok('| access_filename %s' % access_filename)
-        log.ok('| file_.access_rel: %s' % file_.access_rel)
-        log.ok('| file_.access_abs: %s' % file_.access_abs)
-        log.ok('| access_tmp %s' % access_tmp)
-        log.ok('| tmp_dir exists: %s (%s)' % (os.path.exists(tmp_dir), tmp_dir))
-        tmp_access_path = None
-        try:
-            log.ok('| creating thumbnail: %s' % tmp_access_path)
-            tmp_access_path = imaging.thumbnail(
-                src_path,
-                access_tmp,
-                geometry=ACCESS_FILE_GEOMETRY)
-            log.ok('| done')
-        except:
-            # write traceback to log and continue on
-            log.not_ok(traceback.format_exc().strip())
-        if tmp_access_path and os.path.exists(tmp_access_path):
-            log.ok('| access file exists')
-        else:
-            crash('Failed to make an access file from %s' % src_path)
-        
-        #log.ok('Attaching file to entity')
-        
-        log.ok('Writing file metadata')
-        tmp_file_json = os.path.join(tmp_dir, os.path.basename(file_.json_path))
-        log.ok('| %s' % tmp_file_json)
-        write_json(file_.dump_json(), tmp_file_json)
-        if os.path.exists(tmp_file_json):
-            log.ok('| done')
-        else:
-            crash('Could not write file metadata %s' % tmp_file_json)
-        
-        #log.ok('Writing entity metadata')
-        
-        # WE ARE NOW MAKING CHANGES TO THE REPO ------------------------
-        
-        log.ok('Moving files to dest_dir')
-        new_files = []
-        if tmp_access_path and os.path.exists(tmp_access_path):
-            new_files.append([tmp_access_path, file_.access_abs])
-        mvfiles_failures = []
-        for tmp,dest in new_files:
-            log.ok('| mv %s %s' % (tmp,dest))
-            os.rename(tmp,dest)
-            if not os.path.exists(dest):
-                log.not_ok('FAIL')
-                mvfiles_failures.append(tmp)
-                break
-        # one of new_files failed to copy, so move all back to tmp
-        if mvfiles_failures:
-            log.not_ok('%s failures: %s' % (len(mvfiles_failures), mvfiles_failures))
-            log.not_ok('Moving files back to tmp_dir')
-            try:
-                for tmp,dest in new_files:
-                    log.ok('| mv %s %s' % (dest,tmp))
-                    os.rename(dest,tmp)
-                    if not os.path.exists(tmp) and not os.path.exists(dest):
-                        log.not_ok('FAIL')
-            except:
-                msg = "Unexpected error:", sys.exc_info()[0]
-                log.not_ok(msg)
-                raise
-            finally:
-                crash('Failed to place one or more files to destination repo')
-        else:
-            log.ok('| all files moved')
-        # file metadata will only be copied if everything else was moved
-        log.ok('Moving file .json to dest_dir')
-        log.ok('| mv %s %s' % (tmp_file_json, file_.json_path))
-        os.rename(tmp_file_json, file_.json_path)
-        if not os.path.exists(file_.json_path):
-            crash('Failed to place file metadata in destination repo')
-        
-        log.ok('Staging files')
-        repo = dvcs.repository(file_.collection_path)
-        log.ok('| repo %s' % repo)
-        git_files = [
-            file_.json_path_rel
-        ]
-        annex_files = [
-            file_.access_rel
-        ]
-        # These vars will be used to determine if stage operation is successful.
-        # If called in batch operation there may already be staged files.
-        # stage_planned   Files added/modified by this function call
-        # stage_already   Files that were already staged
-        # stage_predicted List of staged files that should result from this operation.
-        # stage_new       Files that are being added.
-        stage_planned = git_files + annex_files
-        stage_already = dvcs.list_staged(repo)
-        stage_predicted = self._addfile_predict_staged(stage_already, stage_planned)
-        stage_new = [x for x in stage_planned if x not in stage_already]
-        log.ok('| %s to stage:' % len(stage_planned))
-        log.ok('| %s git files:' % len(git_files))
-        for sp in git_files:
-            log.ok('|   %s' % sp)
-        log.ok('| %s annex files:' % len(annex_files))
-        for sp in annex_files:
-            log.ok('|   %s' % sp)
-        stage_ok = False
-        staged = []
-        assert False
-        try:
-            log.ok('dvcs.stage(%s, %s, %s)' % (repo, git_files, annex_files))
-            dvcs.stage(repo, git_files, annex_files)
-            staged = dvcs.list_staged(repo)
-        except:
-            # FAILED! print traceback to addfile log
-            log.not_ok(traceback.format_exc().strip())
-        finally:
-            log.ok('| %s files staged:' % len(staged))
-            for sp in staged:
-                log.ok('|   %s' % sp)
-            if len(staged) == len(stage_predicted):
-                log.ok('| %s files staged (%s new, %s modified)' % (
-                    len(staged), len(stage_new), len(stage_already))
-                )
-                stage_ok = True
-            else:
-                log.not_ok('%s new files staged (should be %s)' % (
-                    len(staged), len(stage_predicted))
-                )
-            if not stage_ok:
-                log.not_ok('File staging aborted. Cleaning up')
-                # try to pick up the pieces
-                # mv files back to tmp_dir
-                # TODO Properly clean up git-annex-added files.
-                #      This clause moves the *symlinks* to annex files but leaves
-                #      the actual binaries in the .git/annex objects dir.
-                for tmp,dest in new_files:
-                    log.not_ok('| mv %s %s' % (dest,tmp))
-                    os.rename(dest,tmp)
-                log.not_ok('finished cleanup. good luck...')
-                raise crash('Add file aborted, see log file for details.')
-        
-        # IMPORTANT: Files are only staged! Be sure to commit!
-        # IMPORTANT: changelog is not staged!
-        return file_,repo,log
+        return ingest.add_file_commit(self, file_, repo, log, git_name, git_mail, agent)
 
-    def rm_file(self, file_, git_name, git_mail, agent ):
+    def prep_rm_file(self, file_):
         """Delete specified file and update Entity.
         
-        @param git_name: str
-        @param git_name: str
-        @param agent: str
+        IMPORTANT: This function modifies entity.json and lists files to remove.
+        The actual file removal and commit is done by commands.file_destroy.
+        
+        @param file_: File
         """
-        from DDR import docstore
-        logger.debug('%s.rm_file(%s, %s, %s, %s)' % (self, file_, git_name, git_mail, agent))
+        logger.debug('%s.rm_file(%s)' % (self, file_))
         # list of files to be *removed*
         rm_files = [
             f for f in file_.files_rel()
@@ -2078,7 +1085,6 @@ class Entity( object ):
             )
         ]
         # remove pointers to file in entity.json
-        # TODO move this to commands.file_destroy or models.Entity
         logger.debug('removing:')
         for f in self.files:
             logger.debug('| %s' % f)
@@ -2089,17 +1095,7 @@ class Entity( object ):
         # list of files to be *updated*
         updated_files = ['entity.json']
         logger.debug('updated_files: %s' % updated_files)
-        # remove and commit
-        from DDR import commands
-        status,message = commands.file_destroy(
-            git_name, git_mail,
-            self.collection_path, self.id,
-            rm_files, updated_files,
-            agent
-        )
-        logger.debug(status)
-        logger.debug(message)
-        return status,message
+        return rm_files,updated_files
 
 
 
@@ -2223,7 +1219,7 @@ class File( object ):
         @returns: DDRFile
         """
         #file_ = File(path_abs=path_abs)
-        #file_.load_json(read_json(file_.json_path))
+        #file_.load_json(fileio.read_text(file_.json_path))
         #return file_
         return from_json(File, path_abs, identifier)
     
@@ -2243,16 +1239,11 @@ class File( object ):
     def children( self, quick=None ):
         return []
     
-    def model_def_commits( self ):
-        return Module(filemodule).cmp_model_definition_commits(self)
-    
-    def model_def_fields( self ):
-        return Module(filemodule).cmp_model_definition_fields(read_json(self.json_path))
-    
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
-        return Module(filemodule).labels_values(self)
+        module = self.identifier.fields_module()
+        return modules.Module(module).labels_values(self)
     
     def files_rel( self ):
         """Returns list of the file, its metadata JSON, and access file, relative to collection.
@@ -2281,14 +1272,15 @@ class File( object ):
         return False
     
     def inherit( self, parent ):
-        Inheritance.inherit( parent, self )
+        inheritance.inherit( parent, self )
     
     def load_json(self, json_text):
         """Populate File data from JSON-formatted text.
         
         @param json_text: JSON-formatted text
         """
-        json_data = load_json(self, filemodule, json_text)
+        module = self.identifier.fields_module()
+        json_data = load_json(self, module, json_text)
         # fill in the blanks
         if self.access_rel:
             access_abs = os.path.join(self.entity_files_path, self.access_rel)
@@ -2309,12 +1301,13 @@ class File( object ):
     def dump_json(self, doc_metadata=False):
         """Dump File data to JSON-formatted text.
         
-        @param doc_metadata: boolean. Insert document_metadata().
+        @param doc_metadata: boolean. Insert object_metadata().
         @returns: JSON-formatted text
         """
-        data = prep_json(self, filemodule)
+        module = self.identifier.fields_module()
+        data = prep_json(self, module)
         if doc_metadata:
-            data.insert(0, document_metadata(filemodule, self.collection_path))
+            data.insert(0, object_metadata(module, self.collection_path))
         # what we call path_rel in the .json is actually basename
         data.insert(1, {'path_rel': self.basename})
         return format_json(data)
@@ -2322,11 +1315,19 @@ class File( object ):
     def write_json(self):
         """Write JSON file to disk.
         """
-        write_json(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
     
-    def post_json(self, hosts, index):
-        from DDR.docstore import post_json
-        return post_json(hosts, index, self.identifier.model, self.id, self.json_path)
+    def post_json(self, hosts, index, public=False):
+        # NOTE: this is same basic code as docstore.index
+        return docstore.post(
+            hosts, index,
+            docstore.load_document_json(self.json_path, self.identifier.model, self.id),
+            docstore.public_fields().get(self.identifier.model, []),
+            {
+                'parent_id': self.parent_id,
+                'entity_id': self.parent_id,
+            }
+        )
     
     @staticmethod
     def file_name( entity, path_abs, role, sha1=None ):
@@ -2347,7 +1348,7 @@ class File( object ):
         if os.path.exists and os.access(path_abs, os.R_OK):
             ext = os.path.splitext(path_abs)[1]
             if not sha1:
-                sha1 = file_hash(path_abs, 'sha1')
+                sha1 = util.file_hash(path_abs, 'sha1')
             if sha1:
                 idparts = [a for a in entity.idparts]
                 idparts.append(role)
@@ -2406,7 +1407,7 @@ class File( object ):
         """
         return '%s%s.%s' % (
             os.path.splitext(src_abs)[0],
-            ACCESS_FILE_APPEND,
+            config.ACCESS_FILE_APPEND,
             'jpg')
     
     def links_incoming( self ):
@@ -2419,7 +1420,7 @@ class File( object ):
         if r.std_out:
             jsons = r.std_out.strip().split('\n')
         for filename in jsons:
-            data = json.loads(read_json(filename))
+            data = json.loads(fileio.read_text(filename))
             path_rel = None
             for field in data:
                 if field.get('path_rel',None):

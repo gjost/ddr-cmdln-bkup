@@ -23,10 +23,10 @@ def test_load_string():
 def test_load_datetime():
     fmt = '%Y-%m-%dT%H:%M:%S'
     text0 = None
-    data0 = None
+    data0 = ''
     assert csv.load_datetime(text0, fmt) == data0
     text1 = ''
-    data1 = None
+    data1 = ''
     assert csv.load_datetime(text1, fmt) == data1
     text2 = '1970-1-1T00:00:00'
     data2 = datetime(1970, 1, 1, 0, 0)

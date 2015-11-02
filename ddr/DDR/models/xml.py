@@ -4,7 +4,7 @@ import os
 
 from lxml import etree
 
-from DDR import TEMPLATE_EAD, TEMPLATE_METS
+from DDR.config import TEMPLATE_EAD, TEMPLATE_METS
 
 
 NAMESPACES = {

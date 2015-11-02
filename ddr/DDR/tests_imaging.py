@@ -1,4 +1,13 @@
+import os
+import urllib
+
+from nose.tools import assert_raises
+
 import imaging
+
+
+TEST_IMG_URL = 'https://web.archive.org/web/20011221151014im_/http://densho.org/images/logo.jpg'
+TEST_IMG_PATH = '/tmp/ddr-test-imaging.jpg'
 
 
 identify_out = {
@@ -31,7 +40,19 @@ def test_analyze_magick():
     assert docx['format'] == None
     assert docx['image'] == False
 
-# test_analyze
+def test_analyze():
+    if not os.path.exists(TEST_IMG_PATH):
+        urllib.urlretrieve(TEST_IMG_URL, TEST_IMG_PATH)
+    path0 = '/tmp/missingfile.jpg'
+    path1 = TEST_IMG_PATH
+    assert_raises(Exception, imaging.analyze, path0)
+    assert os.path.exists(path1)
+    out1 = imaging.analyze(path1)
+    expected1 = {
+        'path': '/tmp/ddr-test-imaging.jpg',
+        'frames': 1, 'can_thumbnail': None, 'image': True, 'format': 'JPEG'
+    }
+    assert out1 == expected1
 
 geometry = {
     'ok': ['123x123', '123>x123', '123x123>', '123x', 'x123',],
@@ -49,7 +70,22 @@ def test_make_convert_cmd():
         dest='/tmp/file-thumb.jpg',
         geometry='100x100'
     )
-    assert cmd == "convert /tmp/file.tif[0] -resize '100x100' /tmp/file-thumb.jpg"
+    assert cmd == "convert /tmp/file.tif -resize '100x100' /tmp/file-thumb.jpg"
 
-# test_thumbnail
-# test_extract_xmp
+def test_thumbnail():
+    if not os.path.exists(TEST_IMG_PATH):
+        urllib.urlretrieve(TEST_IMG_URL, TEST_IMG_PATH)
+    src = TEST_IMG_PATH
+    dest = '/tmp/ddr-test-imaging-thumb.jpg'
+    geometry = '100x100'
+    assert os.path.exists(src)
+    imaging.thumbnail(src, dest, geometry)
+    assert os.path.exists(dest)
+
+def test_extract_xmp():
+    if not os.path.exists(TEST_IMG_PATH):
+        urllib.urlretrieve(TEST_IMG_URL, TEST_IMG_PATH)
+    out0 = imaging.extract_xmp(TEST_IMG_PATH)
+    expected0 = '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Exempi + XMP Core 5.1.2"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about=""/></rdf:RDF></x:xmpmeta>'
+    print(out0)
+    assert out0 == expected0

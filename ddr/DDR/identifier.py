@@ -28,6 +28,18 @@ MODEL_CLASSES = {
     'repository':   {'module': 'DDR.models', 'class':'Stub'},
 }
 
+# TODO no hard-coding: import using os.listdir
+MODULES = { key:None for key in MODELS }
+try:
+    from repo_models import collection as collectionmodule
+    from repo_models import entity as entitymodule
+    from repo_models import files as filemodule
+    MODULES['collection'] = collectionmodule
+    MODULES['entity'] = entitymodule
+    MODULES['file'] = filemodule
+except ImportError:
+    raise Exception('Could not import repo_models modules!')
+
 # map model names to module files in ddr repo's repo_models
 MODEL_REPO_MODELS = {
     'file':         {'module': 'repo_models.files', 'class':'file', 'as':'filemodule'},
@@ -106,7 +118,8 @@ FILETYPE_MATCH_ANNEX = {
 #
 
 def _compile_patterns(patterns):
-    """Replace str regexes with compiled regular expression objects."""
+    """Replace str regexes with compiled regular expression objects.
+    """
     new = []
     for p in patterns:
         pattern = [x for x in p]
@@ -127,25 +140,25 @@ ID_PATTERNS = _compile_patterns((
 # Fields can't appear multiple times in regexes so redundant fields have numbers.
 PATH_PATTERNS = _compile_patterns((
     # file-abs
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-abs'),
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-abs', 'file'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-abs'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-abs', 'file'),
     # file-rel
     (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-rel', 'file'),
     (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-rel', 'file'),
     (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-rel', 'file'),
     # entity
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)', 'entity-abs', 'entity'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)', 'entity-abs', 'entity'),
     (r'^files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity-rel', 'entity'),
     # collection
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)', 'collection'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)', 'collection'),
     (r'^collection.json$', 'collection-meta-rel', 'collection'),
     # organization
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization-abs', 'organization'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization-abs', 'organization'),
     (r'^organization.json$', 'organization-meta-rel', 'organization'),
     # repository
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)/repository.json$', 'repository-meta-abs', 'repository'),
-    (r'(?P<basepath>[\w/]+/ddr/)(?P<repo>[\w]+)$', 'repository-meta-abs', 'repository'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo>[\w]+)/repository.json$', 'repository-meta-abs', 'repository'),
+    (r'(?P<basepath>[\w/-]+/ddr/)(?P<repo>[\w]+)$', 'repository-meta-abs', 'repository'),
     (r'^repository.json$', 'repository-meta-rel', 'repository'),
 ))
 
@@ -273,21 +286,22 @@ def identify_object(text, patterns):
     @param patterns: list Patterns in which to look
     @returns: dict groupdict resulting from successful regex match
     """
-    model = ''
-    groupdict = {}
+    model = None
+    groupdict = None
     for tpl in patterns:
         pattern = tpl[0]
-        model = tpl[-1]
         m = re.match(pattern, text)
         if m:
-            model = model
+            model = tpl[-1]
             groupdict = m.groupdict()
             break
     return model,groupdict
 
 def identify_filepath(path):
-    """
+    """Indicates file role or if path is an access file.
+    
     TODO use VALID_COMPONENTS or similar rather than hard-coding
+    Probably better to do the access file matching separately
     
     @param text: str Text string to look for
     @returns: str File type or None
@@ -298,14 +312,20 @@ def identify_filepath(path):
     elif 'master' in path: ftype = 'master'
     return ftype
 
-def set_idparts(i, groupdict):
+def set_idparts(i, groupdict, components=ID_COMPONENTS):
+    """Sets keys,values of groupdict as attributes of identifier.
+    
+    @param i: Identifier
+    @param groupdict: dict
+    @param components: list [optional]
+    """
     i.basepath = groupdict.get('basepath', None)
     if i.basepath:
         i.basepath = os.path.normpath(i.basepath)
     # list of object ID components
     i.parts = OrderedDict([
         (key, groupdict[key])
-        for key in ID_COMPONENTS
+        for key in components
         if groupdict.get(key)
     ])
     # set object attributes with numbers as ints
@@ -313,49 +333,57 @@ def set_idparts(i, groupdict):
         if val.isdigit():
             i.parts[key] = int(val)
 
-def format_id(i, model):
+def format_id(i, model, templates=ID_TEMPLATES):
     """Format ID for the requested model using ID_TEMPLATES.
     
     Hint: you can get parent IDs from an Identifier.
     
     @param i: Identifier
     @param model: str A legal model keyword
+    @param templates: [optional] dict of str templates keyed to models
     @returns: str
     """
-    return ID_TEMPLATES[model].format(**i.parts)
+    return templates[model].format(**i.parts)
 
-def format_path(i, model, path_type):
+def format_path(i, model, path_type, templates=PATH_TEMPLATES):
     """Format absolute or relative path using PATH_TEMPLATES.
     
     @param i: Identifier
     @param model: str A legal model keyword
     @param path_type: str 'abs' or 'rel'
+    @param templates: [optional] dict of str templates keyed to models
     @returns: str or None
     """
+    if path_type and (path_type == 'abs') and (not i.basepath):
+        raise MissingBasepathException('%s basepath not set.'% i)
     key = '-'.join([model, path_type])
-    template = PATH_TEMPLATES.get(key, None)
+    template = templates.get(key, None)
     if template:
         kwargs = {key: val for key,val in i.parts.items()}
         kwargs['basepath'] = i.basepath
         return template.format(**kwargs)
     return None
 
-def format_url(i, model, url_type):
+def format_url(i, model, url_type, templates=URL_TEMPLATES):
     """Format URL using URL_TEMPLATES.
     
     @param i: Identifier
     @param model: str A legal model keyword
     @param url_type: str 'public' or 'editor'
+    @param templates: [optional] dict of str templates keyed to models
     @returns: str
     """
     try:
-        template = URL_TEMPLATES[url_type][model]
+        template = templates[url_type][model]
         return template.format(**i.parts)
     except KeyError:
         return None
 
 def matches_pattern(text, patterns):
-    """
+    """True if text matches one of patterns
+    
+    Used for telling what kind of pattern (id, path, url) an arg is.
+    
     @param text: str
     @returns: dict of idparts including model
     """
@@ -396,6 +424,12 @@ def _is_abspath(text):
     return False
 
 def _parse_args_kwargs(keys, args, kwargs):
+    """Attempts to convert Identifier.__init__ args to kwargs.
+    
+    @param keys: list Whitelist of accepted kwargs
+    @param args: list
+    @param kwargs: dict
+    """
     # TODO there's probably something in stdlib for this...
     blargs = {key:None for key in keys}
     if args:
@@ -487,15 +521,16 @@ class Identifier(object):
         return {}
 
     @staticmethod
-    def valid(idparts):
+    def valid(idparts, components=VALID_COMPONENTS):
         """Checks if all non-int ID components are valid.
         
         @param idparts: dict
+        @param components: dict 
         @returns: True or dict containing name of invalid component
         """
         invalid = [
-            key for key in VALID_COMPONENTS.iterkeys()
-            if idparts[key] not in VALID_COMPONENTS[key]
+            key for key in components.iterkeys()
+            if idparts.get(key) and (idparts[key] not in components[key])
         ]
         if not invalid:
             return True
@@ -610,7 +645,8 @@ class Identifier(object):
             base_path = os.path.normpath(base_path)
         self.method = 'url'
         self.raw = url
-        urlpath = urlparse(url).path
+        urlpath = urlparse(url).path  # ignore domain and queries
+        urlpath = os.path.normpath(urlpath)
         model,groupdict = identify_object(urlpath, URL_PATTERNS)
         if not groupdict:
             raise MalformedURLException('Malformed URL: "%s"' % url)
@@ -631,6 +667,8 @@ class Identifier(object):
         return parts
 
     def fields_module(self, mappings=MODEL_REPO_MODELS):
+        """Identifier's fields definitions module from repo_models.
+        """
         return module_for_name(
             mappings[self.model]['module']
         )
@@ -644,14 +682,20 @@ class Identifier(object):
         )
     
     def object(self, mappings=MODEL_CLASSES):
+        """The object identified by the Identifier.
+        """
         return self.object_class(mappings).from_identifier(self)
     
     def collection_id(self):
+        """ID of the collection to which the Identifier belongs, if any.
+        """
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection IDs' % self.model.capitalize())
         return format_id(self, 'collection')
     
     def collection_path(self):
+        """Absolute path of the collection to which the Identifier belongs, if any.
+        """
         if not self.model in COLLECTION_MODELS:
             raise Exception('%s objects do not have collection paths' % self.model.capitalize())
         if not self.basepath:
@@ -659,10 +703,13 @@ class Identifier(object):
         return os.path.normpath(format_path(self, 'collection', 'abs'))
     
     def collection(self):
+        """Collection object to which the Identifier belongs, if any.
+        """
         return self.__class__(id=self.collection_id(), base_path=self.basepath)
     
     def parent_id(self, stubs=False):
-        """
+        """ID of the Identifier's parent, if any.
+        
         @param stubs: boolean Whether or not to include Stub objects.
         """
         if stubs:

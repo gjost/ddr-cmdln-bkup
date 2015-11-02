@@ -9,17 +9,11 @@ import sys
 import envoy
 import git
 
+from DDR import config
 from DDR import storage
 from DDR import dvcs
-from DDR.identifier import Identifier
-from DDR.models import Collection as DDRCollection, Entity as DDREntity
 from DDR.changelog import write_changelog_entry
 from DDR.organization import group_repo_level, repo_level, repo_annex_get, read_group_file
-
-from DDR import GITOLITE
-from DDR import GIT_REMOTE_NAME
-from DDR import ACCESS_FILE_APPEND
-from DDR import ACCESS_FILE_EXTENSION
 
 MODULE_PATH = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(MODULE_PATH, 'templates')
@@ -32,9 +26,9 @@ def requires_network(f):
     """
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if not dvcs.gitolite_connect_ok(GITOLITE):
-            logging.error('Cannot connect to git server {}'.format(GITOLITE))
-            return 1,'cannot connect to git server {}'.format(GITOLITE)
+        if not dvcs.gitolite_connect_ok(config.GITOLITE):
+            logging.error('Cannot connect to git server {}'.format(config.GITOLITE))
+            return 1,'cannot connect to git server {}'.format(config.GITOLITE)
         return f(*args, **kwargs)
     return wrapper
 
@@ -159,73 +153,49 @@ def storage_status( path ):
     return 0,storage.storage_status(path)
 
 
-
-#@command
-@local_only
-def collections_local(collections_root, repository, organization):
-    """Command-line function for listing collections on the local system.
-    
-    Looks for directories under collection_root with names matching the
-    "{repository}-{organization}-*" pattern and containing ead.xml files.
-    Doesn't check validity beyond that.
-    
-    @param collections_root: Absolute path of dir in which collections are located.
-    @param repository: Repository keyword.
-    @param organization: Organization keyword.
-    @return: list of collection IDs
-    """
-    if not (os.path.exists(collections_root) and os.path.isdir(collections_root)):
-        message = '{} does not exist or is not a directory'.format(collections_root)
-        raise Exception(message)
-    return DDRCollection.collection_paths(collections_root, repository, organization)
-
-
 @command
 @requires_network
-def clone(user_name, user_mail, collection_id, alt_collection_path):
+def clone(user_name, user_mail, identifier, dest_path):
     """Command-line function for cloning an existing collection.
     
     Clones existing collection object from workbench server.
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_id: A valid DDR collection ID
-    @param alt_collection_path: Absolute path to which repo will be cloned (includes collection ID)
+    @param identifier: Identifier
+    @param dest_path: str
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=alt_collection_path)
-    )
-    url = '{}:{}.git'.format(GITOLITE, collection_id)
-    
-    repo = git.Repo.clone_from(url, alt_collection_path)
-    logging.debug('    git clone {}'.format(url))
+    git_url = '{}:{}.git'.format(config.GITOLITE, identifier.id)
+    repo = git.Repo.clone_from(git_url, dest_path)
+    logging.debug('    git clone {}'.format(git_url))
     if repo:
         logging.debug('    OK')
     else:
         logging.error('    COULD NOT CLONE!')
         return 1,'could not clone'
-    if os.path.exists(os.path.join(alt_collection_path, '.git')):
+    if os.path.exists(identifier.path_abs('git')):
         logging.debug('    .git/ is present')
     else:
         logging.error('    .git/ IS MISSING!')
         return 1,'.git/ is missing'
     # git annex init if not already existing
-    if not os.path.exists(os.path.join(alt_collection_path, '.git', 'annex')):
+    if not os.path.exists(identifier.path_abs('annex')):
         logging.debug('    git annex init')
         repo.git.annex('init')
     #
     repo.git.checkout('master')
     repo = dvcs.set_git_configs(repo, user_name, user_mail)
-    dvcs.set_annex_description(repo)
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    drive_label = storage.drive_label(repo.working_dir)
+    dvcs.set_annex_description(repo, drive_label=drive_label)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, git_url)
     return 0,'ok'
 
 
 @command
 @requires_network
-def create(user_name, user_mail, collection_path, templates, agent=''):
+def create(user_name, user_mail, identifier, templates, agent=''):
     """Command-line function for creating a new collection.
     
     Clones a blank collection object from workbench server, adds files, commits.
@@ -246,42 +216,41 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
+    @param identifier: Identifier
     @param templates: List of metadata templates (absolute paths).
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    
-    url = '{}:{}.git'.format(GITOLITE, collection.id)
-    
-    repo = git.Repo.clone_from(url, collection.path)
-    logging.debug('    git clone {}'.format(url))
+    git_url = '{}:{}.git'.format(config.GITOLITE, identifier.id)
+    repo = git.Repo.clone_from(git_url, identifier.path_abs())
+    logging.debug('    git clone {}'.format(git_url))
     if repo:
         logging.debug('    OK')
     else:
         logging.error('    COULD NOT CLONE!')
-    if os.path.exists(os.path.join(collection.path, '.git')):
+    if os.path.exists(identifier.path_abs('git')):
         logging.debug('    .git/ is present')
     else:
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
-    repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    repo.create_remote(config.GIT_REMOTE_NAME, git_url)
     repo = dvcs.set_git_configs(repo, user_name, user_mail)
     git_files = []
     
     # copy template files to collection
     for src in templates:
         if os.path.exists(src):
-            dst = os.path.join(collection.path, os.path.basename(src))
+            dst = os.path.join(identifier.path_abs(), os.path.basename(src))
             logging.debug('cp %s, %s' % (src, dst))
             shutil.copy(src, dst)
             if os.path.exists(dst):
                 git_files.append(dst)
             else:
                 logging.error('COULD NOT COPY %s' % src)
+
+    # instantiate now that we have collection dir and some templates
+    object_class = identifier.object_class()
+    collection = object_class(identifier.path_abs())
     
     # add control, .gitignore, changelog
     control   = collection.control()
@@ -321,15 +290,16 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
         logging.error('    .git/annex/ IS MISSING!')
     
     # manual version of git-annex-sync - see notes for DDR.commands.sync.
-    logging.debug('git push %s git-annex' % GIT_REMOTE_NAME)
+    logging.debug('git push %s git-annex' % config.GIT_REMOTE_NAME)
     repo.git.checkout('git-annex')
-    repo.git.push(GIT_REMOTE_NAME, 'git-annex')
-    logging.debug('git push %s master' % GIT_REMOTE_NAME)
+    repo.git.push(config.GIT_REMOTE_NAME, 'git-annex')
+    logging.debug('git push %s master' % config.GIT_REMOTE_NAME)
     repo.git.checkout('master')
-    repo.git.push(GIT_REMOTE_NAME, 'master')
+    repo.git.push(config.GIT_REMOTE_NAME, 'master')
     logging.debug('OK')
     
-    dvcs.set_annex_description(repo)
+    drive_label = storage.drive_label(repo.working_dir)
+    dvcs.set_annex_description(repo, drive_label=drive_label)
     return 0,'ok'
 
 
@@ -348,60 +318,56 @@ def destroy(agent=''):
 
 #@command
 @local_only
-def status(collection_path, short=False):
+def status(collection, short=False):
     """Command-line function for running git status on collection repository.
     
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @return: message ('ok' if successful)
     """
-    return dvcs.repo_status(collection_path)
+    return dvcs.repo_status(collection.path)
 
 
 @command
 #@requires_network
-def annex_status(collection_path):
+def annex_status(collection):
     """Command-line function for running git annex status on collection repository.
     
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @return: message ('ok' if successful)
     """
-    return dvcs.annex_status(collection_path)
+    return dvcs.annex_status(collection.path)
 
 
 @command
 #@requires_network
-def fetch(collection_path):
+def fetch(collection):
     """Command-line function for fetching latest changes to git repo from origin/master.
     
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @return: message ('ok' if successful)
     """
-    return dvcs.fetch(collection_path)
+    return dvcs.fetch(collection.path)
 
 
 @command
 @local_only
-def update(user_name, user_mail, collection_path, updated_files, agent=''):
+def update(user_name, user_mail, collection, updated_files, agent=''):
     """Command-line function for commiting changes to the specified file.
     
     NOTE: Does not push to the workbench server.
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @param updated_files: List of relative paths to updated file(s).
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    
     repo = dvcs.repository(collection.path, user_name, user_mail)
     if repo:
         logging.debug('    git repo {}'.format(collection.path))
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     
     # prep log entries
     changelog_messages = []
@@ -427,7 +393,7 @@ def update(user_name, user_mail, collection_path, updated_files, agent=''):
 
 @command
 @requires_network
-def sync(user_name, user_mail, collection_path):
+def sync(user_name, user_mail, collection):
     """Sync repo with bare clone on hub server; replaces git-annex-sync.
     
     Git-annex has a "sync" command for communicating annex changes between
@@ -447,80 +413,76 @@ def sync(user_name, user_mail, collection_path):
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
     repo = dvcs.repository(collection.path, user_name, user_mail)
     logging.debug('repo: %s' % repo)
-    dvcs.set_annex_description(repo)
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    drive_label = storage.drive_label(repo.working_dir)
+    dvcs.set_annex_description(repo, drive_label=drive_label)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     # list remotes
     logging.debug('remotes')
-    for remote in dvcs.remotes(collection_path):
+    for remote in dvcs.remotes(collection.path):
         logging.debug('- %s %s' % (remote['name'], remote['url']))
     # pull
-    logging.debug('git pull %s master' % GIT_REMOTE_NAME)
+    logging.debug('git pull %s master' % config.GIT_REMOTE_NAME)
     repo.git.checkout('master')
-    repo.git.pull(GIT_REMOTE_NAME, 'master')
-    logging.debug('git pull %s git-annex' % GIT_REMOTE_NAME)
+    repo.git.pull(config.GIT_REMOTE_NAME, 'master')
+    logging.debug('git pull %s git-annex' % config.GIT_REMOTE_NAME)
     repo.git.checkout('git-annex')
-    repo.git.pull(GIT_REMOTE_NAME, 'git-annex')
+    repo.git.pull(config.GIT_REMOTE_NAME, 'git-annex')
     #logging.debug('OK')
     # push
-    logging.debug('git pull %s git-annex' % GIT_REMOTE_NAME)
+    logging.debug('git pull %s git-annex' % config.GIT_REMOTE_NAME)
     repo.git.checkout('git-annex')
-    repo.git.push(GIT_REMOTE_NAME, 'git-annex')
-    logging.debug('git pull %s master' % GIT_REMOTE_NAME)
+    repo.git.push(config.GIT_REMOTE_NAME, 'git-annex')
+    logging.debug('git pull %s master' % config.GIT_REMOTE_NAME)
     repo.git.checkout('master')
-    repo.git.push(GIT_REMOTE_NAME, 'master')
+    repo.git.push(config.GIT_REMOTE_NAME, 'master')
     logging.debug('OK')
     return 0,'ok'
 
 
 @command
 @local_only
-def entity_create(user_name, user_mail, collection_path, entity_id, updated_files, templates, agent=''):
+def entity_create(user_name, user_mail, collection, eidentifier, updated_files, templates, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_id: A valid DDR entity ID
+    @param collection: Collection
+    @param eidentifier: Identifier
     @param updated_files: List of updated files (relative to collection root).
     @param templates: List of entity metadata templates (absolute paths).
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    eidentifier = Identifier(id=entity_id, base_path=collection.identifier.basepath)
-    entity = DDREntity(eidentifier.path_abs())
-    
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     git_files = []
     
     # entity dir
-    if not os.path.exists(entity.path):
-        os.makedirs(entity.path)
+    if not os.path.exists(eidentifier.path_abs()):
+        os.makedirs(eidentifier.path_abs())
     
     # copy template files to entity
     for src in templates:
         if os.path.exists(src):
-            dst = os.path.join(entity.path, os.path.basename(src))
+            dst = os.path.join(eidentifier.path_abs(), os.path.basename(src))
             logging.debug('cp %s, %s' % (src, dst))
             shutil.copy(src, dst)
             if os.path.exists(dst):
                 git_files.append(dst)
             else:
                 logging.error('COULD NOT COPY %s' % src)
+    
+    # instantiate now that we have entity dir and some templates
+    object_class = eidentifier.object_class()
+    entity = object_class(eidentifier.path_abs())
     
     # entity control
     econtrol = entity.control()
@@ -569,7 +531,7 @@ def entity_create(user_name, user_mail, collection_path, entity_id, updated_file
 
 @command
 @local_only
-def entity_destroy(user_name, user_mail, collection_path, entity_id, agent=''):
+def entity_destroy(user_name, user_mail, collection, entity, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     - check that paths exist, etc
@@ -580,32 +542,27 @@ def entity_destroy(user_name, user_mail, collection_path, entity_id, agent=''):
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_id: A valid DDR entity ID
+    @param collection: Collection
+    @param entity: Entity
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    entity_dir = os.path.join(collection_path, 'files', entity_id)
+    if not os.path.exists(collection.path_abs):
+        raise Exception('collection_path not found: %s' % collection.path_abs)
+    if not os.path.exists(entity.path_abs):
+        raise Exception('entity not found: %s' % entity.path_abs)
     
-    if not os.path.exists(collection_path):
-        raise Exception('collection_path not found: %s' % collection_path)
-    if not os.path.exists(entity_dir):
-        raise Exception('entity not found: %s' % entity_dir)
-    
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    repo = dvcs.repository(collection.path, user_name, user_mail)
+    repo = dvcs.repository(collection.path_abs, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     git_files = []
     
     # remove entity directory
     # NOTE: entity files must be removed at this point so the entity will be
     # properly removed from the control file
     git = repo.git
-    git.rm('-rf', entity_dir)
+    git.rm('-rf', entity.path_abs)
     
     # update collection control
     ccontrol = collection.control()
@@ -614,7 +571,7 @@ def entity_destroy(user_name, user_mail, collection_path, entity_id, agent=''):
     git_files.append(ccontrol.path)
     
     # prep collection log entries
-    changelog_messages = ['Deleted entity {}'.format(entity_id),]
+    changelog_messages = ['Deleted entity {}'.format(entity.id),]
     if agent:
         changelog_messages.append('@agent: %s' % agent)
     commit_message = dvcs.compose_commit_message(changelog_messages[0], agent=agent)
@@ -632,7 +589,7 @@ def entity_destroy(user_name, user_mail, collection_path, entity_id, agent=''):
 
 @command
 @local_only
-def file_destroy(user_name, user_mail, collection_path, entity_id, rm_files, updated_files, agent=''):
+def file_destroy(user_name, user_mail, collection, entity, rm_files, updated_files, agent=''):
     """Command-line function for creating an entity and adding it to the collection.
     
     - check that paths exist, etc
@@ -643,23 +600,17 @@ def file_destroy(user_name, user_mail, collection_path, entity_id, rm_files, upd
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_id: A valid DDR entity ID
+    @param collection: Collection
+    @param entity: Entity
     @param rm_files: List of paths to files to delete (relative to entity files dir).
     @param updated_files: List of paths to updated file(s), relative to entitys.
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    entity = DDREntity.from_identifier(
-        Identifier(id=entity_id, base_path=collection.identifier.basepath)
-    )
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     
     # updated file paths are relative to collection root
     git_files = [os.path.join('files', entity.id, f) for f in updated_files]
@@ -698,7 +649,7 @@ def file_destroy(user_name, user_mail, collection_path, entity_id, rm_files, upd
 
 @command
 @local_only
-def entity_update(user_name, user_mail, collection_path, entity_id, updated_files, agent=''):
+def entity_update(user_name, user_mail, collection, entity, updated_files, agent=''):
     """Command-line function for committing changes to the specified entity file.
     
     NOTE: Does not push to the workbench server.
@@ -707,23 +658,16 @@ def entity_update(user_name, user_mail, collection_path, entity_id, updated_file
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_id: A valid DDR entity ID
+    @param collection: Collection
+    @param entity: Entity
     @param updated_files: List of paths to updated file(s), relative to entitys.
     @param agent: (optional) Name of software making the change.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    entity = DDREntity.from_identifier(
-        Identifier(id=entity_id, base_path=collection.identifier.basepath)
-    )
-    
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     
     # entity file paths are relative to collection root
     git_files = []
@@ -752,7 +696,7 @@ def entity_update(user_name, user_mail, collection_path, entity_id, updated_file
 
 @command
 @local_only
-def entity_annex_add(user_name, user_mail, collection_path, entity_id, updated_files, new_annex_files, agent='', entity=None):
+def entity_annex_add(user_name, user_mail, collection, entity, updated_files, new_annex_files, agent=''):
     """Command-line function for git annex add-ing a file and updating metadata.
     
     All this function does is git annex add the file, update changelog and
@@ -768,26 +712,17 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_id, updated_f
     
     @param user_name: Username for use in changelog, git log
     @param user_mail: User email address for use in changelog, git log
-    @param collection_path: Absolute path to collection repo.
-    @param entity_id: A valid DDR entity ID
+    @param collection: Collection
+    @param entity: Entity
     @param updated_files: list of paths to updated files (relative to collection repo).
     @param new_annex_files: List of paths to new files (relative to entity files dir).
     @param agent: (optional) Name of software making the change.
-    @param entity: (optional) Entity object (see above)
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
-    if not entity:
-        entity = DDREntity.from_identifier(
-            Identifier(id=entity_id, base_path=collection.identifier.basepath)
-        )
-    
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     git_files = []
     annex_files = []
     
@@ -842,7 +777,7 @@ def entity_annex_add(user_name, user_mail, collection_path, entity_id, updated_f
 
 @command
 @requires_network
-def annex_push(collection_path, file_path_rel):
+def annex_push(collection, file_path_rel):
     """Push a git-annex file to workbench.
 
     Example file_paths:
@@ -852,13 +787,10 @@ def annex_push(collection_path, file_path_rel):
     
     $ git annex copy PATH --to=REMOTE
     
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @param file_path_rel: Path to file relative to collection root
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
     file_path_abs = os.path.join(collection.path, file_path_rel)
     logging.debug('    collection.path {}'.format(collection.path))
     logging.debug('    file_path_rel {}'.format(file_path_rel))
@@ -875,22 +807,22 @@ def annex_push(collection_path, file_path_rel):
     # let's do this thing
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
-    logging.debug('    git annex copy -t {} {}'.format(GIT_REMOTE_NAME, file_path_rel))
-    stdout = repo.git.annex('copy', '-t', GIT_REMOTE_NAME, file_path_rel)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    logging.debug('    git annex copy -t {} {}'.format(config.GIT_REMOTE_NAME, file_path_rel))
+    stdout = repo.git.annex('copy', '-t', config.GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))
     # confirm that it worked
     remotes = dvcs.annex_whereis_file(repo, file_path_rel)
     logging.debug('    present in remotes {}'.format(remotes))
-    logging.debug('    it worked: {}'.format(GIT_REMOTE_NAME in remotes))
+    logging.debug('    it worked: {}'.format(config.GIT_REMOTE_NAME in remotes))
     logging.debug('    DONE')
     return 0,'ok'
 
 
 @command
 @requires_network
-def annex_pull(collection_path, file_path_rel):
+def annex_pull(collection, file_path_rel):
     """git-annex copy a file from workbench.
 
     Example file_paths:
@@ -898,13 +830,10 @@ def annex_pull(collection_path, file_path_rel):
         ddr-densho-42-17/files/image35.jpg
         ddr-one-35-248/files/newspaper.pdf
         
-    @param collection_path: Absolute path to collection repo.
+    @param collection: Collection
     @param file_path_rel: Path to file relative to collection root.
     @return: message ('ok' if successful)
     """
-    collection = DDRCollection.from_identifier(
-        Identifier(path=collection_path)
-    )
     file_path_abs = os.path.join(collection.path, file_path_rel)
     logging.debug('    collection.path {}'.format(collection.path))
     logging.debug('    file_path_rel {}'.format(file_path_rel))
@@ -918,10 +847,10 @@ def annex_pull(collection_path, file_path_rel):
     # let's do this thing
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
-    logging.debug('    git annex copy -t {} {}'.format(GIT_REMOTE_NAME, file_path_rel))
-    stdout = repo.git.annex('copy', '-f', GIT_REMOTE_NAME, file_path_rel)
+    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    logging.debug('    git annex copy -t {} {}'.format(config.GIT_REMOTE_NAME, file_path_rel))
+    stdout = repo.git.annex('copy', '-f', config.GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))
     # confirm that it worked
     exists = os.path.exists(file_path_abs)
@@ -940,7 +869,7 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
     """
     logging.debug('reading group file: %s' % groupfile)
     repos = read_group_file(groupfile)
-    ACCESS_SUFFIX = ACCESS_FILE_APPEND + ACCESS_FILE_EXTENSION
+    ACCESS_SUFFIX = config.ACCESS_FILE_APPEND + config.ACCESS_FILE_EXTENSION
     
     def logif(txt):
         t = txt.strip()
@@ -964,7 +893,7 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
             repo.git.checkout('master')
             logging.debug('ok')
         else:
-            url = '%s:%s.git' % (GITOLITE, r['id'])
+            url = '%s:%s.git' % (config.GITOLITE, r['id'])
             logging.debug('cloning %s' % url)
             repo = git.Repo.clone_from(url, r['id'])
             repo.git.config('annex.sshcaching', 'false')

@@ -69,26 +69,9 @@ import sys
 import envoy
 import git
 
-from DDR import CONFIG_FILES, NoConfigError
 from DDR import identifier
 from DDR import models
-
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-DEBUG = config.get('local','debug')
-
-#LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
-#LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
-#LOGGING_FILE = config.get('local','log_file')
-#if config.get('local','log_level') == 'debug':
-#    LOGGING_LEVEL = logging.DEBUG
-#else:
-#    LOGGING_LEVEL = logging.ERROR
-##logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=LOGGING_LEVEL, filename=LOGGING_FILE)
-#logging.basicConfig(format=LOGGING_FORMAT, datefmt=LOGGING_DATEFMT, level=logging.DEBUG, filename=LOGGING_FILE)
+from DDR import util
 
 
 def dtfmt(dt):
@@ -205,7 +188,7 @@ def list_json_files(dirname):
     @param path: Absolute path to collection repository directory
     @returns: list of absolute paths
     """
-    paths = models.metadata_files(dirname, recursive=True, force_read=True)
+    paths = util.find_meta_files(dirname, recursive=True, force_read=True)
     paths.sort()
     return paths
 

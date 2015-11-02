@@ -50,7 +50,6 @@ Note: You can set environment variables got HOSTS and INDEX.:
 
 
 import argparse
-import ConfigParser
 from datetime import datetime
 import json
 import logging
@@ -60,21 +59,14 @@ import sys
 import envoy
 import git
 
-from DDR import CONFIG_FILES, NoConfigError
+from DDR.config import DEBUG, LOG_FILE, LOG_LEVEL
 from DDR import docstore
 from DDR import models
 
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-DEBUG = config.get('local','debug')
-
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 LOGGING_DATEFMT = '%Y-%m-%d %H:%M:%S'
-LOGGING_FILE = config.get('local','log_file')
-if config.get('local','log_level') == 'debug':
+LOGGING_FILE = LOG_FILE
+if LOG_LEVEL == 'debug':
     LOGGING_LEVEL = logging.DEBUG
 else:
     LOGGING_LEVEL = logging.ERROR
@@ -285,7 +277,7 @@ def main():
         msg = docstore.set_alias(hosts, args.alias, args.index, args.remove)
         print(msg)
     elif args.cmd == 'mappings':
-        msg = docstore.put_mappings(hosts, args.index, args.path, models.MODELS_DIR)
+        msg = docstore.put_mappings(hosts, args.index, args.path)
         print(msg)
     elif args.cmd == 'facets':
         msg = docstore.put_facets(hosts, args.index, args.path)

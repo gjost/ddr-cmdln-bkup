@@ -11,7 +11,7 @@ import envoy
 import git
 import requests
 
-from DDR import CGIT_URL
+from DDR import config
 from DDR import storage
 
 
@@ -33,7 +33,9 @@ def repository(path, user_name=None, user_mail=None):
     @return: GitPython repo object
     """
     repo = git.Repo(path)
-    return set_git_configs(repo, user_name, user_mail)
+    if user_name and user_mail:
+        return set_git_configs(repo, user_name, user_mail)
+    return repo
 
 def git_version(repo_path=None):
     """Returns version info for Git and git-annex.
@@ -80,7 +82,7 @@ def latest_commit(path):
         return repo.git.log('--pretty=format:%H %d %ad', '--date=iso', '-1')
     return None
 
-def _parse_cmp_commits(gitlog, a, b, abbrev=False):
+def _parse_cmp_commits(gitlog, a, b):
     """
     If abbrev == True:
         git log --pretty=%h
@@ -90,17 +92,22 @@ def _parse_cmp_commits(gitlog, a, b, abbrev=False):
     @param gitlog: str
     @param a: str Commit A
     @param b: str Commit B
-    @param abbrev: Boolean Whether or not to use abbreviated commits
+    @returns: dict See DDR.dvcs.cmp_commits
     """
+    result = {
+        'a': a,
+        'b': b,
+        'op': None,
+    }
     commits = gitlog.strip().split('\n')
     commits.reverse()
-    if a not in commits:
-        raise ValueError("'%s' is not in log" % a)
-    elif b not in commits:
-        raise ValueError("'%s' is not in log" % b)
-    if commits.index(a) < commits.index(b): return -1
-    elif commits.index(a) == commits.index(b): return 0
-    elif commits.index(a) > commits.index(b): return 1
+    if a not in commits: raise ValueError("A (%s) is not in log" % a)
+    elif b not in commits: raise ValueError("B (%s) is not in log" % b)
+    if commits.index(a) < commits.index(b): result['op'] = 'lt'
+    elif commits.index(a) == commits.index(b): result['op'] = 'eq'
+    elif commits.index(a) > commits.index(b): result['op'] = 'gt'
+    else: result['op'] = '--'
+    return result
 
 def cmp_commits(repo, a, b, abbrev=False):
     """Indicates how two commits are related (newer,older,equal)
@@ -112,17 +119,24 @@ def cmp_commits(repo, a, b, abbrev=False):
     earlier datetime than A.
     Raises Exception if can't find both commits.
     
+    Returns a dict
+    {
+        'a': left-hand object,
+        'b': right-hand object,
+        'op': operation ('lt', 'eq', 'gt', '--')
+    }
+    
     @param repo: A GitPython Repo object.
     @param a: str A commit hash.
     @param b: str A commit hash.
     @param abbrev: Boolean If True use abbreviated commit hash.
-    @returns: -1, 0, 1
+    @returns: dict See above.
     """
     if abbrev:
         fmt = '--pretty=%h'
     else:
         fmt = '--pretty=%H'
-    return _parse_cmp_commits(repo.git.log(fmt), a, b, abbrev)
+    return _parse_cmp_commits(repo.git.log(fmt), a, b)
 
 def compose_commit_message(title, body='', agent=''):
     """Composes a Git commit message.
@@ -209,7 +223,7 @@ def _make_annex_description( drive_label=None, hostname=None, partner_host=None,
         description = hostname
     return description
 
-def set_annex_description( repo, annex_status=None, description=None, force=False ):
+def set_annex_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
     """Sets repo's git annex description if not already set.
 
     NOTE: This needs to run git annex status, which takes some time.
@@ -226,6 +240,8 @@ def set_annex_description( repo, annex_status=None, description=None, force=Fals
     @param repo: A GitPython Repo object
     @param annex_status: (optional) Output of "git annex status" (saves some time).
     @param description: Manually supply a new description.
+    @param drive_label: str Required if description is blank!
+    @param hostname: str Required if description is blank!
     @param force: Boolean Apply a new description even if one already exists.
     @return String description if new one was created/applied or None
     """
@@ -238,8 +254,6 @@ def set_annex_description( repo, annex_status=None, description=None, force=Fals
             desc = description
         else:
             # gather information
-            drive_label = storage.drive_label(repo.working_dir)
-            hostname = socket.gethostname()
             user_mail = repo.git.config('user.email')
             # generate description
             desc = _make_annex_description(
@@ -470,7 +484,7 @@ def cgit_collection_title(repo, session, timeout=5):
     """
     title = '---'
     URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
-    url = URL_TEMPLATE % (CGIT_URL, repo)
+    url = URL_TEMPLATE % (config.CGIT_URL, repo)
     logging.debug(url)
     try:
         r = session.get(url, timeout=timeout)

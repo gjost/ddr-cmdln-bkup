@@ -17,7 +17,6 @@ then removes the directory.  This should surface any UTF-8 encoding problems.
 
 import argparse
 import codecs
-import ConfigParser
 from datetime import datetime
 import json
 import logging
@@ -29,12 +28,7 @@ import chardet
 import git
 
 from DDR import models
-from DDR import CONFIG_FILES, NoConfigError
-
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
+from DDR import util
 
 
 def out(verbose, text):
@@ -135,7 +129,7 @@ def main():
     out(args.verbose, repo)
     
     out(args.verbose, 'analyzing')
-    paths = models.metadata_files(repo_path, recursive=True)
+    paths = util.find_meta_files(repo_path, recursive=True)
     defects = analyze_files(paths, args.verbose)
     
     out(args.verbose, 'cleaning up')

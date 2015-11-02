@@ -1,52 +1,9 @@
 VERSION = '0.9.4-beta'
 
-import ConfigParser
 from datetime import datetime, timedelta
 import json
 import logging
 logger = logging.getLogger(__name__)
-import re
-
-class NoConfigError(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
-
-CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
-config = ConfigParser.ConfigParser()
-configs_read = config.read(CONFIG_FILES)
-if not configs_read:
-    raise NoConfigError('No config file!')
-
-INSTALL_PATH = config.get('cmdln','install_path')
-REPO_MODELS_PATH = config.get('cmdln','repo_models_path')
-MEDIA_BASE = config.get('cmdln','media_base')
-LOG_DIR = config.get('local', 'log_dir')
-
-TIME_FORMAT = config.get('cmdln','time_format')
-DATETIME_FORMAT = config.get('cmdln','datetime_format')
-
-ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
-ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
-ACCESS_FILE_GEOMETRY = config.get('cmdln','access_file_geometry')
-FACETS_PATH = config.get('cmdln','vocab_facets_path')
-MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
-TEMPLATE_EJSON = config.get('cmdln','template_ejson')
-TEMPLATE_EAD = config.get('cmdln','template_ead')
-TEMPLATE_METS = config.get('cmdln','template_mets')
-
-CGIT_URL = config.get('workbench','cgit_url')
-GIT_REMOTE_NAME = config.get('workbench','remote')
-GITOLITE = config.get('workbench','gitolite')
-WORKBENCH_LOGIN_TEST = config.get('workbench','login_test_url')
-WORKBENCH_LOGIN_URL = config.get('workbench','workbench_login_url')
-WORKBENCH_LOGOUT_URL = config.get('workbench','workbench_logout_url')
-WORKBENCH_NEWCOL_URL = config.get('workbench','workbench_newcol_url')
-WORKBENCH_NEWENT_URL = config.get('workbench','workbench_newent_url')
-WORKBENCH_REGISTER_EIDS_URL = config.get('workbench','workbench_register_eids_url')
-WORKBENCH_URL = config.get('workbench','workbench_url')
-WORKBENCH_USERINFO = config.get('workbench','workbench_userinfo_url')
 
 
 def format_json(data):
@@ -67,25 +24,6 @@ def format_json(data):
     ['{\n', '    "a": 1,\n', '    "b": 2\n', '}']
     """
     return json.dumps(data, indent=4, separators=(',', ': '), sort_keys=True)
-
-def natural_sort( l ):
-    """Sort the given list in the way that humans expect.
-    src: http://www.codinghorror.com/blog/2007/12/sorting-for-humans-natural-sort-order.html
-    """
-    convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
-    l.sort( key=alphanum_key )
-    return l
-
-def natural_order_string( id ):
-    """Convert a collection/entity ID into form that can be sorted naturally.
-    
-    @param id: A valid format DDR ID
-    """
-    alnum = re.findall('\d+', id)
-    if not alnum:
-        raise Exception('Valid DDR ID required.')
-    return alnum.pop()
 
 
 class Timer( object ):

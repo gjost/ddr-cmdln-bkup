@@ -1,5 +1,4 @@
 import ConfigParser
-import csv
 import logging
 logger = logging.getLogger(__name__)
 import os
@@ -8,13 +7,10 @@ import re
 import envoy
 import git
 
+from DDR import fileio
 
 
 DRIVE_FILE_FIELDS = 'id,level'
-
-CSV_DELIMITER = ','
-CSV_QUOTECHAR = '"'
-CSV_QUOTING = csv.QUOTE_MINIMAL
 
 LEVELS = ['meta', 'access', 'all']
 
@@ -82,7 +78,7 @@ def read_group_file( path ):
     """
     repos = []
     with open(path, 'rb') as f:
-        reader = csv.reader(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR)
+        reader = fileio.csv_reader(f)
         for id,level in reader:
             repos.append({'id':id, 'level':level})
     return repos
@@ -93,7 +89,7 @@ def write_group_file( repos, path=None ):
     @param path: (optional) Absolute path to group file.
     """
     with open(path, 'wb') as f:
-        writer = csv.writer(f, delimiter=CSV_DELIMITER, quotechar=CSV_QUOTECHAR, quoting=CSV_QUOTING)
+        writer = fileio.csv_writer(f)
         for r in repos:
             writer.writerow(r['id'], r['level'])
 

@@ -5,6 +5,7 @@ from nose.tools import assert_raises
 from nose.plugins.attrib import attr
 
 import docstore
+import identifier
 
 
 """
@@ -301,42 +302,61 @@ def test_clean_sort():
 # delete
 # _model_fields
 
-PUBLIC_FIELDS = '''{
-"entity": [{"elasticsearch": {"public": true}, "name": "id"}, {"elasticsearch": {"public": true}, "name": "notes"}, {"elasticsearch": {"public": true}, "name": "title"}, {"name": "noelastic"}],
-"file": [{"elasticsearch": {"public": true}, "name": "id"}, {"elasticsearch": {"public": true}, "name": "notes"}, {"elasticsearch": {"public": true}, "name": "title"}, {"name": "noelastic"}]
-}
-'''
-PUBLIC_FIELDS_EXPECTED = {
-    'file': ['id', 'notes', 'title', 'path_rel', 'id'],
-    'entity': ['id', 'notes', 'title']
-}
 
 def test_public_fields():
-    data = json.loads(PUBLIC_FIELDS)
-    assert docstore._public_fields(data) == PUBLIC_FIELDS_EXPECTED
+    
+    class PublicFieldsModule(object):
+        pass
+
+    entity = PublicFieldsModule()
+    entity.FIELDS = [
+        {"elasticsearch": {"public": True}, "name": "id"},
+        {"elasticsearch": {"public": True}, "name": "title"},
+        {"elasticsearch": {"public": False}, "name": "notes"},
+        {"name": "noelastic"}
+    ]
+    file_ = PublicFieldsModule()
+    file_.FIELDS = [
+        {"elasticsearch": {"public": True}, "name": "id"},
+        {"elasticsearch": {"public": True}, "name": "title"},
+        {"elasticsearch": {"public": False}, "name": "notes"},
+        {"name": "noelastic"}
+    ]
+    MODULES = {
+        'entity': entity,
+        'file': file_,
+    }
+    EXPECTED = {
+        'entity': ['id', 'title'],
+        'file': ['id', 'title', 'path_rel', 'id'],
+    }
+    assert docstore.public_fields(MODULES) == EXPECTED
 
 # _parents_status
 
 def test_file_parent_ids():
-    case0 = ('collection', '.../ddr-testing-123/collection.json', [])
-    case1 = ('entity', '.../ddr-testing-123-1/entity.json', ['ddr-testing-123'])
-    case2 = ('file', '.../ddr-testing-123-1-master-a1.json', ['ddr-testing-123', 'ddr-testing-123-1'])
-    assert docstore._file_parent_ids(case0[0], case0[1]) == case0[2]
-    assert docstore._file_parent_ids(case1[0], case1[1]) == case1[2]
-    assert docstore._file_parent_ids(case2[0], case2[1]) == case2[2]
+    i0 = identifier.Identifier('ddr-testing-123')
+    i1 = identifier.Identifier('ddr-testing-123-1')
+    i2 = identifier.Identifier('ddr-testing-123-1-master-a1')
+    expected0 = []
+    expected1 = ['ddr-testing-123']
+    expected2 = ['ddr-testing-123', 'ddr-testing-123-1']
+    assert docstore._file_parent_ids(i0) == expected0
+    assert docstore._file_parent_ids(i1) == expected1
+    assert docstore._file_parent_ids(i2) == expected2
 
 def test_publishable_or_not():
     PATHS = [
-        '/BASE/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-96c.json',
-        '/BASE/ddr-test-123/files/ddr-test-123-2/files/ddr-test-123-2-master-c46.json',
-        '/BASE/ddr-test-123/files/ddr-test-123-1/entity.json',
-        '/BASE/ddr-test-123/files/ddr-test-123-2/entity.json',
-        '/BASE/ddr-test-123/collection.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-1/files/ddr-test-124-1-master-6c9.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-2/files/ddr-test-124-2-master-46c.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-1/entity.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-2/entity.json',
-        '/BASE/ddr-test-124/collection.json',
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-96c.json',
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-2/files/ddr-test-123-2-master-c46.json',
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-1/entity.json',
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-2/entity.json',
+        '/tmp/ddr/ddr-test-123/collection.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-1/files/ddr-test-124-1-master-6c9.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-2/files/ddr-test-124-2-master-46c.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-1/entity.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-2/entity.json',
+        '/tmp/ddr/ddr-test-124/collection.json',
        ]
     PARENTS = {
         u'ddr-test-123-1': {'status': u'completed', 'public': u'1'},
@@ -347,19 +367,19 @@ def test_publishable_or_not():
         u'ddr-test-124': {'status': u'completed', 'public': u'1'},
        }
     EXPECTED_SUCCESSFUL = [
-        '/BASE/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-96c.json',
-        '/BASE/ddr-test-123/files/ddr-test-123-1/entity.json',
-        '/BASE/ddr-test-123/files/ddr-test-123-2/entity.json',
-        '/BASE/ddr-test-123/collection.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-1/files/ddr-test-124-1-master-6c9.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-1/entity.json',
-        '/BASE/ddr-test-124/files/ddr-test-124-2/entity.json',
-        '/BASE/ddr-test-124/collection.json'
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-1/files/ddr-test-123-1-master-96c.json',
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-1/entity.json',
+        '/tmp/ddr/ddr-test-123/files/ddr-test-123-2/entity.json',
+        '/tmp/ddr/ddr-test-123/collection.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-1/files/ddr-test-124-1-master-6c9.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-1/entity.json',
+        '/tmp/ddr/ddr-test-124/files/ddr-test-124-2/entity.json',
+        '/tmp/ddr/ddr-test-124/collection.json'
        ]
     EXPECTED_BAD = [
-        ('/BASE/ddr-test-123/files/ddr-test-123-2/files/ddr-test-123-2-master-c46.json',
+        ('/tmp/ddr/ddr-test-123/files/ddr-test-123-2/files/ddr-test-123-2-master-c46.json',
          403, "parent unpublishable: ['ddr-test-123-2']"),
-        ('/BASE/ddr-test-124/files/ddr-test-124-2/files/ddr-test-124-2-master-46c.json',
+        ('/tmp/ddr/ddr-test-124/files/ddr-test-124-2/files/ddr-test-124-2-master-46c.json',
          403, "parent unpublishable: ['ddr-test-124-2']")
        ]
     successful_paths,bad_paths = docstore._publishable_or_not(PATHS, PARENTS)
