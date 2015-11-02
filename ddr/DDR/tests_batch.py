@@ -27,18 +27,6 @@ def test_normalize_text():
 
 # TODO test_to_unicode_or_bust
 
-def test_make_entity_path():
-    cpath0 = '/var/www/media/base/ddr-test-123'
-    eid0 = 'ddr-test-123-456'
-    out0 = '/var/www/media/base/ddr-test-123/files/ddr-test-123-456'
-    assert batch.make_entity_path(cpath0, eid0) == out0
-
-def test_make_entity_json_path():
-    cpath0 = '/var/www/media/base/ddr-test-123'
-    eid0 = 'ddr-test-123-456'
-    out0 = '/var/www/media/base/ddr-test-123/files/ddr-test-123-456/entity.json'
-    assert batch.make_entity_json_path(cpath0, eid0) == out0
-
 # TODO test_make_tmpdir
 
 def test_module_field_names():
