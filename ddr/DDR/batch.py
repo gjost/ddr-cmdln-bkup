@@ -4,12 +4,10 @@ from datetime import datetime
 import json
 import logging
 import os
-import sys
-
-import unicodecsv as csv
 
 from DDR import changelog
 from DDR import dvcs
+from DDR import fileio
 from DDR import models
 from DDR import modules
 from DDR.identifier import Identifier
@@ -17,11 +15,6 @@ from DDR import util
 
 COLLECTION_FILES_PREFIX = 'files'
 
-# Some files' XMP data is wayyyyyy too big
-csv.field_size_limit(sys.maxsize)
-CSV_DELIMITER = ','
-CSV_QUOTECHAR = '"'
-CSV_QUOTING = csv.QUOTE_ALL
 
 
 def dtfmt(dt, fmt='%Y-%m-%dT%H:%M:%S.%f'):
@@ -67,80 +60,6 @@ def normalize_text(text):
     if isinstance(text, basestring):
         return process(text)
     return text
-
-def csv_writer(csvfile):
-    """Get a csv.writer object for the file.
-    
-    @param csvfile: A file object.
-    """
-    writer = csv.writer(
-        csvfile,
-        delimiter=CSV_DELIMITER,
-        quoting=CSV_QUOTING,
-        quotechar=CSV_QUOTECHAR,
-    )
-    return writer
-
-def csv_reader(csvfile):
-    """Get a csv.reader object for the file.
-    
-    @param csvfile: A file object.
-    """
-    reader = csv.reader(
-        csvfile,
-        delimiter=CSV_DELIMITER,
-        quoting=CSV_QUOTING,
-        quotechar=CSV_QUOTECHAR,
-    )
-    return reader
-
-def write_csv(path, headers, rows):
-    """Write header and list of rows to file.
-    
-    >>> path = '/tmp/batch-test_write_csv.csv'
-    >>> headers = ['id', 'title', 'description']
-    >>> rows = [
-    ...     ['ddr-test-123', 'thing 1', 'nothing here'],
-    ...     ['ddr-test-124', 'thing 2', 'still nothing'],
-    ... ]
-    >>> batch.write_csv(path, headers, rows)
-    >>> with open(path, 'r') as f:
-    ...    f.read()
-    '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
-    
-    @param path: Absolute path to CSV file
-    @param headers: list of strings
-    @param rows: list of lists
-    """
-    with codecs.open(path, 'wb', 'utf-8') as f:
-        writer = csv_writer(f)
-        writer.writerow(headers)
-        for row in rows:
-            writer.writerow(row)
-
-def read_csv(path):
-    """Read specified file, return list of rows.
-    
-    >>> path = '/tmp/batch-test_write_csv.csv'
-    >>> csv_file = '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
-    >>> with open(path, 'w') as f:
-    ...    f.write(csv_file)
-    >>> batch.read_csv(path)
-    [
-        ['id', 'title', 'description'],
-        ['ddr-test-123', 'thing 1', 'nothing here'],
-        ['ddr-test-124', 'thing 2', 'still nothing']
-    ]
-    
-    @param path: Absolute path to CSV file
-    @returns list of rows
-    """
-    rows = []
-    with codecs.open(path, 'rU', 'utf-8') as f:  # the 'U' is for universal-newline mode
-        reader = csv_reader(f)
-        for row in reader:
-            rows.append(row)
-    return rows
 
 
 # export ---------------------------------------------------------------
@@ -254,7 +173,7 @@ def export(json_paths, class_, module, csv_path):
     make_tmpdir(os.path.dirname(csv_path))
     field_names = module_field_names(module)
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
-        writer = csv_writer(csvfile)
+        writer = fileio.csv_writer(csvfile)
         writer.writerow(field_names)
         for n,json_path in enumerate(json_paths):
             oi = Identifier(json_path)
@@ -557,7 +476,7 @@ def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_
     required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
     valid_values = prep_valid_values(load_vocab_files(vocabs_path))
     # read entire file into memory
-    rows = read_csv(csv_path)
+    rows = fileio.read_csv(csv_path)
     headers = rows.pop(0)
     # check for errors
     validate_headers('entity', headers, field_names, nonrequired_fields)
@@ -807,7 +726,7 @@ def update_files(csv_path, collection_path, entity_class, file_class, module, vo
     valid_values = prep_valid_values(load_vocab_files(vocabs_path))
     # read entire file into memory
     logging.info('Reading %s' % csv_path)
-    rows = read_csv(csv_path)
+    rows = fileio.read_csv(csv_path)
     headers = rows.pop(0)
     logging.info('%s rows' % len(rows))
     

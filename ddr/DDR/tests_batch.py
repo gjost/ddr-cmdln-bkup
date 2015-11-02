@@ -6,7 +6,6 @@ import os
 import envoy
 import git
 from nose.tools import assert_raises
-import unicodecsv
 
 import batch
 
@@ -27,45 +26,6 @@ def test_normalize_text():
     assert batch.normalize_text({'this': 'is a test'}) == {'this': 'is a test'}
 
 # TODO test_to_unicode_or_bust
-
-CSV_PATH = '/tmp/batch-test_write_csv.csv'
-CSV_HEADERS = ['id', 'title', 'description']
-CSV_ROWS = [
-    ['ddr-test-123', 'thing 1', 'nothing here'],
-    ['ddr-test-124', 'thing 2', 'still nothing'],
-]
-CSV_FILE = '"id","title","description"\r\n"ddr-test-123","thing 1","nothing here"\r\n"ddr-test-124","thing 2","still nothing"\r\n'
-
-# TODO test_csv_writer
-# TODO test_csv_reader
-
-def test_write_csv():
-    # prep
-    if os.path.exists(CSV_PATH):
-        os.remove(CSV_PATH)
-    # test
-    batch.write_csv(CSV_PATH, CSV_HEADERS, CSV_ROWS)
-    assert os.path.exists(CSV_PATH)
-    with open(CSV_PATH, 'r') as f:
-        out = f.read()
-    assert out == CSV_FILE
-    # cleanup
-    if os.path.exists(CSV_PATH):
-        os.remove(CSV_PATH)
-
-def test_read_csv():
-    # prep
-    if os.path.exists(CSV_PATH):
-        os.remove(CSV_PATH)
-    with open(CSV_PATH, 'w') as f:
-        f.write(CSV_FILE)
-    # test
-    expected = CSV_ROWS
-    expected.insert(0, CSV_HEADERS)
-    assert batch.read_csv(CSV_PATH) == expected
-    # cleanup
-    if os.path.exists(CSV_PATH):
-        os.remove(CSV_PATH)
 
 def test_make_entity_path():
     cpath0 = '/var/www/media/base/ddr-test-123'
