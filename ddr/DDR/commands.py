@@ -424,7 +424,7 @@ def sync(user_name, user_mail, collection):
         repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     # list remotes
     logging.debug('remotes')
-    for remote in dvcs.remotes(collection_path):
+    for remote in dvcs.remotes(collection.path):
         logging.debug('- %s %s' % (remote['name'], remote['url']))
     # pull
     logging.debug('git pull %s master' % config.GIT_REMOTE_NAME)
