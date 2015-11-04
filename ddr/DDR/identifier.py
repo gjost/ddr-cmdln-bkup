@@ -590,9 +590,9 @@ class Identifier(object):
         self.raw = idparts
         self.model = idparts['model']
         self.parts = OrderedDict([
-            (key, val)
-            for key,val in idparts.iteritems()
-            if (key in ID_COMPONENTS) and val
+            (key, idparts[key])
+            for key in ID_COMPONENTS
+            if idparts.get(key)
         ])
         self.id = format_id(self, self.model)
         if base_path and not self.basepath:
