@@ -295,6 +295,11 @@ def identify_object(text, patterns):
             model = tpl[-1]
             groupdict = m.groupdict()
             break
+    # validate components
+    for key in VALID_COMPONENTS.keys():
+        val = groupdict.get(key, None)
+        if val and (val not in VALID_COMPONENTS[key]):
+            raise Exception('Invalid ID keyword: "%s"' % val)
     return model,groupdict
 
 def identify_filepath(path):
