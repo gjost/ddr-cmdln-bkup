@@ -96,7 +96,8 @@ VALID_COMPONENTS = {
         'ddr'
     ],
     'org': [
-        'densho', 'hmwf', 'jamsj', 'janm', 'njpa', 'one', 'pc', 'test', 'testing',
+        'densho', 'hmwf', 'jamsj', 'janm', 'jcch', 'njpa', 'one', 'pc',
+        'test', 'testing',
     ],
     'role': [
         'master', 'mezzanine'
