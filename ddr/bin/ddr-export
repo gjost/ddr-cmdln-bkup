@@ -27,13 +27,12 @@ ddr-export"""
 
 import argparse
 from datetime import datetime
-import json
 import logging
 import os
 import re
 import sys
 
-from DDR import batch
+from DDR import batch_export
 from DDR import models
 from DDR import identifier
 from DDR import util
@@ -110,13 +109,8 @@ def filter_paths(paths, pattern):
     @param pattern: str A regular expression
     @returns: list of absolute paths
     """
-    filtered = []
     prog = re.compile(pattern)
-    while paths:
-        path = paths.pop()
-        if prog.search(path):
-            filtered.append(path)
-    return filtered
+    return [path for path in paths if prog.search(path)]
 
 def all_paths(collection_path, model):
     return util.find_meta_files(
@@ -171,7 +165,7 @@ def main():
         raise Exception('ERROR: Could not find metadata paths.')
     logging.info('%s matching paths' % len(paths))
     
-    batch.export(paths, object_class, fields_module, csv)
+    batch_export.export(paths, object_class, fields_module, csv)
     
     finish = datetime.now()
     elapsed = finish - start
