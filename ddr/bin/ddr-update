@@ -38,7 +38,7 @@ import logging
 import os
 import sys
 
-from DDR import batch
+from DDR import batch_update
 from DDR.config import REPO_MODELS_PATH
 from DDR import idservice
 from DDR import identifier

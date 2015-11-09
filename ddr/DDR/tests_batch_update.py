@@ -7,7 +7,7 @@ import envoy
 import git
 from nose.tools import assert_raises
 
-import batch
+import batch_update
 
 
 # TODO test_to_unicode_or_bust
@@ -23,7 +23,7 @@ def test_get_required_fields():
     ]
     exceptions = ['files', 'whatever']
     expected = ['id', 'title']
-    assert batch.get_required_fields(fields, exceptions) == expected
+    assert batch_update.get_required_fields(fields, exceptions) == expected
 
 # TODO test_load_vocab_files
 
@@ -33,7 +33,7 @@ def test_prep_valid_values():
         '{"terms": [{"id": "eng"}, {"id": "jpn"}, {"id": "chi"}], "id": "language"}',
     ]
     expected = {u'genre': [u'advertisement', u'album', u'architecture'], u'language': [u'eng', u'jpn', u'chi']}
-    assert batch.prep_valid_values(json_texts) == expected
+    assert batch_update.prep_valid_values(json_texts) == expected
 
 def test_make_row_dict():
     headers0 = ['id', 'created', 'lastmod', 'title', 'description']
@@ -44,7 +44,7 @@ def test_make_row_dict():
         'lastmod': 'now',
         'title': 'title', 'description': 'descr',
     }
-    assert batch.make_row_dict(headers0, row0) == out0
+    assert batch_update.make_row_dict(headers0, row0) == out0
 
 def test_validate_headers():
     model = 'entity'
@@ -52,22 +52,22 @@ def test_validate_headers():
     exceptions = ['notused']
     headers0 = ['id', 'title']
     # UNIX style silent if everything's OK
-    assert not batch.validate_headers(model, headers0, field_names, exceptions)
+    assert not batch_update.validate_headers(model, headers0, field_names, exceptions)
     # bad header
     headers1 = ['id', 'titl']
     assert_raises(
         Exception,
-        batch.validate_headers,
+        batch_update.validate_headers,
         model, headers1, field_names, exceptions)
 
 def test_account_row():
     required_fields0 = ['id', 'title']
     rowd = {'id': 123, 'title': 'title'}
     out0 = []
-    assert batch.account_row(required_fields0, rowd) == out0
+    assert batch_update.account_row(required_fields0, rowd) == out0
     required_fields1 = ['id', 'title', 'description']
     out1 = ['description']
-    assert batch.account_row(required_fields1, rowd) == out1
+    assert batch_update.account_row(required_fields1, rowd) == out1
 
 #def test_validate_row():
 #    class TestModule(object):
@@ -92,9 +92,9 @@ def test_account_row():
 #        [ {'id':'ddr-test-124', 'language':'chi', 'status':'not ok'}, ['language','status'] ],
 #    ]
 #    for rowd,expected in rowds_valid:
-#        assert batch.validate_row(module, headers, valid_values, rowd) == expected
+#        assert batch_update.validate_row(module, headers, valid_values, rowd) == expected
 #    for rowd,expected in rowds_invalid:
-#        assert batch.validate_row(module, headers, valid_values, rowd) == expected
+#        assert batch_update.validate_row(module, headers, valid_values, rowd) == expected
 
 # TODO test_validate_rows
 # TODO test_load_entity
@@ -119,18 +119,18 @@ def test_test_repository():
             f.write(text)
     # clean repo - no Exceptions
     repo = git.Repo.init(path)
-    batch.test_repository(repo)
+    batch_update.test_repository(repo)
     # staged but uncommitted files
     for fpath,text in files:
         repo.git.add(fpath)
-    assert_raises(batch.UncommittedFilesError, batch.test_repository, repo)
+    assert_raises(batch_update.UncommittedFilesError, batch_update.test_repository, repo)
     # commit
     repo.index.commit('testing testing 123')
     # modified existing files
     for fpath,text in files:
         with open(fpath, 'w') as f:
             f.write('modified')
-    assert_raises(batch.ModifiedFilesError, batch.test_repository, repo)
+    assert_raises(batch_update.ModifiedFilesError, batch_update.test_repository, repo)
     cleanup(path, files)
 
 # TODO test_test_entities

@@ -17,11 +17,10 @@ COLLECTION_FILES_PREFIX = 'files'
 
 
 
-
 # update entities ------------------------------------------------------
 
 def get_required_fields(fields, exceptions):
-    """Picks out the required fields.
+    """Reads module.FIELDS and returns names of required fields.
     
     >>> fields = [
     ...     {'name':'id', 'form':{'required':True}},
@@ -40,7 +39,9 @@ def get_required_fields(fields, exceptions):
     """
     required_fields = []
     for field in fields:
-        if field.get('form', None) and field['form']['required'] and (field['name'] not in exceptions):
+        if field.get('form', None) \
+        and field['form']['required'] \
+        and (field['name'] not in exceptions):
             required_fields.append(field['name'])
     return required_fields
 
