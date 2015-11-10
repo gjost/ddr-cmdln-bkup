@@ -14,6 +14,45 @@ class Module(object):
         self.path = None
         if self.module and self.module.__file__:
             self.path = self.module.__file__.replace('.pyc', '.py')
+
+    def __repr__(self):
+        return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.path)
+    
+    def field_names(self):
+        """Manipulates list of fieldnames to include/exclude columns from CSV.
+        
+        >>> m = TestModule()
+        >>> m.FIELDS = [{'name':'id'}, {'name':'title'}, {'name':'description'}]
+        >>> m.FIELDS_CSV_EXCLUDED = ['description']
+        >>> m.MODEL = 'collection'
+        >>> batch.module_field_names(m)
+        ['id', 'title']
+        >>> m.MODEL = 'entity'
+        >>> batch.module_field_names(m)
+        ['id', 'title']
+        >>> m.MODEL = 'file'
+        >>> batch.module_field_names(m)
+        ['file_id', 'id', 'title']
+        
+        @returns: list of field names
+        """
+        if hasattr(self.module, 'FIELDS_CSV_EXCLUDED'):
+            excluded = self.module.FIELDS_CSV_EXCLUDED
+        else:
+            excluded = []
+        fields = [
+            field['name']
+            for field in getattr(self.module, 'FIELDS', [])
+            if not field['name'] in excluded
+        ]
+        # TODO don't refer to specific models
+        if self.module.MODEL == 'collection':
+            pass
+        elif self.module.MODEL == 'entity':
+            pass
+        elif self.module.MODEL == 'file':
+            fields.insert(0, 'file_id')
+        return fields
     
     def is_valid(self):
         """Indicates whether this is a proper module

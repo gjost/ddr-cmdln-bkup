@@ -33,7 +33,6 @@ import re
 import sys
 
 from DDR import batch_export
-from DDR import models
 from DDR import identifier
 from DDR import util
 
@@ -86,7 +85,9 @@ def read_id_file(path):
     ids = [line.strip() for line in text.strip().split('\n')]
     return ids
 
-def make_paths(collection_path, model, ids):
+def make_paths(collection_path, ids):
+    """
+    """
     basedir = os.path.dirname(collection_path)
     paths = [
         identifier.Identifier(object_id, basedir).path_abs('json')
@@ -95,6 +96,12 @@ def make_paths(collection_path, model, ids):
     return paths
 
 def make_csv_path(destdir, collection_path, model):
+    """Assemble path for CSV file.
+    
+    @param destdir: str Absolute path to destination dir
+    @param collection_path: str Absolute path to collection repository
+    @param model: str One of ['collection', 'entity', 'file']
+    """
     filename = '%s-%s-%s.csv' % (
         identifier.Identifier(collection_path).id,
         model,
@@ -113,6 +120,11 @@ def filter_paths(paths, pattern):
     return [path for path in paths if prog.search(path)]
 
 def all_paths(collection_path, model):
+    """Get all .json paths for specified model.
+    
+    @param collection_path: str Absolute path to collection repo
+    @param model: str One of ['collection', 'entity', 'file']
+    """
     return util.find_meta_files(
         basedir=collection_path, model=model, recursive=1, force_read=1
     )
@@ -136,16 +148,6 @@ def main():
     elif args.model not in identifier.MODELS:
         raise Exception("Bad model name: '%s'" % args.model)
     
-    # Gets Entity or File class
-    object_class = identifier.class_for_name(
-        identifier.MODEL_CLASSES[args.model]['module'],
-        identifier.MODEL_CLASSES[args.model]['class']
-    )
-    # Gets module from repo_modules
-    fields_module = identifier.module_for_name(
-        identifier.MODEL_REPO_MODELS[args.model]['module']
-    )
-    
     csv = make_csv_path(args.destdir, args.collection, args.model)
     logging.info('Writing to %s' % csv)
     if not os.access(os.path.dirname(csv), os.W_OK):
@@ -156,7 +158,7 @@ def main():
     logging.info('Gathering entity paths')
     paths = []
     if args.idfile:  # file containing list of IDs
-        paths = make_paths(args.collection, args.model, read_id_file(args.idfile))
+        paths = make_paths(args.collection, read_id_file(args.idfile))
     elif args.ids:  # ID pattern
         paths = filter_paths(all_paths(args.collection, args.model), args.ids)
     else:  # just get everything
@@ -165,7 +167,7 @@ def main():
         raise Exception('ERROR: Could not find metadata paths.')
     logging.info('%s matching paths' % len(paths))
     
-    batch_export.export(paths, object_class, fields_module, csv)
+    batch_export.export(paths, args.model, csv)
     
     finish = datetime.now()
     elapsed = finish - start
