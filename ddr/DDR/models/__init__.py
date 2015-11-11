@@ -272,6 +272,41 @@ def prep_csv(obj, module):
         values.append(value)
     return values
 
+def load_csv(obj, module, headers, row):
+    """Populates object from a row in a CSV file.
+    
+    @param obj: Collection/Entity/File object.
+    @param module: collection/entity/file module from 'ddr' repo.
+    @param headers: list Names of fields.
+    @param row: list One line of a CSV file.
+    @returns: dict
+    """
+    module_field_names = [mf['name'] for mf in module.FIELDS]
+    for n in range(0, len(row)):
+        key = headers[n]
+        val = row[n]
+        if key in module_field_names:
+            setattr(obj, key, val)
+    # Fill in missing fields with default values from module.FIELDS.
+    # Note: should not replace fields that are just empty.
+    for mf in module.FIELDS:
+        if not hasattr(document, mf['name']):
+            setattr(document, mf['name'], mf.get('default',None))
+    return csv_data
+
+def from_csv(model, headers, row, identifier):
+    """Instantiate object.
+    
+    @param model: LocalCollection, LocalEntity, or File
+    @param headers: list Names of fields.
+    @param row: list One line of a CSV file.
+    @param identifier: [optional] Identifier
+    @returns: object
+    """
+    obj = model(identifier.path_abs('json'), identifier)
+    obj.load_csv(headers, row)
+    return obj
+
 def load_xml():
     pass
 
@@ -785,6 +820,17 @@ class Entity( object ):
         return from_json(Entity, path_abs, identifier)
     
     @staticmethod
+    def from_csv(headers, row, identifier=None):
+        """Instantiates an Entity object from specified entity.json.
+        
+        @param headers: list Names of fields.
+        @param row: list One line of a CSV file.
+        @param identifier: [optional] Identifier
+        @returns: Entity
+        """
+        return from_csv(Entity, headers, row, identifier)
+    
+    @staticmethod
     def from_identifier(identifier):
         """Instantiates an Entity object, loads data from entity.json.
         
@@ -918,6 +964,29 @@ class Entity( object ):
                 'parent_id': self.parent_id,
             }
         )
+
+    def load_csv(self, headers, row):
+        """Populate Entity data from CSV-formatted text.
+        
+        @param headers: list Names of fields.
+        @param row: list One line of a CSV file.
+        """
+        module = self.identifier.fields_module()
+        load_csv(self, module, headers, row)
+        # special cases
+        def parsedt(txt):
+            d = datetime.now()
+            try:
+                d = datetime.strptime(txt, config.DATETIME_FORMAT)
+            except:
+                try:
+                    d = datetime.strptime(txt, config.TIME_FORMAT)
+                except:
+                    pass
+            return d
+        if hasattr(self, 'record_created') and self.record_created: self.record_created = parsedt(self.record_created)
+        if hasattr(self, 'record_lastmod') and self.record_lastmod: self.record_lastmod = parsedt(self.record_lastmod)
+        self.rm_file_duplicates()
 
     def dump_csv(self):
         """Dump Entity data to CSV-formatted text.
@@ -1265,6 +1334,17 @@ class File( object ):
         return from_json(File, path_abs, identifier)
     
     @staticmethod
+    def from_csv(headers, row, identifier=None):
+        """Instantiates a File object from specified *.json.
+        
+        @param headers: list Names of fields.
+        @param row: list One line of a CSV file.
+        @param identifier: [optional] Identifier
+        @returns: DDRFile
+        """
+        return from_csv(File, headers, row, identifier)
+    
+    @staticmethod
     def from_identifier(identifier):
         """Instantiates a File object, loads data from FILE.json.
         
@@ -1369,7 +1449,32 @@ class File( object ):
                 'entity_id': self.parent_id,
             }
         )
+    
+    def load_csv(self, headers, row):
+        """Populate File data from JSON-formatted text.
         
+        @param headers: list Names of fields.
+        @param row: list One line of a CSV file.
+        """
+        module = self.identifier.fields_module()
+        json_data = load_csv(self, module, headers, row)
+        # fill in the blanks
+        if self.access_rel:
+            access_abs = os.path.join(self.entity_files_path, self.access_rel)
+            if os.path.exists(access_abs):
+                self.access_abs = access_abs
+        # Identifier does not know file extension
+        self.ext = os.path.splitext(self.basename_orig)[1]
+        self.path = self.path + self.ext
+        self.path_abs = self.path_abs + self.ext
+        self.path_rel = self.path_rel + self.ext
+        self.basename = self.basename + self.ext
+        # fix access_rel
+        self.access_rel = os.path.join(
+            os.path.dirname(self.path_rel),
+            os.path.basename(self.access_abs)
+        )
+    
     def dump_csv(self):
         """Dump File data to list of values suitable for CSV.
         

@@ -1,4 +1,4 @@
-import codecs
+from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -6,47 +6,93 @@ import logging
 import os
 
 from DDR import changelog
+from DDR import config
+from DDR import csvfile
 from DDR import dvcs
 from DDR import fileio
+from DDR import identifier
 from DDR import models
 from DDR import modules
-from DDR.identifier import Identifier
 from DDR import util
 
 COLLECTION_FILES_PREFIX = 'files'
 
 
+class ModifiedFilesError(Exception):
+    pass
 
-# update entities ------------------------------------------------------
+class UncommittedFilesError(Exception):
+    pass
 
-def get_required_fields(fields, exceptions):
-    """Reads module.FIELDS and returns names of required fields.
+def test_repository(repo):
+    """Raise exception if staged or modified files in repo
     
-    >>> fields = [
-    ...     {'name':'id', 'form':{'required':True}},
-    ...     {'name':'title', 'form':{'required':True}},
-    ...     {'name':'description', 'form':{'required':False}},
-    ...     {'name':'formless'},
-    ...     {'name':'files', 'form':{'required':True}},
-    ... ]
-    >>> exceptions = ['files', 'whatever']
-    >>> batch.get_required_fields(fields, exceptions)
-    ['id', 'title']
+    Entity.add_files will not work properly if the repo contains staged
+    or modified files.
     
-    @param fields: module.FIELDS
-    @param exceptions: list of field names
-    @returns: list of field names
+    @param repo: GitPython repository
     """
-    required_fields = []
-    for field in fields:
-        if field.get('form', None) \
-        and field['form']['required'] \
-        and (field['name'] not in exceptions):
-            required_fields.append(field['name'])
-    return required_fields
+    logging.info('Checking repository')
+    staged = dvcs.list_staged(repo)
+    if staged:
+        logging.error('*** Staged files in repo %s' % repo.working_dir)
+        for f in staged:
+            logging.error('*** %s' % f)
+        raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
+    modified = dvcs.list_modified(repo)
+    if modified:
+        logging.error('Modified files in repo: %s' % repo.working_dir)
+        for f in modified:
+            logging.error('*** %s' % f)
+        raise ModifiedFilesError('Repository contains modified files - import cancelled!')
+    logging.debug('repository clean')
+
+def test_entities(collection_path, object_class, rowds):
+    """Test-loads Entities mentioned in rows; crashes if any are missing.
+    
+    When files are being updated/added, it's important that all the parent
+    entities already exist.
+    
+    @param collection_path:
+    @param rowds: List of rowds
+    @param object_class: subclass of Entity
+    @returns: dict of Entities by ID
+    """
+    logging.info('Validating parent entities')
+    cidentifier = identifier.Identifier(path=collection_path)
+    # get unique entity_ids
+    eids = []
+    for rowd in rowds:
+        fidentifier = identifier.Identifier(
+            id=rowd['file_id'], base_path=cidentifier.basepath
+        )
+        eidentifier = identifier.Identifier(
+            id=fidentifier.parent_id(), base_path=cidentifier.basepath
+        )
+        eids.append(eidentifier)
+    # test-load the Entities
+    entities = {}
+    bad = []
+    for eidentifier in eids:
+        entity_path = eidentifier.path_abs()
+        # update an existing entity
+        entity = None
+        if os.path.exists(entity_path):
+            entity = object_class.from_identifier(eidentifier)
+        if entity:
+            entities[entity.id] = entity
+        else:
+            bad.append(eidentifier.id)
+    if bad:
+        logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
+        for f in bad:
+            logging.error('    %s' % f)
+    if bad:
+        raise Exception('Cannot continue!')
+    return entities
 
 def load_vocab_files(vocabs_path):
-    """Loads FIELD.json files in the 'ddr' repository
+    """Loads vocabulary term files in the 'ddr' repository
     
     @param vocabs_path: Absolute path to dir containing vocab .json files.
     @returns: list of raw text contents of files.
@@ -56,14 +102,16 @@ def load_vocab_files(vocabs_path):
         path = os.path.join(vocabs_path, p)
         if os.path.splitext(path)[1] == '.json':
             json_paths.append(path)
-    files = []
-    for path in json_paths:
-        with codecs.open(path, 'r', 'utf-8') as f:
-            files.append(f.read())
-    return files
+    json_texts = [
+        fileio.read_text(path)
+        for path in json_paths
+    ]
+    return json_texts
 
 def prep_valid_values(json_texts):
-    """Packages dict of acceptable values for controlled-vocab fields.
+    """Prepares dict of acceptable values for controlled-vocab fields.
+    
+    TODO should be method of DDR.modules.Module
     
     Loads choice values from FIELD.json files in the 'ddr' repository
     into a dict:
@@ -93,190 +141,34 @@ def prep_valid_values(json_texts):
             valid_values[field] = values
     return valid_values
 
-def make_row_dict(headers, row):
-    """Turns the row into a dict with the headers as keys
-    
-    >>> headers0 = ['id', 'created', 'lastmod', 'title', 'description']
-    >>> row0 = ['id', 'then', 'now', 'title', 'descr']
-    {'title': 'title', 'description': 'descr', 'lastmod': 'now', 'id': 'id', 'created': 'then'}
-
-    @param headers: List of header field names
-    @param row: A single row (list of fields, not dict)
-    @returns dict
-    """
-    if len(headers) != len(row):
-        logging.error(headers)
-        logging.error(row)
-        raise Exception('Row and header have different number of fields.')
-    d = {}
-    for n in range(0, len(row)):
-        d[headers[n]] = row[n]
-    return d
-
-def validate_headers(model, headers, field_names, exceptions):
-    """Validates headers and crashes if problems.
-    
-    >>> model = 'entity'
-    >>> field_names = ['id', 'title', 'notused']
-    >>> exceptions = ['notused']
-    >>> headers = ['id', 'title']
-    >>> validate_headers(model, headers, field_names, exceptions)
-    >>> headers = ['id', 'titl']
-    >>> validate_headers(model, headers, field_names, exceptions)
-    Traceback (most recent call last):
-      File "<input>", line 1, in <module>
-      File "/usr/local/lib/python2.7/dist-packages/DDR/batch.py", line 319, in validate_headers
-        raise Exception('MISSING HEADER(S): %s' % missing_headers)
-    Exception: MISSING HEADER(S): ['title']
-    
-    @param model: 'entity' or 'file'
-    @param headers: List of field names
-    @param field_names: List of field names
-    @param exceptions: List of nonrequired field names
-    """
-    logging.info('Validating headers')
-    headers = deepcopy(headers)
-    # validate
-    missing_headers = []
-    for field in field_names:
-        if (field not in exceptions) and (field not in headers):
-            missing_headers.append(field)
-    if missing_headers:
-        raise Exception('MISSING HEADER(S): %s' % missing_headers)
-    bad_headers = []
-    for header in headers:
-        if header not in field_names:
-            bad_headers.append(header)
-    if bad_headers:
-        raise Exception('BAD HEADER(S): %s' % bad_headers)
-
-def account_row(required_fields, rowd):
-    """Returns list of any required fields that are missing from rowd.
-    
-    >>> required_fields = ['id', 'title']
-    >>> rowd = {'id': 123, 'title': 'title'}
-    >>> account_row(required_fields, rowd)
-    []
-    >>> required_fields = ['id', 'title', 'description']
-    >>> account_row(required_fields, rowd)
-    ['description']
-    
-    @param required_fields: List of required field names
-    @param rowd: A single row (dict, not list of fields)
-    @returns: list of field names
-    """
-    missing = []
-    for f in required_fields:
-        if (f not in rowd.keys()) or (not rowd.get(f,None)):
-            missing.append(f)
-    return missing
-
-def validate_row(module, headers, valid_values, rowd):
-    """Examines row values and returns names of invalid fields.
-    
-    TODO refers to lots of globals!!!
-    
-    @param module: entity_module or files_module
-    @param headers: List of field names
-    @param valid_values:
-    @param rowd: A single row (dict, not list of fields)
-    @returns: list of invalid values
-    """
-    invalid = []
-    for field in headers:
-        value = modules.Module(module).function(
-            'csvload_%s' % field,
-            rowd[field]
-        )
-        valid = modules.Module(module).function(
-            'csvvalidate_%s' % field,
-            [valid_values, value]
-        )
-        if not valid:
-            invalid.append(field)
-    return invalid
-
-def validate_rows(module, headers, required_fields, valid_values, rows):
-    """Examines rows and crashes if problems.
-    
-    @param module: entity_module or files_module
-    @param headers: List of field names
-    @param required_fields: List of required field names
-    @param valid_values:
-    @param rows: List of rows (each with list of fields, not dict)
-    """
-    logging.info('Validating rows')
-    for n,row in enumerate(rows):
-        rowd = make_row_dict(headers, row)
-        missing_required = account_row(required_fields, rowd)
-        invalid_fields = validate_row(module, headers, valid_values, rowd)
-        # print feedback and die
-        if missing_required or invalid_fields:
-            if missing_required:
-                raise Exception('Row %s missing required fields: %s' % (n+1, missing_required))
-            if invalid_fields:
-                for field in invalid_fields:
-                    logging.error('row%s:%s = "%s"' % (n+1, field, rowd[field]))
-                    logging.error('valid values: %s' % valid_values[field])
-                raise Exception('Row %s invalid values: %s' % (n+1, invalid_fields))
-
-def load_entity(collection_path, class_, rowd):
-    """Get new or existing Entity object
-    
-    @param collection_path: Absolute path to collection
-    @param class_: subclass of Entity
-    @param rowd:
-    @returns: entity
-    """
-    cidentifier = Identifier(path=collection_path)
-    eidentifier = Identifier(id=rowd['id'], base_path=cidentifier.basepath)
-    entity_path = eidentifier.path_abs()
-    entity_json_path = eidentifier.path_abs('json')
-    # update an existing entity
-    if os.path.exists(entity_json_path):
-        entity = class_.from_identifier(eidentifier)
-        entity.new = False
-    else:
-        entity = class_.from_identifier(eidentifier)
-        entity.id = entity_id
-        entity.record_created = datetime.now()
-        entity.record_lastmod = datetime.now()
-        entity.files = []
-        entity.new = True
-    return entity
-
-def csvload_entity(entity, module, field_names, rowd):
+def populate_object(obj, module, field_names, rowd):
     """Update entity with values from CSV row.
     
     TODO Populates entity attribs EXCEPT FOR .files!!!
     
-    @param entity:
-    @param module: entity_module
+    @param obj:
+    @param module:
     @param field_names:
     @param rowd:
     @returns: entity,modified
     """
     # run csvload_* functions on row data, set values
-    entity.modified = 0
+    obj.modified = 0
     for field in field_names:
-        oldvalue = getattr(entity, field, '')
-        value = modules.Module(module).function(
+        oldvalue = getattr(obj, field, '')
+        value = module.function(
             'csvload_%s' % field,
             rowd[field]
         )
-        value = normalize_text(value)
+        value = util.normalize_text(value)
         if value != oldvalue:
-            entity.modified += 1
-        setattr(entity, field, value)
-    if entity.modified:
-        entity.record_lastmod = datetime.now()
-    return entity
+            obj.modified += 1
+        setattr(obj, field, value)
+    if obj.modified:
+        obj.record_lastmod = datetime.now()
 
 def write_entity_changelog(entity, git_name, git_mail, agent):
-    if entity.new:
-        msg = 'Initialized entity {}'
-    else:
-        msg = 'Updated entity file {}'
+    msg = 'Updated entity file {}'
     messages = [
         msg.format(entity.json_path),
         '@agent: %s' % agent,
@@ -284,219 +176,6 @@ def write_entity_changelog(entity, git_name, git_mail, agent):
     changelog.write_changelog_entry(
         entity.changelog_path, messages,
         user=git_name, email=git_mail)
-
-def update_entities(csv_path, collection_path, class_, module, vocabs_path, git_name, git_mail, agent):
-    """Reads a CSV file, checks for errors, and writes entity.json files
-    
-    This function writes and stages files but does not commit them!
-    That is left to the user or to another function.
-    
-    TODO What if entities already exist???
-    TODO do we overwrite fields?
-    TODO how to handle excluded fields like XMP???
-    
-    @param csv_path: Absolute path to CSV data file.
-    @param collection_path: Absolute path to collection repo.
-    @param class_: subclass of Entity
-    @param module: entity_module
-    @param vocabs_path: Absolute path to vocab dir
-    @param git_name:
-    @param git_mail:
-    @param agent:
-    @returns: list of updated entities
-    """
-    csv_path = os.path.normpath(csv_path)
-    collection_path = os.path.normpath(collection_path)
-    field_names = module_field_names(module)
-    nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
-    required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
-    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
-    # read entire file into memory
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    # check for errors
-    validate_headers('entity', headers, field_names, nonrequired_fields)
-    validate_rows(module, headers, required_fields, valid_values, rows)
-    # ok go
-    git_files = []
-    annex_files = []
-    updated = []
-    for n,row in enumerate(rows):
-        rowd = make_row_dict(headers, row)
-        logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
-        entity = load_entity(collection_path, class_, rowd)
-        entity = csvload_entity(entity, module, field_names, rowd)
-        if entity.new or entity.modified:
-            if not os.path.exists(entity.path):
-                os.mkdir(entity.path)
-            logging.debug('    writing %s' % entity.json_path)
-            entity.write_json()
-            write_entity_changelog(entity, git_name, git_mail, agent)
-            git_files.append(entity.json_path_rel)
-            git_files.append(entity.changelog_path_rel)
-            updated.append(entity)
-    # stage modified files
-    logging.info('Staging changes to the repo')
-    repo = dvcs.repository(collection_path)
-    logging.debug(str(repo))
-    for path in git_files:
-        logging.debug('git add %s' % path)
-        repo.git.add(path)
-    return updated
-
-# update files ---------------------------------------------------------
-
-class ModifiedFilesError(Exception):
-    pass
-
-class UncommittedFilesError(Exception):
-    pass
-
-def test_repository(repo):
-    """Raise exception if staged or modified files in repo
-    
-    Entity.add_files will not work properly if the repo contains staged
-    or modified files.
-    
-    @param repo: GitPython repository
-    """
-    logging.info('Checking repository')
-    staged = dvcs.list_staged(repo)
-    if staged:
-        logging.error('*** Staged files in repo %s' % repo.working_dir)
-        for f in staged:
-            logging.error('*** %s' % f)
-        raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
-    modified = dvcs.list_modified(repo)
-    if modified:
-        logging.error('Modified files in repo: %s' % repo.working_dir)
-        for f in modified:
-            logging.error('*** %s' % f)
-        raise ModifiedFilesError('Repository contains modified files - import cancelled!')
-
-def test_entities(collection_path, class_, rowds):
-    """Test-loads Entities mentioned in rows; crashes if any are missing.
-    
-    When files are being updated/added, it's important that all the parent
-    entities already exist.
-    
-    @param collection_path:
-    @param rowds: List of rowds
-    @param class_: subclass of Entity
-    @returns: ok,bad
-    """
-    logging.info('Validating parent entities')
-    cidentifier = Identifier(path=collection_path)
-    # get unique entity_ids
-    eids = []
-    for rowd in rowds:
-        fidentifier = Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
-        eidentifier = Identifier(id=fidentifier.parent_id(), base_path=cidentifier.basepath)
-        eids.append(eidentifier)
-    # test-load the Entities
-    entities = {}
-    bad = []
-    for eidentifier in eids:
-        entity_path = eidentifier.path_abs()
-        # update an existing entity
-        entity = None
-        if os.path.exists(entity_path):
-            entity = class_.from_identifier(eidentifier)
-        if entity:
-            entities[entity.id] = entity
-        else:
-            bad.append(eidentifier.id)
-    if bad:
-        logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
-        for f in bad:
-            logging.error('    %s' % f)
-    if bad:
-        raise Exception('Cannot continue!')
-    return entities
-
-def test_new_files(csv_path, rowds):
-    """Finds new files in CSV, indicates which are ok, which are missing.
-    
-    Files to be imported must be located in the same directory as the CSV file.
-    
-    @param csv_path: Absolute path to CSV file
-    @param rowds: List of rowds
-    @returns: ok,bad - lists of valid and invalid paths
-    """
-    logging.info('Checking for new files')
-    paths = []
-    for rowd in rowds:
-        identifier = Identifier(id=rowd['file_id'])
-        if identifier.model == 'file':
-            # files that exist in the same directory as .csv
-            paths.append(os.path.join(
-                os.path.dirname(csv_path),
-                rowd['basename_orig']
-            ))
-    ok = []
-    bad = []
-    for path in paths:
-        if os.path.exists(path):
-            ok.append(path)
-        else:
-            bad.append(path)
-    if ok:
-        logging.debug('| %s new files' % len(ok))
-        for f in ok:
-            logging.debug('| %s' % f)
-    if bad:
-        logging.error('*** One or more new files could not be located! - IMPORT CANCELLED!')
-        for f in bad:
-            logging.error('*** %s' % f)
-        raise Exception('Cannot continue!')
-
-def load_file(collection_path, file_class, rowd):
-    """Loads Entity from JSON file or creates fresh one.
-    
-    @param collection_path: Absolute path to collection
-    @param file_class: subclass of DDRFile
-    @param rowd: dict containing file fields:values
-    @returns: File object
-    """
-    identifier = None
-    if rowd.get('file_id',None):
-        identifier = Identifier(
-            id=rowd['file_id'],
-            base_path=os.path.dirname(collection_path)
-        )
-    # update an existing file
-    path_abs = identifier.path_abs()
-    path_abs_json = identifier.path_abs('json')
-    if identifier and os.path.exists(path_abs_json):
-        file_ = file_class.from_json(path_abs_json)
-        file_.exists = True
-    else:
-        file_ = file_class()
-        file_.exists = False
-    return file_
-
-def csvload_file(file_, module, field_names, rowd):
-    """Loads file data from CSV row and convert to Python data
-    
-    @param file_: File object
-    @param module: file_module
-    @param field_names: list of field names
-    @param rowd: dict containing file fields:values
-    @returns: File object
-    """
-    # run csvload_* functions on row data, set values
-    file_.modified = 0
-    for field in field_names:
-        oldvalue = getattr(file_, field, '')
-        value = modules.Module(module).function(
-            'csvload_%s' % field,
-            rowd[field]
-        )
-        value = normalize_text(value)
-        if value != oldvalue:
-            file_.modified += 1
-        setattr(file_, field, value)
-    return file_
 
 def write_file_changelogs(entities, git_name, git_mail, agent):
     """Writes entity update/add changelogs, returns list of changelog paths
@@ -519,9 +198,9 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
         if getattr(entity, 'changelog_updated', None):
             for f in entity.changelog_updated:
                 messages.append('Updated entity file {}'.format(f.json_path_rel))
-        if getattr(entity, 'changelog_added', None):
-            for f in entity.changelog_added:
-                messages.append('Added entity file {}'.format(f.json_path_rel))
+        #if getattr(entity, 'changelog_added', None):
+        #    for f in entity.changelog_added:
+        #        messages.append('Added entity file {}'.format(f.json_path_rel))
         messages.append('@agent: %s' % agent)
         changelog.write_changelog_entry(
             entity.changelog_path,
@@ -531,92 +210,193 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
         git_files.append(entity.changelog_path_rel)
     return git_files
 
-def update_files(csv_path, collection_path, entity_class, file_class, module, vocabs_path, git_name, git_mail, agent):
-    """Updates metadata for files in csv_path.
+
+def update_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, agent):
+    """Reads a CSV file, checks for errors, and writes entity.json files
     
+    IMPORTANT: All objects in CSV must already exist!
+    IMPORTANT: All objects in CSV must have the same set of fields!
     
+    This function writes and stages files but does not commit them!
+    That is left to the user or to another function.
     
+    TODO What if entities already exist???
+    TODO do we overwrite fields?
     TODO how to handle excluded fields like XMP???
     
     @param csv_path: Absolute path to CSV data file.
     @param collection_path: Absolute path to collection repo.
-    @param entity_class: subclass of Entity
-    @param file_class: subclass of DDRFile
-    @param module: file_module
     @param vocabs_path: Absolute path to vocab dir
     @param git_name:
     @param git_mail:
     @param agent:
+    @returns: list of updated entities
     """
-    csv_path = os.path.normpath(csv_path)
-    collection_path = os.path.normpath(collection_path)
     logging.info('-----------------------------------------------')
-    csv_dir = os.path.dirname(csv_path)
-    cidentifier = Identifier(path=collection_path)
-    field_names = module_field_names(module)
-    nonrequired_fields = module.REQUIRED_FIELDS_EXCEPTIONS
-    required_fields = get_required_fields(module.FIELDS, nonrequired_fields)
-    if module.MODEL == 'file':
-        required_fields.append('file_id')
-        required_fields.append('basename_orig')
-    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
-    # read entire file into memory
+    csv_path = os.path.normpath(csv_path)
+    vocabs_path = os.path.normpath(vocabs_path)
+    collection_path = os.path.normpath(collection_path)
+    cidentifier = identifier.Identifier(collection_path)
+    
+    model = 'entity'
+    object_class = identifier.class_for_name(
+        identifier.MODEL_CLASSES[model]['module'],
+        identifier.MODEL_CLASSES[model]['class']
+    )
+    logging.debug(object_class)
+    module = modules.Module(
+        identifier.module_for_name(
+            identifier.MODEL_REPO_MODELS[model]['module']
+        )
+    )
+    logging.debug(module)
+    
+    # check for modified or uncommitted files in repo
+    repository = dvcs.repository(collection_path)
+    logging.debug(repository)
+    test_repository(repository)
+    
     logging.info('Reading %s' % csv_path)
     rows = fileio.read_csv(csv_path)
     headers = rows.pop(0)
     logging.info('%s rows' % len(rows))
     
-    # check for problems before we go through the main loop
-    validate_headers('file', headers, field_names, nonrequired_fields)
-    validate_rows(module, headers, required_fields, valid_values, rows)
-    # make list-of-dicts
-    rowds = []
-    while rows:
-        rowd = rows.pop(0)
-        rowds.append(make_row_dict(headers, rowd))
-    # more checks
+    # check for errors
+    field_names = module.field_names()
+    nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
+    required_fields = module.required_fields(nonrequired_fields)
+    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
+    logging.info('Validating headers')
+    csvfile.validate_headers(headers, field_names, nonrequired_fields)
+    logging.info('Validating rows')
+    csvfile.validate_rows(module, headers, required_fields, valid_values, rows)
+    
+    logging.info('Updating - - - - - - - - - - - - - - - -')
+    git_files = []
+    updated = []
+    for n,row in enumerate(rows):
+        rowd = csvfile.make_row_dict(headers, row)
+        logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
+        
+        ## instantiate
+        #entity = make_object(collection_path, class_, rowd)
+        # load existing object and set new values from CSV
+        eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
+        entity = eidentifier.object()
+        populate_object(entity, module, field_names, rowd)
+        
+        # write files
+        logging.debug('    writing %s' % entity.json_path)
+        entity.write_json()
+        # TODO better to write to collection changelog?
+        write_entity_changelog(entity, git_name, git_mail, agent)
+        # stage
+        git_files.append(entity.json_path_rel)
+        git_files.append(entity.changelog_path_rel)
+        updated.append(entity)
+    
+    # stage modified files
+    logging.info('Staging changes to the repo')
+    for path in git_files:
+        repository.git.add(path)
+    for path in util.natural_sort(dvcs.list_staged(repository)):
+        if path in git_files:
+            logging.debug('| %s' % path)
+        else:
+            logging.debug('+ %s' % path)
+    return updated
+
+
+def update_files(csv_path, collection_path, vocabs_path, git_name, git_mail, agent):
+    """Updates metadata for files in csv_path.
+    
+    TODO how to handle excluded fields like XMP???
+    
+    @param csv_path: Absolute path to CSV data file.
+    @param collection_path: Absolute path to collection repo.
+    @param vocabs_path: Absolute path to vocab dir
+    @param git_name:
+    @param git_mail:
+    @param agent:
+    """
+    logging.info('-----------------------------------------------')
+    csv_path = os.path.normpath(csv_path)
+    csv_dir = os.path.dirname(csv_path)
+    vocabs_path = os.path.normpath(vocabs_path)
+    collection_path = os.path.normpath(collection_path)
+    cidentifier = identifier.Identifier(path=collection_path)
+
+    # TODO this still knows too much about entities and files...
+    entity_class = identifier.class_for_name(
+        identifier.MODEL_CLASSES['entity']['module'],
+        identifier.MODEL_CLASSES['entity']['class']
+    )
+    logging.debug('entity_class %s' % entity_class)
+    module = modules.Module(
+        identifier.module_for_name(
+            identifier.MODEL_REPO_MODELS['file']['module']
+        )
+    )
+    logging.debug('module %s' % module)
+    
+    # check for modified or uncommitted files in repo
     repository = dvcs.repository(collection_path)
     logging.debug(repository)
     test_repository(repository)
-    entities = test_entities(collection_path, entity_class, rowds)
-    test_new_files(csv_path, rowds)
     
-    logging.info('Updating/Adding - - - - - - - - - - - - - - - -')
-    git_files = []
+    logging.info('Reading %s' % csv_path)
+    rows = fileio.read_csv(csv_path)
+    headers = rows.pop(0)
+    logging.info('%s rows' % len(rows))
+    
+    # check for errors
+    field_names = module.field_names()
+    nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
+    required_fields = module.required_fields(nonrequired_fields)
+    required_fields.append('file_id')
+    required_fields.append('basename_orig')
+    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
+    logging.info('Validating headers')
+    csvfile.validate_headers(headers, field_names, nonrequired_fields)
+    logging.info('Validating rows')
+    csvfile.validate_rows(module, headers, required_fields, valid_values, rows)
+    
+    rowds = [
+        csvfile.make_row_dict(headers, row)
+        for row in rows
+    ]
+
+    entities = test_entities(collection_path, entity_class, rowds)
     for entity in entities.itervalues():
         entity.changelog_updated = []
         entity.changelog_added = []
+    
+    logging.info('Updating - - - - - - - - - - - - - - - -')
+    git_files = []
     for n,rowd in enumerate(rowds):
         logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['file_id']))
-        fidentifier = Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
-        file0 = load_file(collection_path, file_class, rowd)
-        file_ = csvload_file(file0, module, field_names, rowd)
+        
+        fidentifier = identifier.Identifier(id=rowd['file_id'], base_path=cidentifier.basepath)
+        #file0 = make_object(collection_path, rowd)
+        file_ = fidentifier.object()
+        populate_object(file_, module, field_names, rowd)
         entity = entities[fidentifier.parent_id()]
-        if file_.exists:
-            # update metadata
-            file_.write_json()
-            git_files.append(file_.json_path_rel)
-            entity.changelog_updated.append(file_)
-            
-        else:
-            # add new file
-            src_path = os.path.join(os.path.dirname(csv_path), rowd['basename_orig'])
-            logging.info('| log: %s' % entity.addfile_logger().logpath)
-            logging.info('| %s' % src_path)
-            # add the file
-            file_,filerepo,filelog = entity.add_file(
-                src_path, fidentifier.parts['role'], rowd, git_name, git_mail, agent)
-            logging.info('| > %s' % file_.id)
-            # file_add stages files, don't need to use git_add
-            entity.changelog_added.append(file_)
-    
+        
+        # update metadata
+        logging.debug('    writing %s' % file_.json_path_rel)
+        file_.write_json()
+        git_files.append(file_.json_path_rel)
+        # TODO better to write to collection changelog?
+        entity.changelog_updated.append(file_)
+
     logging.info('Writing entity changelogs')
     git_files += write_file_changelogs(
         [e for e in entities.itervalues()],
-        git_name, git_mail, agent)
+        git_name, git_mail, agent
+    )
     
     # stage git_files
-    logging.info('Staging files to the repo')
+    logging.info('Staging changes to the repo')
     for path in git_files:
         repository.git.add(path)
     for path in util.natural_sort(dvcs.list_staged(repository)):

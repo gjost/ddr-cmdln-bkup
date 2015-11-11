@@ -67,7 +67,7 @@ setup(
         'bin/ddr-checkencoding',
         'bin/ddr-checkbinaries',
         'bin/ddr-export',
-        'bin/ddr-import',
+        'bin/ddr-update',
         'bin/ddr-filter',
         'bin/ddr-index',
         'bin/ddr-massupdate',

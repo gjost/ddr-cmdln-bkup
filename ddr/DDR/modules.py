@@ -54,6 +54,32 @@ class Module(object):
             fields.insert(0, 'file_id')
         return fields
     
+    def required_fields(self, exceptions=[]):
+        """Reads module.FIELDS and returns names of required fields.
+        
+        >>> fields = [
+        ...     {'name':'id', 'form':{'required':True}},
+        ...     {'name':'title', 'form':{'required':True}},
+        ...     {'name':'description', 'form':{'required':False}},
+        ...     {'name':'formless'},
+        ...     {'name':'files', 'form':{'required':True}},
+        ... ]
+        >>> exceptions = ['files', 'whatever']
+        >>> batch.get_required_fields(fields, exceptions)
+        ['id', 'title']
+        
+        @param exceptions: list of field names
+        @returns: list of field names
+        """
+        required_fields = [
+            field['name']
+            for field in self.module.FIELDS
+            if field.get('form', None) \
+            and field['form']['required'] \
+            and (field['name'] not in exceptions)
+        ]
+        return required_fields
+    
     def is_valid(self):
         """Indicates whether this is a proper module
     
