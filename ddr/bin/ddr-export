@@ -17,10 +17,20 @@ Sample ID formats:
     ddr-test-123-*            All files in a collection
     ddr-test-123-[1-5,7-8,10] Ranges of entities
 
-Example:
+Examples:
 
     $ ddr-export entity /var/www/media/base/ddr-testing-123 /tmp
     $ ddr-export file /var/www/media/base/ddr-testing-123 /tmp
+
+You can also print out blank CSV files with all fields:
+
+    $ ddr-export -b entity /var/www/media/base/ddr-testing-123 /tmp
+    $ ddr-export -b file /var/www/media/base/ddr-testing-123 /tmp
+
+And with only required fields:
+
+    $ ddr-export -B entity /var/www/media/base/ddr-testing-123 /tmp
+    $ ddr-export -B file /var/www/media/base/ddr-testing-123 /tmp
 
 ddr-export"""
 
@@ -134,6 +144,8 @@ def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-b', '--blank', action='store_true', help='Blank CSV, just headers (all fields).')
+    parser.add_argument('-B', '--blankr', action='store_true', help='Blank CSV, just headers (required fields only).')
     parser.add_argument('-i', '--ids', help='ID(s) (see help for formatting).')
     parser.add_argument('-I', '--idfile', help='File containing list of IDs, one per line.')
     parser.add_argument('model', help="Model: 'entity' or 'file'.")
@@ -157,17 +169,19 @@ def main():
     
     logging.info('Gathering entity paths')
     paths = []
-    if args.idfile:  # file containing list of IDs
+    if args.blank or args.blankr:
+        pass
+    elif args.idfile:  # file containing list of IDs
         paths = make_paths(args.collection, read_id_file(args.idfile))
     elif args.ids:  # ID pattern
         paths = filter_paths(all_paths(args.collection, args.model), args.ids)
     else:  # just get everything
         paths = all_paths(args.collection, args.model)
-    if not paths:
+    if not paths and not (args.blank or args.blankr):
         raise Exception('ERROR: Could not find metadata paths.')
     logging.info('%s matching paths' % len(paths))
     
-    batch_export.export(paths, args.model, csv)
+    batch_export.export(paths, args.model, csv, required_only=args.blankr)
     
     finish = datetime.now()
     elapsed = finish - start

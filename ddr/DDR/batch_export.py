@@ -18,7 +18,7 @@ def make_tmpdir(tmpdir):
     if not os.path.exists(tmpdir):
         os.makedirs(tmpdir)
 
-def export(json_paths, model, csv_path):
+def export(json_paths, model, csv_path, required_only=False):
     """Write the specified objects' data to CSV.
     
     IMPORTANT: All objects in json_paths must have the same set of fields!
@@ -29,6 +29,7 @@ def export(json_paths, model, csv_path):
     @param json_paths: list of .json files
     @param model: str
     @param csv_path: Absolute path to CSV data file.
+    @param required_only: boolean Only required fields.
     """
     object_class = identifier.class_for_name(
         identifier.MODEL_CLASSES[model]['module'],
@@ -47,7 +48,10 @@ def export(json_paths, model, csv_path):
     json_paths_len = len(json_paths)
     
     make_tmpdir(os.path.dirname(csv_path))
-    headers = module.field_names()
+    if required_only:
+        headers = module.required_fields()
+    else:
+        headers = module.field_names()
     
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
         writer = fileio.csv_writer(csvfile)
@@ -57,4 +61,5 @@ def export(json_paths, model, csv_path):
             logging.info('%s/%s - %s' % (n+1, json_paths_len, i.id))
             obj = object_class.from_identifier(i)
             writer.writerow(obj.dump_csv())
+    
     return csv_path
