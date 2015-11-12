@@ -51,7 +51,7 @@ class Module(object):
         elif self.module.MODEL == 'entity':
             pass
         elif self.module.MODEL == 'file':
-            fields.insert(0, 'file_id')
+            fields.insert(0, 'id')
         return fields
     
     def required_fields(self, exceptions=[]):
