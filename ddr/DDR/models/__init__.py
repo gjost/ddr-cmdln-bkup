@@ -106,6 +106,23 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
             paths_sorted.append(val)
     return paths_sorted
 
+def create_object(identifier):
+    """Creates a new object initial values from module.FIELDS.
+    
+    @param identifier: Identifier
+    @returns: object
+    """
+    object_class = identifier.object_class()
+    obj = object_class(
+        identifier.path_abs(),
+        identifier=identifier
+    )
+    # set initial values
+    for f in identifier.fields_module().FIELDS:
+        if hasattr(f, 'name') and hasattr(f, 'initial'):
+            setattr(obj, f['name'], f['initial'])
+    return obj
+
 def object_metadata(module, repo_path):
     """Metadata for the ddrlocal/ddrcmdln and models definitions used.
     
@@ -443,22 +460,16 @@ class Collection( object ):
         return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
     @staticmethod
-    def create(path):
-        """Creates a new collection with the specified collection ID.
+    def create(path_abs, identifier=None):
+        """Creates a new Collection with initial values from module.FIELDS.
         
-        Also sets initial field values if present.
-        
-        >>> c = Collection.create('/tmp/ddr-testing-120')
-        
-        @param path: Absolute path to collection; must end in valid DDR collection id.
+        @param path_abs: str Absolute path; must end in valid DDR id.
+        @param identifier: [optional] Identifier
         @returns: Collection object
         """
-        collection = Collection(path)
-        module = collection.identifier.fields_module()
-        for f in module.FIELDS:
-            if hasattr(f, 'name') and hasattr(f, 'initial'):
-                setattr(collection, f['name'], f['initial'])
-        return collection
+        if not identifier:
+            identifier = Identifier(path=path_abs)
+        return create_object(identifier)
     
     @staticmethod
     def from_json(path_abs, identifier=None):
@@ -798,16 +809,18 @@ class Entity( object ):
         return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
     
     @staticmethod
-    def create(path):
-        """Creates a new entity with the specified entity ID.
-        @param path: Absolute path to entity; must end in valid DDR entity id.
+    def create(path_abs, identifier=None):
+        """Creates a new Entity with initial values from module.FIELDS.
+        
+        @param path_abs: str Absolute path; must end in valid DDR id.
+        @param identifier: [optional] Identifier
+        @returns: Entity object
         """
-        entity = Entity(path)
-        module = self.identifier.fields_module()
-        for f in module.FIELDS:
-            if hasattr(f, 'name') and hasattr(f, 'initial'):
-                setattr(entity, f['name'], f['initial'])
-        return entity
+        if not identifier:
+            identifier = Identifier(path=path_abs)
+        obj = create_object(identifier)
+        obj.files = []
+        return obj
     
     @staticmethod
     def from_json(path_abs, identifier=None):
@@ -1312,7 +1325,19 @@ class File( object ):
 
     def __repr__(self):
         return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.id)
-
+    
+    @staticmethod
+    def create(path_abs, identifier=None):
+        """Creates a new File with initial values from module.FIELDS.
+        
+        @param path_abs: str Absolute path; must end in valid DDR id.
+        @param identifier: [optional] Identifier
+        @returns: File object
+        """
+        if not identifier:
+            identifier = Identifier(path=path_abs)
+        return create_object(identifier)
+    
     # _lockfile
     # lock
     # unlock
