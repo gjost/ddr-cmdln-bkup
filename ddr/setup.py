@@ -67,11 +67,12 @@ setup(
         'bin/ddr-checkencoding',
         'bin/ddr-checkbinaries',
         'bin/ddr-export',
-        'bin/ddr-update',
         'bin/ddr-filter',
+        'bin/ddr-import',
         'bin/ddr-index',
         'bin/ddr-massupdate',
         'bin/ddr-pubcopy',
+        'bin/ddr-update',
         'bin/ddrdensho255fix',
     ],
 )
