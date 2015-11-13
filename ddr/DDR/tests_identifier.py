@@ -27,7 +27,7 @@ def test_identify_object():
     id2_expected_model = None
     id0_expected_gd = {'repo':'ddr', 'org':'test', 'cid':'123'}
     id1_expected_gd = {'repo':'ddr', 'org':'test', 'cid':'123', 'eid':'456'}
-    id2_expected_gd = None
+    id2_expected_gd = {}
     assert identifier.identify_object(id0, patterns) == (id0_expected_model,id0_expected_gd) 
     assert identifier.identify_object(id1, patterns) == (id1_expected_model,id1_expected_gd)
     assert identifier.identify_object(id2, patterns) == (id2_expected_model,id2_expected_gd)

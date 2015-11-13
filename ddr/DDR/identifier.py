@@ -288,7 +288,7 @@ def identify_object(text, patterns):
     @returns: dict groupdict resulting from successful regex match
     """
     model = None
-    groupdict = None
+    groupdict = {}
     for tpl in patterns:
         pattern = tpl[0]
         m = re.match(pattern, text)
