@@ -109,3 +109,12 @@ def test_file_hash():
     assert util.file_hash(path, 'sha256') == sha256
     assert util.file_hash(path, 'md5') == md5
     os.remove(path)
+
+def test_normalize_text():
+    assert util.normalize_text('  this is a test') == 'this is a test'
+    assert util.normalize_text('this is a test  ') == 'this is a test'
+    assert util.normalize_text('this\r\nis a test') == 'this\\nis a test'
+    assert util.normalize_text('this\ris a test') == 'this\\nis a test'
+    assert util.normalize_text('this\\nis a test') == 'this\\nis a test'
+    assert util.normalize_text(['this is a test']) == ['this is a test']
+    assert util.normalize_text({'this': 'is a test'}) == {'this': 'is a test'}
