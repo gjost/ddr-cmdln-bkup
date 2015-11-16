@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import requests
 
 from DDR import config
+from DDR import identifier
 
 MESSAGES = {
     'API_LOGIN_NOT_200': 'Error: status code {} on POST', # status code
@@ -153,7 +154,14 @@ def _objects_latest(session, url, args, num_objects=1):
     else:
         return ids
 
-def collections_latest(session, repo, org, num_objects=1):
+def get_ancestor(identifier, model):
+    ai = None
+    for i in identifier.lineage(stubs=1):
+        if i.model == model:
+            ai = i
+    return ai
+    
+def collections_latest(session, identifier, num_objects=1):
     """Get the most recent N collection IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -164,15 +172,15 @@ def collections_latest(session, repo, org, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
+    @param identifier: identifier.Identifier object
     @param num_objects: int N most recent IDs to get.
     @returns: list of IDs
     """
-    url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
+    oi = get_ancestor(identifier, 'organization')
+    url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
     return _objects_latest(session, url, ('a','collection'), num_objects)
 
-def entities_latest(session, repo, org, cid, num_objects=1):
+def entities_latest(session, identifier, num_objects=1):
     """Get the most recent N entity IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -183,13 +191,12 @@ def entities_latest(session, repo, org, cid, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
-    @param cid: int/str Collection id
+    @param identifier: identifier.Identifier object
     @param num_objects: int N most recent IDs to get.
     @returns: list of IDs
     """
-    url = '{}/kiroku/{}-{}-{}/'.format(config.WORKBENCH_URL, repo, org, cid)
+    ci = get_ancestor(identifier, 'collection')
+    url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, ci.id)
     return _objects_latest(session, url, ('td','eid'), num_objects)
 
 def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
@@ -239,33 +246,33 @@ def _objects_next_process(new_ids_url, text, find, num_ids):
     object_ids = ids[-num_ids:]
     return object_ids
 
-def collections_next(session, repo, org, num_ids=1):
+def collections_next(session, identifier, num_ids=1):
     """Generate the next N collection IDs for the logged-in user.
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
+    @param identifier: identifier.Identifier object
     @param num_ids: int The number of new IDs requested.
     @returns: list of collection_ids or debugging info.
     """
-    new_ids_url = config.WORKBENCH_NEWCOL_URL.replace('REPO',repo).replace('ORG',org)
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
+    oi = get_ancestor(identifier, 'organization')
+    new_ids_url = config.WORKBENCH_NEWCOL_URL.replace('REPO-ORG',oi.id)
+    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
     tag_class = ['a', 'collection']
     return _objects_next(
         'collection', session, new_ids_url, csrf_token_url, tag_class, num_ids)
 
-def entities_next(session, repo, org, cid, num_ids=1):
+def entities_next(session, identifier, num_ids=1):
     """Generate the next N entity IDs for the logged-in user.
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
-    @param cid: str Collection ID
+    @param identifier: identifier.Identifier object
     @param num_ids: int The number of new IDs requested.
     @returns: list of entity_ids or debugging info.
     """
-    new_ids_url = config.WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',str(cid))
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
+    oi = get_ancestor(identifier, 'organization')
+    ci = get_ancestor(identifier, 'collection')
+    new_ids_url = config.WORKBENCH_NEWENT_URL.replace('REPO-ORG-CID', ci.id)
+    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
     tag_class = ['td', 'eid']
     return _objects_next(
         'entity', session, new_ids_url, csrf_token_url, tag_class, num_ids)
