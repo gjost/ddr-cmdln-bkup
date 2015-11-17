@@ -125,7 +125,7 @@ def logout():
         return 'ok'
     return 'error: unspecified'
 
-def _objects_latest(session, url, args, num_objects=1):
+def _objects_latest(soup, args, num_objects=1):
     """Get the most recent N entity IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -135,24 +135,17 @@ def _objects_latest(session, url, args, num_objects=1):
     
     TODO Replace screenscraping with a real API
     
-    @param session: requests.session object
-    @param url: URL of page to scrape.
+    @param soup: a BeautifulSoup object containing page HTML
     @param args: tuple Tag and class that contains the IDs.
     @param num_objects: int N most recent IDs to get.
     @returns: list of IDs
     """
-    objects = []
-    r = session.get(url)
-    soup = BeautifulSoup(r.text)
-    if _needs_login(soup):
-        raise Exception('Not logged in. Please try again.')
     ids = []
     for o in soup.find_all(args[0], args[1]):
         ids.append(o.string.strip())
     if num_objects:
         return ids[-num_objects:]
-    else:
-        return ids
+    return ids
 
 def get_ancestor(identifier, model):
     ai = None
@@ -178,7 +171,11 @@ def collections_latest(session, identifier, num_objects=1):
     """
     oi = get_ancestor(identifier, 'organization')
     url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
-    return _objects_latest(session, url, ('a','collection'), num_objects)
+    r = session.get(url)
+    soup = BeautifulSoup(r.text)
+    if _needs_login(soup):
+        raise Exception('Not logged in. Please try again.')
+    return _objects_latest(soup, ('a','collection'), num_objects)
 
 def entities_latest(session, identifier, num_objects=1):
     """Get the most recent N entity IDs for the logged-in user.
@@ -197,7 +194,11 @@ def entities_latest(session, identifier, num_objects=1):
     """
     ci = get_ancestor(identifier, 'collection')
     url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, ci.id)
-    return _objects_latest(session, url, ('td','eid'), num_objects)
+    r = session.get(url)
+    soup = BeautifulSoup(r.text)
+    if _needs_login(soup):
+        raise Exception('Not logged in. Please try again.')
+    return _objects_latest(soup, ('td','eid'), num_objects)
 
 def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
     """Generate the next N object IDs.
@@ -301,6 +302,4 @@ def register_entity_ids(session, entities):
         },
     )
     if not (r.status_code == 200):
-        raise IOError('Could not get new object ID(s) (%s:%s on %s)' % (
-            r.status_code, r.reason, register_eids_url))
-    return entity_ids
+        raise
