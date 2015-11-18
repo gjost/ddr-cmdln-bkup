@@ -13,12 +13,21 @@ def make_row_dict(headers, row):
 
     @param headers: List of header field names
     @param row: A single row (list of fields, not dict)
-    @returns dict
+    @returns: OrderedDict
     """
     d = OrderedDict()
     for n in range(0, len(row)):
         d[headers[n]] = row[n]
     return d
+
+def make_rowds(rows):
+    """Takes list of rows (from csv lib) and turns into list of rowds (dicts)
+    
+    @param rows: list
+    @returns: (headers, list of OrderedDicts)
+    """
+    headers = rows.pop(0)
+    return headers, [make_row_dict(headers, row) for row in rows]
 
 def validate_headers(headers, field_names, exceptions):
     """Validates headers and crashes if problems.
@@ -109,17 +118,16 @@ def check_row_values(module, headers, valid_values, rowd):
             invalid.append(field)
     return invalid
 
-def validate_rows(module, headers, required_fields, valid_values, rows):
+def validate_rowds(module, headers, required_fields, valid_values, rowds):
     """Examines rows and crashes if problems.
     
     @param module: modules.Module object
     @param headers: List of field names
     @param required_fields: List of required field names
     @param valid_values:
-    @param rows: List of rows (each with list of fields, not dict)
+    @param rowds: List of row dicts
     """
-    for n,row in enumerate(rows):
-        rowd = make_row_dict(headers, row)
+    for n,rowd in enumerate(rowds):
         missing_required = account_row(required_fields, rowd)
         invalid_fields = check_row_values(module, headers, valid_values, rowd)
         # print feedback and die

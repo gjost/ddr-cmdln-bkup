@@ -216,7 +216,7 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
     return git_files
 
 
-def check_csv_file(module, vocabs_path, headers, rows):
+def check_csv_file(module, vocabs_path, headers, rowds):
     # check for errors
     field_names = module.field_names()
     nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
@@ -225,7 +225,7 @@ def check_csv_file(module, vocabs_path, headers, rows):
     logging.info('Validating headers')
     csvfile.validate_headers(headers, field_names, nonrequired_fields)
     logging.info('Validating rows')
-    csvfile.validate_rows(module, headers, required_fields, valid_values, rows)
+    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
 
 def ids_in_repo(rowds, model, collection_path):
     """Lists which of specified IDs are present in repo.
@@ -258,12 +258,9 @@ def check_entity_ids(csv_path, api_url, username, password):
     csv_path = os.path.normpath(csv_path)
     
     logging.info('Reading %s' % csv_path)
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    logging.info('%s rows' % len(rows))
-    rowds = [make_row_dict(headers, rowd) for row in rows]
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     
-    check_csv_file(module, vocabs_path, headers, rows)
+    check_csv_file(module, vocabs_path, headers, rowds)
 
     assert False
 
@@ -274,12 +271,9 @@ def register_entity_ids(csv_path, api_url, username, password):
     csv_path = os.path.normpath(csv_path)
     
     logging.info('Reading %s' % csv_path)
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    logging.info('%s rows' % len(rows))
-    rowds = [make_row_dict(headers, rowd) for row in rows]
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     
-    check_csv_file(module, vocabs_path, headers, rows)
+    check_csv_file(module, vocabs_path, headers, rowds)
 
     assert False
 
@@ -327,13 +321,11 @@ def import_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, 
     test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    logging.info('%s rows' % len(rows))
-    rowds = [csvfile.make_row_dict(headers, row) for row in rows]
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
     
     field_names = module.field_names()
-    check_csv_file(module, vocabs_path, headers, rows)
+    check_csv_file(module, vocabs_path, headers, rowds)
 
     # confirm file entities not in repo
     logging.info('Checking for existing IDs')
@@ -415,9 +407,8 @@ def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    logging.info('%s rows' % len(rows))
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
     
     # check for errors
     field_names = module.field_names()
@@ -428,12 +419,7 @@ def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     logging.info('Validating headers')
     csvfile.validate_headers(headers, field_names, nonrequired_fields)
     logging.info('Validating rows')
-    csvfile.validate_rows(module, headers, required_fields, valid_values, rows)
-    
-    rowds = [
-        csvfile.make_row_dict(headers, row)
-        for row in rows
-    ]
+    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
 
     entities = test_entities(collection_path, entity_class, rowds)
     for entity in entities.itervalues():

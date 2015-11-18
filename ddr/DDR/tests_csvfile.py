@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from collections import OrderedDict
 from datetime import datetime
 import os
 
@@ -23,6 +24,27 @@ def test_make_row_dict():
         'title': 'title', 'description': 'descr',
     }
     assert csvfile.make_row_dict(headers0, row0) == out0
+
+def test_make_rowds():
+    rows0 = [
+        ['id', 'created', 'lastmod', 'title', 'description'],
+        ['id0', 'then', 'now', 'title0', 'descr0'],
+        ['id1', 'later', 'later', 'title1', 'descr1'],
+    ]
+    expected = (
+        ['id', 'created', 'lastmod', 'title', 'description'],
+        [
+            OrderedDict([
+                ('id', 'id0'), ('created', 'then'), ('lastmod', 'now'),
+                ('title', 'title0'), ('description', 'descr0')
+            ]),
+            OrderedDict([
+                ('id', 'id1'), ('created', 'later'), ('lastmod', 'later'),
+                ('title', 'title1'), ('description', 'descr1')
+            ])
+        ]
+    )
+    assert csvfile.make_rowds(rows0) == expected
 
 def test_validate_headers():
     headers0 = ['id', 'title']
@@ -114,4 +136,4 @@ def test_check_row_values():
     expected2 = ['status']
     assert out2 == expected2
 
-# TODO test_validate_rows
+# TODO test_validate_rowds

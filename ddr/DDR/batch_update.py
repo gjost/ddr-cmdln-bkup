@@ -257,9 +257,8 @@ def update_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, 
     test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    logging.info('%s rows' % len(rows))
+    headers,rowds = make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
     
     # check for errors
     field_names = module.field_names()
@@ -269,14 +268,13 @@ def update_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, 
     logging.info('Validating headers')
     csvfile.validate_headers(headers, field_names, nonrequired_fields)
     logging.info('Validating rows')
-    csvfile.validate_rows(module, headers, required_fields, valid_values, rows)
+    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
     
     logging.info('Updating - - - - - - - - - - - - - - - -')
     git_files = []
     updated = []
-    for n,row in enumerate(rows):
-        rowd = csvfile.make_row_dict(headers, row)
-        logging.info('%s/%s - %s' % (n+1, len(rows), rowd['id']))
+    for n,rowd in enumerate(rowds):
+        logging.info('%s/%s - %s' % (n+1, len(rowds), rowd['id']))
         
         ## instantiate
         #entity = make_object(collection_path, class_, rowd)
@@ -345,9 +343,8 @@ def update_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
-    rows = fileio.read_csv(csv_path)
-    headers = rows.pop(0)
-    logging.info('%s rows' % len(rows))
+    headers,rowds = make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
     
     # check for errors
     field_names = module.field_names()
@@ -359,12 +356,7 @@ def update_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     logging.info('Validating headers')
     csvfile.validate_headers(headers, field_names, nonrequired_fields)
     logging.info('Validating rows')
-    csvfile.validate_rows(module, headers, required_fields, valid_values, rows)
-    
-    rowds = [
-        csvfile.make_row_dict(headers, row)
-        for row in rows
-    ]
+    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
 
     entities = test_entities(collection_path, entity_class, rowds)
     for entity in entities.itervalues():
