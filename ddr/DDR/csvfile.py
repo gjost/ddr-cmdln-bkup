@@ -118,8 +118,56 @@ def check_row_values(module, headers, valid_values, rowd):
             invalid.append(field)
     return invalid
 
+
+def find_duplicate_ids(rowds):
+    unique = []
+    duplicates = []
+    for rowd in rowds:
+        if rowd['id'] not in unique:
+            unique.append(rowd['id'])
+        else:
+            duplicates.append(rowd['id'])
+    if duplicates:
+        raise Exception('Duplicate IDs: %s' % duplicates)
+
+def find_multiple_cids(rowds):
+    cids = {}
+    for rowd in rowds:
+        oid = identifier.Identifier(rowd['id'])
+        cid = oid.collection().id
+        if cid in cids.keys():
+            cids[cid].append(oid.id)
+        else:
+            cids[cid] = [oid.id]
+    # all IDs must belong to same collection
+    if cids and (len(cids.keys()) > 1):
+        raise Exception('File contains IDs from multiple collections: %s' % cids.keys())
+
+def find_missing_required(required_fields, rowds):
+    ids = [
+        rowd['id']
+        for rowd in rowds
+        if account_row(required_fields, rowd)
+    ]
+    if ids:
+        raise Exception('Missing required fields for these IDs: %s' % ids)
+
+def find_invalid_values(module, headers, valid_values, rowds):
+    ids = [
+        rowd['id']
+        for rowd in rowds
+        if check_row_values(module, headers, valid_values, rowd)
+    ]
+    if ids:
+        raise Exception('Invalid values for these IDs: %s' % ids)
+    
 def validate_rowds(module, headers, required_fields, valid_values, rowds):
-    """Examines rows and crashes if problems.
+    """Examines rows and raises exceptions if problems.
+    
+    Looks for
+    - missing required fields
+    - invalid field values
+    - duplicate IDs
     
     @param module: modules.Module object
     @param headers: List of field names
@@ -127,14 +175,8 @@ def validate_rowds(module, headers, required_fields, valid_values, rowds):
     @param valid_values:
     @param rowds: List of row dicts
     """
-    for n,rowd in enumerate(rowds):
-        missing_required = account_row(required_fields, rowd)
-        invalid_fields = check_row_values(module, headers, valid_values, rowd)
-        # print feedback and die
-        if missing_required:
-            raise Exception('Row %s (%s) missing required fields: %s' % (n+1, rowd['id'], missing_required))
-        if invalid_fields:
-            for field in invalid_fields:
-                logging.error('row%s:%s = "%s"' % (n+1, field, rowd[field]))
-                logging.error('valid values: %s' % valid_values[field])
-            raise Exception('Row %s (%s) invalid values: %s' % (n+1, rowd['id'], invalid_fields))
+    find_duplicate_ids(rowds)
+    find_multiple_cids(rowds)
+    find_missing_required(required_fields, rowds)
+    find_invalid_values(module, headers, valid_values, rowds)
+    

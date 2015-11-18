@@ -88,20 +88,18 @@ def test_validate_id():
     assert not out1
 
 
+class TestSchema(object):
+    __file__ = None
+    FIELDS = [
+        {
+            'name': 'id',
+        },
+        {
+            'name': 'status',
+        }
+    ]
 
 def test_check_row_values():
-
-    class TestSchema(object):
-        __file__ = None
-        FIELDS = [
-            {
-                'name': 'id',
-            },
-            {
-                'name': 'status',
-            }
-        ]
-
     module = modules.Module(TestSchema())
     headers = ['id', 'status']
     valid_values = {
@@ -136,4 +134,84 @@ def test_check_row_values():
     expected2 = ['status']
     assert out2 == expected2
 
-# TODO test_validate_rowds
+def test_find_duplicate_ids():
+    # OK
+    rowds0 = [
+        {'id':'ddr-test-123-456', 'status':'inprocess',},
+        {'id':'ddr-test-123-457', 'status':'complete',},
+    ]
+    csvfile.find_duplicate_ids(rowds0)
+    # error
+    rowds1 = [
+        {'id':'ddr-test-123-456', 'status':'inprocess',},
+        {'id':'ddr-test-123-456', 'status':'complete',},
+    ]
+    assert_raises(
+        Exception,
+        csvfile.find_duplicate_ids,
+        rowds1
+    )
+
+def test_find_multiple_cids():
+    # OK
+    rowds0 = [
+        {'id':'ddr-test-123-456', 'status':'inprocess',},
+        {'id':'ddr-test-123-457', 'status':'complete',},
+    ]
+    csvfile.find_duplicate_ids(rowds0)
+    # error
+    rowds1 = [
+        {'id':'ddr-test-123-456', 'status':'inprocess',},
+        {'id':'ddr-test-124-457', 'status':'complete',},
+    ]
+    assert_raises(
+        Exception,
+        csvfile.find_multiple_cids,
+        rowds1
+    )
+
+def test_find_missing_required():
+    # OK
+    required_fields = ['id', 'status']
+    rowds0 = [
+        {'id':'ddr-test-123', 'status':'inprocess',},
+        {'id':'ddr-test-124', 'status':'inprocess',},
+    ]
+    csvfile.find_missing_required(required_fields, rowds0)
+    # error
+    rowds1 = [
+        {'id':'ddr-test-123', 'status':'inprocess',},
+        {'id':'ddr-test-124',},
+    ]
+    assert_raises(
+        Exception,
+        csvfile.find_missing_required,
+        required_fields, rowds1
+    )
+
+def test_find_invalid_values():
+    module = modules.Module(TestSchema())
+    headers = ['id', 'status']
+    required_fields = ['id', 'status']
+    valid_values = {
+        'status': ['inprocess', 'complete',]
+    }
+    
+    # OK
+    rowds0 = [
+        {'id':'ddr-test-123', 'status':'inprocess',},
+        {'id':'ddr-test-124', 'status':'complete',},
+    ]
+    csvfile.find_invalid_values(module, headers, valid_values, rowds0)
+    # error
+    rowds1 = [
+        {'id':'ddr-test-123', 'status':'inprogress',},
+        {'id':'ddr-test-124', 'status':'complete',},
+    ]
+    assert_raises(
+        Exception,
+        csvfile.find_invalid_values,
+        module, headers, valid_values, rowds1
+    )
+
+# validate_rowds
