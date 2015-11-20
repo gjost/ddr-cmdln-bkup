@@ -125,7 +125,7 @@ def logout():
         return 'ok'
     return 'error: unspecified'
 
-def _objects_latest(soup, args, num_objects=1):
+def _object_ids_existing(soup, tag_class):
     """Get the most recent N entity IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -136,15 +136,16 @@ def _objects_latest(soup, args, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param soup: a BeautifulSoup object containing page HTML
-    @param args: tuple Tag and class that contains the IDs.
-    @param num_objects: int N most recent IDs to get.
+    @param tag_class: tuple Tag and class that contains the IDs.
     @returns: list of IDs
     """
-    ids = []
-    for o in soup.find_all(args[0], args[1]):
-        ids.append(o.string.strip())
-    if num_objects:
-        return ids[-num_objects:]
+    ids = [
+        o.string.strip()
+        for o in soup.find_all(
+            tag_class[0],
+            tag_class[1]
+        )
+    ]
     return ids
 
 def get_ancestor(identifier, model):
@@ -153,8 +154,13 @@ def get_ancestor(identifier, model):
         if i.model == model:
             ai = i
     return ai
-    
-def collections_latest(session, identifier, num_objects=1):
+
+OBJECTID_TAGCLASS = {
+    'organization': ('a', 'collection'),
+    'collection': ('td', 'eid'),
+}
+
+def collections_existing(session, cidentifier):
     """Get the most recent N collection IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -165,19 +171,18 @@ def collections_latest(session, identifier, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param identifier: identifier.Identifier object
-    @param num_objects: int N most recent IDs to get.
+    @param cidentifier: identifier.Identifier object
     @returns: list of IDs
     """
-    oi = get_ancestor(identifier, 'organization')
+    oi = get_ancestor(cidentifier, 'organization')
     url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
     r = session.get(url)
     soup = BeautifulSoup(r.text)
     if _needs_login(soup):
         raise Exception('Not logged in. Please try again.')
-    return _objects_latest(soup, ('a','collection'), num_objects)
+    return _object_ids_existing(soup, OBJECTID_TAGCLASS[oi.model])
 
-def entities_latest(session, identifier, num_objects=1):
+def entities_existing(session, cidentifier):
     """Get the most recent N entity IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -188,17 +193,15 @@ def entities_latest(session, identifier, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param identifier: identifier.Identifier object
-    @param num_objects: int N most recent IDs to get.
+    @param cidentifier: identifier.Identifier object
     @returns: list of IDs
     """
-    ci = get_ancestor(identifier, 'collection')
-    url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, ci.id)
+    url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, cidentifier.id)
     r = session.get(url)
     soup = BeautifulSoup(r.text)
     if _needs_login(soup):
         raise Exception('Not logged in. Please try again.')
-    return _objects_latest(soup, ('td','eid'), num_objects)
+    return _object_ids_existing(soup, OBJECTID_TAGCLASS[cidentifier.model])
 
 def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
     """Generate the next N object IDs.

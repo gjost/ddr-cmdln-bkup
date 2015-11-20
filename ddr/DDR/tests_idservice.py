@@ -30,7 +30,7 @@ def test_needs_login():
 # TODO test_login
 # TODO test_logout
 
-LATEST_COLLECTIONS_HTML = """
+COLLECTION_IDS_HTML = """
 <table id="collections" class="table">
   <tr>
     <td><a class="collection" href="/kiroku/ddr-densho-1/">ddr-densho-1</a></td>
@@ -40,9 +40,9 @@ LATEST_COLLECTIONS_HTML = """
   </tr>
 </table>
 """
-LATEST_COLLECTIONS = ['ddr-densho-1', 'ddr-densho-2']
+COLLECTION_IDS = ['ddr-densho-1', 'ddr-densho-2']
 
-LATEST_ENTITIES_HTML = """
+ENTITY_IDS_HTML = """
 <table id="entities" class="table">
   <tr class="entity">
     <td class="eid">ddr-densho-1-1</td>
@@ -53,19 +53,19 @@ LATEST_ENTITIES_HTML = """
   </tr>
 </table>
 """
-LATEST_ENTITIES = ['ddr-densho-1-1', 'ddr-densho-1-2']
+ENTITY_IDS = ['ddr-densho-1-1', 'ddr-densho-1-2']
 
-def test__objects_latest():
-    out0 = idservice._objects_latest(
-        BeautifulSoup(LATEST_COLLECTIONS_HTML),
-        ('a','collection'), 2
+def test__object_ids_existing():
+    out0 = idservice._object_ids_existing(
+        BeautifulSoup(COLLECTION_IDS_HTML),
+        ('a','collection')
     )
-    assert out0 == LATEST_COLLECTIONS
-    out1 = idservice._objects_latest(
-        BeautifulSoup(LATEST_ENTITIES_HTML),
-        ('td', 'eid'), 2
+    assert out0 == COLLECTION_IDS
+    out1 = idservice._object_ids_existing(
+        BeautifulSoup(ENTITY_IDS_HTML),
+        ('td', 'eid')
     )
-    assert out1 == LATEST_ENTITIES
+    assert out1 == ENTITY_IDS
 
 def test_get_ancestor():
     ei = identifier.Identifier('ddr-test-123-456')
@@ -74,9 +74,9 @@ def test_get_ancestor():
     assert idservice.get_ancestor(ei, 'collection').id == ci.id
     assert idservice.get_ancestor(ei, 'organization').id == oi.id
 
-# TODO test_collections_latest
-# TODO test_entities_latest
-# TODO test__objects_next
+# TODO test_collections
+# TODO test_entities
+# TODO test_objects_next
 
 NEXT_COLLECTION_HTML = """
 <!DOCTYPE html>
