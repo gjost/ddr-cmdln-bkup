@@ -281,28 +281,35 @@ def entities_next(session, identifier, num_ids=1):
     return _objects_next(
         'entity', session, new_ids_url, csrf_token_url, tag_class, num_ids)
 
-def register_entity_ids(session, entities):
+def _csrf_token_url(collection_id):
+    return '{}/kiroku/{}/'.format(config.WORKBENCH_URL, collection_id)
+
+def _register_eids_url(collection_id):
+    return config.WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
+
+def register_entity_ids(session, collection_id, entity_ids):
     """Register the specified entity IDs with the ID service
     
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param entities: list of Entity objects - all will be added!
+    @param collection_id: str Collection ID
+    @param entity_ids: list of Entity IDs - all will be added!
     @returns: list of IDs added
     """
-    collection_id = entities[0].parent_id
-    entity_ids = '\n'.join([entity.id for entity in entities])
-    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, collection_id)
-    csrf_token = _get_csrf_token(session, csrf_token_url)
-    register_eids_url = config.WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
+    csrf_token = _get_csrf_token(session, _csrf_token_url(collection_id))
+    eids = '\n'.join([
+        eid for eid in entity_ids
+    ])
+    data = {
+        'csrftoken': csrf_token,
+        'entity_ids': eids,
+    }
     r = session.post(
-        register_eids_url,
+        _register_eids_url(collection_id),
         headers={'X-CSRFToken': csrf_token},
         cookies={'csrftoken': csrf_token},
-        data={
-            'csrftoken': csrf_token,
-            'entity_ids': entity_ids,
-        },
+        data=data
     )
     if not (r.status_code == 200):
         raise
