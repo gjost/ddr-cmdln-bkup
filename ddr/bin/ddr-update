@@ -71,17 +71,21 @@ def main():
     
     # check args
     if not os.path.exists(args.csv):
-        raise Exception('ddr-update: CSV file does not exist.')
+        print('ddr-update: CSV file does not exist.')
+        sys.exit(1)
     if not (os.path.isfile(args.csv) and os.path.isdir(args.collection)):
-        raise Exception('ddr-update: CSV filename comes before collection.')
+        print('ddr-update: CSV filename comes before collection.')
+        sys.exit(1)
     if not os.path.exists(args.collection):
-        raise Exception('ddr-update: Collection does not exist.')
+        print('ddr-update: Collection does not exist.')
+        sys.exit(1)
     
     cidentifier = identifier.Identifier(args.collection)
     
     model = guess_model(args.csv, args.collection, args.model)
     if not model:
-        raise Exception('ddr-update: Could not guess model based on csv and collection. Add an -M arg.')
+        print('ddr-update: Could not guess model based on csv and collection. Add an -M arg.')
+        sys.exit(1)
         
     start = datetime.now()
     if model == 'entity':

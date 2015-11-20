@@ -52,12 +52,15 @@ def main():
     
     # check args
     if not os.path.exists(args.csv):
-        raise Exception('ddr-update: CSV file does not exist.')
+        print('ddr-import: CSV file does not exist.')
+        sys.exit(1)
     if not (os.path.isfile(args.csv) and os.path.isdir(args.collection)):
-        raise Exception('ddr-update: CSV filename comes before collection.')
+        print('ddr-import: CSV filename comes before collection.')
+        sys.exit(1)
     if not os.path.exists(args.collection):
-        raise Exception('ddr-update: Collection does not exist.')
-            
+        print('ddr-import: Collection does not exist.')
+        sys.exit(1)
+    
     start = datetime.now()
     
     if args.check:
