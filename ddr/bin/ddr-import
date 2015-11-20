@@ -7,10 +7,47 @@
 description = """Imports new entities or files with data from CSV files."""
 
 epilog = """
-EXAMPLES:
-    ddr-import entity --check /tmp/ddr-import/ddr-test-123-entity-20150123.csv
-    ddr-import entity --user=gjost --mail=gjost@densho.org /tmp/ddr-import/ddr-test-123-entity-20150123.csv /tmp/ddr/ddr-test-123/
-    ddr-import entity --register /tmp/ddr-import/ddr-test-123-entity-20150123.csv
+
+#EXAMPLES:
+#    ddr-import entity --check /tmp/ddr-import/ddr-test-123-entity-20150123.csv
+#    ddr-import entity --user=gjost --mail=gjost@densho.org /tmp/ddr-import/ddr-test-123-entity-20150123.csv /tmp/ddr/ddr-test-123/
+#    ddr-import entity --register /tmp/ddr-import/ddr-test-123-entity-20150123.csv
+
+
+I want to be able to edit the CSV, stick it in a directory
+
+Check integrity of CSV and other stuff:
+
+    $ ddr-import check /path/to/ddr-test-123-entity-new.csv \
+      /var/www/media/ddr/ddr-test-123/
+
+Import the entities, disabling checking since we just did it:
+
+    $ ddr-import entity -N -u gjost -m gjost@densho.org \
+      /path/to/ddr-test-123-entity-new.csv \
+      /var/www/media/ddr/ddr-test-123/
+
+This should
+- check CSV file, alert me if problems
+- make sure not importing existing entities/files
+- check with ID service to make sure IDs available
+  (i.e. not trying to register existing ones)
+- import data, create new entities/files
+- stage changes to git repo
+
+When it's all done I want to run a command to register the new IDs
+
+    $ ddr-import register -Ugjost /path/to/ddr-test-123-entity-new.csv \
+      /var/www/media/ddr/ddr-test-123/
+
+This should
+- ask for password
+- read all the IDs in CSV
+- get existing IDs from ID service
+- figure out which ones are new
+- register new IDs
+
+And then I want to run a command to commit the changes
 
 ---"""
 
@@ -22,8 +59,10 @@ import logging
 import os
 import sys
 
-from DDR import batch_import
 from DDR import config
+from DDR import batch_import
+from DDR import identifier
+from DDR import idservice
 
 VOCABS_PATH = os.path.join(config.REPO_MODELS_PATH, 'vocab')
 
@@ -38,16 +77,14 @@ def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('model', help='Model.')
+    parser.add_argument('command', help="Command: 'check', 'entity', 'file', 'register'.")
     parser.add_argument('csv', help='Absolute path to CSV file.')
     parser.add_argument('collection', help='Absolute path to Collection.')
     parser.add_argument('-i', '--idservice', help='URL of ID service, if different from configs.')
-    parser.add_argument('-c', '--check', action='store_true', help='Check if IDs in CSV are available.')
-    parser.add_argument('-R', '--register', action='store_true', help='Register IDs in CSV.')
+    parser.add_argument('-N', '--nocheck', action='store_true', help='Do not run checking/validation (large collections may take time).')
     parser.add_argument('-u', '--user', help='Git user name (required if importing)')
     parser.add_argument('-m', '--mail', help='Git user e-mail address (required if importing)')
     parser.add_argument('-U', '--username', help='ID service username (required if using ID service).')
-    parser.add_argument('-P', '--password', help='ID service password (required if using ID service).')
     args = parser.parse_args()
     
     # check args
@@ -60,30 +97,49 @@ def main():
     if not os.path.exists(args.collection):
         print('ddr-import: Collection does not exist.')
         sys.exit(1)
+
+    print('Username: %s' % args.username)
+    password = getpass.getpass()
     
     start = datetime.now()
     
-    if args.check:
-        assert False
+    csv_path = os.path.normpath(args.csv)
+    collection_path = os.path.normpath(args.collection)
+    vocabs_path = os.path.normpath(VOCABS_PATH)
 
-    elif args.register:
-        assert False
+    ci = identifier.Identifier(collection_path)
+    logging.debug(ci)
+    logging.debug(ci.path_abs())
     
-    elif args.model == 'entity':
+    if (args.command == 'check') or (not args.nocheck):
+        batch_import.check(
+            csv_path, ci, vocabs_path, args.username, password
+        )
+    
+    if   args.command == 'entity':
         imported = batch_import.import_entities(
-            args.csv,
-            args.collection,
-            VOCABS_PATH,
-            args.user, args.mail, 'ddr-update'
+            csv_path,
+            ci,
+            vocabs_path,
+            args.user, args.mail, 'ddr-import'
         )
     
-    elif args.model == 'file':
+    elif args.command == 'file':
         imported = batch_import.import_files(
-            args.csv,
-            args.collection,
-            VOCABS_PATH,
-            args.user, args.mail, 'ddr-update'
+            csv_path,
+            ci,
+            vocabs_path,
+            args.user, args.mail, 'ddr-import'
         )
+    
+    elif args.command == 'register':
+        batch_import.register_entity_ids(
+            csv_path,
+            ci,
+            args.username,
+            password
+        )
+        logging.info('IF YOU SEE THIS IT WORKED')
     
     finish = datetime.now()
     elapsed = finish - start
