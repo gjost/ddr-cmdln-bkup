@@ -1,3 +1,11 @@
+"""
+Check to see if CSV file is internally valid
+See which EIDs would be added
+Update existing records
+Import new records
+Register newly added EIDs
+"""
+
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -11,6 +19,7 @@ from DDR import csvfile
 from DDR import dvcs
 from DDR import fileio
 from DDR import identifier
+from DDR import idservice
 from DDR import ingest
 from DDR import models
 from DDR import modules
@@ -91,9 +100,52 @@ def test_entities(collection_path, object_class, rowds):
         logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
         for f in bad:
             logging.error('    %s' % f)
-    if bad:
-        raise Exception('Cannot continue!')
+        raise Exception('One or more entities could not be loaded! - IMPORT CANCELLED!')
     return entities
+
+def get_module(model):
+    """Gets modules.Module for the model
+    
+    @param model: str
+    @returns: modules.Module
+    """
+    object_class = identifier.class_for_name(
+        identifier.MODEL_CLASSES[model]['module'],
+        identifier.MODEL_CLASSES[model]['class']
+    )
+    logging.debug(object_class)
+    module = modules.Module(
+        identifier.module_for_name(
+            identifier.MODEL_REPO_MODELS[model]['module']
+        )
+    )
+    logging.debug(module)
+    return module
+
+def guess_model(rowds):
+    """Loops through rowds and guesses model
+    
+    # TODO guess schema too
+    
+    @param rowds: list
+    @returns: str model keyword
+    """
+    logging.debug('Guessing model based on %s rows' % len(rowds))
+    models = []
+    for rowd in rowds:
+        if rowd.get('identifier'):
+            if rowd['identifier'].model not in models:
+                models.append(rowd['identifier'].model)
+    if not models:
+        raise Exception('Cannot guess model type!')
+    if len(models) > 1:
+        raise Exception('More than one model type in imput file!')
+    model = models[0]
+    # TODO should not know model name
+    if model == 'file-role':
+        model = 'file'
+    logging.debug('model: %s' % model)
+    return model
 
 def load_vocab_files(vocabs_path):
     """Loads vocabulary term files in the 'ddr' repository
@@ -145,6 +197,95 @@ def prep_valid_values(json_texts):
             valid_values[field] = values
     return valid_values
 
+def validate_csv_file(module, vocabs, headers, rowds):
+    """Validate CSV headers and data against schema/field definitions
+    
+    @param module: modules.Module
+    @param vocabs: dict Output of prep_valid_values()
+    @param headers: list
+    @param rowds: list
+    """
+    # gather data
+    field_names = module.field_names()
+    nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
+    required_fields = module.required_fields(nonrequired_fields)
+    valid_values = prep_valid_values(vocabs)
+    # check
+    logging.info('Validating headers')
+    csvfile.validate_headers(headers, field_names, nonrequired_fields)
+    logging.info('Validating rows')
+    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
+
+def ids_in_local_repo(rowds, model, collection_path):
+    """Lists which IDs in CSV are present in local repo.
+    
+    @param rowds: list of dicts
+    @param model: str
+    @param collection_path: str Absolute path to collection repo.
+    @returns: list of IDs.
+    """
+    new_ids = [rowd['id'] for rowd in rowds]
+    
+    # TODO optimize this?
+    metadata_paths = util.find_meta_files(
+        collection_path, recursive=True, force_read=True
+    )
+    existing_ids = []
+    for path in metadata_paths:
+        i = identifier.Identifier(path=path)
+        if i.model == model:
+            existing_ids.append(i.id)
+    
+    new = [i for i in new_ids if i not in existing_ids]
+    already = [i for i in new_ids if i in existing_ids]
+    return already
+
+def check_things(csv_path, cidentifier, vocabs_path):
+    """Validate the CSV file, repo, etc
+    
+    TODO function duplicates code from elsewhere, is only used once
+    """
+    logging.info('Reading input file %s' % csv_path)
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
+    logging.info('Adding identifiers to rows')
+    for rowd in rowds:
+        rowd['identifier'] = identifier.Identifier(rowd['id'])
+    logging.info('OK')
+    
+    logging.info('Looking for modified or uncommitted files in repo')
+    repository = dvcs.repository(cidentifier.path_abs())
+    logging.debug(repository)
+    #test_repository(repository)
+    
+    model = guess_model(rowds)
+    module = get_module(model)
+    field_names = module.field_names()
+    vocabs = load_vocab_files(vocabs_path)
+    
+    validate_csv_file(module, vocabs, headers, rowds)
+    return rowds
+
+def unregistered_ids(rowds, idservice_eids):
+    """Looks at CSV data and ID service; returns unregistered IDs.
+    
+    NOTES: idservice_eids is output of idservice.entities_existing.
+    
+    @param rowds: list
+    @param idservice_eids: list
+    """
+    csv_eids = [rowd['id'] for rowd in rowds]
+    registered = [
+        eid for eid in csv_eids
+        if eid in idservice_eids
+    ]
+    unregistered = [
+        eid for eid in csv_eids
+        if eid not in idservice_eids
+    ]
+    return unregistered
+
+    
 def populate_object(obj, module, field_names, rowd):
     """Update entity with values from CSV row.
     
@@ -214,72 +355,34 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
             email=git_mail)
         git_files.append(entity.changelog_path_rel)
     return git_files
-
-
-def check_csv_file(module, vocabs_path, headers, rowds):
-    # check for errors
-    field_names = module.field_names()
-    nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
-    required_fields = module.required_fields(nonrequired_fields)
-    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
-    logging.info('Validating headers')
-    csvfile.validate_headers(headers, field_names, nonrequired_fields)
-    logging.info('Validating rows')
-    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
-
-def ids_in_repo(rowds, model, collection_path):
-    """Lists which of specified IDs are present in repo.
     
-    @param rowds: list of dicts
-    @param model: str
-    @param collection_path: str Absolute path to collection repo.
-    @returns: list of IDs.
-    """
-    new_ids = [rowd['id'] for rowd in rowds]
-    
-    # TODO optimize this?
-    metadata_paths = util.find_meta_files(
-        collection_path, recursive=True, force_read=True
-    )
-    existing_ids = []
-    for path in metadata_paths:
-        i = identifier.Identifier(path=path)
-        if i.model == model:
-            existing_ids.append(i.id)
-    
-    new = [i for i in new_ids if i not in existing_ids]
-    already = [i for i in new_ids if i in existing_ids]
-    return already
 
-def check_entity_ids(csv_path, api_url, username, password):
-    """Checks with ID service to see if IDs in CSV are present
-    """
+# ----------------------------------------------------------------------
+
+
+def check(csv_path, cidentifier, vocabs_path, username, password):
     logging.info('-----------------------------------------------')
-    csv_path = os.path.normpath(csv_path)
+    rowds = check_things(csv_path, cidentifier, vocabs_path)
     
-    logging.info('Reading %s' % csv_path)
-    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+    logging.info('Confirming all entity IDs available')
+    csv_eids = [rowd['id'] for rowd in rowds]
+    session = idservice.login(username, password)
+    idservice_eids = idservice.entities_existing(session, cidentifier)
+    registered = [
+        eid for eid in csv_eids
+        if eid in idservice_eids
+    ]
+    unregistered = [
+        eid for eid in csv_eids
+        if eid not in idservice_eids
+    ]
+    if (unregistered == csv_eids) and not registered:
+        logging.info('ALL entity IDs available')
+    elif registered:
+        logging.info('Already registered: %s' % registered)
     
-    check_csv_file(module, vocabs_path, headers, rowds)
 
-    assert False
-
-def register_entity_ids(csv_path, api_url, username, password):
-    """Register IDs in CSV with ID service.
-    """
-    logging.info('-----------------------------------------------')
-    csv_path = os.path.normpath(csv_path)
-    
-    logging.info('Reading %s' % csv_path)
-    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
-    
-    check_csv_file(module, vocabs_path, headers, rowds)
-
-    assert False
-
-
-
-def import_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, agent):
+def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent):
     """Reads a CSV file, checks for errors, and writes entity.json files
     
     IMPORTANT: No objects in CSV must exist!
@@ -297,39 +400,22 @@ def import_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, 
     @returns: list of updated entities
     """
     logging.info('-----------------------------------------------')
-    csv_path = os.path.normpath(csv_path)
-    vocabs_path = os.path.normpath(vocabs_path)
-    collection_path = os.path.normpath(collection_path)
-    cidentifier = identifier.Identifier(collection_path)
-    
     model = 'entity'
-    object_class = identifier.class_for_name(
-        identifier.MODEL_CLASSES[model]['module'],
-        identifier.MODEL_CLASSES[model]['class']
-    )
-    logging.debug(object_class)
-    module = modules.Module(
-        identifier.module_for_name(
-            identifier.MODEL_REPO_MODELS[model]['module']
-        )
-    )
-    logging.debug(module)
-    
-    # check for modified or uncommitted files in repo
-    repository = dvcs.repository(collection_path)
-    logging.debug(repository)
-    test_repository(repository)
+    module = get_module(model)
+    field_names = module.field_names()
     
     logging.info('Reading %s' % csv_path)
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
     
-    field_names = module.field_names()
-    check_csv_file(module, vocabs_path, headers, rowds)
-
+    # check for modified or uncommitted files in repo
+    repository = dvcs.repository(cidentifier.path_abs())
+    logging.debug(repository)
+    #test_repository(repository)
+    
     # confirm file entities not in repo
     logging.info('Checking for existing IDs')
-    already_added = ids_in_repo(rowds, model, collection_path)
+    already_added = ids_in_local_repo(rowds, model, cidentifier.path_abs())
     if already_added:
         raise Exception('The following entities already exist: %s' % already_added)
     
@@ -366,7 +452,7 @@ def import_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, 
     return updated
 
 
-def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, agent):
+def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent):
     """Updates metadata for files in csv_path.
     
     TODO how to handle excluded fields like XMP???
@@ -379,14 +465,8 @@ def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     @param agent:
     """
     logging.info('-----------------------------------------------')
-    csv_path = os.path.normpath(csv_path)
     csv_dir = os.path.dirname(csv_path)
-    vocabs_path = os.path.normpath(vocabs_path)
-    collection_path = os.path.normpath(collection_path)
-    cidentifier = identifier.Identifier(path=collection_path)
-    logging.debug('csv_path %s' % csv_path)
     logging.debug('csv_dir %s' % csv_dir)
-    logging.debug('collection_path %s' % collection_path)
 
     # TODO this still knows too much about entities and files...
     entity_class = identifier.class_for_name(
@@ -394,34 +474,17 @@ def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
         identifier.MODEL_CLASSES['entity']['class']
     )
     logging.debug('entity_class %s' % entity_class)
-    module = modules.Module(
-        identifier.module_for_name(
-            identifier.MODEL_REPO_MODELS['file']['module']
-        )
-    )
-    logging.debug('module %s' % module)
-    
-    # check for modified or uncommitted files in repo
-    repository = dvcs.repository(collection_path)
-    logging.debug(repository)
-    test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
     
-    # check for errors
-    field_names = module.field_names()
-    nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
-    required_fields = module.required_fields(nonrequired_fields)
-    required_fields.append('basename_orig')
-    valid_values = prep_valid_values(load_vocab_files(vocabs_path))
-    logging.info('Validating headers')
-    csvfile.validate_headers(headers, field_names, nonrequired_fields)
-    logging.info('Validating rows')
-    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
+    # check for modified or uncommitted files in repo
+    repository = dvcs.repository(cidentifier.path_abs())
+    logging.debug(repository)
+    #test_repository(repository)
 
-    entities = test_entities(collection_path, entity_class, rowds)
+    entities = test_entities(cidentifier.path_abs(), entity_class, rowds)
     for entity in entities.itervalues():
         entity.changelog_updated = []
         entity.changelog_added = []
@@ -437,7 +500,8 @@ def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     git_files = []
     for n,rowd in enumerate(rowds):
         logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['id']))
-        
+
+        # Note: all we have are file-roles at this point (no SHA1 yet)
         fridentifier = identifier.Identifier(
             id=rowd['id'],
             base_path=cidentifier.basepath
@@ -455,3 +519,25 @@ def import_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
             git_name, git_mail, agent
         )
         logging.debug('| %s' % file_)
+    
+    return git_files
+
+
+def register_entity_ids(csv_path, cidentifier, username, password):
+    logging.info('-----------------------------------------------')
+    model = 'entity'
+    module = get_module(model)
+    field_names = module.field_names()
+    
+    logging.info('Reading %s' % csv_path)
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
+    
+    logging.info('Looking up already registered IDs')
+    session = idservice.login(username, password)
+    idservice_eids = idservice.entities_existing(session, cidentifier)
+    unregistered = unregistered_ids(rowds, idservice_eids)
+    logging.info('%s IDs to register.' % len(unregistered))
+    logging.info('Registering IDs')
+    idservice.register_entity_ids(session, cidentifier.id, unregistered)
+    
