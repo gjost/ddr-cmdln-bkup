@@ -775,3 +775,32 @@ def test_urlpath():
     assert i4.urlpath('public') == FILE_PUBLIC_URL
 
 
+def test_sorting():
+    identifiers = []
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-10'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-11'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-2'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-3'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-1/files/ddr-testing-300-1-master-abc124'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-1'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-2/files/ddr-testing-300-2-master-abc123'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-1/files/ddr-testing-300-1-master-abc123'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-2/files/ddr-testing-300-2-mezzanine-abc123'))
+    identifiers.append(identifier.Identifier('/var/www/media/ddr/ddr-testing-300/files/ddr-testing-300-1/files/ddr-testing-300-1-mezzanine-abc123'))
+    identifiers.sort()
+    ids = [i.id for i in identifiers]
+    expected = [
+        'ddr-testing-300',
+        'ddr-testing-300-1',
+        'ddr-testing-300-1-mezzanine-abc123',
+        'ddr-testing-300-1-master-abc123',
+        'ddr-testing-300-1-master-abc124',
+        'ddr-testing-300-2',
+        'ddr-testing-300-2-mezzanine-abc123',
+        'ddr-testing-300-2-master-abc123',
+        'ddr-testing-300-3',
+        'ddr-testing-300-10',
+        'ddr-testing-300-11',
+    ]
+    assert ids == expected

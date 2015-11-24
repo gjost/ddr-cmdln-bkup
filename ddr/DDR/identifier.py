@@ -7,6 +7,8 @@ import re
 import string
 from urlparse import urlparse
 
+from DDR import util
+
 
 # Models in this Repository
 MODELS = [
@@ -111,6 +113,12 @@ FILETYPE_MATCH_ANNEX = {
     'master': '*-master-*',
     'mezzanine': '*-mezzanine-*',
 }
+
+# Some ID components must be altered during sorting so that, e.g. mezzanine files
+# can appear before masters in lists
+NATURAL_SORT_MAPPINGS = [
+    ('master', 'zzzzzz'),
+]
 
 # ----------------------------------------------------------------------
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
@@ -455,6 +463,24 @@ def _parse_args_kwargs(keys, args, kwargs):
                 blargs[key] = val
     return blargs
 
+def natsortkey(key, mapping=NATURAL_SORT_MAPPINGS):
+    """Key for natural sorting of IDs, mezzanines before masters.
+    
+    TODO knows too much about file roles!
+    
+    Courtesy of samplebias from Stack Overflow:
+    https://stackoverflow.com/questions/5254021/python-human-sort-of-numbers-with-alpha-numeric-but-in-pyqt-and-a-lt-oper
+    """
+    # local mod: sort mezzanines before masters
+    for this,that in mapping:
+        key = key.replace(this, that)
+    # original code follows
+    parts = re.split('(\d*\.\d+|\d+)', key)
+    return tuple(
+        (e.swapcase() if i % 2 == 0 else float(e))
+        for i, e in enumerate(parts)
+    )
+
 def module_for_name(module_name):
     """Returns specified module.
     
@@ -665,6 +691,27 @@ class Identifier(object):
     def __repr__(self):
         return "<%s.%s %s:%s>" % (self.__module__, self.__class__.__name__, self.model, self.id)
 
+    # arrange Identifiers by ID in natural sort order
+    #
+    # Example:
+    # <DDR.identifier.Identifier collection:ddr-testing-300>
+    # <DDR.identifier.Identifier entity:ddr-testing-300-1>
+    # <DDR.identifier.Identifier file:ddr-testing-300-1-mezzanine-abc123>
+    # <DDR.identifier.Identifier file:ddr-testing-300-1-master-abc123>
+    # <DDR.identifier.Identifier file:ddr-testing-300-1-master-abc124>
+    # <DDR.identifier.Identifier entity:ddr-testing-300-2>
+    # <DDR.identifier.Identifier file:ddr-testing-300-2-mezzanine-abc123>
+    # <DDR.identifier.Identifier file:ddr-testing-300-2-master-abc123>
+    # <DDR.identifier.Identifier entity:ddr-testing-300-3>
+    # <DDR.identifier.Identifier entity:ddr-testing-300-10>
+    # <DDR.identifier.Identifier entity:ddr-testing-300-11>
+    
+    def __gt__(self, other):
+        return natsortkey(self.id) > natsortkey(other.id)
+    
+    def __lt__(self, other):
+        return natsortkey(self.id) < natsortkey(other.id)
+    
     def components(self):
         """Model and parts of the ID as a list.
         """
