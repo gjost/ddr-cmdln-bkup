@@ -1198,29 +1198,19 @@ def index( hosts, index, root_path, recursive=False, public=True ):
             additional_fields['signature_file'] = signature_files[identifier.id]
         
         # HERE WE GO!
-        document = load_document_json(
-            identifier.path_abs('json'), identifier.model, identifier.id
-        )
-        try:
-            existing = get(hosts, index, identifier.model, identifier.id, fields=[])
-        except:
-            existing = None
-        result = post(hosts, index, document, document_pub_fields, additional_fields)
-        # success: created, or version number incremented
-        if result.get('_id', None):
-            if existing:
-                existing_version = existing.get('version', None)
-                if not existing_version:
-                    existing_version = existing.get('_version', None)
-            else:
-                existing_version = None
-            result_version = result.get('version', None)
-            if not result_version:
-                result_version = result.get('_version', None)
-            if result['created'] or (existing_version and (result_version > existing_version)):
-                successful += 1
+        if os.path.exists(identifier.path_abs('json')):
+            document = load_document_json(
+                identifier.path_abs('json'), identifier.model, identifier.id
+            )
+            result = post(hosts, index, document, document_pub_fields, additional_fields)
+        else:
+            bad_ids.append((identifier, 'metadata file missing', None))
+            break
+        
+        if result.get('_id') and (result.get('created') or result.get('_version')):
+            successful += 1
         else:
             bad_ids.append((identifier, result['status'], result['response']))
-            #print(status_code)
+    
     logger.debug('INDEXING COMPLETED')
     return {'total':len(index_these), 'successful':index_these, 'bad':bad_ids}
