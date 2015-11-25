@@ -43,7 +43,7 @@ import os
 from elasticsearch import Elasticsearch, TransportError
 
 from DDR import config
-from DDR.identifier import Identifier, MODULES
+from DDR.identifier import Identifier, MODULES, natsortkey
 from DDR import util
 
 MAX_SIZE = 1000000
@@ -1019,149 +1019,94 @@ def public_fields(modules=MODULES):
     public_fields['file'].append('id')
     return public_fields
 
-def _parents_status( paths ):
-    """Stores value of public,status for each collection,entity so entities,files can inherit.
+def _parents_status(identifiers):
+    """Makes dict indicating whether each collection,entity is publishable or not.
     
-    @param paths
+    @param identifiers: list
     @returns: dict
     """
     parents = {}
-    def _make_coll_ent(path):
-        """Store values of id,public,status for a collection or entity.
-        """
-        p = {'id':None,
-             'public':None,
-             'status':None,}
-        with open(path, 'r') as f:
-            data = json.loads(f.read())
-        for field in data:
-            fname = field.keys()[0]
-            if fname in p.keys():
-                p[fname] = field[fname]
-        return p
-    for path in paths:
-        if ('collection.json' in path) or ('entity.json' in path):
-            o = _make_coll_ent(path)
-            parents[o.pop('id')] = o
+    for i in identifiers:
+        json_path = i.path_abs('json')
+        # TODO knows too much about file paths
+        if ('collection.json' in json_path) or ('entity.json' in json_path):
+            with open(json_path, 'r') as f:
+                data = json.loads(f.read())
+            parents[i.id] = _is_publishable(data)
     return parents
 
-def _file_parent_ids(identifier):
-    """Calculate the parent IDs of an entity or file from the filename.
-    
-    TODO not specific to elasticsearch - move this function so other modules can use
-    
-    >>> _file_parent_ids('collection', '.../ddr-testing-123/collection.json')
-    []
-    >>> _file_parent_ids('entity', '.../ddr-testing-123-1/entity.json')
-    ['ddr-testing-123']
-    >>> _file_parent_ids('file', '.../ddr-testing-123-1-master-a1b2c3d4e5.json')
-    ['ddr-testing-123', 'ddr-testing-123-1']
-    
-    @param identifier: Identifier
-    @returns: parent_ids
-    """
-    if identifier.model == 'file':
-        return [identifier.collection_id(), identifier.parent_id()]
-    elif identifier.model == 'entity':
-        return [identifier.collection_id()]
-    return []
-
-def _publishable_or_not( paths, parents ):
+def _publishable_or_not(identifiers, parents):
     """Determines which paths represent publishable paths and which do not.
     
-    @param paths
-    @param parents
-    @returns successful_paths,bad_paths
+    @param identifiers: list
+    @param parents: dict
+    @returns successful,bad
     """
-    successful_paths = []
-    bad_paths = []
-    for path in paths:
-        identifier = Identifier(path=path)
+    successful = []
+    bad = []
+    for i in identifiers:
         # see if item's parents are incomplete or nonpublic
-        # TODO Bad! Bad! Generalize this...
-        UNPUBLISHABLE = []
-        parent_ids = _file_parent_ids(identifier)
-        for parent_id in parent_ids:
-            parent = parents.get(parent_id, {})
-            for x in parent.itervalues():
-                if (x not in STATUS_OK) and (x not in PUBLIC_OK):
-                    if parent_id not in UNPUBLISHABLE:
-                        UNPUBLISHABLE.append(parent_id)
+        UNPUBLISHABLE = [
+            i.id
+            for parent in i.lineage()
+            if (parent != i) and (not parents.get(parent.id, None))
+        ]
         if UNPUBLISHABLE:
-            response = 'parent unpublishable: %s' % UNPUBLISHABLE
-            bad_paths.append((path,403,response))
+            bad.append((i, 403, 'parent unpublishable'))
         if not UNPUBLISHABLE:
-            if path and index and identifier.model:
-                successful_paths.append(path)
+            if i.path_abs() and i.model:
+                successful.append(i)
             else:
-                logger.error('missing information!: %s' % path)
-    return successful_paths,bad_paths
+                logger.error('missing information!: %s' % i)
+    return successful,bad
 
-def _has_access_file( identifier ):
-    """Determines whether the path has a corresponding access file.
+def _has_access_file(i):
+    """Determines whether identifier has an access file.
     
-    @param path: Absolute or relative path to JSON file.
+    @param i: identifier
     @param suffix: Suffix that is applied to File ID to get access file.
     @returns: True,False
     """
-    access_abs = identifier.path_abs('access')
-    if os.path.exists(access_abs) or os.path.islink(access_abs):
+    if os.path.exists(i.path_abs('access')) or os.path.islink(i.path_abs('access')):
         return True
     return False
 
-def _store_signature_file( signatures, identifier, master_substitute ):
-    """Store signature file for collection,entity if it is "earlier" than current one.
-    
-    IMPORTANT: remember to change 'zzzzzz' back to 'master'
-    """
-    if _has_access_file(identifier):
-        # replace 'master' with something so mezzanine wins in sort
-        thumbfile_mezzfirst = identifier.id.replace('master', master_substitute)
-        # # nifty little bit of code that extracts the sort field from file.json
-        # import re
-        # sort = ''
-        # with open(path, 'r') as f:
-        #     for line in f.readlines():
-        #         if '"sort":' in line:
-        #             sort = re.findall('\d+', line)[0]
-        
-        # if this entity_id is "earlier" than the existing one, add it
-        def _store( signatures, object_id, file_id ):
-            if signatures.get(object_id,None):
-                filenames = [signatures[object_id], file_id]
-                first = util.natural_sort(filenames)[0]
-                if file_id == first:
-                    signatures[object_id] = file_id
-            else:
-                signatures[object_id] = file_id
-        
-        _store(signatures, identifier.collection_id(), thumbfile_mezzfirst)
-        _store(signatures, identifier.parent_id(), thumbfile_mezzfirst)
-
-def _choose_signatures( paths ):
-    """Iterate through paths, storing signature_url for each collection, entity.
+def _choose_signatures(identifiers):
+    """Iterate through identifiers, storing signature_url for each collection, entity.
     paths listed files first, then entities, then collections
     
-    @param paths
+    TODO use collection or entity signature value if available
+    TODO sort on File.sort field if available
+    TODO use a tree structure or a DAG for better sorting?
+    
+    @param identifiers: list
     @returns: dict signature_files
     """
-    SIGNATURE_MASTER_SUBSTITUTE = 'zzzzzz'
-    signature_files = {}
-    for path in paths:
-        identifier = Identifier(path=path)
-        if identifier.model == 'file':
-            # decide whether to store this as a collection/entity signature
-            _store_signature_file(signature_files, identifier, SIGNATURE_MASTER_SUBSTITUTE)
+    # # nifty little bit of code that extracts the sort field from file.json
+    # import re
+    # sort = ''
+    # with open(path, 'r') as f:
+    #     for line in f.readlines():
+    #         if '"sort":' in line:
+    #             sort = re.findall('\d+', line)[0]
+    
+    def _store(signature_files, this_id, ancestor_id):
+        if signature_files.get(ancestor_id, None):
+            if natsortkey(this_id) < natsortkey(signature_files[ancestor_id]):
+                signature_files[ancestor_id] = this_id
         else:
-            # signature_urls will be waiting for collections,entities below
-            pass
-    # restore substituted roles
-    for key,value in signature_files.iteritems():
-        signature_files[key] = value.replace(SIGNATURE_MASTER_SUBSTITUTE, 'master')
+            signature_files[ancestor_id] = this_id
+    
+    signature_files = {}
+    for i in identifiers:
+        if i.model == 'file' and _has_access_file(i):
+            _store(signature_files, i.id, i.collection_id())
+            _store(signature_files, i.id, i.parent_id())
     return signature_files
 
 def load_document_json( json_path, model, object_id ):
     """Load object from JSON and add some essential fields.
+    TODO replace with fileio method
     """
     with open(json_path, 'r') as f:
         document = json.loads(f.read())
@@ -1187,51 +1132,54 @@ def index( hosts, index, path, recursive=False, public=True ):
     @param paths: Absolute paths to directory containing collections.
     @returns: number successful,list of paths that didn't work out
     """
-    logger.debug('index(%s, %s, %s)' % (hosts, index, path))
+    logger.info('------------------------------------------------------------------------')
+    logger.info('index(%s, %s, %s)' % (hosts, index, path))
     
     publicfields = public_fields()
     
-    # process a single file if requested
+    logger.info('Gathering metadata file paths')
     if os.path.isfile(path):
-        paths = [path]
+        identifiers = [Identifier(path)]
     else:
-        # files listed first, then entities, then collections
-        paths = util.find_meta_files(path, recursive, files_first=1)
-    
+        identifiers = [
+            Identifier(path)
+            for path in util.find_meta_files(path, recursive=True, files_first=1)
+        ]
+    identifiers.sort()
+    logger.info('%s objects' % len(identifiers))
+
     # Store value of public,status for each collection,entity.
     # Values will be used by entities and files to inherit these values from their parent.
-    parents = _parents_status(paths)
+    logger.info('Storing object parent status')
+    parents = _parents_status(identifiers)
     
     # Determine if paths are publishable or not
-    successful_paths,bad_paths = _publishable_or_not(paths, parents)
+    logger.info('Determining publishability of objects')
+    successful_ids,bad_ids = _publishable_or_not(identifiers, parents)
     
     # iterate through paths, storing signature_url for each collection, entity
     # paths listed files first, then entities, then collections
-    signature_files = _choose_signatures(successful_paths)
-    print('Signature files')
-    keys = signature_files.keys()
-    keys.sort()
-    for key in keys:
-        print(key, signature_files[key])
+    logger.info('Getting signature files for publishable collection, entities')
+    signature_files = _choose_signatures(successful_ids)
     
+    logger.info('Indexing')
     successful = 0
-    for path in successful_paths:
-        identifier = Identifier(path=path)
-        parent_id = identifier.parent_id()
-        
+    for identifier in successful_ids:
         document_pub_fields = []
         if public and identifier.model:
             document_pub_fields = publicfields[identifier.model]
         
-        additional_fields = {'parent_id': parent_id}
-        if identifier.model == 'collection': additional_fields['organization_id'] = parent_id
-        if identifier.model == 'entity': additional_fields['collection_id'] = parent_id
-        if identifier.model == 'file': additional_fields['entity_id'] = parent_id
-        if identifier.model in ['collection', 'entity']:
-            additional_fields['signature_file'] = signature_files.get(identifier.id, '')
+        additional_fields = {'parent_id': identifier.parent_id()}
+        if identifier.model == 'collection': additional_fields['organization_id'] = identifier.parent_id()
+        if identifier.model == 'entity': additional_fields['collection_id'] = identifier.parent_id()
+        if identifier.model == 'file': additional_fields['entity_id'] = identifier.parent_id()
+        if signature_files.get(identifier.id):
+            additional_fields['signature_file'] = signature_files[identifier.id]
         
         # HERE WE GO!
-        document = load_document_json(path, identifier.model, identifier.id)
+        document = load_document_json(
+            identifier.path_abs('json'), identifier.model, identifier.id
+        )
         try:
             existing = get(hosts, index, identifier.model, identifier.id, fields=[])
         except:
@@ -1251,7 +1199,7 @@ def index( hosts, index, path, recursive=False, public=True ):
             if result['created'] or (existing_version and (result_version > existing_version)):
                 successful += 1
         else:
-            bad_paths.append((path, result['status'], result['response']))
+            bad_ids.append((identifier, result['status'], result['response']))
             #print(status_code)
     logger.debug('INDEXING COMPLETED')
-    return {'total':len(paths), 'successful':successful, 'bad':bad_paths}
+    return {'total':len(identifiers), 'successful':successful_ids, 'bad':bad_ids}

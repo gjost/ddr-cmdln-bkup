@@ -264,13 +264,13 @@ def main():
             print('------------------------------------------------------------------------')
             print('The following paths had problems:\n')
             for path,status,response in results['bad']:
-                print(' -- '.join([str(status), path, response]))
+                print(path,status,response)
         print('------------------------------------------------------------------------')
         print('ES host/index:   %s/%s' % (hosts, args.index))
         print('Path:            %s' % args.path)
         print('Recursive:       %s' % args.recursive)
         print('Files processed: %s' % results['total'])
-        print('Successful:      %s' % results['successful'])
+        print('Successful:      %s' % len(results['successful']))
         print('Errors:          %s' % len(results['bad']))
         print('Time elapsed:    %s' % elapsed)
     elif args.cmd == 'alias':
