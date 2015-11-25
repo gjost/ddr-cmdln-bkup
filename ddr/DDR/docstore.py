@@ -43,7 +43,7 @@ import os
 from elasticsearch import Elasticsearch, TransportError
 
 from DDR import config
-from DDR.identifier import Identifier, MODULES, natsortkey
+from DDR.identifier import Identifier, natsortkey, MODULES, PARENTS
 from DDR import util
 
 MAX_SIZE = 1000000
@@ -1020,19 +1020,22 @@ def public_fields(modules=MODULES):
     return public_fields
 
 def _parents_status(identifiers):
-    """Makes dict indicating whether each collection,entity is publishable or not.
+    """Indicates whether or not the parents of selected Identifiers are publishable
     
     @param identifiers: list
     @returns: dict
     """
+    parent_models = [model for model in PARENTS.itervalues() if model]
     parents = {}
     for i in identifiers:
-        json_path = i.path_abs('json')
-        # TODO knows too much about file paths
-        if ('collection.json' in json_path) or ('entity.json' in json_path):
-            with open(json_path, 'r') as f:
-                data = json.loads(f.read())
-            parents[i.id] = _is_publishable(data)
+        for pi in i.lineage():
+            # only parent objects and only once
+            if (pi.model in parent_models) \
+            and (parents.get(pi.id, None) == None) \
+            and os.path.exists(i.path_abs('json')):
+                with open(i.path_abs('json'), 'r') as f:
+                    data = json.loads(f.read())
+                parents[pi.id] = _is_publishable(data)
     return parents
 
 def _publishable_or_not(identifiers, parents):
