@@ -1117,7 +1117,7 @@ def load_document_json( json_path, model, object_id ):
         document.append( {'id':object_id} )
     return document
 
-def index( hosts, index, path, recursive=False, public=True ):
+def index( hosts, index, root_path, recursive=False, public=True ):
     """(Re)index with data from the specified directory.
     
     After receiving a list of metadata files, index() iterates through the list several times.  The first pass weeds out paths to objects that can not be published (e.g. object or its parent is unpublished).
@@ -1129,34 +1129,33 @@ def index( hosts, index, path, recursive=False, public=True ):
 
     @param hosts: list of dicts containing host information.
     @param index: Name of the target index.
-    @param path: Absolute path to directory containing object metadata files.
+    @param root_path: Absolute path to directory containing object metadata files.
     @param recursive: Whether or not to recurse into subdirectories.
     @param public: For publication (fields not marked public will be ommitted).
     @param paths: Absolute paths to directory containing collections.
     @returns: number successful,list of paths that didn't work out
     """
+    root_path = os.path.normpath(root_path)
     logger.info('------------------------------------------------------------------------')
-    logger.info('index(%s, %s, %s)' % (hosts, index, path))
+    logger.info('index(%s, %s, %s)' % (hosts, index, root_path))
     
     publicfields = public_fields()
     
+    # Note: all metadata files are retrieved even if recursive==False.
+    # We need all the files so we can get signatures for the collections,entities
+    # and so we can determine publishability.
+    
     logger.info('Gathering metadata file paths')
-    if os.path.isfile(path):
-        identifiers = [Identifier(path)]
-    else:
-        identifiers = [
-            Identifier(path)
-            for path in util.find_meta_files(path, recursive=True, files_first=1)
-        ]
+    identifiers = [
+        Identifier(path)
+        for path in util.find_meta_files(root_path, recursive=True)
+    ]
     identifiers.sort()
     logger.info('%s objects' % len(identifiers))
-
-    # Store value of public,status for each collection,entity.
-    # Values will be used by entities and files to inherit these values from their parent.
-    logger.info('Storing object parent status')
-    parents = _parents_status(identifiers)
     
     # Determine if paths are publishable or not
+    logger.info('Storing object parent status')
+    parents = _parents_status(identifiers)
     logger.info('Determining publishability of objects')
     successful_ids,bad_ids = _publishable_or_not(identifiers, parents)
     
@@ -1165,9 +1164,21 @@ def index( hosts, index, path, recursive=False, public=True ):
     logger.info('Getting signature files for publishable collection, entities')
     signature_files = _choose_signatures(successful_ids)
     
+    # Now we can 'turn off' recursion.
+    if recursive:
+        index_these = successful_ids
+        successful_ids = []
+    else:
+        index_these = [
+            i for i in successful_ids
+            if i.path_abs() == root_path
+        ]
+        successful_ids = []
+        bad_ids = []
+    
     logger.info('Indexing')
     successful = 0
-    for identifier in successful_ids:
+    for identifier in index_these:
         document_pub_fields = []
         if public and identifier.model:
             document_pub_fields = publicfields[identifier.model]
@@ -1205,4 +1216,4 @@ def index( hosts, index, path, recursive=False, public=True ):
             bad_ids.append((identifier, result['status'], result['response']))
             #print(status_code)
     logger.debug('INDEXING COMPLETED')
-    return {'total':len(identifiers), 'successful':successful_ids, 'bad':bad_ids}
+    return {'total':len(index_these), 'successful':index_these, 'bad':bad_ids}
