@@ -43,7 +43,7 @@ import os
 from elasticsearch import Elasticsearch, TransportError
 
 from DDR import config
-from DDR.identifier import Identifier, natsortkey, MODULES, PARENTS
+from DDR.identifier import Identifier, natsortkey, MODULES, PARENTS, PARENTS_ALL
 from DDR import util
 
 MAX_SIZE = 1000000
@@ -1183,7 +1183,14 @@ def index( hosts, index, root_path, recursive=False, public=True ):
         if public and identifier.model:
             document_pub_fields = publicfields[identifier.model]
         
-        additional_fields = {'parent_id': identifier.parent_id()}
+        additional_fields = {
+            'parent_id': identifier.parent_id(stubs=1),
+            'collection_id': identifier.collection_id(),
+        }
+        ## TODO avoid referring to models by name
+        ##      BUT ddrpublic needs to recognize file-role URL
+        #parent_fieldname = '%s_id' % PARENTS_ALL[identifier.model]
+        #additional_fields[parent_fieldname] = identifier.parent_id(stubs=1)
         if identifier.model == 'collection': additional_fields['organization_id'] = identifier.parent_id()
         if identifier.model == 'entity': additional_fields['collection_id'] = identifier.parent_id()
         if identifier.model == 'file': additional_fields['entity_id'] = identifier.parent_id()
