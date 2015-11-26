@@ -34,6 +34,7 @@ docstore.index(HOSTS, INDEX, PATH, recursive=True, public=True )
 ------------------------------------------------------------------------
 """
 from __future__ import print_function
+from collections import OrderedDict
 from datetime import datetime
 import json
 import logging
@@ -43,7 +44,7 @@ import os
 from elasticsearch import Elasticsearch, TransportError
 
 from DDR import config
-from DDR.identifier import Identifier, natsortkey, MODULES, PARENTS, PARENTS_ALL
+from DDR.identifier import Identifier, natsortkey, MODELS, MODULES, PARENTS, PARENTS_ALL
 from DDR import util
 
 MAX_SIZE = 1000000
@@ -969,6 +970,39 @@ def search( hosts, index, model='', query='', term={}, filters={}, sort=[], fiel
             _source_include=fields,
         )
     return results
+
+def stats(hosts, index, models=[], query=''):
+    """
+    """
+    if not models:
+        models = MODELS
+        models.reverse()
+    model_hits = OrderedDict()
+    es = _get_connection(hosts)
+    for model in models:
+        # TODO use es.count once we're sure it's working
+        
+        if query:
+            results = es.search(
+                index=index,
+                doc_type=model,
+                q=query,
+                _source_include=['id'],
+            )
+        else:
+            results = es.search(
+                index=index,
+                doc_type=model,
+                _source_include=['id'],
+            )
+
+
+        
+        model_hits[model] = [
+            hit['_source']['id']
+            for hit in results['hits']['hits']
+        ]
+    return model_hits
 
 def delete( hosts, index, document_id, recursive=False ):
     """Delete a document and optionally its children.
