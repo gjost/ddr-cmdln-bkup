@@ -1,8 +1,10 @@
 import ConfigParser
 import sys
 
-CONFIG_FILES = ['/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg']
-
+CONFIG_FILES = [
+    '/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg',
+    '/etc/ddr/ddrpublic.cfg', '/etc/ddr/ddrpublic-local.cfg',
+]
 
 class NoConfigError(Exception):
     def __init__(self, value):
