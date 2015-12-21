@@ -109,12 +109,19 @@ def index_exists( hosts, index ):
     es = _get_connection(hosts)
     return es.indices.exists(index=index)
 
+def status(hosts):
+    """Returns status information from the Elasticsearch cluster.
+    
+    @param hosts: list of dicts containing host information.
+    """
+    es = _get_connection(hosts)
+    return es.indices.status()
+    
 def index_names( hosts ):
     """Returns list of index names
     """
     indices = []
-    es = _get_connection(hosts)
-    status = es.indices.status()
+    status = status(hosts)
     for name in status['indices'].keys():
         indices.append(name)
     return indices

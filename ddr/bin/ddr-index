@@ -36,6 +36,9 @@ Example of setting up a new index:
 
 Maintenance tasks:
     
+    # Check status
+    $ ddr-index status -H localhost:9200 -i documents
+    
     # Create index (does not add mappings, facets)
     $ ddr-index create -H localhost:9200 -i documents
     
@@ -69,6 +72,7 @@ import envoy
 import git
 
 from DDR.config import DEBUG, LOG_FILE, LOG_LEVEL
+from DDR import format_json
 from DDR import docstore
 from DDR import models
 
@@ -99,6 +103,32 @@ def make_hosts( text ):
         h,p = host.split(':')
         hosts.append( {'host':h, 'port':p} )
     return hosts
+    
+def host_status(hosts, index=None):
+    """Gets host and index status and prints.
+    
+    @param hosts: dict
+    @param index: str Index name
+    """
+    status = docstore.status(hosts)
+    
+    # list indices
+    print('Indices on this cluster:')
+    indices = status['indices'].keys()
+    indices.sort()
+    print(format_json(indices))
+    
+    # selected info on selected index
+    if index and (index not in indices):
+        print('Selected index not present in cluster: %s' % index)
+        sys.exit(1)
+    print('Selected index:')
+    this_index = {
+        key: status['indices'][index][key]
+        for key in ['docs', 'index']
+    }
+    this_index['name'] = index
+    print(format_json(this_index))
 
 
 def main():
@@ -133,6 +163,7 @@ def main():
     mappings_descr,mappings_epilog = split_docstring(docstore.put_mappings)
     facets_descr,facets_epilog = split_docstring(docstore.put_facets)
     exists_descr,exists_epilog = split_docstring(docstore.exists)
+    status_descr,status_epilog = split_docstring(docstore.status)
     repo_descr,repo_epilog = split_docstring(docstore.repo)
     org_descr,org_epilog = split_docstring(docstore.org)
     delete_descr,delete_epilog = split_docstring(docstore.delete)
@@ -147,6 +178,7 @@ def main():
     mappings_parser = subparsers.add_parser('mappings', description=mappings_descr, epilog=mappings_epilog, formatter_class=formatter,)
     facets_parser = subparsers.add_parser('facets', description=facets_descr, epilog=facets_epilog, formatter_class=formatter,)
     exists_parser = subparsers.add_parser('exists', description=exists_descr, epilog=exists_epilog, formatter_class=formatter,)
+    status_parser = subparsers.add_parser('status', description=status_descr, epilog=status_epilog, formatter_class=formatter,)
     repo_parser = subparsers.add_parser('repo', description=repo_descr, epilog=repo_epilog, formatter_class=formatter,)
     org_parser = subparsers.add_parser('org', description=org_descr, epilog=org_epilog, formatter_class=formatter,)
     delete_parser = subparsers.add_parser('delete', description=delete_descr, epilog=delete_epilog, formatter_class=formatter,)
@@ -161,6 +193,7 @@ def main():
     mappings_parser.set_defaults(func=docstore.put_mappings)
     facets_parser.set_defaults(func=docstore.put_facets)
     exists_parser.set_defaults(func=docstore.exists)
+    status_parser.set_defaults(func=docstore.status)
     repo_parser.set_defaults(func=docstore.repo)
     org_parser.set_defaults(func=docstore.org)
     delete_parser.set_defaults(func=docstore.delete)
@@ -228,6 +261,11 @@ def main():
     exists_parser.add_argument('-m', '--model', required=True, help='model.')
     exists_parser.add_argument('-I', '--id', required=True, help='Document ID.')
     
+    status_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    status_parser.add_argument('-l', '--log', help='Log file..')
+    status_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    status_parser.add_argument('-i', '--index', help='index.', **indexarg)
+   
     repo_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     repo_parser.add_argument('-l', '--log', help='Log file..')
     repo_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
@@ -308,6 +346,9 @@ def main():
         print(msg)
     elif args.cmd == 'exists':
         msg = docstore.exists(hosts, args.index, args.model, args.id)
+        print(msg)
+    elif args.cmd == 'status':
+        msg = host_status(hosts, args.index)
         print(msg)
     elif args.cmd == 'repo':
         msg = docstore.repo(hosts, args.index, args.path)
