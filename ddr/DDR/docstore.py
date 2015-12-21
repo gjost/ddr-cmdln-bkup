@@ -126,6 +126,15 @@ def index_names( hosts ):
         indices.append(name)
     return indices
 
+def aliases( hosts ):
+    """
+    @param hosts: list of dicts containing host information.
+    """
+    es = _get_connection(hosts)
+    return _parse_cataliases(
+        es.cat.aliases(h=['index','alias'])
+    )
+
 def _parse_cataliases( cataliases ):
     """
     Sample input:

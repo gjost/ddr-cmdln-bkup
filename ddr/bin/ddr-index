@@ -115,12 +115,18 @@ def host_status(hosts, index=None):
     @param index: str Index name
     """
     status = docstore.status(hosts)
+    aliases = docstore.aliases(hosts)
     
     # list indices
     print('Indices on this cluster:')
     indices = status['indices'].keys()
     indices.sort()
     print(format_json(indices))
+
+    # aliases
+    print('Aliases')
+    als = [' -> '.join([alias[1], alias[0]]) for alias in aliases]
+    print(format_json(als))
     
     # selected info on selected index
     if index and (index not in indices):
