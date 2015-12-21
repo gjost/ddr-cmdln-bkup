@@ -14,33 +14,42 @@ Example:
 subparser_help = ''
 
 epilog = """
-Example usage:
-
-    # Create and delete indexes
-    $ ddr-index create -H localhost:9200 -i documents
-    $ ddr-index remove -H localhost:9200 -i documents
+Example of setting up a new index:
     
-    # Add/update mappings
-    $ ddr-index mappings -H localhost:9200 -i documents /var/www/media/base/ddr/docstore/mappings.json
-    
-    # Add/update facets
-    $ ddr-index facets -H localhost:9200 -i documents /var/www/media/base/ddr/vocab/
+    # Initialize index (creates index, adds mappings and facets)
+    $ ddr-index init -H localhost:9200 -i documents /var/www/media/ddr/ddr
 
     # Add/update base repository info:
-    $ ddr-index repo -H localhost:9200 -i documents /var/www/media/base/REPO/repository.json
+    $ ddr-index repo -H localhost:9200 -i documents /var/www/media/ddr/REPO/repository.json
 
-    # Add or remove metadata for organizations:
-    $ ddr-index org -H localhost:9200 -i documents /var/www/media/base/REPO-ORG/organization.json
-    $ ddr-index org -H localhost:9200 -i documents --remove /var/www/media/base/REPO-ORG/organization.json
+    # Add/update organization info:
+    $ ddr-index org -H localhost:9200 -i documents /var/www/media/ddr/REPO-ORG/organization.json
     
     # Index a collection for ddr-local
-    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/base/ddr-testing-123
+    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/ddr/ddr-testing-123
     
     # Index a whole directory of collections for ddr-local
-    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/base
+    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/ddr
     
     # Index a whole directory of collections for ddr-public
-    $ ddr-index index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/base
+    $ ddr-index index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/ddr
+
+Maintenance tasks:
+    
+    # Create index (does not add mappings, facets)
+    $ ddr-index create -H localhost:9200 -i documents
+    
+    # Add/update mappings to existing index.
+    $ ddr-index mappings -H localhost:9200 -i documents /var/www/media/ddr/ddr
+    
+    # Add/update facets to existing index.
+    $ ddr-index facets -H localhost:9200 -i documents /var/www/media/ddr/ddr
+
+    # Remove organization metadata:
+    $ ddr-index org -H localhost:9200 -i documents --remove /var/www/media/ddr/REPO-ORG/organization.json
+    
+    # Delete exisitng index
+    $ ddr-index remove -H localhost:9200 -i documents
 
 Note: You can set environment variables got HOSTS and INDEX.:
 
