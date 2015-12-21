@@ -265,6 +265,10 @@ def _make_mappings( mappings ):
         return mappings
     return []
 
+
+def mappings_path(path):
+    return os.path.join(path, 'docstore/mappings.json')
+
 def put_mappings( hosts, index, mappings_path ):
     """Puts mappings from file into ES.
     
@@ -287,6 +291,9 @@ def put_mappings( hosts, index, mappings_path ):
         status = es.indices.put_mapping(index=index, doc_type=model, body=mapping)
         statuses.append( {'model':model, 'status':status} )
     return statuses
+
+def facets_path(path):
+    return os.path.join(path, 'vocab')
 
 def put_facets( hosts, index, path=config.FACETS_PATH ):
     """PUTs facets from file into ES.

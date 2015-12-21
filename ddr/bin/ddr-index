@@ -195,13 +195,13 @@ def main():
     mappings_parser.add_argument('-l', '--log', help='Log file..')
     mappings_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
     mappings_parser.add_argument('-i', '--index', help='index.', **indexarg)
-    mappings_parser.add_argument('path', help='Absolute path to mappings.json file.')
+    mappings_parser.add_argument('path', help='Absolute path to "ddr repo".')
     
     facets_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     facets_parser.add_argument('-l', '--log', help='Log file..')
     facets_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
     facets_parser.add_argument('-i', '--index', help='index.', **indexarg)
-    facets_parser.add_argument('path', help='Absolute path to facets directory.')
+    facets_parser.add_argument('path', help='Absolute path to "ddr repo".')
     
     exists_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     exists_parser.add_argument('-l', '--log', help='Log file..')
@@ -277,10 +277,12 @@ def main():
         msg = docstore.set_alias(hosts, args.alias, args.index, args.remove)
         print(msg)
     elif args.cmd == 'mappings':
-        msg = docstore.put_mappings(hosts, args.index, args.path)
+        mpath = docstore.mappings_path(args.path)
+        msg = docstore.put_mappings(hosts, args.index, mpath)
         print(msg)
     elif args.cmd == 'facets':
-        msg = docstore.put_facets(hosts, args.index, args.path)
+        fpath = docstore.facets_path(args.path)
+        msg = docstore.put_facets(hosts, args.index, fpath)
         print(msg)
     elif args.cmd == 'exists':
         msg = docstore.exists(hosts, args.index, args.model, args.id)
