@@ -126,6 +126,15 @@ def index_names( hosts ):
         indices.append(name)
     return indices
 
+def aliases( hosts ):
+    """
+    @param hosts: list of dicts containing host information.
+    """
+    es = _get_connection(hosts)
+    return _parse_cataliases(
+        es.cat.aliases(h=['index','alias'])
+    )
+
 def _parse_cataliases( cataliases ):
     """
     Sample input:
@@ -144,7 +153,7 @@ def _parse_cataliases( cataliases ):
             indices_aliases.append( (i,a) )
     return indices_aliases
 
-def set_alias( hosts, alias, index, remove=False ):
+def set_alias( hosts, alias, index, remove=False, create=True ):
     """Point alias at specified index; create index if doesn't exist.
     
     IMPORTANT: There is only ever ONE index at a time. All existing
@@ -154,12 +163,13 @@ def set_alias( hosts, alias, index, remove=False ):
     @param alias: Name of the alias
     @param index: Name of the alias' target index.
     @param remove: boolean
+    @param create: boolean
     """
     logger.debug('set_alias(%s, %s, %s, %s)' % (hosts, alias, index, remove))
     alias = make_index_name(alias)
     index = make_index_name(index)
     es = _get_connection(hosts)
-    if not index_exists(hosts, index):
+    if (not index_exists(hosts, index)) and create:
         create_index(hosts, index)
     # delete existing aliases
     for i,a in _parse_cataliases(es.cat.aliases(h=['index','alias'])):
