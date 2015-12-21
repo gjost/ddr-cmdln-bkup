@@ -179,6 +179,21 @@ def target_index( hosts, alias ):
             target = i
     return target
 
+def init_index( hosts, index, path ):
+    """Creates specified index, adds mappings and facets.
+    
+    @param hosts: list of dicts containing host information.
+    @param index: Name of the target index.
+    @param path: Absolute path to "ddr repo".
+    @returns: JSON dict with status codes and responses
+    """
+    logger.debug('init_index(%s, %s, %s)' % (hosts, index, path))
+    statuses = {}
+    statuses['create'] = create_index(hosts, index)
+    statuses['mappings'] = put_mappings(hosts, index, mappings_path(path))
+    statuses['facets'] = put_facets(hosts, index, facets_path(path))
+    return statuses
+
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
     
