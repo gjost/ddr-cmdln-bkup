@@ -13,4 +13,4 @@ GitPython==0.3.2.RC1      # BSD       python-git (0.3.2~RC1-1)         python-gi
 python-xmp-toolkit==2.0.1 # New BSD   n/a                              (sid) python-libxmp (v?)       y
 lxml==3.3.5               # BSD       python-lxml (2.3.2-1+deb7u1)     python-lxml (3.3.5-1+b1)       y
 pytz==2014.4              # MIT       python-tz (2012c-1)              python-tz (2012c-1)            y
-requests==2.3.0           # Apache    python-requests (0.12.1-1)       python-requests (2.3.0-1)      y
+requests==2.9.0           # Apache    python-requests (0.12.1-1)       python-requests (2.3.0-1)      y
