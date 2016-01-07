@@ -120,11 +120,7 @@ def status(hosts):
 def index_names( hosts ):
     """Returns list of index names
     """
-    indices = []
-    status = status(hosts)
-    for name in status['indices'].keys():
-        indices.append(name)
-    return indices
+    return [name for name in status(hosts)['indices'].keys()]
 
 def aliases( hosts ):
     """
