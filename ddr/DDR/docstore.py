@@ -110,15 +110,31 @@ def index_exists( hosts, index ):
     es = _get_connection(hosts)
     return es.indices.exists(index=index)
 
+def status(hosts):
+    """Returns status information from the Elasticsearch cluster.
+    
+    @param hosts: list of dicts containing host information.
+    """
+    es = _get_connection(hosts)
+    return es.indices.status()
+    
 def index_names( hosts ):
     """Returns list of index names
     """
     indices = []
-    es = _get_connection(hosts)
-    status = es.indices.status()
+    status = status(hosts)
     for name in status['indices'].keys():
         indices.append(name)
     return indices
+
+def aliases( hosts ):
+    """
+    @param hosts: list of dicts containing host information.
+    """
+    es = _get_connection(hosts)
+    return _parse_cataliases(
+        es.cat.aliases(h=['index','alias'])
+    )
 
 def _parse_cataliases( cataliases ):
     """
@@ -138,7 +154,7 @@ def _parse_cataliases( cataliases ):
             indices_aliases.append( (i,a) )
     return indices_aliases
 
-def set_alias( hosts, alias, index, remove=False ):
+def set_alias( hosts, alias, index, remove=False, create=True ):
     """Point alias at specified index; create index if doesn't exist.
     
     IMPORTANT: There is only ever ONE index at a time. All existing
@@ -148,12 +164,13 @@ def set_alias( hosts, alias, index, remove=False ):
     @param alias: Name of the alias
     @param index: Name of the alias' target index.
     @param remove: boolean
+    @param create: boolean
     """
     logger.debug('set_alias(%s, %s, %s, %s)' % (hosts, alias, index, remove))
     alias = make_index_name(alias)
     index = make_index_name(index)
     es = _get_connection(hosts)
-    if not index_exists(hosts, index):
+    if (not index_exists(hosts, index)) and create:
         create_index(hosts, index)
     # delete existing aliases
     for i,a in _parse_cataliases(es.cat.aliases(h=['index','alias'])):
@@ -179,6 +196,21 @@ def target_index( hosts, alias ):
         if a == alias:
             target = i
     return target
+
+def init_index( hosts, index, path ):
+    """Creates specified index, adds mappings and facets.
+    
+    @param hosts: list of dicts containing host information.
+    @param index: Name of the target index.
+    @param path: Absolute path to "ddr repo".
+    @returns: JSON dict with status codes and responses
+    """
+    logger.debug('init_index(%s, %s, %s)' % (hosts, index, path))
+    statuses = {}
+    statuses['create'] = create_index(hosts, index)
+    statuses['mappings'] = put_mappings(hosts, index, mappings_path(path))
+    statuses['facets'] = put_facets(hosts, index, facets_path(path))
+    return statuses
 
 def create_index( hosts, index ):
     """Creates the specified index if it does not already exist.
@@ -266,6 +298,10 @@ def _make_mappings( mappings ):
         return mappings
     return []
 
+
+def mappings_path(path):
+    return os.path.join(path, 'docstore/mappings.json')
+
 def put_mappings( hosts, index, mappings_path ):
     """Puts mappings from file into ES.
     
@@ -288,6 +324,9 @@ def put_mappings( hosts, index, mappings_path ):
         status = es.indices.put_mapping(index=index, doc_type=model, body=mapping)
         statuses.append( {'model':model, 'status':status} )
     return statuses
+
+def facets_path(path):
+    return os.path.join(path, 'vocab')
 
 def put_facets( hosts, index, path=config.FACETS_PATH ):
     """PUTs facets from file into ES.

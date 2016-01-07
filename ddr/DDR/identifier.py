@@ -99,7 +99,7 @@ VALID_COMPONENTS = {
     ],
     'org': [
         'densho', 'hmwf', 'jamsj', 'janm', 'jcch', 'njpa', 'one', 'pc',
-        'test', 'testing',
+        'dev', 'test', 'testing',
     ],
     'role': [
         'master', 'mezzanine'
@@ -304,11 +304,11 @@ def identify_object(text, patterns):
             model = tpl[-1]
             groupdict = m.groupdict()
             break
-    # validate components
-    for key in VALID_COMPONENTS.keys():
-        val = groupdict.get(key, None)
-        if val and (val not in VALID_COMPONENTS[key]):
-            raise Exception('Invalid ID keyword: "%s"' % val)
+    ## validate components
+    #for key in VALID_COMPONENTS.keys():
+    #    val = groupdict.get(key, None)
+    #    if val and (val not in VALID_COMPONENTS[key]):
+    #        raise Exception('Invalid ID keyword: "%s"' % val)
     return model,groupdict
 
 def identify_filepath(path):
@@ -552,21 +552,21 @@ class Identifier(object):
             return idparts
         return {}
 
-    @staticmethod
-    def valid(idparts, components=VALID_COMPONENTS):
-        """Checks if all non-int ID components are valid.
-        
-        @param idparts: dict
-        @param components: dict 
-        @returns: True or dict containing name of invalid component
-        """
-        invalid = [
-            key for key in components.iterkeys()
-            if idparts.get(key) and (idparts[key] not in components[key])
-        ]
-        if not invalid:
-            return True
-        return invalid
+    #@staticmethod
+    #def valid(idparts, components=VALID_COMPONENTS):
+    #    """Checks if all non-int ID components are valid.
+    #    
+    #    @param idparts: dict
+    #    @param components: dict 
+    #    @returns: True or dict containing name of invalid component
+    #    """
+    #    invalid = [
+    #        key for key in components.iterkeys()
+    #        if idparts.get(key) and (idparts[key] not in components[key])
+    #    ]
+    #    if not invalid:
+    #        return True
+    #    return invalid
     
     def __init__(self, *args, **kwargs):
         """
