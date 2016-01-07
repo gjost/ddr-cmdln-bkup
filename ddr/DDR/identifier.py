@@ -97,7 +97,7 @@ VALID_COMPONENTS = {
     ],
     'org': [
         'densho', 'hmwf', 'jamsj', 'janm', 'jcch', 'njpa', 'one', 'pc',
-        'test', 'testing',
+        'dev', 'test', 'testing',
     ],
     'role': [
         'master', 'mezzanine'
