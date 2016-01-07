@@ -179,17 +179,17 @@ def test_identifier_wellformed():
     assert identifier.Identifier.wellformed('path', ENTITY_PATH_ABS)
     assert identifier.Identifier.wellformed('path', FILE_PATH_ABS)
 
-def test_identifier_valid():
-    COMPONENTS = {
-        'repo': ['ddr',],
-        'org': ['test', 'testing',],
-    }
-    in0 = {'repo':'ddr', 'org':'test', 'cid':'123'}
-    in1 = {'repo':'ddr', 'org':'blat', 'cid':'123'}
-    expected0 = True
-    expected1 = ['org']
-    assert identifier.Identifier.valid(in0, components=COMPONENTS) == expected0 
-    assert identifier.Identifier.valid(in1, components=COMPONENTS) == expected1 
+#def test_identifier_valid():
+#    COMPONENTS = {
+#        'repo': ['ddr',],
+#        'org': ['test', 'testing',],
+#    }
+#    in0 = {'repo':'ddr', 'org':'test', 'cid':'123'}
+#    in1 = {'repo':'ddr', 'org':'blat', 'cid':'123'}
+#    expected0 = True
+#    expected1 = ['org']
+#    assert identifier.Identifier.valid(in0, components=COMPONENTS) == expected0 
+#    assert identifier.Identifier.valid(in1, components=COMPONENTS) == expected1 
 
 def test_identifier_components():
     in0 = 'ddr'
