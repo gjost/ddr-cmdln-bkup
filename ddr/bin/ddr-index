@@ -14,33 +14,49 @@ Example:
 subparser_help = ''
 
 epilog = """
-Example usage:
-
-    # Create and delete indexes
-    $ ddr-index create -H localhost:9200 -i documents
-    $ ddr-index remove -H localhost:9200 -i documents
+Example of setting up a new index:
     
-    # Add/update mappings
-    $ ddr-index mappings -H localhost:9200 -i documents /var/www/media/base/ddr/docstore/mappings.json
+    # Initialize index (creates index, adds mappings and facets)
+    $ ddr-index init -H localhost:9200 -i documents /var/www/media/ddr/ddr
     
-    # Add/update facets
-    $ ddr-index facets -H localhost:9200 -i documents /var/www/media/base/ddr/vocab/
+    # Set or remove an alias for the index
+    $ ddr-index alias -H localhost:9200 -i documents -a ddrpublic-dev
+    $ ddr-index alias -H localhost:9200 -i documents -a ddrpublic-dev --remove
 
     # Add/update base repository info:
-    $ ddr-index repo -H localhost:9200 -i documents /var/www/media/base/REPO/repository.json
+    $ ddr-index repo -H localhost:9200 -i documents /var/www/media/ddr/REPO/repository.json
 
-    # Add or remove metadata for organizations:
-    $ ddr-index org -H localhost:9200 -i documents /var/www/media/base/REPO-ORG/organization.json
-    $ ddr-index org -H localhost:9200 -i documents --remove /var/www/media/base/REPO-ORG/organization.json
+    # Add/update organization info:
+    $ ddr-index org -H localhost:9200 -i documents /var/www/media/ddr/REPO-ORG/organization.json
     
     # Index a collection for ddr-local
-    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/base/ddr-testing-123
+    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/ddr/ddr-testing-123
     
     # Index a whole directory of collections for ddr-local
-    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/base
+    $ ddr-index index -H localhost:9200 -i documents --recursive /var/www/media/ddr
     
     # Index a whole directory of collections for ddr-public
-    $ ddr-index index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/base
+    $ ddr-index index -H localhost:9200 -i documents --recursive --newstyle /var/www/media/ddr
+
+Maintenance tasks:
+    
+    # Check status
+    $ ddr-index status -H localhost:9200 -i documents
+    
+    # Create index (does not add mappings, facets)
+    $ ddr-index create -H localhost:9200 -i documents
+    
+    # Add/update mappings to existing index.
+    $ ddr-index mappings -H localhost:9200 -i documents /var/www/media/ddr/ddr
+    
+    # Add/update facets to existing index.
+    $ ddr-index facets -H localhost:9200 -i documents /var/www/media/ddr/ddr
+
+    # Remove organization metadata:
+    $ ddr-index org -H localhost:9200 -i documents --remove /var/www/media/ddr/REPO-ORG/organization.json
+    
+    # Delete exisitng index
+    $ ddr-index remove -H localhost:9200 -i documents
 
 Note: You can set environment variables got HOSTS and INDEX.:
 
@@ -60,6 +76,7 @@ import envoy
 import git
 
 from DDR.config import DEBUG, LOG_FILE, LOG_LEVEL
+from DDR import format_json
 from DDR import docstore
 from DDR import models
 
@@ -90,6 +107,38 @@ def make_hosts( text ):
         h,p = host.split(':')
         hosts.append( {'host':h, 'port':p} )
     return hosts
+    
+def host_status(hosts, index=None):
+    """Gets host and index status and prints.
+    
+    @param hosts: dict
+    @param index: str Index name
+    """
+    status = docstore.status(hosts)
+    aliases = docstore.aliases(hosts)
+    
+    # list indices
+    print('Indices on this cluster:')
+    indices = status['indices'].keys()
+    indices.sort()
+    print(format_json(indices))
+
+    # aliases
+    print('Aliases')
+    als = [' -> '.join([alias[1], alias[0]]) for alias in aliases]
+    print(format_json(als))
+    
+    # selected info on selected index
+    if index and (index not in indices):
+        print('Selected index not present in cluster: %s' % index)
+        sys.exit(1)
+    print('Selected index:')
+    this_index = {
+        key: status['indices'][index][key]
+        for key in ['docs', 'index']
+    }
+    this_index['name'] = index
+    print(format_json(this_index))
 
 
 def main():
@@ -116,6 +165,7 @@ def main():
     
 #    post_descr,post_epilog = split_docstring(docstore.post)
 #    get_descr,get_epilog = split_docstring(docstore.get)
+    init_descr,init_epilog = split_docstring(docstore.index)
     create_descr,create_epilog = split_docstring(docstore.index)
     remove_descr,remove_epilog = split_docstring(docstore.index)
     index_descr,index_epilog = split_docstring(docstore.index)
@@ -123,12 +173,14 @@ def main():
     mappings_descr,mappings_epilog = split_docstring(docstore.put_mappings)
     facets_descr,facets_epilog = split_docstring(docstore.put_facets)
     exists_descr,exists_epilog = split_docstring(docstore.exists)
+    status_descr,status_epilog = split_docstring(docstore.status)
     repo_descr,repo_epilog = split_docstring(docstore.repo)
     org_descr,org_epilog = split_docstring(docstore.org)
     delete_descr,delete_epilog = split_docstring(docstore.delete)
     
 #    post_parser = subparsers.add_parser('post', description=post_descr, epilog=post_epilog, formatter_class=formatter,)
 #    get_parser = subparsers.add_parser('get', description=get_descr, epilog=get_epilog, formatter_class=formatter,)
+    init_parser = subparsers.add_parser('init', description=init_descr, epilog=init_epilog, formatter_class=formatter,)
     create_parser = subparsers.add_parser('create', description=create_descr, epilog=create_epilog, formatter_class=formatter,)
     remove_parser = subparsers.add_parser('remove', description=remove_descr, epilog=remove_epilog, formatter_class=formatter,)
     index_parser = subparsers.add_parser('index', description=index_descr, epilog=index_epilog, formatter_class=formatter,)
@@ -136,12 +188,14 @@ def main():
     mappings_parser = subparsers.add_parser('mappings', description=mappings_descr, epilog=mappings_epilog, formatter_class=formatter,)
     facets_parser = subparsers.add_parser('facets', description=facets_descr, epilog=facets_epilog, formatter_class=formatter,)
     exists_parser = subparsers.add_parser('exists', description=exists_descr, epilog=exists_epilog, formatter_class=formatter,)
+    status_parser = subparsers.add_parser('status', description=status_descr, epilog=status_epilog, formatter_class=formatter,)
     repo_parser = subparsers.add_parser('repo', description=repo_descr, epilog=repo_epilog, formatter_class=formatter,)
     org_parser = subparsers.add_parser('org', description=org_descr, epilog=org_epilog, formatter_class=formatter,)
     delete_parser = subparsers.add_parser('delete', description=delete_descr, epilog=delete_epilog, formatter_class=formatter,)
     
 #    post_parser.set_defaults(func=docstore.post)
 #    get_parser.set_defaults(func=docstore.get)
+    init_parser.set_defaults(func=docstore.init_index)
     create_parser.set_defaults(func=docstore.create_index)
     remove_parser.set_defaults(func=docstore.delete_index)
     index_parser.set_defaults(func=docstore.index)
@@ -149,6 +203,7 @@ def main():
     mappings_parser.set_defaults(func=docstore.put_mappings)
     facets_parser.set_defaults(func=docstore.put_facets)
     exists_parser.set_defaults(func=docstore.exists)
+    status_parser.set_defaults(func=docstore.status)
     repo_parser.set_defaults(func=docstore.repo)
     org_parser.set_defaults(func=docstore.org)
     delete_parser.set_defaults(func=docstore.delete)
@@ -165,6 +220,12 @@ def main():
 #    get_parser.add_argument('-i', '--index', required=True, help='index.')
 #    get_parser.add_argument('-m', '--model', required=True, help='model.')
 #    get_parser.add_argument('-I', '--id', required=True, help='ID.')
+    
+    init_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    init_parser.add_argument('-l', '--log', help='Log file..')
+    init_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    init_parser.add_argument('-i', '--index', help='index.', **indexarg)
+    init_parser.add_argument('path', help='Absolute path to "ddr repo".')
     
     create_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     create_parser.add_argument('-l', '--log', help='Log file..')
@@ -195,13 +256,13 @@ def main():
     mappings_parser.add_argument('-l', '--log', help='Log file..')
     mappings_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
     mappings_parser.add_argument('-i', '--index', help='index.', **indexarg)
-    mappings_parser.add_argument('path', help='Absolute path to mappings.json file.')
+    mappings_parser.add_argument('path', help='Absolute path to "ddr repo".')
     
     facets_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     facets_parser.add_argument('-l', '--log', help='Log file..')
     facets_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
     facets_parser.add_argument('-i', '--index', help='index.', **indexarg)
-    facets_parser.add_argument('path', help='Absolute path to facets directory.')
+    facets_parser.add_argument('path', help='Absolute path to "ddr repo".')
     
     exists_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     exists_parser.add_argument('-l', '--log', help='Log file..')
@@ -210,6 +271,11 @@ def main():
     exists_parser.add_argument('-m', '--model', required=True, help='model.')
     exists_parser.add_argument('-I', '--id', required=True, help='Document ID.')
     
+    status_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
+    status_parser.add_argument('-l', '--log', help='Log file..')
+    status_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
+    status_parser.add_argument('-i', '--index', help='index.', **indexarg)
+   
     repo_parser.add_argument('-d', '--debug', action='store_true', help='Debug; prints lots of debug info.')
     repo_parser.add_argument('-l', '--log', help='Log file..')
     repo_parser.add_argument('-H', '--host', help='Hostname and port (HOST:PORT).', **hostsarg)
@@ -250,6 +316,10 @@ def main():
     elif args.cmd == 'get':
         msg = docstore.get(hosts, args.index, args.model, args.id)
         print(msg)
+    elif args.cmd == 'init':
+        statuses = docstore.init_index(hosts, args.index, args.path)
+        for key,val in statuses.iteritems():
+            print('%s: %s' % (key,val))
     elif args.cmd == 'create':
         results = docstore.create_index(hosts, args.index)
     elif args.cmd == 'remove':
@@ -274,16 +344,23 @@ def main():
         print('Errors:          %s' % len(results['bad']))
         print('Time elapsed:    %s' % elapsed)
     elif args.cmd == 'alias':
-        msg = docstore.set_alias(hosts, args.alias, args.index, args.remove)
+        msg = docstore.set_alias(
+            hosts, args.alias, args.index, remove=args.remove, create=False
+        )
         print(msg)
     elif args.cmd == 'mappings':
-        msg = docstore.put_mappings(hosts, args.index, args.path)
+        mpath = docstore.mappings_path(args.path)
+        msg = docstore.put_mappings(hosts, args.index, mpath)
         print(msg)
     elif args.cmd == 'facets':
-        msg = docstore.put_facets(hosts, args.index, args.path)
+        fpath = docstore.facets_path(args.path)
+        msg = docstore.put_facets(hosts, args.index, fpath)
         print(msg)
     elif args.cmd == 'exists':
         msg = docstore.exists(hosts, args.index, args.model, args.id)
+        print(msg)
+    elif args.cmd == 'status':
+        msg = host_status(hosts, args.index)
         print(msg)
     elif args.cmd == 'repo':
         msg = docstore.repo(hosts, args.index, args.path)
