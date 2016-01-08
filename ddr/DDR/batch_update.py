@@ -257,7 +257,7 @@ def update_entities(csv_path, collection_path, vocabs_path, git_name, git_mail, 
     test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
-    headers,rowds = make_rowds(fileio.read_csv(csv_path))
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
     
     # check for errors
@@ -343,7 +343,7 @@ def update_files(csv_path, collection_path, vocabs_path, git_name, git_mail, age
     test_repository(repository)
     
     logging.info('Reading %s' % csv_path)
-    headers,rowds = make_rowds(fileio.read_csv(csv_path))
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
     
     # check for errors
