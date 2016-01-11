@@ -21,8 +21,8 @@ BASE_PATHS = [
 
 def test_identify_object():
     patterns = (
-        (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', '', 'entity'),
-        (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', '', 'collection'),
+        (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity-rel', 'entity'),
+        (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'collection-rel', 'collection'),
     )
     id0 = 'ddr-test-123'
     id1 = 'ddr-test-123-456'
@@ -30,12 +30,15 @@ def test_identify_object():
     id0_expected_model = 'collection'
     id1_expected_model = 'entity'
     id2_expected_model = None
+    id0_expected_memo = 'collection-rel'
+    id1_expected_memo = 'entity-rel'
+    id2_expected_memo = None
     id0_expected_gd = {'repo':'ddr', 'org':'test', 'cid':'123'}
     id1_expected_gd = {'repo':'ddr', 'org':'test', 'cid':'123', 'eid':'456'}
     id2_expected_gd = None
-    assert identifier.identify_object(id0, patterns) == (id0_expected_model,id0_expected_gd) 
-    assert identifier.identify_object(id1, patterns) == (id1_expected_model,id1_expected_gd)
-    assert identifier.identify_object(id2, patterns) == (id2_expected_model,id2_expected_gd)
+    assert identifier.identify_object(id0, patterns) == (id0_expected_model,id0_expected_memo,id0_expected_gd)
+    assert identifier.identify_object(id1, patterns) == (id1_expected_model,id1_expected_memo,id1_expected_gd)
+    assert identifier.identify_object(id2, patterns) == (id2_expected_model,id2_expected_memo,id2_expected_gd)
 
 def test_identify_filepath():
     assert identifier.identify_filepath('something-a.jpg') == 'access'

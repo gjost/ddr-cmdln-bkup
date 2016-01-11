@@ -114,7 +114,7 @@ FILETYPE_MATCH_ANNEX = {
 
 # ----------------------------------------------------------------------
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
-# Record format: (regex, description, model)
+# Record format: (regex, memo, model)
 # TODO compile regexes
 #
 
@@ -128,6 +128,7 @@ def _compile_patterns(patterns):
         new.append(pattern)
     return new
 
+# (regex, memo, model) NOTE: 'memo' is not used for anything yet
 ID_PATTERNS = _compile_patterns((
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', '', 'file'),
     (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', '', 'file-role'),
@@ -171,6 +172,7 @@ PATH_PATTERNS_LOOP = (
     (r'collection.json$', '' 'collection-json'),
 )
 
+# (regex, memo, model) NOTE: 'memo' is not used for anything yet
 URL_PATTERNS = _compile_patterns((
     # editor
     (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'editor-file', 'file'),
@@ -289,12 +291,12 @@ def identify_object(text, patterns):
     @returns: dict groupdict resulting from successful regex match
     """
     model = None
+    memo = None
     groupdict = None
     for tpl in patterns:
-        pattern = tpl[0]
-        m = re.match(pattern, text)
+        m = re.match(tpl[0], text)
         if m:
-            model = tpl[-1]
+            pattern,memo,model = tpl
             groupdict = m.groupdict()
             break
     ## validate components
@@ -302,7 +304,7 @@ def identify_object(text, patterns):
     #    val = groupdict.get(key, None)
     #    if val and (val not in VALID_COMPONENTS[key]):
     #        raise Exception('Invalid ID keyword: "%s"' % val)
-    return model,groupdict
+    return model,memo,groupdict
 
 def identify_filepath(path):
     """Indicates file role or if path is an access file.
@@ -570,7 +572,7 @@ class Identifier(object):
         self.method = 'id'
         self.raw = object_id
         self.id = object_id
-        model,groupdict = identify_object(object_id, ID_PATTERNS)
+        model,memo,groupdict = identify_object(object_id, ID_PATTERNS)
         if not groupdict:
             raise MalformedIDException('Malformed ID: "%s"' % object_id)
         self.model = model
@@ -623,7 +625,7 @@ class Identifier(object):
             base_path = os.path.normpath(base_path)
         self.method = 'path'
         self.raw = path_abs
-        model,groupdict = identify_object(path_abs, PATH_PATTERNS)
+        model,memo,groupdict = identify_object(path_abs, PATH_PATTERNS)
         if not groupdict:
             raise MalformedPathException('Malformed path: "%s"' % path_abs)
         self.model = model
@@ -654,7 +656,7 @@ class Identifier(object):
         self.raw = url
         urlpath = urlparse(url).path  # ignore domain and queries
         urlpath = os.path.normpath(urlpath)
-        model,groupdict = identify_object(urlpath, URL_PATTERNS)
+        model,memo,groupdict = identify_object(urlpath, URL_PATTERNS)
         if not groupdict:
             raise MalformedURLException('Malformed URL: "%s"' % url)
         self.model = model
