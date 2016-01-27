@@ -40,6 +40,8 @@ def repository(path, user_name=None, user_mail=None):
 def git_version(repo_path=None):
     """Returns version info for Git and git-annex.
     
+    TODO pass repo object instead of path
+    
     If repo_path is specified, returns version of local repo's annex.
     example:
     'git version 1.7.10.4; git-annex version: 3.20120629; local repository version: 3; ' \
@@ -63,6 +65,8 @@ def git_version(repo_path=None):
 
 def latest_commit(path):
     """Returns latest commit for the specified repository
+    
+    TODO pass repo object instead of path
     
     One of several arguments must be provided:
     - Absolute path to a repository.
@@ -269,6 +273,8 @@ def set_annex_description( repo, annex_status=None, description=None, drive_labe
 def fetch(path):
     """run git fetch; fetches from origin.
     
+    TODO pass repo object instead of path
+    
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
     """
@@ -277,6 +283,8 @@ def fetch(path):
 
 def repo_status(path, short=False):
     """Retrieve git status on repository.
+    
+    TODO pass repo object instead of path
     
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
@@ -292,6 +300,8 @@ def repo_status(path, short=False):
 
 def annex_status(path):
     """Retrieve git annex status on repository.
+    
+    TODO pass repo object instead of path
     
     @param collection_path: Absolute path to collection repo.
     @return: message ('ok' if successful)
@@ -900,6 +910,8 @@ def local_exists(path):
 def is_clone(path1, path2, n=5):
     """Indicates whether two repos at the specified paths are clones of each other.
     
+    TODO pass repo object instead of path
+    
     Compares the first N hashes
     TODO What if repo has less than N commits?
     
@@ -930,6 +942,8 @@ def is_clone(path1, path2, n=5):
 
 def remotes(path, paths=None, clone_log_n=1):
     """Lists remotes for the repository at path.
+    
+    TODO pass repo object instead of path
     
     For each remote lists info you'd find in REPO/.git/config plus a bit more:
     - name
@@ -975,6 +989,9 @@ e2-8184-835f755b29c5')]
 
 def repos_remotes(path):
     """Gets list of remotes for each repo in path.
+    
+    TODO pass repo object instead of path
+    
     @returns list of dicts {'path':..., 'remotes':[...]}
     """
     return [{'path':p, 'remotes':remotes(p),} for p in repos(path)]
