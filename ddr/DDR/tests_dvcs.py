@@ -46,7 +46,15 @@ def test_repository():
     assert ('sshcaching','false') in reader.items('annex')
 
 def test_git_version():
-    out = dvcs.git_version()
+    basedir = '/tmp/test-ddr-dvcs'
+    path = os.path.join(basedir, 'testgitversion')
+    # rm existing
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    # set up repos
+    repo = make_repo(path, ['testing'])
+    # test at repo root
+    out = dvcs.git_version(repo)
     assert 'git version' in out
     assert 'git-annex version' in out
     assert 'local repository version' in out
@@ -183,8 +191,8 @@ STATUS_SHORT = """## master"""
 def test_repo_status():
     path = '/tmp/test-ddr-dvcs/test-repo'
     repo = make_repo(path, ['testing'])
-    out0 = dvcs.repo_status(path, short=False)
-    out1 = dvcs.repo_status(path, short=True)
+    out0 = dvcs.repo_status(repo, short=False)
+    out1 = dvcs.repo_status(repo, short=True)
     cleanup_repo(path)
     assert out0 == STATUS_LONG
     assert out1 == STATUS_SHORT
@@ -211,7 +219,7 @@ def test_annex_status():
     path = '/tmp/test-ddr-dvcs/test-repo'
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    status = dvcs.annex_status(path)
+    status = dvcs.annex_status(repo)
     cleanup_repo(path)
     assert 'trusted repositories' in status
     assert 'semitrusted repositories' in status
@@ -526,8 +534,8 @@ def test_remotes():
         }
     ]
     # test
-    assert dvcs.remotes(path_orig) == expected1
-    assert dvcs.remotes(path_clon) == expected2
+    assert dvcs.remotes(repo1) == expected1
+    assert dvcs.remotes(clone) == expected2
 
 # TODO repos_remotes
 
@@ -542,8 +550,8 @@ def test_annex_file_targets():
             f.write('fsaf;laksjf;lsakjf;aslkfj;aslkfj;salkjf;sadlkfj')
         repo.git.annex('add', filename)
     repo.index.commit('added files')
-    targets_abs = dvcs.annex_file_targets(path, relative=False)
-    targets_rel = dvcs.annex_file_targets(path, relative=True)
+    targets_abs = dvcs.annex_file_targets(repo, relative=False)
+    targets_rel = dvcs.annex_file_targets(repo, relative=True)
     expected_abs = [
         (
             '/tmp/test-ddr-dvcs/test-repo/test1',

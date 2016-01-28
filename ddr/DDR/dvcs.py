@@ -37,10 +37,8 @@ def repository(path, user_name=None, user_mail=None):
         return set_git_configs(repo, user_name, user_mail)
     return repo
 
-def git_version(repo_path=None):
+def git_version(repo):
     """Returns version info for Git and git-annex.
-    
-    TODO pass repo object instead of path
     
     If repo_path is specified, returns version of local repo's annex.
     example:
@@ -48,15 +46,15 @@ def git_version(repo_path=None):
     'default repository version: 3; supported repository versions: 3; ' \
     'upgrade supported from repository versions: 0 1 2'
     
-    @param repo_path: Absolute path to repository (optional).
+    @param repo: A GitPython Repo object.
     @returns string
     """
     try:
         # git
         gitv = envoy.run('git --version').std_out.strip()
         # git annex
-        if repo_path and os.path.exists(repo_path):
-            os.chdir(repo_path)
+        if os.path.exists(repo.working_dir):
+            os.chdir(repo.working_dir)
         annex = envoy.run('git annex version').std_out.strip().split('\n')
         gitversion = '; '.join([gitv] + annex)
     except Exception as err:
@@ -270,27 +268,21 @@ def set_annex_description( repo, annex_status=None, description=None, drive_labe
             repo.git.annex('describe', 'here', desc)
     return desc
 
-def fetch(path):
+def fetch(repo):
     """run git fetch; fetches from origin.
     
-    TODO pass repo object instead of path
-    
-    @param collection_path: Absolute path to collection repo.
+    @param repo: A GitPython Repo object
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(path)
     return repo.git.fetch()
 
-def repo_status(path, short=False):
+def repo_status(repo, short=False):
     """Retrieve git status on repository.
     
-    TODO pass repo object instead of path
-    
-    @param collection_path: Absolute path to collection repo.
+    @param repo: A GitPython Repo object
     @return: message ('ok' if successful)
     """
     status = 'unknown'
-    repo = git.Repo(path)
     if short:
         status = repo.git.status(short=True, branch=True)
     else:
@@ -298,15 +290,12 @@ def repo_status(path, short=False):
     #logging.debug('\n{}'.format(status))
     return status
 
-def annex_status(path):
+def annex_status(repo):
     """Retrieve git annex status on repository.
     
-    TODO pass repo object instead of path
-    
-    @param collection_path: Absolute path to collection repo.
+    @param repo: A GitPython Repo object
     @return: message ('ok' if successful)
     """
-    repo = git.Repo(path)
     status = repo.git.annex('status')
     logging.debug('\n{}'.format(status))
     return status
@@ -910,8 +899,6 @@ def local_exists(path):
 def is_clone(path1, path2, n=5):
     """Indicates whether two repos at the specified paths are clones of each other.
     
-    TODO pass repo object instead of path
-    
     Compares the first N hashes
     TODO What if repo has less than N commits?
     
@@ -940,10 +927,8 @@ def is_clone(path1, path2, n=5):
                 return 0
     return -1
 
-def remotes(path, paths=None, clone_log_n=1):
+def remotes(repo, paths=None, clone_log_n=1):
     """Lists remotes for the repository at path.
-    
-    TODO pass repo object instead of path
     
     For each remote lists info you'd find in REPO/.git/config plus a bit more:
     - name
@@ -968,44 +953,47 @@ def remotes(path, paths=None, clone_log_n=1):
     
     >>> import git
     >>> repo = git.Repo(path)
-    >>> repo.remotes
+    >>> remotes(repo)
     [<git.Remote "origin">, <git.Remote "serenity">, <git.Remote "wd5000bmv-2">, <git.Remote "memex">, <git.Remote "seagate596-2010">]
     >>> cr = repo.config_reader()
     >>> cr.items('remote "serenity"')
 [('url', 'gjost@jostwebwerks.com:~/git/music.git'), ('fetch', '+refs/heads/*:refs/remotes/serenity/*'), ('annex-uuid', 'e7e4c020-9335-11
 e2-8184-835f755b29c5')]
+    
+    @param repo: A GitPython Repo object
+    @param paths: 
+    @param clone_log_n: 
+    @returns: list of remotes
     """
     remotes = []
-    repo = git.Repo(path)
     for remote in repo.remotes:
         r = {'name':remote.name}
         for key,val in repo.config_reader().items('remote "%s"' % remote.name):
             r[key] = val
         r['local'] = is_local(r.get('url', None))
         r['local_exists'] = local_exists(r.get('url', None))
-        r['clone'] = is_clone(path, r['url'], clone_log_n)
+        r['clone'] = is_clone(repo.working_dir, r['url'], clone_log_n)
         remotes.append(r)
     return remotes
 
-def repos_remotes(path):
+def repos_remotes(repo):
     """Gets list of remotes for each repo in path.
     
-    TODO pass repo object instead of path
-    
+    @param repo: A GitPython Repo object
     @returns list of dicts {'path':..., 'remotes':[...]}
     """
-    return [{'path':p, 'remotes':remotes(p),} for p in repos(path)]
+    return [{'path':p, 'remotes':remotes(p),} for p in repos(repo.working_dir)]
 
-def annex_file_targets( repo_dir, relative=False ):
+def annex_file_targets(repo, relative=False ):
     """Lists annex file symlinks and their targets in the annex objects dir
     
-    @param repo_dir: Absolute path
+    @param repo: A GitPython Repo object
     @param relative: Report paths relative to repo_dir
     @returns: list of (symlink,target)
     """
     paths = []
     excludes = ['.git', 'tmp', '*~']
-    basedir = os.path.realpath(repo_dir)
+    basedir = os.path.realpath(repo.working_dir)
     for root, dirs, files in os.walk(basedir):
         # don't go down into .git directory
         if '.git' in dirs:

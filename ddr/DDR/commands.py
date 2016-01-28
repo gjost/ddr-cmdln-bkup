@@ -324,7 +324,7 @@ def status(collection, short=False):
     @param collection: Collection
     @return: message ('ok' if successful)
     """
-    return dvcs.repo_status(collection.path)
+    return dvcs.repo_status(dvcs.repository(collection.path))
 
 
 @command
@@ -335,7 +335,7 @@ def annex_status(collection):
     @param collection: Collection
     @return: message ('ok' if successful)
     """
-    return dvcs.annex_status(collection.path)
+    return dvcs.annex_status(dvcs.repository(collection.path))
 
 
 @command
@@ -346,7 +346,7 @@ def fetch(collection):
     @param collection: Collection
     @return: message ('ok' if successful)
     """
-    return dvcs.fetch(collection.path)
+    return dvcs.fetch(dvcs.repository(collection.path))
 
 
 @command
@@ -424,7 +424,7 @@ def sync(user_name, user_mail, collection):
         repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
     # list remotes
     logging.debug('remotes')
-    for remote in dvcs.remotes(collection.path):
+    for remote in dvcs.remotes(repo):
         logging.debug('- %s %s' % (remote['name'], remote['url']))
     # pull
     logging.debug('git pull %s master' % config.GIT_REMOTE_NAME)
