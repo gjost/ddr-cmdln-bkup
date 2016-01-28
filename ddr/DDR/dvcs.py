@@ -160,7 +160,7 @@ def compose_commit_message(title, body='', agent=''):
     if agent: agent = '\n\n@agent: %s' % agent
     return '%s%s%s' % (title, body, agent)
 
-def _parse_annex_description(annex_status, uuid):
+def _annex_parse_description(annex_status, uuid):
     """
     @param annex_status: output of git-annex-status
     @param uuid: UUID of repository to extract
@@ -174,7 +174,7 @@ def _parse_annex_description(annex_status, uuid):
                 description = match.groupdict().get('description', None)
     return description
 
-def get_annex_description( repo, annex_status=None ):
+def annex_get_description( repo, annex_status=None ):
     """Get description of the current repo, if any.
     
     Parses the output of "git annex status" and extracts the current repos description.
@@ -216,9 +216,9 @@ def get_annex_description( repo, annex_status=None ):
     uuid = repo.git.config('annex.uuid')
     if not annex_status:
         annex_status = repo.git.annex('status')
-    return _parse_annex_description(annex_status, uuid)
+    return _annex_parse_description(annex_status, uuid)
 
-def _make_annex_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
+def _annex_make_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
     description = None
     if drive_label:
         description = drive_label
@@ -228,7 +228,7 @@ def _make_annex_description( drive_label=None, hostname=None, partner_host=None,
         description = hostname
     return description
 
-def set_annex_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
+def annex_set_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
     """Sets repo's git annex description if not already set.
 
     NOTE: This needs to run git annex status, which takes some time.
@@ -252,7 +252,7 @@ def set_annex_description( repo, annex_status=None, description=None, drive_labe
     """
     desc = None
     PARTNER_HOSTNAME = 'pnr'
-    annex_description = get_annex_description(repo, annex_status)
+    annex_description = annex_get_description(repo, annex_status)
     # keep existing description unless forced
     if (not annex_description) or (force == True):
         if description:
@@ -261,7 +261,7 @@ def set_annex_description( repo, annex_status=None, description=None, drive_labe
             # gather information
             user_mail = repo.git.config('user.email')
             # generate description
-            desc = _make_annex_description(
+            desc = _annex_make_description(
                 drive_label=drive_label,
                 hostname=hostname, partner_host=PARTNER_HOSTNAME,
                 mail=user_mail)
@@ -303,7 +303,7 @@ def annex_status(repo):
     logging.debug('\n{}'.format(status))
     return status
 
-def _parse_annex_whereis( annex_whereis_stdout ):
+def _annex_parse_whereis( annex_whereis_stdout ):
     lines = annex_whereis_stdout.strip().split('\n')
     # chop off anything before whereis line
     startline = -1
@@ -335,7 +335,7 @@ def annex_whereis_file(repo, file_path_rel):
     print('----------')
     print(stdout)
     print('----------')
-    return _parse_annex_whereis(stdout)
+    return _annex_parse_whereis(stdout)
 
 def annex_trim(repo, confirmed=False):
     """Drop full-size binaries from a repository.

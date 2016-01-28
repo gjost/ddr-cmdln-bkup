@@ -138,52 +138,52 @@ backend usage:
 	SHA256E: 60
 """
 
-def test_parse_annex_description():
+def test_annex_parse_description():
     uuid0 = 'a5f4d94d-2073-4b59-8c98-9372012a6cbb'
     uuid1 = 'a39a106a-e5c7-11e3-8996-bfa1bcf63a02'
-    assert dvcs._parse_annex_description(SAMPLE_ANNEX_STATUS, uuid0) == None
-    assert dvcs._parse_annex_description(SAMPLE_ANNEX_STATUS, uuid1) == 'ddrworkstation'
+    assert dvcs._annex_parse_description(SAMPLE_ANNEX_STATUS, uuid0) == None
+    assert dvcs._annex_parse_description(SAMPLE_ANNEX_STATUS, uuid1) == 'ddrworkstation'
 
-# TODO get_annex_description
+# TODO annex_get_description
 
-def test_set_annex_description():
+def test_annex_set_description():
     dl = 'WD201405'
     hn = 'ddrworkstation'
     ph = 'testing'
     ml = 'gjost@densho.org'
     # drive label
-    assert dvcs.set_annex_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
+    assert dvcs.annex_set_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
     # hostname:domainname
     expected1 = 'ddrworkstation:densho.org'
-    assert dvcs.set_annex_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
+    assert dvcs.annex_set_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
     # hostname
-    assert dvcs.set_annex_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
+    assert dvcs.annex_set_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
     # TODO Test doesn't cover all possibile combinations!!!
 
-def test_set_annex_description():
+def test_annex_set_description():
     path = '/tmp/test-ddr-dvcs/test-repo'
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out0 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, description='testing')
+    out0 = dvcs.annex_set_description(repo, annex_status=SAMPLE_ANNEX_STATUS, description='testing')
     expected0 = 'testing'
     cleanup_repo(path)
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out1 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, drive_label='usb2015')
+    out1 = dvcs.annex_set_description(repo, annex_status=SAMPLE_ANNEX_STATUS, drive_label='usb2015')
     expected1 = 'usb2015'
     cleanup_repo(path)
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out2 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='machine',)
+    out2 = dvcs.annex_set_description(repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='machine',)
     expected2 = 'machine'
     cleanup_repo(path)
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out3 = dvcs.set_annex_description(
+    out3 = dvcs.annex_set_description(
         repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='pnr',
     )
     expected3 = 'pnr:densho.org'
@@ -257,8 +257,8 @@ ok
 """
 GITANNEX_WHEREIS_EXPECTED = ['WD5000BMV-2', 'pnr_tmp-ddr']
 
-def test_parse_annex_whereis():
-    assert dvcs._parse_annex_whereis(GITANNEX_WHEREIS) == GITANNEX_WHEREIS_EXPECTED
+def test_annex_parse_whereis():
+    assert dvcs._annex_parse_whereis(GITANNEX_WHEREIS) == GITANNEX_WHEREIS_EXPECTED
 
 # TODO annex_whereis_file
 
