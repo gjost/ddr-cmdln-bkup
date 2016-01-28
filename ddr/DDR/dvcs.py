@@ -28,17 +28,7 @@ def repository(path, user_name=None, user_mail=None):
     return repo
 
 
-# git ------------------------------------------------------------------
-
-def git_set_configs(repo, user_name=None, user_mail=None):
-    if user_name and user_mail:
-        repo.git.config('user.name', user_name)
-        repo.git.config('user.email', user_mail)
-        # we're not actually using gitweb any more...
-        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
-    # ignore file permissions
-    repo.git.config('core.fileMode', 'false')
-    return repo
+# git info -------------------------------------------------------------
 
 def git_version(repo):
     """Returns Git version info.
@@ -47,6 +37,20 @@ def git_version(repo):
     @returns string
     """
     return envoy.run('git --version').std_out.strip()
+
+def repo_status(repo, short=False):
+    """Retrieve git status on repository.
+    
+    @param repo: A GitPython Repo object
+    @return: message ('ok' if successful)
+    """
+    status = 'unknown'
+    if short:
+        status = repo.git.status(short=True, branch=True)
+    else:
+        status = repo.git.status()
+    #logging.debug('\n{}'.format(status))
+    return status
 
 def latest_commit(path):
     """Returns latest commit for the specified repository
@@ -127,45 +131,8 @@ def cmp_commits(repo, a, b, abbrev=False):
         fmt = '--pretty=%H'
     return _parse_cmp_commits(repo.git.log(fmt), a, b)
 
-def compose_commit_message(title, body='', agent=''):
-    """Composes a Git commit message.
-    
-    TODO wrap body text at 72 chars
-    
-    @param title: (required) 50 chars or less
-    @param body: (optional) Freeform body text.
-    @param agent: (optional) Do not include the word 'agent'.
-    """
-    # force to str
-    if not body: body = ''
-    if not agent: agent = ''
-    # formatting
-    if body:  body = '\n\n%s' % body
-    if agent: agent = '\n\n@agent: %s' % agent
-    return '%s%s%s' % (title, body, agent)
+# git diff
 
-def fetch(repo):
-    """run git fetch; fetches from origin.
-    
-    @param repo: A GitPython Repo object
-    @return: message ('ok' if successful)
-    """
-    return repo.git.fetch()
-
-def repo_status(repo, short=False):
-    """Retrieve git status on repository.
-    
-    @param repo: A GitPython Repo object
-    @return: message ('ok' if successful)
-    """
-    status = 'unknown'
-    if short:
-        status = repo.git.status(short=True, branch=True)
-    else:
-        status = repo.git.status()
-    #logging.debug('\n{}'.format(status))
-    return status
-    
 def _parse_list_modified( diff ):
     """Parses output of "git stage --name-only".
     """
@@ -204,15 +171,6 @@ def list_staged(repo):
     stdout = repo.git.diff('--cached', '--name-only')
     return _parse_list_staged(stdout)
 
-def stage(repo, git_files=[]):
-    """Stage some files; DON'T USE FOR git-annex FILES!
-    
-    @param repo: A GitPython repository
-    @param git_files: list of file paths, relative to repo bas
-    """
-    for path in git_files:
-        repo.git.add(path)
-
 def _parse_list_committed( entry ):
     entrylines = [line for line in entry.split('\n') if '|' in line]
     files = [line.split('|')[0].strip() for line in entrylines]
@@ -230,18 +188,6 @@ def list_committed(repo, commit):
     # return just the files from the specific commit's log entry
     entry = repo.git.log('-1', '--stat', commit.hexsha)
     return _parse_list_committed(entry)
-
-def commit(repo, msg, agent):
-    """Commit some changes.
-    
-    @param repo: A GitPython repository
-    @param msg: str Commit message
-    @param agent: str
-    @returns: GitPython commit object
-    """
-    commit_message = compose_commit_message(msg, agent=agent)
-    commit = repo.index.commit(commit_message)
-    return commit
 
 def _parse_list_conflicted( ls_unmerged ):
     files = []
@@ -261,7 +207,190 @@ def list_conflicted(repo):
     stdout = repo.git.ls_files('--unmerged')
     return _parse_list_conflicted(stdout)
 
-# merge tools ------------------------------------------------------------
+
+# git state ------------------------------------------------------------
+
+"""
+IMPORTANT:
+Indicators for SYNCED,AHEAD,BEHIND,DIVERGED
+are found in the FIRST LINE
+of "git status --short --branch".
+
+SYNCED
+$ git status --short --branch
+## master
+-or-
+## master
+?? unknown-file.ext
+-or-
+## master
+?? .gitstatus
+?? files/ddr-testing-233-1/addfile.log
+
+AHEAD
+$ git status --short --branch
+## master...origin/master [ahead 1]
+---
+$ git status --short --branch
+## master...origin/master [ahead 2]
+
+BEHIND
+$ git status --short --branch
+## master...origin/master [behind 1]
+
+DIVERGED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+"""
+
+def synced(status):
+    """Indicates whether repo is synced with remote repo.
+    
+    @param status: Output of "git status --short --branch"
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    for line in status.split('\n'):
+        if line == '## master':
+            return 1
+    return 0
+
+AHEAD = "(ahead [0-9]+)"
+AHEAD_PROG = re.compile(AHEAD)
+BEHIND = "(behind [0-9]+)"
+BEHIND_PROG = re.compile(BEHIND)
+
+def ahead(status):
+    """Indicates whether repo is ahead of remote repos.
+    
+    @param status: Output of "git status --short --branch"
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    if AHEAD_PROG.search(status) and not BEHIND_PROG.search(status):
+        return 1
+    return 0
+
+def behind(status):
+    """Indicates whether repo is behind remote repos.
+
+    @param status: Output of "git status --short --branch"
+    @returns 1 (behind), 0 (not behind), -1 (error)
+    """
+    if BEHIND_PROG.search(status) and not AHEAD_PROG.search(status):
+        return 1
+    return 0
+
+DIVERGED = [AHEAD, BEHIND]
+DIVERGED_PROGS = [re.compile(pattern) for pattern in DIVERGED]
+
+def diverged(status):
+    """
+    @param status: Output of "git status --short --branch"
+    @returns 1 (diverged), 0 (not conflicted), -1 (error)
+    """
+    matches = [1 for prog in DIVERGED_PROGS if prog.search(status)]
+    if len(matches) == 2: # both ahead and behind
+        return 1
+    return 0
+
+"""
+IMPORTANT:
+Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED
+are found AFTER the first line
+of "git status --short --branch".
+
+CONFLICTED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+UU changelog
+UU collection.json
+
+PARTIAL_RESOLVED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+M  changelog
+UU collection.json
+
+RESOLVED
+$ git status --short --branch
+## master...origin/master [ahead 1, behind 2]
+M  changelog
+M  collection.json
+"""
+
+CONFLICTED_PROG = re.compile("(UU )")
+
+def conflicted(status):
+    """Indicates whether repo has a merge conflict.
+    
+    NOTE: Use list_conflicted if you have a repo object.
+    @param status: Output of "git status --short --branch"
+    @returns 1 (conflicted), 0 (not conflicted), -1 (error)
+    """
+    matches = [1 for line in status if CONFLICTED_PROG.match(line)]
+    if matches:
+        return 1
+    return 0
+
+
+# git operations -------------------------------------------------------
+
+def git_set_configs(repo, user_name=None, user_mail=None):
+    if user_name and user_mail:
+        repo.git.config('user.name', user_name)
+        repo.git.config('user.email', user_mail)
+        # we're not actually using gitweb any more...
+        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    # ignore file permissions
+    repo.git.config('core.fileMode', 'false')
+    return repo
+
+def compose_commit_message(title, body='', agent=''):
+    """Composes a Git commit message.
+    
+    TODO wrap body text at 72 chars
+    
+    @param title: (required) 50 chars or less
+    @param body: (optional) Freeform body text.
+    @param agent: (optional) Do not include the word 'agent'.
+    """
+    # force to str
+    if not body: body = ''
+    if not agent: agent = ''
+    # formatting
+    if body:  body = '\n\n%s' % body
+    if agent: agent = '\n\n@agent: %s' % agent
+    return '%s%s%s' % (title, body, agent)
+
+def fetch(repo):
+    """run git fetch; fetches from origin.
+    
+    @param repo: A GitPython Repo object
+    @return: message ('ok' if successful)
+    """
+    return repo.git.fetch()
+
+def stage(repo, git_files=[]):
+    """Stage some files; DON'T USE FOR git-annex FILES!
+    
+    @param repo: A GitPython repository
+    @param git_files: list of file paths, relative to repo bas
+    """
+    for path in git_files:
+        repo.git.add(path)
+
+def commit(repo, msg, agent):
+    """Commit some changes.
+    
+    @param repo: A GitPython repository
+    @param msg: str Commit message
+    @param agent: str
+    @returns: GitPython commit object
+    """
+    commit_message = compose_commit_message(msg, agent=agent)
+    commit = repo.index.commit(commit_message)
+    return commit
+
+# git merge ------------------------------------------------------------
 
 MERGE_MARKER_START = '<<<<<<<'
 MERGE_MARKER_MID   = '======='
@@ -393,131 +522,8 @@ def diverge_commit( repo ):
         return 'ERROR: unmerged files exist!'
     commit = repo.git.commit('--message', 'divergent commits resolved using DDR web UI.')
 
-# ------------------------------------------------------------------------
-    
-"""
-IMPORTANT:
-Indicators for SYNCED,AHEAD,BEHIND,DIVERGED
-are found in the FIRST LINE
-of "git status --short --branch".
 
-SYNCED
-$ git status --short --branch
-## master
--or-
-## master
-?? unknown-file.ext
--or-
-## master
-?? .gitstatus
-?? files/ddr-testing-233-1/addfile.log
-
-AHEAD
-$ git status --short --branch
-## master...origin/master [ahead 1]
----
-$ git status --short --branch
-## master...origin/master [ahead 2]
-
-BEHIND
-$ git status --short --branch
-## master...origin/master [behind 1]
-
-DIVERGED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-"""
-
-def synced(status):
-    """Indicates whether repo is synced with remote repo.
-    
-    @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    for line in status.split('\n'):
-        if line == '## master':
-            return 1
-    return 0
-
-AHEAD = "(ahead [0-9]+)"
-AHEAD_PROG = re.compile(AHEAD)
-BEHIND = "(behind [0-9]+)"
-BEHIND_PROG = re.compile(BEHIND)
-
-def ahead(status):
-    """Indicates whether repo is ahead of remote repos.
-    
-    @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    if AHEAD_PROG.search(status) and not BEHIND_PROG.search(status):
-        return 1
-    return 0
-
-def behind(status):
-    """Indicates whether repo is behind remote repos.
-
-    @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    if BEHIND_PROG.search(status) and not AHEAD_PROG.search(status):
-        return 1
-    return 0
-
-DIVERGED = [AHEAD, BEHIND]
-DIVERGED_PROGS = [re.compile(pattern) for pattern in DIVERGED]
-
-def diverged(status):
-    """
-    @param status: Output of "git status --short --branch"
-    @returns 1 (diverged), 0 (not conflicted), -1 (error)
-    """
-    matches = [1 for prog in DIVERGED_PROGS if prog.search(status)]
-    if len(matches) == 2: # both ahead and behind
-        return 1
-    return 0
-
-"""
-IMPORTANT:
-Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED
-are found AFTER the first line
-of "git status --short --branch".
-
-CONFLICTED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-UU changelog
-UU collection.json
-
-PARTIAL_RESOLVED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-M  changelog
-UU collection.json
-
-RESOLVED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-M  changelog
-M  collection.json
-"""
-
-CONFLICTED_PROG = re.compile("(UU )")
-
-def conflicted(status):
-    """Indicates whether repo has a merge conflict.
-    
-    NOTE: Use list_conflicted if you have a repo object.
-    @param status: Output of "git status --short --branch"
-    @returns 1 (conflicted), 0 (not conflicted), -1 (error)
-    """
-    matches = [1 for line in status if CONFLICTED_PROG.match(line)]
-    if matches:
-        return 1
-    return 0
-
-
-# backup/sync -----------------------------------------------------
+# git inventory --------------------------------------------------------
 
 def repos(path):
     """Lists all the repositories in the path directory.
