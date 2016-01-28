@@ -15,16 +15,6 @@ from DDR import config
 from DDR import storage
 
 
-def git_set_configs(repo, user_name=None, user_mail=None):
-    if user_name and user_mail:
-        repo.git.config('user.name', user_name)
-        repo.git.config('user.email', user_mail)
-        # we're not actually using gitweb any more...
-        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
-    # ignore file permissions
-    repo.git.config('core.fileMode', 'false')
-    return repo
-
 def repository(path, user_name=None, user_mail=None):
     """
     @param collection_path: Absolute path to collection repo.
@@ -35,6 +25,19 @@ def repository(path, user_name=None, user_mail=None):
         git_set_configs(repo, user_name, user_mail)
         annex_set_configs(repo, user_name, user_mail)
         return repo
+    return repo
+
+
+# git ------------------------------------------------------------------
+
+def git_set_configs(repo, user_name=None, user_mail=None):
+    if user_name and user_mail:
+        repo.git.config('user.name', user_name)
+        repo.git.config('user.email', user_mail)
+        # we're not actually using gitweb any more...
+        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    # ignore file permissions
+    repo.git.config('core.fileMode', 'false')
     return repo
 
 def git_version(repo):
