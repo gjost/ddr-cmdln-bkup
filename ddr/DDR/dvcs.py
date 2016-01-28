@@ -473,40 +473,6 @@ def gitolite_collection_titles(repos, username=None, password=None, timeout=5):
     collections = [(repo,cgit_collection_title(repo,session,timeout)) for repo in repos]
     return collections
 
-def cgit_collection_title(repo, session, timeout=5):
-    """Gets collection title from CGit
-    
-    Requests plain blob of collection.json, reads 'title' field.
-    PROBLEM: requires knowledge of repository internals.
-    
-    @param repo: str Repository name
-    @param session: requests.Session
-    @param timeout: int
-    @returns: str Repository collection title
-    """
-    title = '---'
-    URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
-    url = URL_TEMPLATE % (config.CGIT_URL, repo)
-    logging.debug(url)
-    try:
-        r = session.get(url, timeout=timeout)
-        logging.debug(str(r.status_code))
-    except requests.ConnectionError:
-        r = None
-        title = '[ConnectionError]'
-    data = None
-    if r and r.status_code == 200:
-        try:
-            data = json.loads(r.text)
-        except ValueError:
-            title = '[no data]'
-    if data:
-        for field in data:
-            if field and field.get('title', None) and field['title']:
-                title = field['title']
-    logging.debug('%s: "%s"' % (repo,title))
-    return title
-
 def _parse_list_modified( diff ):
     """Parses output of "git stage --name-only".
     """
@@ -1018,3 +984,40 @@ def annex_file_targets(repo, relative=False ):
                     target = os.path.realpath(path)
                     paths.append((path, target))
     return paths
+
+
+# cgit -----------------------------------------------------------------
+
+def cgit_collection_title(repo, session, timeout=5):
+    """Gets collection title from CGit
+    
+    Requests plain blob of collection.json, reads 'title' field.
+    PROBLEM: requires knowledge of repository internals.
+    
+    @param repo: str Repository name
+    @param session: requests.Session
+    @param timeout: int
+    @returns: str Repository collection title
+    """
+    title = '---'
+    URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
+    url = URL_TEMPLATE % (config.CGIT_URL, repo)
+    logging.debug(url)
+    try:
+        r = session.get(url, timeout=timeout)
+        logging.debug(str(r.status_code))
+    except requests.ConnectionError:
+        r = None
+        title = '[ConnectionError]'
+    data = None
+    if r and r.status_code == 200:
+        try:
+            data = json.loads(r.text)
+        except ValueError:
+            title = '[no data]'
+    if data:
+        for field in data:
+            if field and field.get('title', None) and field['title']:
+                title = field['title']
+    logging.debug('%s: "%s"' % (repo,title))
+    return title
