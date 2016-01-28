@@ -25,11 +25,6 @@ def git_set_configs(repo, user_name=None, user_mail=None):
     repo.git.config('core.fileMode', 'false')
     return repo
 
-def annex_set_configs(repo, user_name=None, user_mail=None):
-    # earlier versions of git-annex have problems with ssh caching on NTFS
-    repo.git.config('annex.sshcaching', 'false')
-    return repo
-
 def repository(path, user_name=None, user_mail=None):
     """
     @param collection_path: Absolute path to collection repo.
@@ -49,20 +44,6 @@ def git_version(repo):
     @returns string
     """
     return envoy.run('git --version').std_out.strip()
-
-def annex_version(repo):
-    """Returns git-annex version; includes repository version info.
-    
-    If repo_path is specified, returns version of local repo's annex.
-    example:
-    'git version 1.7.10.4; git-annex version: 3.20120629; local repository version: 3; ' \
-    'default repository version: 3; supported repository versions: 3; ' \
-    'upgrade supported from repository versions: 0 1 2'
-    
-    @param repo: A GitPython Repo object.
-    @returns string
-    """
-    return repo.git.annex('version')
 
 def latest_commit(path):
     """Returns latest commit for the specified repository
@@ -160,117 +141,6 @@ def compose_commit_message(title, body='', agent=''):
     if agent: agent = '\n\n@agent: %s' % agent
     return '%s%s%s' % (title, body, agent)
 
-def _annex_parse_description(annex_status, uuid):
-    """
-    @param annex_status: output of git-annex-status
-    @param uuid: UUID of repository to extract
-    """
-    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
-    description = None
-    for line in annex_status.split('\n'):
-        if (uuid in line) and ('here' in line):
-            match = re.search(DESCR_REGEX, line)
-            if match and match.groupdict():
-                description = match.groupdict().get('description', None)
-    return description
-
-def annex_get_description( repo, annex_status=None ):
-    """Get description of the current repo, if any.
-    
-    Parses the output of "git annex status" and extracts the current repos description.
-    If annex_status is provided, it will search that.
-    This is a timesaver, as git-annex-status takes time to run if a repo has any remotes
-    that are accessible only via a network.
-    
-    Sample status (repo has description):
-        $ git annex status
-        ...
-        semitrusted repositories: 8
-                00000000-0000-0000-0000-000000000001 -- web
-         	371931a0-34f6-11e3-bdb4-93c90d5c4311
-         	5ee6f3c0-2ae2-11e3-91a3-938a9cc1e3e5 -- TS1TB2013
-         	6367a2b4-34f6-11e3-b0c7-675d7fe6384c
-         	86fd75d0-32c8-11e3-af91-1bdd76d780f0
-         	9bcda696-2ae0-11e3-8c55-eb0b7dddd863 -- here (WD5000BMV-2)
-         	a1a0923a-2ae6-11e3-89ec-d3f4e727eeaf -- int_var-ddr
-         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
-        untrusted repositories: 0
-        dead repositories: 0
-        ...
-    
-    Sample status (no description):
-        $ git annex status
-        ...
-        semitrusted repositories: 8
-                00000000-0000-0000-0000-000000000001 -- web
-                8792a1aa-2a08-11e3-9f20-3331e21c94e3 -- here
-         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
-        untrusted repositories: 0
-        dead repositories: 0
-        ...
-
-    @param repo: A GitPython Repo object
-    @param annex_status: (optional) Output of "git annex status" (saves some time).
-    @return String description or None
-    """
-    uuid = repo.git.config('annex.uuid')
-    if not annex_status:
-        annex_status = repo.git.annex('status')
-    return _annex_parse_description(annex_status, uuid)
-
-def _annex_make_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
-    description = None
-    if drive_label:
-        description = drive_label
-    elif hostname and (hostname == partner_host) and mail:
-        description = ':'.join([ hostname, mail.split('@')[1] ])
-    elif hostname and (hostname != partner_host):
-        description = hostname
-    return description
-
-def annex_set_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
-    """Sets repo's git annex description if not already set.
-
-    NOTE: This needs to run git annex status, which takes some time.
-     
-    New repo: git annex init "REPONAME"
-    Existing repo: git annex describe here "REPONAME"
-     
-    Descriptions should be chosen/generated base on the following heuristic:
-    - Input to description argument of function.
-    - If on USB device, the drive label of the device.
-    - Hostname of machine, unless it is pnr (used by partner VMs).
-    - If hostname is pnr, pnr:DOMAIN where DOMAIN is the domain portion of the git config user.email
-    
-    @param repo: A GitPython Repo object
-    @param annex_status: (optional) Output of "git annex status" (saves some time).
-    @param description: Manually supply a new description.
-    @param drive_label: str Required if description is blank!
-    @param hostname: str Required if description is blank!
-    @param force: Boolean Apply a new description even if one already exists.
-    @return String description if new one was created/applied or None
-    """
-    desc = None
-    PARTNER_HOSTNAME = 'pnr'
-    annex_description = annex_get_description(repo, annex_status)
-    # keep existing description unless forced
-    if (not annex_description) or (force == True):
-        if description:
-            desc = description
-        else:
-            # gather information
-            user_mail = repo.git.config('user.email')
-            # generate description
-            desc = _annex_make_description(
-                drive_label=drive_label,
-                hostname=hostname, partner_host=PARTNER_HOSTNAME,
-                mail=user_mail)
-        if desc:
-            # apply description
-            logging.debug('git annex describe here %s' % desc)
-            repo.git.annex('describe', 'here', desc)
-    return desc
-
 def fetch(repo):
     """run git fetch; fetches from origin.
     
@@ -292,83 +162,7 @@ def repo_status(repo, short=False):
         status = repo.git.status()
     #logging.debug('\n{}'.format(status))
     return status
-
-def annex_status(repo):
-    """Retrieve git annex status on repository.
     
-    @param repo: A GitPython Repo object
-    @return: message ('ok' if successful)
-    """
-    status = repo.git.annex('status')
-    logging.debug('\n{}'.format(status))
-    return status
-
-def _annex_parse_whereis( annex_whereis_stdout ):
-    lines = annex_whereis_stdout.strip().split('\n')
-    # chop off anything before whereis line
-    startline = -1
-    for n,line in enumerate(lines):
-        if 'whereis' in line:
-            startline = n
-    lines = lines[startline:]
-    remotes = []
-    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
-        num_copies = int(lines[0].split(' ')[2].replace('(',''))
-        logging.debug('    {} copies'.format(num_copies))
-        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
-    return remotes
-
-def annex_whereis_file(repo, file_path_rel):
-    """Show remotes that the file appears in
-    
-    $ git annex whereis files/ddr-testing-201303051120-1/files/20121205.jpg
-    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
-            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
-            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
-    ok
-    
-    @param repo: A GitPython Repo object
-    @param collection_uid: A valid DDR collection UID
-    @return: List of names of remote repositories.
-    """
-    stdout = repo.git.annex('whereis', file_path_rel)
-    print('----------')
-    print(stdout)
-    print('----------')
-    return _annex_parse_whereis(stdout)
-
-def annex_trim(repo, confirmed=False):
-    """Drop full-size binaries from a repository.
-    
-    @param repo: A GitPython Repo object
-    @param confirmed: boolean Yes I really want to do this
-    @returns: {keep,drop,dropped} lists of file paths
-    """
-    logging.debug('annex_trim(%s, confirmed=%s)' % (repo, confirmed))
-    # Keep access files, HTML files, and PDFs.
-    KEEP_SUFFIXES = ['-a.jpg', '.htm', '.html', '.pdf']
-    annex_file_paths = repo.git.annex('find').split('\n')
-    keep = []
-    drop = []
-    for path_rel in annex_file_paths:
-        if [True for suffix in KEEP_SUFFIXES if suffix.lower() in path_rel]:
-            keep.append(path_rel)
-        else:
-            drop.append(path_rel)
-    dropped = []
-    for path_rel in drop:
-        logging.debug(path_rel)
-        if confirmed:
-            p = drop.remove(path_rel)
-            repo.git.annex('drop', '--force', p)
-            dropped.append(p)
-    return {
-        'keep':keep,
-        'drop':drop,
-        'dropped':dropped,
-    }
-    
-
 def _parse_list_modified( diff ):
     """Parses output of "git stage --name-only".
     """
@@ -415,15 +209,6 @@ def stage(repo, git_files=[]):
     """
     for path in git_files:
         repo.git.add(path)
-
-def annex_stage(repo, annex_files=[]):
-    """Stage some files with git-annex.
-    
-    @param repo: A GitPython repository
-    @param annex_files: list of annex file paths, relative to repo base
-    """
-    for path in annex_files:
-        repo.git.annex('add', path)
 
 def _parse_list_committed( entry ):
     entrylines = [line for line in entry.split('\n') if '|' in line]
@@ -854,6 +639,223 @@ def repos_remotes(repo):
     @returns list of dicts {'path':..., 'remotes':[...]}
     """
     return [{'path':p, 'remotes':remotes(p),} for p in repos(repo.working_dir)]
+
+
+# annex ----------------------------------------------------------------
+
+def annex_set_configs(repo, user_name=None, user_mail=None):
+    # earlier versions of git-annex have problems with ssh caching on NTFS
+    repo.git.config('annex.sshcaching', 'false')
+    return repo
+
+def annex_version(repo):
+    """Returns git-annex version; includes repository version info.
+    
+    If repo_path is specified, returns version of local repo's annex.
+    example:
+    'git version 1.7.10.4; git-annex version: 3.20120629; local repository version: 3; ' \
+    'default repository version: 3; supported repository versions: 3; ' \
+    'upgrade supported from repository versions: 0 1 2'
+    
+    @param repo: A GitPython Repo object.
+    @returns string
+    """
+    return repo.git.annex('version')
+
+def _annex_parse_description(annex_status, uuid):
+    """
+    @param annex_status: output of git-annex-status
+    @param uuid: UUID of repository to extract
+    """
+    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
+    description = None
+    for line in annex_status.split('\n'):
+        if (uuid in line) and ('here' in line):
+            match = re.search(DESCR_REGEX, line)
+            if match and match.groupdict():
+                description = match.groupdict().get('description', None)
+    return description
+
+def annex_get_description( repo, annex_status=None ):
+    """Get description of the current repo, if any.
+    
+    Parses the output of "git annex status" and extracts the current repos description.
+    If annex_status is provided, it will search that.
+    This is a timesaver, as git-annex-status takes time to run if a repo has any remotes
+    that are accessible only via a network.
+    
+    Sample status (repo has description):
+        $ git annex status
+        ...
+        semitrusted repositories: 8
+                00000000-0000-0000-0000-000000000001 -- web
+         	371931a0-34f6-11e3-bdb4-93c90d5c4311
+         	5ee6f3c0-2ae2-11e3-91a3-938a9cc1e3e5 -- TS1TB2013
+         	6367a2b4-34f6-11e3-b0c7-675d7fe6384c
+         	86fd75d0-32c8-11e3-af91-1bdd76d780f0
+         	9bcda696-2ae0-11e3-8c55-eb0b7dddd863 -- here (WD5000BMV-2)
+         	a1a0923a-2ae6-11e3-89ec-d3f4e727eeaf -- int_var-ddr
+         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
+        untrusted repositories: 0
+        dead repositories: 0
+        ...
+    
+    Sample status (no description):
+        $ git annex status
+        ...
+        semitrusted repositories: 8
+                00000000-0000-0000-0000-000000000001 -- web
+                8792a1aa-2a08-11e3-9f20-3331e21c94e3 -- here
+         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
+        untrusted repositories: 0
+        dead repositories: 0
+        ...
+
+    @param repo: A GitPython Repo object
+    @param annex_status: (optional) Output of "git annex status" (saves some time).
+    @return String description or None
+    """
+    uuid = repo.git.config('annex.uuid')
+    if not annex_status:
+        annex_status = repo.git.annex('status')
+    return _annex_parse_description(annex_status, uuid)
+
+def _annex_make_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
+    description = None
+    if drive_label:
+        description = drive_label
+    elif hostname and (hostname == partner_host) and mail:
+        description = ':'.join([ hostname, mail.split('@')[1] ])
+    elif hostname and (hostname != partner_host):
+        description = hostname
+    return description
+
+def annex_set_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
+    """Sets repo's git annex description if not already set.
+
+    NOTE: This needs to run git annex status, which takes some time.
+     
+    New repo: git annex init "REPONAME"
+    Existing repo: git annex describe here "REPONAME"
+     
+    Descriptions should be chosen/generated base on the following heuristic:
+    - Input to description argument of function.
+    - If on USB device, the drive label of the device.
+    - Hostname of machine, unless it is pnr (used by partner VMs).
+    - If hostname is pnr, pnr:DOMAIN where DOMAIN is the domain portion of the git config user.email
+    
+    @param repo: A GitPython Repo object
+    @param annex_status: (optional) Output of "git annex status" (saves some time).
+    @param description: Manually supply a new description.
+    @param drive_label: str Required if description is blank!
+    @param hostname: str Required if description is blank!
+    @param force: Boolean Apply a new description even if one already exists.
+    @return String description if new one was created/applied or None
+    """
+    desc = None
+    PARTNER_HOSTNAME = 'pnr'
+    annex_description = annex_get_description(repo, annex_status)
+    # keep existing description unless forced
+    if (not annex_description) or (force == True):
+        if description:
+            desc = description
+        else:
+            # gather information
+            user_mail = repo.git.config('user.email')
+            # generate description
+            desc = _annex_make_description(
+                drive_label=drive_label,
+                hostname=hostname, partner_host=PARTNER_HOSTNAME,
+                mail=user_mail)
+        if desc:
+            # apply description
+            logging.debug('git annex describe here %s' % desc)
+            repo.git.annex('describe', 'here', desc)
+    return desc
+
+def annex_status(repo):
+    """Retrieve git annex status on repository.
+    
+    @param repo: A GitPython Repo object
+    @return: message ('ok' if successful)
+    """
+    status = repo.git.annex('status')
+    logging.debug('\n{}'.format(status))
+    return status
+
+def _annex_parse_whereis( annex_whereis_stdout ):
+    lines = annex_whereis_stdout.strip().split('\n')
+    # chop off anything before whereis line
+    startline = -1
+    for n,line in enumerate(lines):
+        if 'whereis' in line:
+            startline = n
+    lines = lines[startline:]
+    remotes = []
+    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
+        num_copies = int(lines[0].split(' ')[2].replace('(',''))
+        logging.debug('    {} copies'.format(num_copies))
+        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
+    return remotes
+
+def annex_whereis_file(repo, file_path_rel):
+    """Show remotes that the file appears in
+    
+    $ git annex whereis files/ddr-testing-201303051120-1/files/20121205.jpg
+    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
+            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
+            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
+    ok
+    
+    @param repo: A GitPython Repo object
+    @param collection_uid: A valid DDR collection UID
+    @return: List of names of remote repositories.
+    """
+    stdout = repo.git.annex('whereis', file_path_rel)
+    print('----------')
+    print(stdout)
+    print('----------')
+    return _annex_parse_whereis(stdout)
+
+def annex_trim(repo, confirmed=False):
+    """Drop full-size binaries from a repository.
+    
+    @param repo: A GitPython Repo object
+    @param confirmed: boolean Yes I really want to do this
+    @returns: {keep,drop,dropped} lists of file paths
+    """
+    logging.debug('annex_trim(%s, confirmed=%s)' % (repo, confirmed))
+    # Keep access files, HTML files, and PDFs.
+    KEEP_SUFFIXES = ['-a.jpg', '.htm', '.html', '.pdf']
+    annex_file_paths = repo.git.annex('find').split('\n')
+    keep = []
+    drop = []
+    for path_rel in annex_file_paths:
+        if [True for suffix in KEEP_SUFFIXES if suffix.lower() in path_rel]:
+            keep.append(path_rel)
+        else:
+            drop.append(path_rel)
+    dropped = []
+    for path_rel in drop:
+        logging.debug(path_rel)
+        if confirmed:
+            p = drop.remove(path_rel)
+            repo.git.annex('drop', '--force', p)
+            dropped.append(p)
+    return {
+        'keep':keep,
+        'drop':drop,
+        'dropped':dropped,
+    }
+
+def annex_stage(repo, annex_files=[]):
+    """Stage some files with git-annex.
+    
+    @param repo: A GitPython repository
+    @param annex_files: list of annex file paths, relative to repo base
+    """
+    for path in annex_files:
+        repo.git.annex('add', path)
 
 def annex_file_targets(repo, relative=False ):
     """Lists annex file symlinks and their targets in the annex objects dir
