@@ -15,7 +15,7 @@ from DDR import config
 from DDR import storage
 
 
-def set_git_configs(repo, user_name=None, user_mail=None):
+def git_set_configs(repo, user_name=None, user_mail=None):
     if user_name and user_mail:
         repo.git.config('user.name', user_name)
         repo.git.config('user.email', user_mail)
@@ -23,6 +23,9 @@ def set_git_configs(repo, user_name=None, user_mail=None):
         repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
     # ignore file permissions
     repo.git.config('core.fileMode', 'false')
+    return repo
+
+def annex_set_configs(repo, user_name=None, user_mail=None):
     # earlier versions of git-annex have problems with ssh caching on NTFS
     repo.git.config('annex.sshcaching', 'false')
     return repo
@@ -34,11 +37,21 @@ def repository(path, user_name=None, user_mail=None):
     """
     repo = git.Repo(path)
     if user_name and user_mail:
-        return set_git_configs(repo, user_name, user_mail)
+        git_set_configs(repo, user_name, user_mail)
+        annex_set_configs(repo, user_name, user_mail)
+        return repo
     return repo
 
 def git_version(repo):
-    """Returns version info for Git and git-annex.
+    """Returns Git version info.
+    
+    @param repo: A GitPython Repo object.
+    @returns string
+    """
+    return envoy.run('git --version').std_out.strip()
+
+def annex_version(repo):
+    """Returns git-annex version; includes repository version info.
     
     If repo_path is specified, returns version of local repo's annex.
     example:
@@ -49,17 +62,7 @@ def git_version(repo):
     @param repo: A GitPython Repo object.
     @returns string
     """
-    try:
-        # git
-        gitv = envoy.run('git --version').std_out.strip()
-        # git annex
-        if os.path.exists(repo.working_dir):
-            os.chdir(repo.working_dir)
-        annex = envoy.run('git annex version').std_out.strip().split('\n')
-        gitversion = '; '.join([gitv] + annex)
-    except Exception as err:
-        gitversion = '%s' % err
-    return gitversion
+    return repo.git.annex('version')
 
 def latest_commit(path):
     """Returns latest commit for the specified repository
@@ -542,15 +545,21 @@ def list_staged(repo):
     stdout = repo.git.diff('--cached', '--name-only')
     return _parse_list_staged(stdout)
 
-def stage(repo, git_files=[], annex_files=[]):
-    """Stage some files.
+def stage(repo, git_files=[]):
+    """Stage some files; DON'T USE FOR git-annex FILES!
     
     @param repo: A GitPython repository
     @param git_files: list of file paths, relative to repo bas
-    @param annex_files: list of annex file paths, relative to repo base
     """
     for path in git_files:
         repo.git.add(path)
+
+def annex_stage(repo, annex_files=[]):
+    """Stage some files with git-annex.
+    
+    @param repo: A GitPython repository
+    @param annex_files: list of annex file paths, relative to repo base
+    """
     for path in annex_files:
         repo.git.annex('add', path)
 

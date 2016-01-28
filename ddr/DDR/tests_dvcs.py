@@ -29,10 +29,12 @@ def cleanup_repo(path):
     shutil.rmtree(path, ignore_errors=True)
 
 
-# TODO set_git_configs
+# TODO git_set_configs
+# TODO annex_set_configs
 
 def test_repository():
-    # set_git_configs
+    # git_set_configs
+    # annex_set_configs
     # repository
     path = '/tmp/test_dvcs.repository-%s' % datetime.now().strftime('%Y%m%d-%H%M%S')
     user = 'gjost'
@@ -56,6 +58,17 @@ def test_git_version():
     # test at repo root
     out = dvcs.git_version(repo)
     assert 'git version' in out
+
+def test_annex_version():
+    basedir = '/tmp/test-ddr-dvcs'
+    path = os.path.join(basedir, 'testgitversion')
+    # rm existing
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    # set up repos
+    repo = make_repo(path, ['testing'])
+    # test at repo root
+    out = dvcs.annex_version(repo)
     assert 'git-annex version' in out
     assert 'local repository version' in out
 

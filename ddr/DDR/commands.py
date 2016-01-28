@@ -185,7 +185,8 @@ def clone(user_name, user_mail, identifier, dest_path):
         repo.git.annex('init')
     #
     repo.git.checkout('master')
-    repo = dvcs.set_git_configs(repo, user_name, user_mail)
+    dvcs.git_set_configs(repo, user_name, user_mail)
+    dvcs.annex_set_configs(repo, user_name, user_mail)
     drive_label = storage.drive_label(repo.working_dir)
     dvcs.set_annex_description(repo, drive_label=drive_label)
     if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
@@ -234,7 +235,8 @@ def create(user_name, user_mail, identifier, templates, agent=''):
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
     repo.create_remote(config.GIT_REMOTE_NAME, git_url)
-    repo = dvcs.set_git_configs(repo, user_name, user_mail)
+    dvcs.git_set_configs(repo, user_name, user_mail)
+    dvcs.annex_set_configs(repo, user_name, user_mail)
     git_files = []
     
     # copy template files to collection

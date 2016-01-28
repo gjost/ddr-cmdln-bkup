@@ -113,12 +113,14 @@ def object_metadata(module, repo_path):
     @param repo_path: Absolute path to root of object's repo
     @returns: dict
     """
+    repo = dvcs.repository(repo_path)
+    gitversion = '; '.join([dvcs.git_version(repo), dvcs.annex_version(repo)])
     data = {
         'application': 'https://github.com/densho/ddr-cmdln.git',
         'app_commit': dvcs.latest_commit(config.INSTALL_PATH),
         'app_release': VERSION,
         'models_commit': dvcs.latest_commit(modules.Module(module).path),
-        'git_version': dvcs.git_version(dvcs.repository(repo_path)),
+        'git_version': gitversion,
     }
     return data
 
