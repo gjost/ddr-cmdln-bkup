@@ -110,33 +110,26 @@ def test_compose_commit_message():
     msg = dvcs.compose_commit_message(title, body, agent)
     assert msg == expected
 
-SAMPLE_ANNEX_STATUS = """
-supported backends: SHA256 SHA1 SHA512 SHA224 SHA384 SHA256E SHA1E SHA51
-supported remote types: git S3 bup directory rsync web hook
-trusted repositories: FATAL: ddr-densho-10.git ddr DENIED
-
-Command ssh ["git@mits.densho.org","git-annex-shell 'configlist' '/~/ddr
-FATAL: bad git-annex-shell command: git-annex-shell 'configlist' '/~/' a
-
-Command ssh ["git@mits.densho.org","git-annex-shell 'configlist' '/~/'"]
-0
-semitrusted repositories: 5
-	00000000-0000-0000-0000-000000000001 -- web
- 	a39a106a-e5c7-11e3-8996-bfa1bcf63a02 -- here (ddrworkstation)
- 	a587a176-3dca-11e3-b491-9baacb8840e9
- 	a5f4d94d-2073-4b59-8c98-9372012a6cbb -- qnfs
- 	c52c412e-467d-11e3-b428-7fb930a6e21c
-untrusted repositories: 0
-dead repositories: 0
-available local disk space: 128 gigabytes (+1 megabyte reserved)
-local annex keys: 0
-local annex size: 0 bytes
-known annex keys: 60
-known annex size: 212 megabytes
-bloom filter size: 16 mebibytes (0% full)
-backend usage: 
-	SHA256E: 60
-"""
+SAMPLE_ANNEX_STATUS = {
+    "supported backends": "SHA256 SHA1 SHA512 SHA224 SHA384 SHA256E SHA1E SHA51",
+    "supported remote types": "git S3 bup directory rsync web hook",
+    "trusted repositories": [],
+    "semitrusted repositories": [
+        {"here":False, "uuid":"00000000-0000-0000-0000-000000000001", "description":"web"},
+        {"here":True,  "uuid":"a39a106a-e5c7-11e3-8996-bfa1bcf63a02", "description":"ddrworkstation"},
+        {"here":False, "uuid":"a587a176-3dca-11e3-b491-9baacb8840e9", "description":""},
+        {"here":False, "uuid":"a5f4d94d-2073-4b59-8c98-9372012a6cbb", "description":"qnfs"},
+        {"here":False, "uuid":"c52c412e-467d-11e3-b428-7fb930a6e21c", "description":""},
+    ],
+    "untrusted repositories": [],
+    "dead repositories": [],
+    "available local disk space": "128 gigabytes (+1 megabyte reserved)",
+    "local annex keys": "0",
+    "local annex size": "0 bytes",
+    "known annex keys": "60",
+    "known annex size": "212 megabytes",
+    "bloom filter size": "16 mebibytes (0% full)",
+}
 
 def test_annex_parse_description():
     uuid0 = 'a5f4d94d-2073-4b59-8c98-9372012a6cbb'
@@ -234,10 +227,13 @@ def test_annex_status():
     annex_init(repo)
     status = dvcs.annex_status(repo)
     cleanup_repo(path)
-    assert 'trusted repositories' in status
-    assert 'semitrusted repositories' in status
-    assert ' -- here' in status
-    assert 'local annex keys: ' in status
+    found = False
+    for key in status.iterkeys():
+        if 'repositories' in key:
+            for r in status[key]:
+                if r['here']:
+                    found = True
+    assert found
 
 GITANNEX_WHEREIS = """FATAL: ddr-testing-141.git ddr DENIED
 

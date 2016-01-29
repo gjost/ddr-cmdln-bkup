@@ -657,6 +657,43 @@ def annex_set_configs(repo, user_name=None, user_mail=None):
     repo.git.config('annex.sshcaching', 'false')
     return repo
 
+def annex_parse_version(text):
+    """Takes output of "git annex version" and returns dict
+    
+    ANNEX_3_VERSION
+    git-annex version: 3.20120629
+    local repository version: 3
+    default repository version: 3
+    supported repository versions: 3
+    upgrade supported from repository versions: 0 1 2
+     
+    ANNEX_5_VERSION
+    git-annex version: 5.20141024~bpo70+1
+    build flags: Assistant Webapp Pairing S3 Inotify XMPP Feeds Quvi ...
+    key/value backends: SHA256E SHA1E SHA512E SHA224E SHA384E SHA256 ...
+    remote types: git gcrypt S3 bup directory rsync web tahoe glacier...
+    local repository version: 5
+    supported repository version: 5
+    upgrade supported from repository versions: 0 1 2 4
+    
+    @param text: str
+    @returns: dict
+    """
+    lines = text.strip().split('\n')
+    data = {
+        line.split(': ')[0]: line.split(': ')[1]
+        for line in lines
+    }
+    UPDATED_FIELDNAMES = [
+        ('supported repository versions', 'supported repository version'),
+    ]
+    for old,new in UPDATED_FIELDNAMES:
+        if old in data.iterkeys():
+            data[new] = data.pop(old)
+    # add major version
+    data['major version'] = data['git-annex version'].split('.')[0]
+    return data
+
 def annex_version(repo):
     """Returns git-annex version; includes repository version info.
     
@@ -672,62 +709,21 @@ def annex_version(repo):
     return repo.git.annex('version')
 
 def _annex_parse_description(annex_status, uuid):
-    """
-    @param annex_status: output of git-annex-status
-    @param uuid: UUID of repository to extract
-    """
-    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
-    description = None
-    for line in annex_status.split('\n'):
-        if (uuid in line) and ('here' in line):
-            match = re.search(DESCR_REGEX, line)
-            if match and match.groupdict():
-                description = match.groupdict().get('description', None)
-    return description
-
-def annex_get_description( repo, annex_status=None ):
+    for key in annex_status.iterkeys():
+        if 'repositories' in key:
+            for r in annex_status[key]:
+                if (r['uuid'] == uuid) and r['here']:
+                    return r['description']
+    return None
+    
+def annex_get_description(repo, annex_status):
     """Get description of the current repo, if any.
     
-    Parses the output of "git annex status" and extracts the current repos description.
-    If annex_status is provided, it will search that.
-    This is a timesaver, as git-annex-status takes time to run if a repo has any remotes
-    that are accessible only via a network.
-    
-    Sample status (repo has description):
-        $ git annex status
-        ...
-        semitrusted repositories: 8
-                00000000-0000-0000-0000-000000000001 -- web
-         	371931a0-34f6-11e3-bdb4-93c90d5c4311
-         	5ee6f3c0-2ae2-11e3-91a3-938a9cc1e3e5 -- TS1TB2013
-         	6367a2b4-34f6-11e3-b0c7-675d7fe6384c
-         	86fd75d0-32c8-11e3-af91-1bdd76d780f0
-         	9bcda696-2ae0-11e3-8c55-eb0b7dddd863 -- here (WD5000BMV-2)
-         	a1a0923a-2ae6-11e3-89ec-d3f4e727eeaf -- int_var-ddr
-         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
-        untrusted repositories: 0
-        dead repositories: 0
-        ...
-    
-    Sample status (no description):
-        $ git annex status
-        ...
-        semitrusted repositories: 8
-                00000000-0000-0000-0000-000000000001 -- web
-                8792a1aa-2a08-11e3-9f20-3331e21c94e3 -- here
-         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
-        untrusted repositories: 0
-        dead repositories: 0
-        ...
-
     @param repo: A GitPython Repo object
-    @param annex_status: (optional) Output of "git annex status" (saves some time).
+    @param annex_status: dict Output of dvcs.annex_status.
     @return String description or None
     """
-    uuid = repo.git.config('annex.uuid')
-    if not annex_status:
-        annex_status = repo.git.annex('status')
-    return _annex_parse_description(annex_status, uuid)
+    return _annex_parse_description(annex_status, repo.git.config('annex.uuid'))
 
 def _annex_make_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
     description = None
@@ -739,7 +735,7 @@ def _annex_make_description( drive_label=None, hostname=None, partner_host=None,
         description = hostname
     return description
 
-def annex_set_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
+def annex_set_description( repo, annex_status, description=None, drive_label=None, hostname=None, force=False ):
     """Sets repo's git annex description if not already set.
 
     NOTE: This needs to run git annex status, which takes some time.
@@ -754,7 +750,7 @@ def annex_set_description( repo, annex_status=None, description=None, drive_labe
     - If hostname is pnr, pnr:DOMAIN where DOMAIN is the domain portion of the git config user.email
     
     @param repo: A GitPython Repo object
-    @param annex_status: (optional) Output of "git annex status" (saves some time).
+    @param annex_status: dict Output of dvcs.annex_status.
     @param description: Manually supply a new description.
     @param drive_label: str Required if description is blank!
     @param hostname: str Required if description is blank!
@@ -786,11 +782,19 @@ def annex_status(repo):
     """Retrieve git annex status on repository.
     
     @param repo: A GitPython Repo object
-    @return: message ('ok' if successful)
+    @return: dict
     """
-    status = repo.git.annex('status')
-    logging.debug('\n{}'.format(status))
-    return status
+    version_data = annex_parse_version(annex_version(repo))
+    text = None
+    if version_data['major version'] == '3':
+        text = repo.git.annex('status', '--json')
+    elif version_data['major version'] == '5':
+        text = repo.git.annex('info', '--json')
+    if text:
+        data = json.loads(text)
+        data['git-annex version'] = version_data['git-annex version']
+        return data
+    return None
 
 def _annex_parse_whereis( annex_whereis_stdout ):
     lines = annex_whereis_stdout.strip().split('\n')
