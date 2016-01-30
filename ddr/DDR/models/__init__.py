@@ -316,6 +316,7 @@ class Collection( object ):
     git_url = None
     _status = ''
     _astatus = ''
+    _states = []
     _unsynced = 0
     
     def __init__( self, path_abs, id=None, identifier=None ):
@@ -654,11 +655,18 @@ class Collection( object ):
                 self._astatus = astatus
         return self._astatus
     
-    def repo_synced( self ):     return dvcs.synced(self.repo_status())
-    def repo_ahead( self ):      return dvcs.ahead(self.repo_status())
-    def repo_behind( self ):     return dvcs.behind(self.repo_status())
-    def repo_diverged( self ):   return dvcs.diverged(self.repo_status())
-    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status())
+    def repo_states( self ):
+        """Get info on collection's repo state from git-status; cache.
+        """
+        if not self._states and (os.path.exists(self.git_path)):
+            self._states = dvcs.repo_states(self.repo_status())
+        return self._states
+    
+    def repo_synced( self ):     return dvcs.synced(self.repo_status(), self.repo_states())
+    def repo_ahead( self ):      return dvcs.ahead(self.repo_status(), self.repo_states())
+    def repo_behind( self ):     return dvcs.behind(self.repo_status(), self.repo_states())
+    def repo_diverged( self ):   return dvcs.diverged(self.repo_status(), self.repo_states())
+    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status(), self.repo_states())
 
 
 

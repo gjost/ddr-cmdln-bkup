@@ -421,6 +421,39 @@ def test_automerge_conflicted():
 # TODO diverge_commit
 
 
+
+GIT_STATUS_MESSAGES = {
+    'synced0': '## master',
+    'synced1': '## master...origin/master',
+    'ahead8':  '## master...origin/master [ahead 8]',
+    'behind2': '## master...origin/master [behind 2]',
+    'ahead8mod1': '## master...origin/master [ahead 8]\nM collection.json',
+    'ahead8mod2': '## master...origin/master [ahead 8]\nM collection.json\ncontrol',
+    'behind2mod1': '## master...origin/master [behind 2]\nM files/whatever',
+    'ahead4behind2': '## master...origin/master [ahead 4, behind 2]',
+    'ahead1behind2conf2': '## master...origin/master [ahead 1, behind 2]\nUU changelog\nUU collection.json',
+    'ahead1behind2mod1conf1': '## master...origin/master [ahead 1, behind 2]\nM  changelog\nUU collection.json',
+    'ahead1behind2mod2': '## master...origin/master [ahead 1, behind 2]\nM  changelog\nM  collection.json',
+}
+
+def test_repo_states():
+    results = {
+        key: dvcs.repo_states(status)
+        for key,status in GIT_STATUS_MESSAGES.iteritems()
+    }
+    assert results['synced0'] == ['synced']
+    assert results['synced1'] == ['synced']
+    assert results['ahead8'] == ['ahead']
+    assert results['behind2'] == ['behind']
+    assert results['ahead8mod1'] == ['ahead', 'modified']
+    assert results['ahead8mod2'] == ['ahead', 'modified']
+    assert results['behind2mod1'] == ['behind', 'modified']
+    assert results['ahead4behind2'] == ['ahead', 'behind']
+    assert results['ahead1behind2conf2'] == ['ahead', 'behind', 'conflicted']
+    assert results['ahead1behind2mod1conf1'] == ['ahead', 'behind', 'modified', 'conflicted']
+    assert results['ahead1behind2mod2'] == ['ahead', 'behind', 'modified']
+
+
 GIT_STATUS_SYNCED = [
     """## master""",
     """## master\n?? .gitstatus""",
@@ -438,45 +471,45 @@ GIT_STATUS_DIVERGED = [
 ]
 
 def test_synced():
-    for status in GIT_STATUS_SYNCED: assert dvcs.synced(status) == 1     # <<<
-    for status in GIT_STATUS_AHEAD: assert dvcs.synced(status) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.synced(status) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.synced(status) == 0
+    for status in GIT_STATUS_SYNCED:   assert     dvcs.synced(status) # <<<
+    for status in GIT_STATUS_AHEAD:    assert not dvcs.synced(status)
+    for status in GIT_STATUS_BEHIND:   assert not dvcs.synced(status)
+    for status in GIT_STATUS_DIVERGED: assert not dvcs.synced(status)
 
 def test_ahead():
-    for status in GIT_STATUS_SYNCED: assert dvcs.ahead(status) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.ahead(status) == 1       # <<<
-    for status in GIT_STATUS_BEHIND: assert dvcs.ahead(status) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.ahead(status) == 0
+    for status in GIT_STATUS_SYNCED:   assert not dvcs.ahead(status)
+    for status in GIT_STATUS_AHEAD:    assert     dvcs.ahead(status) # <<<
+    for status in GIT_STATUS_BEHIND:   assert not dvcs.ahead(status)
+    for status in GIT_STATUS_DIVERGED: assert not dvcs.ahead(status)
 
 def test_behind():
-    for status in GIT_STATUS_SYNCED: assert dvcs.behind(status) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.behind(status) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.behind(status) == 1     # <<<
-    for status in GIT_STATUS_DIVERGED: assert dvcs.behind(status) == 0
+    for status in GIT_STATUS_SYNCED:   assert not dvcs.behind(status)
+    for status in GIT_STATUS_AHEAD:    assert not dvcs.behind(status)
+    for status in GIT_STATUS_BEHIND:   assert     dvcs.behind(status) # <<<
+    for status in GIT_STATUS_DIVERGED: assert not dvcs.behind(status)
 
 def test_diverged():
-    for status in GIT_STATUS_SYNCED: assert dvcs.diverged(status) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.diverged(status) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.diverged(status) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.diverged(status) == 1 # <<<
+    for status in GIT_STATUS_SYNCED:   assert not dvcs.diverged(status)
+    for status in GIT_STATUS_AHEAD:    assert not dvcs.diverged(status)
+    for status in GIT_STATUS_BEHIND:   assert not dvcs.diverged(status)
+    for status in GIT_STATUS_DIVERGED: assert     dvcs.diverged(status) # <<<
 
 GIT_STATUS_CONFLICTED = [
-    ['## master...origin/master [ahead 1, behind 2]','UU changelog','UU collection.json'],
+    '## master...origin/master [ahead 1, behind 2]\nUU changelog\nUU collection.json',
 ]
 GIT_STATUS_PARTIAL_RESOLVED = [
-    ['## master...origin/master [ahead 1, behind 2]', 'M  changelog', 'UU collection.json'],
+    '## master...origin/master [ahead 1, behind 2]\nM  changelog\nUU collection.json',
 ]
 GIT_STATUS_RESOLVED = [
-    ['## master...origin/master [ahead 1, behind 2]', 'M  changelog', 'M  collection.json'],
+    '## master...origin/master [ahead 1, behind 2]\nM  changelog\nM  collection.json',
 ]
 
 def test_conflicted():
-    for status in GIT_STATUS_SYNCED: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_CONFLICTED: assert dvcs.conflicted(status) == 1 # <<<
+    for status in GIT_STATUS_SYNCED:     assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_AHEAD:      assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_BEHIND:     assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_DIVERGED:   assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_CONFLICTED: assert     dvcs.conflicted(status) # <<<
 
 # TODO test PARTIAL_RESOLVED
 # TODO test RESOLVED

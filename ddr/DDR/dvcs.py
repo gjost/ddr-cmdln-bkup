@@ -211,130 +211,141 @@ def list_conflicted(repo):
 # git state ------------------------------------------------------------
 
 """
-IMPORTANT:
-Indicators for SYNCED,AHEAD,BEHIND,DIVERGED
-are found in the FIRST LINE
+Indicators for SYNCED,AHEAD,BEHIND,DIVERGED are found in the FIRST LINE
 of "git status --short --branch".
 
 SYNCED
-$ git status --short --branch
-## master
--or-
-## master
-?? unknown-file.ext
--or-
-## master
-?? .gitstatus
-?? files/ddr-testing-233-1/addfile.log
+    ## master
+    
+    ## master
+    ?? unknown-file.ext
+    
+    ## master
+    ?? .gitstatus
+    ?? files/ddr-testing-233-1/addfile.log
 
 AHEAD
-$ git status --short --branch
-## master...origin/master [ahead 1]
----
-$ git status --short --branch
-## master...origin/master [ahead 2]
+    ## master...origin/master [ahead 1]
+    
+    ## master...origin/master [ahead 2]
+    M  collection.json
 
 BEHIND
-$ git status --short --branch
-## master...origin/master [behind 1]
+    ## master...origin/master [behind 1]
+    
+    ## master...origin/master [behind 2]
+    M  collection.json
 
 DIVERGED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
+    ## master...origin/master [ahead 1, behind 2]
+    
+    ## master...origin/master [ahead 1, behind 2]
+    M  collection.json
+
+Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED are found
+AFTER the first line of "git status --short --branch".
+
+CONFLICTED
+    ## master...origin/master [ahead 1, behind 2]
+    UU changelog
+    UU collection.json
+
+PARTIAL_RESOLVED
+    ## master...origin/master [ahead 1, behind 2]
+    M  changelog
+    UU collection.json
+
+RESOLVED
+    ## master...origin/master [ahead 1, behind 2]
+    M  changelog
+    M  collection.json
 """
 
-SYNCED = [
-    '## master',
-    '## master...origin/master',
-]
+def _compile_patterns(patterns):
+    """Compile regex patterns only once, at import.
+    """
+    new = []
+    for p in patterns:
+        pattern = [x for x in p]
+        pattern[0] = re.compile(p[0])
+        new.append(pattern)
+    return new
 
-def synced(status):
+GIT_STATE_PATTERNS = _compile_patterns((
+    (r'^## master',                 'synced'),
+    (r'^## master...origin/master', 'synced'),
+    (r'(ahead [0-9]+)',              'ahead'),
+    (r'(behind [0-9]+)',            'behind'),
+    (r'(\nM )',                   'modified'),
+    (r'(\nUU )',                'conflicted'),
+))
+
+def repo_states(git_status, patterns=GIT_STATE_PATTERNS):
+    """Returns list of states the repo may have
+    
+    @param text: str
+    @param patterns: list of (regex, name) tuples
+    @returns: list of states
+    """
+    states = []
+    for pattern,name in patterns:
+        m = re.search(pattern, git_status)
+        if m and (name not in states):
+            states.append(name)
+    if ('ahead' in states) or ('behind' in states):
+        states.remove('synced')
+    return states
+
+def synced(status, states=None):
     """Indicates whether repo is synced with remote repo.
     
     @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
+    @returns: boolean
     """
-    for line in status.split('\n'):
-        if line in SYNCED:
-            return 1
-    return 0
+    if not states:
+        states = repo_states(status)
+    return ('synced' in states) and ('ahead' not in states) and ('behind' not in states)
 
-AHEAD = "(ahead [0-9]+)"
-AHEAD_PROG = re.compile(AHEAD)
-BEHIND = "(behind [0-9]+)"
-BEHIND_PROG = re.compile(BEHIND)
-
-def ahead(status):
+def ahead(status, states=None):
     """Indicates whether repo is ahead of remote repos.
     
     @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
+    @returns: boolean
     """
-    if AHEAD_PROG.search(status) and not BEHIND_PROG.search(status):
-        return 1
-    return 0
+    if not states:
+        states = repo_states(status)
+    return ('ahead' in states) and not ('behind' in states)
 
-def behind(status):
+def behind(status, states=None):
     """Indicates whether repo is behind remote repos.
 
     @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
+    @returns: boolean
     """
-    if BEHIND_PROG.search(status) and not AHEAD_PROG.search(status):
-        return 1
-    return 0
+    if not states:
+        states = repo_states(status)
+    return ('behind' in states) and not ('ahead' in states)
 
-DIVERGED = [AHEAD, BEHIND]
-DIVERGED_PROGS = [re.compile(pattern) for pattern in DIVERGED]
-
-def diverged(status):
+def diverged(status, states=None):
     """
     @param status: Output of "git status --short --branch"
-    @returns 1 (diverged), 0 (not conflicted), -1 (error)
+    @returns: boolean
     """
-    matches = [1 for prog in DIVERGED_PROGS if prog.search(status)]
-    if len(matches) == 2: # both ahead and behind
-        return 1
-    return 0
+    if not states:
+        states = repo_states(status)
+    return ('ahead' in states) and ('behind' in states)
 
-"""
-IMPORTANT:
-Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED
-are found AFTER the first line
-of "git status --short --branch".
-
-CONFLICTED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-UU changelog
-UU collection.json
-
-PARTIAL_RESOLVED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-M  changelog
-UU collection.json
-
-RESOLVED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-M  changelog
-M  collection.json
-"""
-
-CONFLICTED_PROG = re.compile("(UU )")
-
-def conflicted(status):
+def conflicted(status, states=None):
     """Indicates whether repo has a merge conflict.
     
     NOTE: Use list_conflicted if you have a repo object.
+    
     @param status: Output of "git status --short --branch"
-    @returns 1 (conflicted), 0 (not conflicted), -1 (error)
+    @returns: boolean
     """
-    matches = [1 for line in status if CONFLICTED_PROG.match(line)]
-    if matches:
-        return 1
-    return 0
+    if not states:
+        states = repo_states(status)
+    return 'conflicted' in states
 
 
 # git operations -------------------------------------------------------
