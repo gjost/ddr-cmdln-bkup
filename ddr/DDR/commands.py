@@ -216,9 +216,15 @@ def clone(user_name, user_mail, collection_uid, alt_collection_path):
         logging.error('    .git/ IS MISSING!')
         return 1,'.git/ is missing'
     # git annex init if not already existing
-    if not os.path.exists(os.path.join(alt_collection_path, '.git', 'annex')):
+    annex_path = os.path.join(alt_collection_path, '.git', 'annex')
+    if not os.path.exists(annex_path):
         logging.debug('    git annex init')
         repo.git.annex('init')
+    if os.path.exists(annex_path):
+        logging.debug('    OK')
+    else:
+        logging.error('    COULD NOT CREATE ANNEX DIR!')
+        return 1,'could not make annex dir'
     #
     repo.git.checkout('master')
     repo = dvcs.set_git_configs(repo, user_name, user_mail)
@@ -271,7 +277,8 @@ def create(user_name, user_mail, collection_path, templates, agent=''):
     else:
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
-    repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
+    if not GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
+        repo.create_remote(GIT_REMOTE_NAME, collection.git_url)
     repo = dvcs.set_git_configs(repo, user_name, user_mail)
     git_files = []
     
@@ -429,7 +436,7 @@ def update(user_name, user_mail, collection_path, updated_files, agent=''):
 @command
 @requires_network
 def sync(user_name, user_mail, collection_path):
-    """Sync repo with bare clone on hub server; replaces git-annex-sync.
+    """Sync repo with bare clone on hub server; use instead of git-annex-sync.
     
     Git-annex has a "sync" command for communicating annex changes between
     repositories, but it is designed to be used between non-bare repositories.
@@ -956,7 +963,8 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
             else:
                 logging.debug(repo_path)
                 logging.debug('remote add %s %s' % (remote_name, remote_path))
-                repo.create_remote(remote_name, remote_path)
+                if not remote_name in [r.name for r in repo.remotes]:
+                    repo.create_remote(remote_name, remote_path)
                 logging.debug('ok')
         remote_path = os.path.join(remote_base, r['id'])
         add_remote(repo_path, remote_name, remote_path) # local -> remote
