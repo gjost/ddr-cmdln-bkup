@@ -105,7 +105,6 @@ Example:
     parser_ccre.add_argument('-u', '--user',       required=True, help='User name')
     parser_ccre.add_argument('-m', '--mail',       required=True, help='User e-mail address')
     parser_ccre.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
-    parser_ccre.add_argument('-t', '--templates',  required=True, help='List of metadata template files (absolute paths)')
     
     # clone
     clon_descr,clon_epilog = split_docstring(clone)
@@ -170,7 +169,6 @@ Example:
     parser_ecre.add_argument('-c', '--collection', required=True, help='Absolute file path to the collection')
     parser_ecre.add_argument('-e', '--entity',     required=True, help='UID of entity to be added to collection.')
     parser_ecre.add_argument('-f', '--files',      required=True, help='List of updated files (relative to collection)')
-    parser_ecre.add_argument('-t', '--templates',  required=True, help='List of metadata template files (absolute paths)')
     
     # entity_destroy
     edel_descr,edel_epilog = split_docstring(entity_destroy)
@@ -314,13 +312,19 @@ Example:
             print msg
         sys.exit(0)
     elif args.cmd == 'create':
-        templates = args.templates.strip().split(',')
+        templates = [
+            config.get('local','template_cjson'),
+            config.get('local','template_ead'),
+        ]
         exit,msg = create(args.user, args.mail, args.collection, templates, agent=AGENT)
     elif args.cmd == 'update':
         files = args.files.strip().split(',')
         exit,msg = update(args.user, args.mail, args.collection, files, agent=AGENT)
     elif args.cmd == 'ecreate':
-        templates = args.templates.strip().split(',')
+        templates = [
+            config.get('local','template_ejson'),
+            config.get('local','template_mets'),
+        ]
         files = args.files.strip().split(',')
         exit,msg = entity_create(args.user, args.mail, args.collection, args.entity, templates, files, agent=AGENT)
     elif args.cmd == 'eupdate':
