@@ -113,12 +113,14 @@ def object_metadata(module, repo_path):
     @param repo_path: Absolute path to root of object's repo
     @returns: dict
     """
+    repo = dvcs.repository(repo_path)
+    gitversion = '; '.join([dvcs.git_version(repo), dvcs.annex_version(repo)])
     data = {
         'application': 'https://github.com/densho/ddr-cmdln.git',
         'app_commit': dvcs.latest_commit(config.INSTALL_PATH),
         'app_release': VERSION,
         'models_commit': dvcs.latest_commit(modules.Module(module).path),
-        'git_version': dvcs.git_version(repo_path),
+        'git_version': gitversion,
     }
     return data
 
@@ -314,6 +316,7 @@ class Collection( object ):
     git_url = None
     _status = ''
     _astatus = ''
+    _states = []
     _unsynced = 0
     
     def __init__( self, path_abs, id=None, identifier=None ):
@@ -626,7 +629,7 @@ class Collection( object ):
         """
         result = '-1'
         if os.path.exists(self.git_path):
-            result = dvcs.fetch(self.path)
+            result = dvcs.fetch(dvcs.repository(self.path))
         else:
             result = '%s is not a git repository' % self.path
         return result
@@ -638,7 +641,7 @@ class Collection( object ):
         the result of this function so that git-status is only called once.
         """
         if not self._status and (os.path.exists(self.git_path)):
-            status = dvcs.repo_status(self.path, short=True)
+            status = dvcs.repo_status(dvcs.repository(self.path), short=True)
             if status:
                 self._status = status
         return self._status
@@ -647,16 +650,23 @@ class Collection( object ):
         """Get annex status of collection repo.
         """
         if not self._astatus and (os.path.exists(self.git_path)):
-            astatus = dvcs.annex_status(self.path)
+            astatus = dvcs.annex_status(dvcs.repository(self.path))
             if astatus:
                 self._astatus = astatus
         return self._astatus
     
-    def repo_synced( self ):     return dvcs.synced(self.repo_status())
-    def repo_ahead( self ):      return dvcs.ahead(self.repo_status())
-    def repo_behind( self ):     return dvcs.behind(self.repo_status())
-    def repo_diverged( self ):   return dvcs.diverged(self.repo_status())
-    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status())
+    def repo_states( self ):
+        """Get info on collection's repo state from git-status; cache.
+        """
+        if not self._states and (os.path.exists(self.git_path)):
+            self._states = dvcs.repo_states(self.repo_status())
+        return self._states
+    
+    def repo_synced( self ):     return dvcs.synced(self.repo_status(), self.repo_states())
+    def repo_ahead( self ):      return dvcs.ahead(self.repo_status(), self.repo_states())
+    def repo_behind( self ):     return dvcs.behind(self.repo_status(), self.repo_states())
+    def repo_diverged( self ):   return dvcs.diverged(self.repo_status(), self.repo_states())
+    def repo_conflicted( self ): return dvcs.conflicted(self.repo_status(), self.repo_states())
 
 
 

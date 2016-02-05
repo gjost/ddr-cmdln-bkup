@@ -239,7 +239,8 @@ def stage_files(entity, git_files, annex_files, new_files, log):
     stage_ok = False
     staged = []
     try:
-        dvcs.stage(repo, git_files, annex_files)
+        dvcs.stage(repo, git_files)
+        dvcs.annex_stage(repo, annex_files)
         staged = dvcs.list_staged(repo)
     except:
         # FAILED! print traceback to addfile log

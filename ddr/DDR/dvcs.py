@@ -15,18 +15,6 @@ from DDR import config
 from DDR import storage
 
 
-def set_git_configs(repo, user_name=None, user_mail=None):
-    if user_name and user_mail:
-        repo.git.config('user.name', user_name)
-        repo.git.config('user.email', user_mail)
-        # we're not actually using gitweb any more...
-        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
-    # ignore file permissions
-    repo.git.config('core.fileMode', 'false')
-    # earlier versions of git-annex have problems with ssh caching on NTFS
-    repo.git.config('annex.sshcaching', 'false')
-    return repo
-
 def repository(path, user_name=None, user_mail=None):
     """
     @param collection_path: Absolute path to collection repo.
@@ -34,34 +22,35 @@ def repository(path, user_name=None, user_mail=None):
     """
     repo = git.Repo(path)
     if user_name and user_mail:
-        return set_git_configs(repo, user_name, user_mail)
+        git_set_configs(repo, user_name, user_mail)
+        annex_set_configs(repo, user_name, user_mail)
+        return repo
     return repo
 
-def git_version(repo_path=None):
-    """Returns version info for Git and git-annex.
+
+# git info -------------------------------------------------------------
+
+def git_version(repo):
+    """Returns Git version info.
     
-    TODO pass repo object instead of path
-    
-    If repo_path is specified, returns version of local repo's annex.
-    example:
-    'git version 1.7.10.4; git-annex version: 3.20120629; local repository version: 3; ' \
-    'default repository version: 3; supported repository versions: 3; ' \
-    'upgrade supported from repository versions: 0 1 2'
-    
-    @param repo_path: Absolute path to repository (optional).
+    @param repo: A GitPython Repo object.
     @returns string
     """
-    try:
-        # git
-        gitv = envoy.run('git --version').std_out.strip()
-        # git annex
-        if repo_path and os.path.exists(repo_path):
-            os.chdir(repo_path)
-        annex = envoy.run('git annex version').std_out.strip().split('\n')
-        gitversion = '; '.join([gitv] + annex)
-    except Exception as err:
-        gitversion = '%s' % err
-    return gitversion
+    return envoy.run('git --version').std_out.strip()
+
+def repo_status(repo, short=False):
+    """Retrieve git status on repository.
+    
+    @param repo: A GitPython Repo object
+    @return: message ('ok' if successful)
+    """
+    status = 'unknown'
+    if short:
+        status = repo.git.status(short=True, branch=True)
+    else:
+        status = repo.git.status()
+    #logging.debug('\n{}'.format(status))
+    return status
 
 def latest_commit(path):
     """Returns latest commit for the specified repository
@@ -142,378 +131,7 @@ def cmp_commits(repo, a, b, abbrev=False):
         fmt = '--pretty=%H'
     return _parse_cmp_commits(repo.git.log(fmt), a, b)
 
-def compose_commit_message(title, body='', agent=''):
-    """Composes a Git commit message.
-    
-    TODO wrap body text at 72 chars
-    
-    @param title: (required) 50 chars or less
-    @param body: (optional) Freeform body text.
-    @param agent: (optional) Do not include the word 'agent'.
-    """
-    # force to str
-    if not body: body = ''
-    if not agent: agent = ''
-    # formatting
-    if body:  body = '\n\n%s' % body
-    if agent: agent = '\n\n@agent: %s' % agent
-    return '%s%s%s' % (title, body, agent)
-
-def _parse_annex_description(annex_status, uuid):
-    """
-    @param annex_status: output of git-annex-status
-    @param uuid: UUID of repository to extract
-    """
-    DESCR_REGEX = '\((?P<description>[\w\d ._-]+)\)'
-    description = None
-    for line in annex_status.split('\n'):
-        if (uuid in line) and ('here' in line):
-            match = re.search(DESCR_REGEX, line)
-            if match and match.groupdict():
-                description = match.groupdict().get('description', None)
-    return description
-
-def get_annex_description( repo, annex_status=None ):
-    """Get description of the current repo, if any.
-    
-    Parses the output of "git annex status" and extracts the current repos description.
-    If annex_status is provided, it will search that.
-    This is a timesaver, as git-annex-status takes time to run if a repo has any remotes
-    that are accessible only via a network.
-    
-    Sample status (repo has description):
-        $ git annex status
-        ...
-        semitrusted repositories: 8
-                00000000-0000-0000-0000-000000000001 -- web
-         	371931a0-34f6-11e3-bdb4-93c90d5c4311
-         	5ee6f3c0-2ae2-11e3-91a3-938a9cc1e3e5 -- TS1TB2013
-         	6367a2b4-34f6-11e3-b0c7-675d7fe6384c
-         	86fd75d0-32c8-11e3-af91-1bdd76d780f0
-         	9bcda696-2ae0-11e3-8c55-eb0b7dddd863 -- here (WD5000BMV-2)
-         	a1a0923a-2ae6-11e3-89ec-d3f4e727eeaf -- int_var-ddr
-         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
-        untrusted repositories: 0
-        dead repositories: 0
-        ...
-    
-    Sample status (no description):
-        $ git annex status
-        ...
-        semitrusted repositories: 8
-                00000000-0000-0000-0000-000000000001 -- web
-                8792a1aa-2a08-11e3-9f20-3331e21c94e3 -- here
-         	b84dc8fc-2ade-11e3-88a3-1f33b5e6b986 -- workbench
-        untrusted repositories: 0
-        dead repositories: 0
-        ...
-
-    @param repo: A GitPython Repo object
-    @param annex_status: (optional) Output of "git annex status" (saves some time).
-    @return String description or None
-    """
-    uuid = repo.git.config('annex.uuid')
-    if not annex_status:
-        annex_status = repo.git.annex('status')
-    return _parse_annex_description(annex_status, uuid)
-
-def _make_annex_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
-    description = None
-    if drive_label:
-        description = drive_label
-    elif hostname and (hostname == partner_host) and mail:
-        description = ':'.join([ hostname, mail.split('@')[1] ])
-    elif hostname and (hostname != partner_host):
-        description = hostname
-    return description
-
-def set_annex_description( repo, annex_status=None, description=None, drive_label=None, hostname=None, force=False ):
-    """Sets repo's git annex description if not already set.
-
-    NOTE: This needs to run git annex status, which takes some time.
-     
-    New repo: git annex init "REPONAME"
-    Existing repo: git annex describe here "REPONAME"
-     
-    Descriptions should be chosen/generated base on the following heuristic:
-    - Input to description argument of function.
-    - If on USB device, the drive label of the device.
-    - Hostname of machine, unless it is pnr (used by partner VMs).
-    - If hostname is pnr, pnr:DOMAIN where DOMAIN is the domain portion of the git config user.email
-    
-    @param repo: A GitPython Repo object
-    @param annex_status: (optional) Output of "git annex status" (saves some time).
-    @param description: Manually supply a new description.
-    @param drive_label: str Required if description is blank!
-    @param hostname: str Required if description is blank!
-    @param force: Boolean Apply a new description even if one already exists.
-    @return String description if new one was created/applied or None
-    """
-    desc = None
-    PARTNER_HOSTNAME = 'pnr'
-    annex_description = get_annex_description(repo, annex_status)
-    # keep existing description unless forced
-    if (not annex_description) or (force == True):
-        if description:
-            desc = description
-        else:
-            # gather information
-            user_mail = repo.git.config('user.email')
-            # generate description
-            desc = _make_annex_description(
-                drive_label=drive_label,
-                hostname=hostname, partner_host=PARTNER_HOSTNAME,
-                mail=user_mail)
-        if desc:
-            # apply description
-            logging.debug('git annex describe here %s' % desc)
-            repo.git.annex('describe', 'here', desc)
-    return desc
-
-def fetch(path):
-    """run git fetch; fetches from origin.
-    
-    TODO pass repo object instead of path
-    
-    @param collection_path: Absolute path to collection repo.
-    @return: message ('ok' if successful)
-    """
-    repo = git.Repo(path)
-    return repo.git.fetch()
-
-def repo_status(path, short=False):
-    """Retrieve git status on repository.
-    
-    TODO pass repo object instead of path
-    
-    @param collection_path: Absolute path to collection repo.
-    @return: message ('ok' if successful)
-    """
-    status = 'unknown'
-    repo = git.Repo(path)
-    if short:
-        status = repo.git.status(short=True, branch=True)
-    else:
-        status = repo.git.status()
-    #logging.debug('\n{}'.format(status))
-    return status
-
-def annex_status(path):
-    """Retrieve git annex status on repository.
-    
-    TODO pass repo object instead of path
-    
-    @param collection_path: Absolute path to collection repo.
-    @return: message ('ok' if successful)
-    """
-    repo = git.Repo(path)
-    status = repo.git.annex('status')
-    logging.debug('\n{}'.format(status))
-    return status
-
-def _parse_annex_whereis( annex_whereis_stdout ):
-    lines = annex_whereis_stdout.strip().split('\n')
-    # chop off anything before whereis line
-    startline = -1
-    for n,line in enumerate(lines):
-        if 'whereis' in line:
-            startline = n
-    lines = lines[startline:]
-    remotes = []
-    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
-        num_copies = int(lines[0].split(' ')[2].replace('(',''))
-        logging.debug('    {} copies'.format(num_copies))
-        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
-    return remotes
-
-def annex_whereis_file(repo, file_path_rel):
-    """Show remotes that the file appears in
-    
-    $ git annex whereis files/ddr-testing-201303051120-1/files/20121205.jpg
-    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
-            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
-            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
-    ok
-    
-    @param repo: A GitPython Repo object
-    @param collection_uid: A valid DDR collection UID
-    @return: List of names of remote repositories.
-    """
-    stdout = repo.git.annex('whereis', file_path_rel)
-    print('----------')
-    print(stdout)
-    print('----------')
-    return _parse_annex_whereis(stdout)
-
-def annex_trim(repo, confirmed=False):
-    """Drop full-size binaries from a repository.
-    
-    @param repo: A GitPython Repo object
-    @param confirmed: boolean Yes I really want to do this
-    @returns: {keep,drop,dropped} lists of file paths
-    """
-    logging.debug('annex_trim(%s, confirmed=%s)' % (repo, confirmed))
-    # Keep access files, HTML files, and PDFs.
-    KEEP_SUFFIXES = ['-a.jpg', '.htm', '.html', '.pdf']
-    annex_file_paths = repo.git.annex('find').split('\n')
-    keep = []
-    drop = []
-    for path_rel in annex_file_paths:
-        if [True for suffix in KEEP_SUFFIXES if suffix.lower() in path_rel]:
-            keep.append(path_rel)
-        else:
-            drop.append(path_rel)
-    dropped = []
-    for path_rel in drop:
-        logging.debug(path_rel)
-        if confirmed:
-            p = drop.remove(path_rel)
-            repo.git.annex('drop', '--force', p)
-            dropped.append(p)
-    return {
-        'keep':keep,
-        'drop':drop,
-        'dropped':dropped,
-    }
-    
-
-def _gitolite_info_authorized(gitolite_out):
-    """Parse Gitolite server response, indicate whether user is authorized
-    
-    http://gitolite.com/gitolite/user.html#info
-    "The only command that is always available to every user is the info command
-    (run ssh git@host info -h for help), which tells you what version of gitolite
-    and git are on the server, and what repositories you have access to. The list
-    of repos is very useful if you have doubts about the spelling of some new repo
-    that you know was setup."
-    Sample output:
-        hello gjost, this is git@mits running gitolite3 v3.2-19-gb9bbb78 on git 1.7.2.5
-        
-         R W C  ddr-densho-[0-9]+
-         R W C  ddr-densho-[0-9]+-[0-9]+
-         R W C  ddr-dev-[0-9]+
-        ...
-    
-    @param gitolite_out: raw Gitolite output from SSH
-    @returns: boolean
-    """
-    lines = gitolite_out.split('\n')
-    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
-        logging.debug('        OK ')
-        return True
-    logging.debug('        NO CONNECTION')
-    return False
-    
-def gitolite_connect_ok(server):
-    """See if we can connect to gitolite server.
-    
-    We should do some lightweight operation, just enough to make sure we can connect.
-    But we can't ping.
-        
-    @param server: USERNAME@DOMAIN
-    @return: True or False
-    """
-    logging.debug('    DDR.commands.gitolite_connect_ok()')
-    return _gitolite_info_authorized(gitolite_info(server))
-
-def gitolite_orgs( gitolite_out ):
-    """Returns list of orgs to which user has access
-    
-    @param gitolite_out: raw output of gitolite_info()
-    @returns: list of organization IDs
-    """
-    repos_orgs = []
-    for line in gitolite_out.split('\n'):
-        if 'R W C' in line:
-            parts = line.replace('R W C', '').strip().split('-')
-            repo_org = '-'.join([parts[0], parts[1]])
-            if repo_org not in repos_orgs:
-                repos_orgs.append(repo_org)
-    return repos_orgs
- 
-def gitolite_repos( gitolite_out ):
-    """Returns list of repos to which user has access
-    
-    @param gitolite_out: raw output of gitolite_info()
-    @returns: list of repo names
-    """
-    repos = []
-    for line in gitolite_out.split('\n'):
-        if ('R W' in line) and not ('R W C' in line):
-            repo = line.strip().split('\t')[1]
-            if repo not in repos:
-                repos.append(repo)
-    return repos
-
-def gitolite_info(server, timeout=60):
-    """
-    @param server: USERNAME@DOMAIN
-    @param timeout: int Maximum seconds to wait for reponse
-    @return: raw Gitolite output from SSH
-    """
-    cmd = 'ssh {} info'.format(server)
-    logging.debug('        {}'.format(cmd))
-    r = envoy.run(cmd, timeout=int(timeout))
-    logging.debug('        {}'.format(r.status_code))
-    status = r.status_code
-    if r.status_code != 0:
-        raise Exception('Bad reply from Gitolite server: %s' % r.std_err)
-    return r.std_out
-
-def gitolite_collection_titles(repos, username=None, password=None, timeout=5):
-    """Returns IDs:titles dict for all collections to which user has access.
-    
-    >>> gitolite_out = dvcs.gitolite_info(SERVER)
-    >>> repos = dvcs.gitolite_repos(gitolite_out)
-    >>> collections = dvcs.cgit_collection_titles(repos, USERNAME, PASSWORD)
-    
-    TODO Page through the Cgit index pages (fewer HTTP requests)?
-    TODO Set REPO/.git/description to collection title, read via Gitolite?
-    
-    @param repos: list of repo names
-    @param username: str [optional] Cgit server HTTP Auth username
-    @param password: str [optional] Cgit server HTTP Auth password
-    @param timeout: int Timeout for getting individual collection info
-    @returns: list of (repo,title) tuples
-    """
-    session = requests.Session()
-    session.auth = (username,password)
-    collections = [(repo,cgit_collection_title(repo,session,timeout)) for repo in repos]
-    return collections
-
-def cgit_collection_title(repo, session, timeout=5):
-    """Gets collection title from CGit
-    
-    Requests plain blob of collection.json, reads 'title' field.
-    PROBLEM: requires knowledge of repository internals.
-    
-    @param repo: str Repository name
-    @param session: requests.Session
-    @param timeout: int
-    @returns: str Repository collection title
-    """
-    title = '---'
-    URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
-    url = URL_TEMPLATE % (config.CGIT_URL, repo)
-    logging.debug(url)
-    try:
-        r = session.get(url, timeout=timeout)
-        logging.debug(str(r.status_code))
-    except requests.ConnectionError:
-        r = None
-        title = '[ConnectionError]'
-    data = None
-    if r and r.status_code == 200:
-        try:
-            data = json.loads(r.text)
-        except ValueError:
-            title = '[no data]'
-    if data:
-        for field in data:
-            if field and field.get('title', None) and field['title']:
-                title = field['title']
-    logging.debug('%s: "%s"' % (repo,title))
-    return title
+# git diff
 
 def _parse_list_modified( diff ):
     """Parses output of "git stage --name-only".
@@ -553,18 +171,6 @@ def list_staged(repo):
     stdout = repo.git.diff('--cached', '--name-only')
     return _parse_list_staged(stdout)
 
-def stage(repo, git_files=[], annex_files=[]):
-    """Stage some files.
-    
-    @param repo: A GitPython repository
-    @param git_files: list of file paths, relative to repo bas
-    @param annex_files: list of annex file paths, relative to repo base
-    """
-    for path in git_files:
-        repo.git.add(path)
-    for path in annex_files:
-        repo.git.annex('add', path)
-
 def _parse_list_committed( entry ):
     entrylines = [line for line in entry.split('\n') if '|' in line]
     files = [line.split('|')[0].strip() for line in entrylines]
@@ -582,18 +188,6 @@ def list_committed(repo, commit):
     # return just the files from the specific commit's log entry
     entry = repo.git.log('-1', '--stat', commit.hexsha)
     return _parse_list_committed(entry)
-
-def commit(repo, msg, agent):
-    """Commit some changes.
-    
-    @param repo: A GitPython repository
-    @param msg: str Commit message
-    @param agent: str
-    @returns: GitPython commit object
-    """
-    commit_message = compose_commit_message(msg, agent=agent)
-    commit = repo.index.commit(commit_message)
-    return commit
 
 def _parse_list_conflicted( ls_unmerged ):
     files = []
@@ -613,7 +207,206 @@ def list_conflicted(repo):
     stdout = repo.git.ls_files('--unmerged')
     return _parse_list_conflicted(stdout)
 
-# merge tools ------------------------------------------------------------
+
+# git state ------------------------------------------------------------
+
+"""
+Indicators for SYNCED,AHEAD,BEHIND,DIVERGED are found in the FIRST LINE
+of "git status --short --branch".
+
+SYNCED
+    ## master
+    
+    ## master
+    ?? unknown-file.ext
+    
+    ## master
+    ?? .gitstatus
+    ?? files/ddr-testing-233-1/addfile.log
+
+AHEAD
+    ## master...origin/master [ahead 1]
+    
+    ## master...origin/master [ahead 2]
+    M  collection.json
+
+BEHIND
+    ## master...origin/master [behind 1]
+    
+    ## master...origin/master [behind 2]
+    M  collection.json
+
+DIVERGED
+    ## master...origin/master [ahead 1, behind 2]
+    
+    ## master...origin/master [ahead 1, behind 2]
+    M  collection.json
+
+Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED are found
+AFTER the first line of "git status --short --branch".
+
+CONFLICTED
+    ## master...origin/master [ahead 1, behind 2]
+    UU changelog
+    UU collection.json
+
+PARTIAL_RESOLVED
+    ## master...origin/master [ahead 1, behind 2]
+    M  changelog
+    UU collection.json
+
+RESOLVED
+    ## master...origin/master [ahead 1, behind 2]
+    M  changelog
+    M  collection.json
+"""
+
+def _compile_patterns(patterns):
+    """Compile regex patterns only once, at import.
+    """
+    new = []
+    for p in patterns:
+        pattern = [x for x in p]
+        pattern[0] = re.compile(p[0])
+        new.append(pattern)
+    return new
+
+GIT_STATE_PATTERNS = _compile_patterns((
+    (r'^## master',                 'synced'),
+    (r'^## master...origin/master', 'synced'),
+    (r'(ahead [0-9]+)',              'ahead'),
+    (r'(behind [0-9]+)',            'behind'),
+    (r'(\nM )',                   'modified'),
+    (r'(\nUU )',                'conflicted'),
+))
+
+def repo_states(git_status, patterns=GIT_STATE_PATTERNS):
+    """Returns list of states the repo may have
+    
+    @param text: str
+    @param patterns: list of (regex, name) tuples
+    @returns: list of states
+    """
+    states = []
+    for pattern,name in patterns:
+        m = re.search(pattern, git_status)
+        if m and (name not in states):
+            states.append(name)
+    if ('ahead' in states) or ('behind' in states):
+        states.remove('synced')
+    return states
+
+def synced(status, states=None):
+    """Indicates whether repo is synced with remote repo.
+    
+    @param status: Output of "git status --short --branch"
+    @returns: boolean
+    """
+    if not states:
+        states = repo_states(status)
+    return ('synced' in states) and ('ahead' not in states) and ('behind' not in states)
+
+def ahead(status, states=None):
+    """Indicates whether repo is ahead of remote repos.
+    
+    @param status: Output of "git status --short --branch"
+    @returns: boolean
+    """
+    if not states:
+        states = repo_states(status)
+    return ('ahead' in states) and not ('behind' in states)
+
+def behind(status, states=None):
+    """Indicates whether repo is behind remote repos.
+
+    @param status: Output of "git status --short --branch"
+    @returns: boolean
+    """
+    if not states:
+        states = repo_states(status)
+    return ('behind' in states) and not ('ahead' in states)
+
+def diverged(status, states=None):
+    """
+    @param status: Output of "git status --short --branch"
+    @returns: boolean
+    """
+    if not states:
+        states = repo_states(status)
+    return ('ahead' in states) and ('behind' in states)
+
+def conflicted(status, states=None):
+    """Indicates whether repo has a merge conflict.
+    
+    NOTE: Use list_conflicted if you have a repo object.
+    
+    @param status: Output of "git status --short --branch"
+    @returns: boolean
+    """
+    if not states:
+        states = repo_states(status)
+    return 'conflicted' in states
+
+
+# git operations -------------------------------------------------------
+
+def git_set_configs(repo, user_name=None, user_mail=None):
+    if user_name and user_mail:
+        repo.git.config('user.name', user_name)
+        repo.git.config('user.email', user_mail)
+        # we're not actually using gitweb any more...
+        repo.git.config('gitweb.owner', '{} <{}>'.format(user_name, user_mail))
+    # ignore file permissions
+    repo.git.config('core.fileMode', 'false')
+    return repo
+
+def compose_commit_message(title, body='', agent=''):
+    """Composes a Git commit message.
+    
+    TODO wrap body text at 72 chars
+    
+    @param title: (required) 50 chars or less
+    @param body: (optional) Freeform body text.
+    @param agent: (optional) Do not include the word 'agent'.
+    """
+    # force to str
+    if not body: body = ''
+    if not agent: agent = ''
+    # formatting
+    if body:  body = '\n\n%s' % body
+    if agent: agent = '\n\n@agent: %s' % agent
+    return '%s%s%s' % (title, body, agent)
+
+def fetch(repo):
+    """run git fetch; fetches from origin.
+    
+    @param repo: A GitPython Repo object
+    @return: message ('ok' if successful)
+    """
+    return repo.git.fetch()
+
+def stage(repo, git_files=[]):
+    """Stage some files; DON'T USE FOR git-annex FILES!
+    
+    @param repo: A GitPython repository
+    @param git_files: list of file paths, relative to repo bas
+    """
+    for path in git_files:
+        repo.git.add(path)
+
+def commit(repo, msg, agent):
+    """Commit some changes.
+    
+    @param repo: A GitPython repository
+    @param msg: str Commit message
+    @param agent: str
+    @returns: GitPython commit object
+    """
+    commit_message = compose_commit_message(msg, agent=agent)
+    commit = repo.index.commit(commit_message)
+    return commit
+
+# git merge ------------------------------------------------------------
 
 MERGE_MARKER_START = '<<<<<<<'
 MERGE_MARKER_MID   = '======='
@@ -745,131 +538,8 @@ def diverge_commit( repo ):
         return 'ERROR: unmerged files exist!'
     commit = repo.git.commit('--message', 'divergent commits resolved using DDR web UI.')
 
-# ------------------------------------------------------------------------
-    
-"""
-IMPORTANT:
-Indicators for SYNCED,AHEAD,BEHIND,DIVERGED
-are found in the FIRST LINE
-of "git status --short --branch".
 
-SYNCED
-$ git status --short --branch
-## master
--or-
-## master
-?? unknown-file.ext
--or-
-## master
-?? .gitstatus
-?? files/ddr-testing-233-1/addfile.log
-
-AHEAD
-$ git status --short --branch
-## master...origin/master [ahead 1]
----
-$ git status --short --branch
-## master...origin/master [ahead 2]
-
-BEHIND
-$ git status --short --branch
-## master...origin/master [behind 1]
-
-DIVERGED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-"""
-
-def synced(status):
-    """Indicates whether repo is synced with remote repo.
-    
-    @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    for line in status.split('\n'):
-        if line == '## master':
-            return 1
-    return 0
-
-AHEAD = "(ahead [0-9]+)"
-AHEAD_PROG = re.compile(AHEAD)
-BEHIND = "(behind [0-9]+)"
-BEHIND_PROG = re.compile(BEHIND)
-
-def ahead(status):
-    """Indicates whether repo is ahead of remote repos.
-    
-    @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    if AHEAD_PROG.search(status) and not BEHIND_PROG.search(status):
-        return 1
-    return 0
-
-def behind(status):
-    """Indicates whether repo is behind remote repos.
-
-    @param status: Output of "git status --short --branch"
-    @returns 1 (behind), 0 (not behind), -1 (error)
-    """
-    if BEHIND_PROG.search(status) and not AHEAD_PROG.search(status):
-        return 1
-    return 0
-
-DIVERGED = [AHEAD, BEHIND]
-DIVERGED_PROGS = [re.compile(pattern) for pattern in DIVERGED]
-
-def diverged(status):
-    """
-    @param status: Output of "git status --short --branch"
-    @returns 1 (diverged), 0 (not conflicted), -1 (error)
-    """
-    matches = [1 for prog in DIVERGED_PROGS if prog.search(status)]
-    if len(matches) == 2: # both ahead and behind
-        return 1
-    return 0
-
-"""
-IMPORTANT:
-Indicators for CONFLICTED,PARTIAL_RESOLVED,RESOLVED
-are found AFTER the first line
-of "git status --short --branch".
-
-CONFLICTED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-UU changelog
-UU collection.json
-
-PARTIAL_RESOLVED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-M  changelog
-UU collection.json
-
-RESOLVED
-$ git status --short --branch
-## master...origin/master [ahead 1, behind 2]
-M  changelog
-M  collection.json
-"""
-
-CONFLICTED_PROG = re.compile("(UU )")
-
-def conflicted(status):
-    """Indicates whether repo has a merge conflict.
-    
-    NOTE: Use list_conflicted if you have a repo object.
-    @param status: Output of "git status --short --branch"
-    @returns 1 (conflicted), 0 (not conflicted), -1 (error)
-    """
-    matches = [1 for line in status if CONFLICTED_PROG.match(line)]
-    if matches:
-        return 1
-    return 0
-
-
-# backup/sync -----------------------------------------------------
+# git inventory --------------------------------------------------------
 
 def repos(path):
     """Lists all the repositories in the path directory.
@@ -910,8 +580,6 @@ def local_exists(path):
 def is_clone(path1, path2, n=5):
     """Indicates whether two repos at the specified paths are clones of each other.
     
-    TODO pass repo object instead of path
-    
     Compares the first N hashes
     TODO What if repo has less than N commits?
     
@@ -940,10 +608,8 @@ def is_clone(path1, path2, n=5):
                 return 0
     return -1
 
-def remotes(path, paths=None, clone_log_n=1):
+def remotes(repo, paths=None, clone_log_n=1):
     """Lists remotes for the repository at path.
-    
-    TODO pass repo object instead of path
     
     For each remote lists info you'd find in REPO/.git/config plus a bit more:
     - name
@@ -968,44 +634,268 @@ def remotes(path, paths=None, clone_log_n=1):
     
     >>> import git
     >>> repo = git.Repo(path)
-    >>> repo.remotes
+    >>> remotes(repo)
     [<git.Remote "origin">, <git.Remote "serenity">, <git.Remote "wd5000bmv-2">, <git.Remote "memex">, <git.Remote "seagate596-2010">]
     >>> cr = repo.config_reader()
     >>> cr.items('remote "serenity"')
 [('url', 'gjost@jostwebwerks.com:~/git/music.git'), ('fetch', '+refs/heads/*:refs/remotes/serenity/*'), ('annex-uuid', 'e7e4c020-9335-11
 e2-8184-835f755b29c5')]
+    
+    @param repo: A GitPython Repo object
+    @param paths: 
+    @param clone_log_n: 
+    @returns: list of remotes
     """
     remotes = []
-    repo = git.Repo(path)
     for remote in repo.remotes:
         r = {'name':remote.name}
         for key,val in repo.config_reader().items('remote "%s"' % remote.name):
             r[key] = val
         r['local'] = is_local(r.get('url', None))
         r['local_exists'] = local_exists(r.get('url', None))
-        r['clone'] = is_clone(path, r['url'], clone_log_n)
+        r['clone'] = is_clone(repo.working_dir, r['url'], clone_log_n)
         remotes.append(r)
     return remotes
 
-def repos_remotes(path):
+def repos_remotes(repo):
     """Gets list of remotes for each repo in path.
     
-    TODO pass repo object instead of path
-    
+    @param repo: A GitPython Repo object
     @returns list of dicts {'path':..., 'remotes':[...]}
     """
-    return [{'path':p, 'remotes':remotes(p),} for p in repos(path)]
+    return [{'path':p, 'remotes':remotes(p),} for p in repos(repo.working_dir)]
 
-def annex_file_targets( repo_dir, relative=False ):
+
+# annex ----------------------------------------------------------------
+
+def annex_set_configs(repo, user_name=None, user_mail=None):
+    # earlier versions of git-annex have problems with ssh caching on NTFS
+    repo.git.config('annex.sshcaching', 'false')
+    return repo
+
+def annex_parse_version(text):
+    """Takes output of "git annex version" and returns dict
+    
+    ANNEX_3_VERSION
+    git-annex version: 3.20120629
+    local repository version: 3
+    default repository version: 3
+    supported repository versions: 3
+    upgrade supported from repository versions: 0 1 2
+     
+    ANNEX_5_VERSION
+    git-annex version: 5.20141024~bpo70+1
+    build flags: Assistant Webapp Pairing S3 Inotify XMPP Feeds Quvi ...
+    key/value backends: SHA256E SHA1E SHA512E SHA224E SHA384E SHA256 ...
+    remote types: git gcrypt S3 bup directory rsync web tahoe glacier...
+    local repository version: 5
+    supported repository version: 5
+    upgrade supported from repository versions: 0 1 2 4
+    
+    @param text: str
+    @returns: dict
+    """
+    lines = text.strip().split('\n')
+    data = {
+        line.split(': ')[0]: line.split(': ')[1]
+        for line in lines
+    }
+    UPDATED_FIELDNAMES = [
+        ('supported repository versions', 'supported repository version'),
+    ]
+    for old,new in UPDATED_FIELDNAMES:
+        if old in data.iterkeys():
+            data[new] = data.pop(old)
+    # add major version
+    data['major version'] = data['git-annex version'].split('.')[0]
+    return data
+
+def annex_version(repo):
+    """Returns git-annex version; includes repository version info.
+    
+    If repo_path is specified, returns version of local repo's annex.
+    example:
+    'git version 1.7.10.4; git-annex version: 3.20120629; local repository version: 3; ' \
+    'default repository version: 3; supported repository versions: 3; ' \
+    'upgrade supported from repository versions: 0 1 2'
+    
+    @param repo: A GitPython Repo object.
+    @returns string
+    """
+    return repo.git.annex('version')
+
+def _annex_parse_description(annex_status, uuid):
+    for key in annex_status.iterkeys():
+        if 'repositories' in key:
+            for r in annex_status[key]:
+                if (r['uuid'] == uuid) and r['here']:
+                    return r['description']
+    return None
+    
+def annex_get_description(repo, annex_status):
+    """Get description of the current repo, if any.
+    
+    @param repo: A GitPython Repo object
+    @param annex_status: dict Output of dvcs.annex_status.
+    @return String description or None
+    """
+    return _annex_parse_description(annex_status, repo.git.config('annex.uuid'))
+
+def _annex_make_description( drive_label=None, hostname=None, partner_host=None, mail=None ):
+    description = None
+    if drive_label:
+        description = drive_label
+    elif hostname and (hostname == partner_host) and mail:
+        description = ':'.join([ hostname, mail.split('@')[1] ])
+    elif hostname and (hostname != partner_host):
+        description = hostname
+    return description
+
+def annex_set_description( repo, annex_status, description=None, drive_label=None, hostname=None, force=False ):
+    """Sets repo's git annex description if not already set.
+
+    NOTE: This needs to run git annex status, which takes some time.
+     
+    New repo: git annex init "REPONAME"
+    Existing repo: git annex describe here "REPONAME"
+     
+    Descriptions should be chosen/generated base on the following heuristic:
+    - Input to description argument of function.
+    - If on USB device, the drive label of the device.
+    - Hostname of machine, unless it is pnr (used by partner VMs).
+    - If hostname is pnr, pnr:DOMAIN where DOMAIN is the domain portion of the git config user.email
+    
+    @param repo: A GitPython Repo object
+    @param annex_status: dict Output of dvcs.annex_status.
+    @param description: Manually supply a new description.
+    @param drive_label: str Required if description is blank!
+    @param hostname: str Required if description is blank!
+    @param force: Boolean Apply a new description even if one already exists.
+    @return String description if new one was created/applied or None
+    """
+    desc = None
+    PARTNER_HOSTNAME = 'pnr'
+    annex_description = annex_get_description(repo, annex_status)
+    # keep existing description unless forced
+    if (not annex_description) or (force == True):
+        if description:
+            desc = description
+        else:
+            # gather information
+            user_mail = repo.git.config('user.email')
+            # generate description
+            desc = _annex_make_description(
+                drive_label=drive_label,
+                hostname=hostname, partner_host=PARTNER_HOSTNAME,
+                mail=user_mail)
+        if desc:
+            # apply description
+            logging.debug('git annex describe here %s' % desc)
+            repo.git.annex('describe', 'here', desc)
+    return desc
+
+def annex_status(repo):
+    """Retrieve git annex status on repository.
+    
+    @param repo: A GitPython Repo object
+    @return: dict
+    """
+    version_data = annex_parse_version(annex_version(repo))
+    text = None
+    if version_data['major version'] == '3':
+        text = repo.git.annex('status', '--json')
+    elif version_data['major version'] == '5':
+        text = repo.git.annex('info', '--json')
+    if text:
+        data = json.loads(text)
+        data['git-annex version'] = version_data['git-annex version']
+        return data
+    return None
+
+def _annex_parse_whereis( annex_whereis_stdout ):
+    lines = annex_whereis_stdout.strip().split('\n')
+    # chop off anything before whereis line
+    startline = -1
+    for n,line in enumerate(lines):
+        if 'whereis' in line:
+            startline = n
+    lines = lines[startline:]
+    remotes = []
+    if ('whereis' in lines[0]) and ('ok' in lines[-1]):
+        num_copies = int(lines[0].split(' ')[2].replace('(',''))
+        logging.debug('    {} copies'.format(num_copies))
+        remotes = [line.split('--')[1].strip() for line in lines[1:-1]]
+    return remotes
+
+def annex_whereis_file(repo, file_path_rel):
+    """Show remotes that the file appears in
+    
+    $ git annex whereis files/ddr-testing-201303051120-1/files/20121205.jpg
+    whereis files/ddr-testing-201303051120-1/files/20121205.jpg (2 copies)
+            0bbf5638-85c9-11e2-aefc-3f0e9a230915 -- workbench
+            c1b41078-85c9-11e2-bad2-17e365f14d89 -- here
+    ok
+    
+    @param repo: A GitPython Repo object
+    @param collection_uid: A valid DDR collection UID
+    @return: List of names of remote repositories.
+    """
+    stdout = repo.git.annex('whereis', file_path_rel)
+    print('----------')
+    print(stdout)
+    print('----------')
+    return _annex_parse_whereis(stdout)
+
+def annex_trim(repo, confirmed=False):
+    """Drop full-size binaries from a repository.
+    
+    @param repo: A GitPython Repo object
+    @param confirmed: boolean Yes I really want to do this
+    @returns: {keep,drop,dropped} lists of file paths
+    """
+    logging.debug('annex_trim(%s, confirmed=%s)' % (repo, confirmed))
+    # Keep access files, HTML files, and PDFs.
+    KEEP_SUFFIXES = ['-a.jpg', '.htm', '.html', '.pdf']
+    annex_file_paths = repo.git.annex('find').split('\n')
+    keep = []
+    drop = []
+    for path_rel in annex_file_paths:
+        if [True for suffix in KEEP_SUFFIXES if suffix.lower() in path_rel]:
+            keep.append(path_rel)
+        else:
+            drop.append(path_rel)
+    dropped = []
+    for path_rel in drop:
+        logging.debug(path_rel)
+        if confirmed:
+            p = drop.remove(path_rel)
+            repo.git.annex('drop', '--force', p)
+            dropped.append(p)
+    return {
+        'keep':keep,
+        'drop':drop,
+        'dropped':dropped,
+    }
+
+def annex_stage(repo, annex_files=[]):
+    """Stage some files with git-annex.
+    
+    @param repo: A GitPython repository
+    @param annex_files: list of annex file paths, relative to repo base
+    """
+    for path in annex_files:
+        repo.git.annex('add', path)
+
+def annex_file_targets(repo, relative=False ):
     """Lists annex file symlinks and their targets in the annex objects dir
     
-    @param repo_dir: Absolute path
+    @param repo: A GitPython Repo object
     @param relative: Report paths relative to repo_dir
     @returns: list of (symlink,target)
     """
     paths = []
     excludes = ['.git', 'tmp', '*~']
-    basedir = os.path.realpath(repo_dir)
+    basedir = os.path.realpath(repo.working_dir)
     for root, dirs, files in os.walk(basedir):
         # don't go down into .git directory
         if '.git' in dirs:
@@ -1021,3 +911,147 @@ def annex_file_targets( repo_dir, relative=False ):
                     target = os.path.realpath(path)
                     paths.append((path, target))
     return paths
+
+
+# cgit -----------------------------------------------------------------
+
+def cgit_collection_title(repo, session, timeout=5):
+    """Gets collection title from CGit
+    
+    Requests plain blob of collection.json, reads 'title' field.
+    PROBLEM: requires knowledge of repository internals.
+    
+    @param repo: str Repository name
+    @param session: requests.Session
+    @param timeout: int
+    @returns: str Repository collection title
+    """
+    title = '---'
+    URL_TEMPLATE = '%s/cgit.cgi/%s/plain/collection.json'
+    url = URL_TEMPLATE % (config.CGIT_URL, repo)
+    logging.debug(url)
+    try:
+        r = session.get(url, timeout=timeout)
+        logging.debug(str(r.status_code))
+    except requests.ConnectionError:
+        r = None
+        title = '[ConnectionError]'
+    data = None
+    if r and r.status_code == 200:
+        try:
+            data = json.loads(r.text)
+        except ValueError:
+            title = '[no data]'
+    if data:
+        for field in data:
+            if field and field.get('title', None) and field['title']:
+                title = field['title']
+    logging.debug('%s: "%s"' % (repo,title))
+    return title
+
+
+# gitolite -------------------------------------------------------------
+
+def _gitolite_info_authorized(gitolite_out):
+    """Parse Gitolite server response, indicate whether user is authorized
+    
+    http://gitolite.com/gitolite/user.html#info
+    "The only command that is always available to every user is the info command
+    (run ssh git@host info -h for help), which tells you what version of gitolite
+    and git are on the server, and what repositories you have access to. The list
+    of repos is very useful if you have doubts about the spelling of some new repo
+    that you know was setup."
+    Sample output:
+        hello gjost, this is git@mits running gitolite3 v3.2-19-gb9bbb78 on git 1.7.2.5
+        
+         R W C  ddr-densho-[0-9]+
+         R W C  ddr-densho-[0-9]+-[0-9]+
+         R W C  ddr-dev-[0-9]+
+        ...
+    
+    @param gitolite_out: raw Gitolite output from SSH
+    @returns: boolean
+    """
+    lines = gitolite_out.split('\n')
+    if lines and len(lines) and ('this is git' in lines[0]) and ('running gitolite' in lines[0]):
+        logging.debug('        OK ')
+        return True
+    logging.debug('        NO CONNECTION')
+    return False
+
+def gitolite_connect_ok(server):
+    """See if we can connect to gitolite server.
+    
+    We should do some lightweight operation, just enough to make sure we can connect.
+    But we can't ping.
+        
+    @param server: USERNAME@DOMAIN
+    @return: True or False
+    """
+    logging.debug('    DDR.commands.gitolite_connect_ok()')
+    return _gitolite_info_authorized(gitolite_info(server))
+
+def gitolite_orgs( gitolite_out ):
+    """Returns list of orgs to which user has access
+    
+    @param gitolite_out: raw output of gitolite_info()
+    @returns: list of organization IDs
+    """
+    repos_orgs = []
+    for line in gitolite_out.split('\n'):
+        if 'R W C' in line:
+            parts = line.replace('R W C', '').strip().split('-')
+            repo_org = '-'.join([parts[0], parts[1]])
+            if repo_org not in repos_orgs:
+                repos_orgs.append(repo_org)
+    return repos_orgs
+
+def gitolite_repos( gitolite_out ):
+    """Returns list of repos to which user has access
+    
+    @param gitolite_out: raw output of gitolite_info()
+    @returns: list of repo names
+    """
+    repos = []
+    for line in gitolite_out.split('\n'):
+        if ('R W' in line) and not ('R W C' in line):
+            repo = line.strip().split('\t')[1]
+            if repo not in repos:
+                repos.append(repo)
+    return repos
+
+def gitolite_info(server, timeout=60):
+    """
+    @param server: USERNAME@DOMAIN
+    @param timeout: int Maximum seconds to wait for reponse
+    @return: raw Gitolite output from SSH
+    """
+    cmd = 'ssh {} info'.format(server)
+    logging.debug('        {}'.format(cmd))
+    r = envoy.run(cmd, timeout=int(timeout))
+    logging.debug('        {}'.format(r.status_code))
+    status = r.status_code
+    if r.status_code != 0:
+        raise Exception('Bad reply from Gitolite server: %s' % r.std_err)
+    return r.std_out
+
+def gitolite_collection_titles(repos, username=None, password=None, timeout=5):
+    """Returns IDs:titles dict for all collections to which user has access.
+    
+    >>> gitolite_out = dvcs.gitolite_info(SERVER)
+    >>> repos = dvcs.gitolite_repos(gitolite_out)
+    >>> collections = dvcs.cgit_collection_titles(repos, USERNAME, PASSWORD)
+    
+    TODO Page through the Cgit index pages (fewer HTTP requests)?
+    TODO Set REPO/.git/description to collection title, read via Gitolite?
+    
+    @param repos: list of repo names
+    @param username: str [optional] Cgit server HTTP Auth username
+    @param password: str [optional] Cgit server HTTP Auth password
+    @param timeout: int Timeout for getting individual collection info
+    @returns: list of (repo,title) tuples
+    """
+    session = requests.Session()
+    session.auth = (username,password)
+    collections = [(repo,cgit_collection_title(repo,session,timeout)) for repo in repos]
+    return collections

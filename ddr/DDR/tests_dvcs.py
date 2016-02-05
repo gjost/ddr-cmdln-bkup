@@ -29,10 +29,12 @@ def cleanup_repo(path):
     shutil.rmtree(path, ignore_errors=True)
 
 
-# TODO set_git_configs
+# TODO git_set_configs
+# TODO annex_set_configs
 
 def test_repository():
-    # set_git_configs
+    # git_set_configs
+    # annex_set_configs
     # repository
     path = '/tmp/test_dvcs.repository-%s' % datetime.now().strftime('%Y%m%d-%H%M%S')
     user = 'gjost'
@@ -46,8 +48,27 @@ def test_repository():
     assert ('sshcaching','false') in reader.items('annex')
 
 def test_git_version():
-    out = dvcs.git_version()
+    basedir = '/tmp/test-ddr-dvcs'
+    path = os.path.join(basedir, 'testgitversion')
+    # rm existing
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    # set up repos
+    repo = make_repo(path, ['testing'])
+    # test at repo root
+    out = dvcs.git_version(repo)
     assert 'git version' in out
+
+def test_annex_version():
+    basedir = '/tmp/test-ddr-dvcs'
+    path = os.path.join(basedir, 'testgitversion')
+    # rm existing
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    # set up repos
+    repo = make_repo(path, ['testing'])
+    # test at repo root
+    out = dvcs.annex_version(repo)
     assert 'git-annex version' in out
     assert 'local repository version' in out
 
@@ -89,80 +110,73 @@ def test_compose_commit_message():
     msg = dvcs.compose_commit_message(title, body, agent)
     assert msg == expected
 
-SAMPLE_ANNEX_STATUS = """
-supported backends: SHA256 SHA1 SHA512 SHA224 SHA384 SHA256E SHA1E SHA51
-supported remote types: git S3 bup directory rsync web hook
-trusted repositories: FATAL: ddr-densho-10.git ddr DENIED
+SAMPLE_ANNEX_STATUS = {
+    "supported backends": "SHA256 SHA1 SHA512 SHA224 SHA384 SHA256E SHA1E SHA51",
+    "supported remote types": "git S3 bup directory rsync web hook",
+    "trusted repositories": [],
+    "semitrusted repositories": [
+        {"here":False, "uuid":"00000000-0000-0000-0000-000000000001", "description":"web"},
+        {"here":True,  "uuid":"a39a106a-e5c7-11e3-8996-bfa1bcf63a02", "description":"ddrworkstation"},
+        {"here":False, "uuid":"a587a176-3dca-11e3-b491-9baacb8840e9", "description":""},
+        {"here":False, "uuid":"a5f4d94d-2073-4b59-8c98-9372012a6cbb", "description":"qnfs"},
+        {"here":False, "uuid":"c52c412e-467d-11e3-b428-7fb930a6e21c", "description":""},
+    ],
+    "untrusted repositories": [],
+    "dead repositories": [],
+    "available local disk space": "128 gigabytes (+1 megabyte reserved)",
+    "local annex keys": "0",
+    "local annex size": "0 bytes",
+    "known annex keys": "60",
+    "known annex size": "212 megabytes",
+    "bloom filter size": "16 mebibytes (0% full)",
+}
 
-Command ssh ["git@mits.densho.org","git-annex-shell 'configlist' '/~/ddr
-FATAL: bad git-annex-shell command: git-annex-shell 'configlist' '/~/' a
-
-Command ssh ["git@mits.densho.org","git-annex-shell 'configlist' '/~/'"]
-0
-semitrusted repositories: 5
-	00000000-0000-0000-0000-000000000001 -- web
- 	a39a106a-e5c7-11e3-8996-bfa1bcf63a02 -- here (ddrworkstation)
- 	a587a176-3dca-11e3-b491-9baacb8840e9
- 	a5f4d94d-2073-4b59-8c98-9372012a6cbb -- qnfs
- 	c52c412e-467d-11e3-b428-7fb930a6e21c
-untrusted repositories: 0
-dead repositories: 0
-available local disk space: 128 gigabytes (+1 megabyte reserved)
-local annex keys: 0
-local annex size: 0 bytes
-known annex keys: 60
-known annex size: 212 megabytes
-bloom filter size: 16 mebibytes (0% full)
-backend usage: 
-	SHA256E: 60
-"""
-
-def test_parse_annex_description():
+def test_annex_parse_description():
     uuid0 = 'a5f4d94d-2073-4b59-8c98-9372012a6cbb'
     uuid1 = 'a39a106a-e5c7-11e3-8996-bfa1bcf63a02'
-    assert dvcs._parse_annex_description(SAMPLE_ANNEX_STATUS, uuid0) == None
-    assert dvcs._parse_annex_description(SAMPLE_ANNEX_STATUS, uuid1) == 'ddrworkstation'
+    assert dvcs._annex_parse_description(SAMPLE_ANNEX_STATUS, uuid0) == None
+    assert dvcs._annex_parse_description(SAMPLE_ANNEX_STATUS, uuid1) == 'ddrworkstation'
 
-# TODO get_annex_description
+# TODO annex_get_description
 
-def test_set_annex_description():
+def test_annex_set_description():
     dl = 'WD201405'
     hn = 'ddrworkstation'
     ph = 'testing'
     ml = 'gjost@densho.org'
     # drive label
-    assert dvcs.set_annex_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
+    assert dvcs.annex_set_description(drive_label=dl, hostname=hn, partner_host=ph, mail=ml) == dl
     # hostname:domainname
     expected1 = 'ddrworkstation:densho.org'
-    assert dvcs.set_annex_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
+    assert dvcs.annex_set_description(drive_label=None, hostname=hn, partner_host=hn, mail=ml) == expected1
     # hostname
-    assert dvcs.set_annex_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
+    assert dvcs.annex_set_description(drive_label=None, hostname=hn, partner_host=ph, mail=ml) == hn
     # TODO Test doesn't cover all possibile combinations!!!
 
-def test_set_annex_description():
+def test_annex_set_description():
     path = '/tmp/test-ddr-dvcs/test-repo'
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out0 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, description='testing')
+    out0 = dvcs.annex_set_description(repo, annex_status=SAMPLE_ANNEX_STATUS, description='testing')
     expected0 = 'testing'
     cleanup_repo(path)
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out1 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, drive_label='usb2015')
+    out1 = dvcs.annex_set_description(repo, annex_status=SAMPLE_ANNEX_STATUS, drive_label='usb2015')
     expected1 = 'usb2015'
     cleanup_repo(path)
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out2 = dvcs.set_annex_description(repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='machine',)
+    out2 = dvcs.annex_set_description(repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='machine',)
     expected2 = 'machine'
     cleanup_repo(path)
     
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    out3 = dvcs.set_annex_description(
+    out3 = dvcs.annex_set_description(
         repo, annex_status=SAMPLE_ANNEX_STATUS, hostname='pnr',
     )
     expected3 = 'pnr:densho.org'
@@ -183,8 +197,8 @@ STATUS_SHORT = """## master"""
 def test_repo_status():
     path = '/tmp/test-ddr-dvcs/test-repo'
     repo = make_repo(path, ['testing'])
-    out0 = dvcs.repo_status(path, short=False)
-    out1 = dvcs.repo_status(path, short=True)
+    out0 = dvcs.repo_status(repo, short=False)
+    out1 = dvcs.repo_status(repo, short=True)
     cleanup_repo(path)
     assert out0 == STATUS_LONG
     assert out1 == STATUS_SHORT
@@ -211,12 +225,15 @@ def test_annex_status():
     path = '/tmp/test-ddr-dvcs/test-repo'
     repo = make_repo(path, ['testing'])
     annex_init(repo)
-    status = dvcs.annex_status(path)
+    status = dvcs.annex_status(repo)
     cleanup_repo(path)
-    assert 'trusted repositories' in status
-    assert 'semitrusted repositories' in status
-    assert ' -- here' in status
-    assert 'local annex keys: ' in status
+    found = False
+    for key in status.iterkeys():
+        if 'repositories' in key:
+            for r in status[key]:
+                if r['here']:
+                    found = True
+    assert found
 
 GITANNEX_WHEREIS = """FATAL: ddr-testing-141.git ddr DENIED
 
@@ -236,8 +253,8 @@ ok
 """
 GITANNEX_WHEREIS_EXPECTED = ['WD5000BMV-2', 'pnr_tmp-ddr']
 
-def test_parse_annex_whereis():
-    assert dvcs._parse_annex_whereis(GITANNEX_WHEREIS) == GITANNEX_WHEREIS_EXPECTED
+def test_annex_parse_whereis():
+    assert dvcs._annex_parse_whereis(GITANNEX_WHEREIS) == GITANNEX_WHEREIS_EXPECTED
 
 # TODO annex_whereis_file
 
@@ -404,6 +421,39 @@ def test_automerge_conflicted():
 # TODO diverge_commit
 
 
+
+GIT_STATUS_MESSAGES = {
+    'synced0': '## master',
+    'synced1': '## master...origin/master',
+    'ahead8':  '## master...origin/master [ahead 8]',
+    'behind2': '## master...origin/master [behind 2]',
+    'ahead8mod1': '## master...origin/master [ahead 8]\nM collection.json',
+    'ahead8mod2': '## master...origin/master [ahead 8]\nM collection.json\ncontrol',
+    'behind2mod1': '## master...origin/master [behind 2]\nM files/whatever',
+    'ahead4behind2': '## master...origin/master [ahead 4, behind 2]',
+    'ahead1behind2conf2': '## master...origin/master [ahead 1, behind 2]\nUU changelog\nUU collection.json',
+    'ahead1behind2mod1conf1': '## master...origin/master [ahead 1, behind 2]\nM  changelog\nUU collection.json',
+    'ahead1behind2mod2': '## master...origin/master [ahead 1, behind 2]\nM  changelog\nM  collection.json',
+}
+
+def test_repo_states():
+    results = {
+        key: dvcs.repo_states(status)
+        for key,status in GIT_STATUS_MESSAGES.iteritems()
+    }
+    assert results['synced0'] == ['synced']
+    assert results['synced1'] == ['synced']
+    assert results['ahead8'] == ['ahead']
+    assert results['behind2'] == ['behind']
+    assert results['ahead8mod1'] == ['ahead', 'modified']
+    assert results['ahead8mod2'] == ['ahead', 'modified']
+    assert results['behind2mod1'] == ['behind', 'modified']
+    assert results['ahead4behind2'] == ['ahead', 'behind']
+    assert results['ahead1behind2conf2'] == ['ahead', 'behind', 'conflicted']
+    assert results['ahead1behind2mod1conf1'] == ['ahead', 'behind', 'modified', 'conflicted']
+    assert results['ahead1behind2mod2'] == ['ahead', 'behind', 'modified']
+
+
 GIT_STATUS_SYNCED = [
     """## master""",
     """## master\n?? .gitstatus""",
@@ -421,45 +471,45 @@ GIT_STATUS_DIVERGED = [
 ]
 
 def test_synced():
-    for status in GIT_STATUS_SYNCED: assert dvcs.synced(status) == 1     # <<<
-    for status in GIT_STATUS_AHEAD: assert dvcs.synced(status) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.synced(status) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.synced(status) == 0
+    for status in GIT_STATUS_SYNCED:   assert     dvcs.synced(status) # <<<
+    for status in GIT_STATUS_AHEAD:    assert not dvcs.synced(status)
+    for status in GIT_STATUS_BEHIND:   assert not dvcs.synced(status)
+    for status in GIT_STATUS_DIVERGED: assert not dvcs.synced(status)
 
 def test_ahead():
-    for status in GIT_STATUS_SYNCED: assert dvcs.ahead(status) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.ahead(status) == 1       # <<<
-    for status in GIT_STATUS_BEHIND: assert dvcs.ahead(status) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.ahead(status) == 0
+    for status in GIT_STATUS_SYNCED:   assert not dvcs.ahead(status)
+    for status in GIT_STATUS_AHEAD:    assert     dvcs.ahead(status) # <<<
+    for status in GIT_STATUS_BEHIND:   assert not dvcs.ahead(status)
+    for status in GIT_STATUS_DIVERGED: assert not dvcs.ahead(status)
 
 def test_behind():
-    for status in GIT_STATUS_SYNCED: assert dvcs.behind(status) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.behind(status) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.behind(status) == 1     # <<<
-    for status in GIT_STATUS_DIVERGED: assert dvcs.behind(status) == 0
+    for status in GIT_STATUS_SYNCED:   assert not dvcs.behind(status)
+    for status in GIT_STATUS_AHEAD:    assert not dvcs.behind(status)
+    for status in GIT_STATUS_BEHIND:   assert     dvcs.behind(status) # <<<
+    for status in GIT_STATUS_DIVERGED: assert not dvcs.behind(status)
 
 def test_diverged():
-    for status in GIT_STATUS_SYNCED: assert dvcs.diverged(status) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.diverged(status) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.diverged(status) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.diverged(status) == 1 # <<<
+    for status in GIT_STATUS_SYNCED:   assert not dvcs.diverged(status)
+    for status in GIT_STATUS_AHEAD:    assert not dvcs.diverged(status)
+    for status in GIT_STATUS_BEHIND:   assert not dvcs.diverged(status)
+    for status in GIT_STATUS_DIVERGED: assert     dvcs.diverged(status) # <<<
 
 GIT_STATUS_CONFLICTED = [
-    ['## master...origin/master [ahead 1, behind 2]','UU changelog','UU collection.json'],
+    '## master...origin/master [ahead 1, behind 2]\nUU changelog\nUU collection.json',
 ]
 GIT_STATUS_PARTIAL_RESOLVED = [
-    ['## master...origin/master [ahead 1, behind 2]', 'M  changelog', 'UU collection.json'],
+    '## master...origin/master [ahead 1, behind 2]\nM  changelog\nUU collection.json',
 ]
 GIT_STATUS_RESOLVED = [
-    ['## master...origin/master [ahead 1, behind 2]', 'M  changelog', 'M  collection.json'],
+    '## master...origin/master [ahead 1, behind 2]\nM  changelog\nM  collection.json',
 ]
 
 def test_conflicted():
-    for status in GIT_STATUS_SYNCED: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_AHEAD: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_BEHIND: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_DIVERGED: assert dvcs.conflicted([status]) == 0
-    for status in GIT_STATUS_CONFLICTED: assert dvcs.conflicted(status) == 1 # <<<
+    for status in GIT_STATUS_SYNCED:     assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_AHEAD:      assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_BEHIND:     assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_DIVERGED:   assert not dvcs.conflicted(status)
+    for status in GIT_STATUS_CONFLICTED: assert     dvcs.conflicted(status) # <<<
 
 # TODO test PARTIAL_RESOLVED
 # TODO test RESOLVED
@@ -526,8 +576,8 @@ def test_remotes():
         }
     ]
     # test
-    assert dvcs.remotes(path_orig) == expected1
-    assert dvcs.remotes(path_clon) == expected2
+    assert dvcs.remotes(repo1) == expected1
+    assert dvcs.remotes(clone) == expected2
 
 # TODO repos_remotes
 
@@ -542,8 +592,8 @@ def test_annex_file_targets():
             f.write('fsaf;laksjf;lsakjf;aslkfj;aslkfj;salkjf;sadlkfj')
         repo.git.annex('add', filename)
     repo.index.commit('added files')
-    targets_abs = dvcs.annex_file_targets(path, relative=False)
-    targets_rel = dvcs.annex_file_targets(path, relative=True)
+    targets_abs = dvcs.annex_file_targets(repo, relative=False)
+    targets_rel = dvcs.annex_file_targets(repo, relative=True)
     expected_abs = [
         (
             '/tmp/test-ddr-dvcs/test-repo/test1',
