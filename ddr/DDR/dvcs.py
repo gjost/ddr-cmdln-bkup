@@ -561,15 +561,20 @@ $ git status --short --branch
 ## master...origin/master [ahead 1, behind 2]
 """
 
+SYNCED = [
+    '## master',
+    '## master...origin/master',
+]
+
 def synced(status):
     """Indicates whether repo is synced with remote repo.
     
     @param status: Output of "git status --short --branch"
     @returns 1 (behind), 0 (not behind), -1 (error)
     """
-    for line in status.split('\n'):
-        if line == '## master':
-            return 1
+    lines = status.split('\n')
+    if lines[0] in SYNCED:
+        return 1
     return 0
 
 AHEAD = "(ahead [0-9]+)"
