@@ -60,6 +60,7 @@ def export(json_paths, model, csv_path, required_only=False):
             i = identifier.Identifier(json_path)
             logging.info('%s/%s - %s' % (n+1, json_paths_len, i.id))
             obj = object_class.from_identifier(i)
-            writer.writerow(obj.dump_csv())
+            if obj:
+                writer.writerow(obj.dump_csv())
     
     return csv_path
