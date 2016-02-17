@@ -88,15 +88,19 @@ def make_csv_path(destdir, collection_path, model):
     )
     return os.path.join(destdir, filename)
 
-def filter_paths(paths, pattern):
+def filter_paths(paths, pattern, exclude=False):
     """Get metadata paths containing a regex.
     
     @param paths: list
     @param pattern: str A regular expression
+    @param exclude: boolean If true, exclude paths matching pattern.
     @returns: list of absolute paths
     """
     prog = re.compile(pattern)
-    return [path for path in paths if prog.search(path)]
+    if exclude:
+        return [path for path in paths if not prog.search(path)]
+    else:
+        return [path for path in paths if prog.search(path)]
 
 def all_paths(collection_path, model):
     """Get all .json paths for specified model.
@@ -115,8 +119,9 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-b', '--blank', action='store_true', help='Blank CSV, just headers (all fields).')
     parser.add_argument('-B', '--blankr', action='store_true', help='Blank CSV, just headers (required fields only).')
-    parser.add_argument('-i', '--ids', help='ID(s) (see help for formatting).')
     parser.add_argument('-I', '--idfile', help='File containing list of IDs, one per line.')
+    parser.add_argument('-i', '--include', help='ID(s) to include (see help for formatting).')
+    parser.add_argument('-e', '--exclude', help='ID(s) to exclude (see help for formatting).')
     parser.add_argument('model', help="Model: 'entity' or 'file'.")
     parser.add_argument('collection', help='Absolute path to Collection.')
     parser.add_argument('destdir', help='Absolute path to destination directory.')
@@ -136,20 +141,31 @@ def main():
     
     start = datetime.now()
     
-    logging.info('Gathering entity paths')
     paths = []
     if args.blank or args.blankr:
-        pass
-    elif args.idfile:  # file containing list of IDs
+        logging.info('Blank: no paths')
+    elif args.idfile:
+        logging.info('Looking for paths in %s' % args.idfile)
         paths = make_paths(args.collection, read_id_file(args.idfile))
-    elif args.ids:  # ID pattern
-        paths = filter_paths(all_paths(args.collection, args.model), args.ids)
-    else:  # just get everything
+    elif args.include:
+        logging.info('Including paths: "%s"' % args.include)
+        paths = filter_paths(all_paths(args.collection, args.model), args.include)
+    else:
+        logging.info('All paths in %s' % args.collection)
         paths = all_paths(args.collection, args.model)
+    logging.info('found %s paths' % len(paths))
+    
+    if args.exclude:
+        logging.info('Excluding paths: "%s"' % args.exclude)
+        before = len(paths)
+        paths = filter_paths(paths, args.exclude, exclude=True)
+        num_excluded = len(paths) - before
+        logging.info('excluded %s' % abs(num_excluded))
+    
     if not paths and not (args.blank or args.blankr):
         raise Exception('ERROR: Could not find metadata paths.')
-    logging.info('%s matching paths' % len(paths))
-    
+    logging.info('Exporting %s paths' % len(paths))
+
     batch_export.export(paths, args.model, csv, required_only=args.blankr)
     
     finish = datetime.now()
