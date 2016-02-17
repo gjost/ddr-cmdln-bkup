@@ -127,6 +127,7 @@ def main():
     parser.add_argument('-I', '--idfile', help='File containing list of IDs, one per line.')
     parser.add_argument('-i', '--include', help='ID(s) to include (see help for formatting).')
     parser.add_argument('-e', '--exclude', help='ID(s) to exclude (see help for formatting).')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Print paths but don't export anything.")
     parser.add_argument('model', help="Model: 'entity' or 'file'.")
     parser.add_argument('collection', help='Absolute path to Collection.')
     parser.add_argument('destination', help='Absolute path to destination directory or file.')
@@ -174,11 +175,19 @@ def main():
         raise Exception('ERROR: Could not find metadata paths.')
     logging.info('Exporting %s paths' % len(paths))
 
-    batch_export.export(paths, args.model, filename, required_only=args.blankr)
+    if args.dryrun:
+        logging.info("Dry run -- no output!")
+        for n,path in enumerate(paths):
+            logging.info('%s/%s %s' % (n+1, len(paths), path))
+    else:
+        batch_export.export(paths, args.model, filename, required_only=args.blankr)
     
     finish = datetime.now()
     elapsed = finish - start
-    logging.info('DONE - (%s elapsed) - %s' % (elapsed, csv))
+    if args.dryrun:
+        logging.info('DONE - (%s elapsed) (DRY RUN)' % (elapsed))
+    else:
+        logging.info('DONE - (%s elapsed) - %s' % (elapsed, filename))
     
     
 
