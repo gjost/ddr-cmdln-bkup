@@ -53,37 +53,6 @@ logging.basicConfig(
 )
 
 
-def parse_ids(text):
-    """Parses IDs arg and returns list of IDs.
-    
-    ddr-test-123-*            All entities in a collection
-    ddr-test-123-1-*          All files in an entity
-    ddr-test-123-*            All files in a collection
-    ddr-test-123-[1-5,7-8,10] Ranges of entities
-    
-    TODO Seriously? Can't we just pass in a regex?
-    
-    @param text: str
-    @returns: list
-    """
-    ids = []
-    if ('[' in text) and (']' in text):
-        f0 = text.split('[')[0]
-        fids = text.split('[')[1].split(']')[0]
-        fids1 = fids.split(',')
-        for x in fids1:
-            if '-' in x:
-                lo,hi = x.split('-')
-                for y in range(int(lo), int(hi)+1):
-                    i = f0 + str(y)
-                    ids.append(i)
-            else:
-                i = f0 + str(x)
-                ids.append(i)
-    elif '*' in text:
-        fid = text
-    return ids
-
 def read_id_file(path):
     """Read file and return list of IDs
     
