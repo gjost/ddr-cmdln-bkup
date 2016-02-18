@@ -387,6 +387,15 @@ def check(csv_path, cidentifier, vocabs_path, session):
     elif registered:
         logging.info('Already registered: %s' % registered)
     
+    # check for modified or uncommitted files in repo
+    repository = dvcs.repository(cidentifier.path_abs())
+    test_repository(repository)
+    
+    # confirm file entities not in repo
+    logging.info('Checking for existing IDs')
+    already_added = ids_in_local_repo(rowds, model, cidentifier.path_abs())
+    if already_added:
+        raise Exception('The following entities already exist: %s' % already_added)
 
 
 def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
@@ -415,17 +424,6 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     logging.info('Reading %s' % csv_path)
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
-    
-    # check for modified or uncommitted files in repo
-    repository = dvcs.repository(cidentifier.path_abs())
-    logging.debug(repository)
-    #test_repository(repository)
-    
-    # confirm file entities not in repo
-    logging.info('Checking for existing IDs')
-    already_added = ids_in_local_repo(rowds, model, cidentifier.path_abs())
-    if already_added:
-        raise Exception('The following entities already exist: %s' % already_added)
     
     logging.info('Importing - - - - - - - - - - - - - - - -')
     git_files = []
