@@ -65,7 +65,7 @@ from DDR import identifier
 from DDR import idservice
 
 VOCABS_PATH = os.path.join(config.REPO_MODELS_PATH, 'vocab')
-
+AGENT = 'ddr-import'
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -148,7 +148,9 @@ def main():
             csv_path,
             ci,
             vocabs_path,
-            args.user, args.mail, 'ddr-import', args.dryrun
+            args.user, args.mail,
+            AGENT,
+            args.dryrun
         )
     
     elif args.command == 'file':
@@ -156,7 +158,9 @@ def main():
             csv_path,
             ci,
             vocabs_path,
-            args.user, args.mail, 'ddr-import', args.dryrun
+            args.user, args.mail,
+            AGENT,
+            args.dryrun
         )
     
     elif args.command == 'register':
