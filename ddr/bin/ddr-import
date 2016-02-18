@@ -107,6 +107,7 @@ def main():
     parser.add_argument('collection', help='Absolute path to Collection.')
     parser.add_argument('-i', '--idservice', help='URL of ID service, if different from configs.')
     parser.add_argument('-N', '--nocheck', action='store_true', help='Do not run checking/validation (large collections may take time).')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Simulated run-through; don't modify files.")
     parser.add_argument('-u', '--user', help='Git user name (required if importing)')
     parser.add_argument('-m', '--mail', help='Git user e-mail address (required if importing)')
     parser.add_argument('-U', '--username', help='ID service username')
@@ -147,7 +148,7 @@ def main():
             csv_path,
             ci,
             vocabs_path,
-            args.user, args.mail, 'ddr-import'
+            args.user, args.mail, 'ddr-import', args.dryrun
         )
     
     elif args.command == 'file':
@@ -155,7 +156,7 @@ def main():
             csv_path,
             ci,
             vocabs_path,
-            args.user, args.mail, 'ddr-import'
+            args.user, args.mail, 'ddr-import', args.dryrun
         )
     
     elif args.command == 'register':

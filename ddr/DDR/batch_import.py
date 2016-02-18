@@ -388,7 +388,8 @@ def check(csv_path, cidentifier, vocabs_path, session):
         logging.info('Already registered: %s' % registered)
     
 
-def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent):
+
+def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
     """Reads a CSV file, checks for errors, and writes entity.json files
     
     IMPORTANT: No objects in CSV must exist!
@@ -403,6 +404,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     @param git_name:
     @param git_mail:
     @param agent:
+    @param dryrun: boolean
     @returns: list of updated entities
     """
     logging.info('-----------------------------------------------')
@@ -428,37 +430,46 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     logging.info('Importing - - - - - - - - - - - - - - - -')
     git_files = []
     updated = []
+    if dryrun:
+        logging.info('Dry run - no modifications')
     for n,rowd in enumerate(rowds):
         logging.info('%s/%s - %s' % (n+1, len(rowds), rowd['id']))
         
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
         entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
         populate_object(entity, module, field_names, rowd)
-        
-        # write files
-        os.makedirs(entity.path_abs)
-        logging.debug('    writing %s' % entity.json_path)
-        entity.write_json()
-        # TODO better to write to collection changelog?
-        write_entity_changelog(entity, git_name, git_mail, agent)
-        # stage
-        git_files.append(entity.json_path_rel)
-        git_files.append(entity.changelog_path_rel)
-        updated.append(entity)
-    
-    # stage modified files
-    logging.info('Staging changes to the repo')
-    for path in git_files:
-        repository.git.add(path)
-    for path in util.natural_sort(dvcs.list_staged(repository)):
-        if path in git_files:
-            logging.debug('| %s' % path)
+
+        if dryrun:
+            pass
         else:
-            logging.debug('+ %s' % path)
+            # write files
+            os.makedirs(entity.path_abs)
+            logging.debug('    writing %s' % entity.json_path)
+            entity.write_json()
+            # TODO better to write to collection changelog?
+            write_entity_changelog(entity, git_name, git_mail, agent)
+            # stage
+            git_files.append(entity.json_path_rel)
+            git_files.append(entity.changelog_path_rel)
+            updated.append(entity)
+
+    if dryrun:
+        logging.info('Dry run - no modifications')
+    else:
+        # stage modified files
+        logging.info('Staging changes to the repo')
+        for path in git_files:
+            repository.git.add(path)
+        for path in util.natural_sort(dvcs.list_staged(repository)):
+            if path in git_files:
+                logging.debug('| %s' % path)
+            else:
+                logging.debug('+ %s' % path)
+    
     return updated
 
 
-def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent):
+def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
     """Updates metadata for files in csv_path.
     
     TODO how to handle excluded fields like XMP???
@@ -469,6 +480,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent):
     @param git_name:
     @param git_mail:
     @param agent:
+    @param dryrun: boolean
     """
     logging.info('-----------------------------------------------')
     csv_dir = os.path.dirname(csv_path)
