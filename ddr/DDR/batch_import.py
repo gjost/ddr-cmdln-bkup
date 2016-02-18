@@ -411,11 +411,11 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     That is left to the user or to another function.
     
     @param csv_path: Absolute path to CSV data file.
-    @param collection_path: Absolute path to collection repo.
+    @param cidentifier: Identifier
     @param vocabs_path: Absolute path to vocab dir
-    @param git_name:
-    @param git_mail:
-    @param agent:
+    @param git_name: str
+    @param git_mail: str
+    @param agent: str
     @param dryrun: boolean
     @returns: list of updated entities
     """
@@ -477,11 +477,11 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     TODO how to handle excluded fields like XMP???
     
     @param csv_path: Absolute path to CSV data file.
-    @param collection_path: Absolute path to collection repo.
+    @param cidentifier: Identifier
     @param vocabs_path: Absolute path to vocab dir
-    @param git_name:
-    @param git_mail:
-    @param agent:
+    @param git_name: str
+    @param git_mail: str
+    @param agent: str
     @param dryrun: boolean
     """
     logging.info('batch import files ----------------------------')
