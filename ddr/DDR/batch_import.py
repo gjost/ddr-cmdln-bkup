@@ -396,7 +396,7 @@ def check(csv_path, cidentifier, vocabs_path, session):
     
     # confirm file entities not in repo
     logging.info('Checking for existing IDs')
-    already_added = ids_in_local_repo(rowds, model, cidentifier.path_abs())
+    already_added = ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
     if already_added:
         raise Exception('The following entities already exist: %s' % already_added)
 
