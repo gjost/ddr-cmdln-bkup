@@ -360,13 +360,19 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
 # ----------------------------------------------------------------------
 
 
-def check(csv_path, cidentifier, vocabs_path, username, password):
-    logging.info('-----------------------------------------------')
+def check(csv_path, cidentifier, vocabs_path, session):
+    """
+    
+    @param csv_path: Absolute path to CSV data file.
+    @param cidentifier: Identifier
+    @param vocabs_path: Absolute path to vocab dir
+    @param session: requests.session object
+    @returns: nothing
+    """
     rowds = check_things(csv_path, cidentifier, vocabs_path)
     
     logging.info('Confirming all entity IDs available')
     csv_eids = [rowd['id'] for rowd in rowds]
-    session = idservice.login(username, password)
     idservice_eids = idservice.entities_existing(session, cidentifier)
     registered = [
         eid for eid in csv_eids
@@ -523,7 +529,13 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent):
     return git_files
 
 
-def register_entity_ids(csv_path, cidentifier, username, password):
+def register_entity_ids(csv_path, cidentifier, session):
+    """
+    @param csv_path: Absolute path to CSV data file.
+    @param cidentifier: Identifier
+    @param session: requests.session object
+    @returns: nothing
+    """
     logging.info('-----------------------------------------------')
     model = 'entity'
     module = get_module(model)
@@ -534,7 +546,6 @@ def register_entity_ids(csv_path, cidentifier, username, password):
     logging.info('%s rows' % len(rowds))
     
     logging.info('Looking up already registered IDs')
-    session = idservice.login(username, password)
     idservice_eids = idservice.entities_existing(session, cidentifier)
     unregistered = unregistered_ids(rowds, idservice_eids)
     logging.info('%s IDs to register.' % len(unregistered))

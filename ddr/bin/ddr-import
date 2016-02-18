@@ -73,6 +73,31 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
+
+def get_idservice_session(args, session=None):
+    """Log user in to ID service and return session; prompt if necessary
+    
+    @param args: argparse.Namespace Output of argparse.ArgumentParser.parse_args()
+    @param session: requests.session object
+    @returns: requests.session object
+    """
+    if not session:
+        logging.debug('No session--logging in')
+        if args.username:
+            logging.debug('Username: %s' % args.username)
+            username = args.username
+        else:
+            username = raw_input('Username: ')
+        if args.password:
+            password = args.password
+            dummy = ''.join(['*' for n in args.password])
+            logging.debug('Password: %s' % dummy)
+        else:
+            password = getpass.getpass(prompt='Password: ')
+        session = idservice.login(username, password)
+    return session
+
+
 def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
@@ -84,7 +109,8 @@ def main():
     parser.add_argument('-N', '--nocheck', action='store_true', help='Do not run checking/validation (large collections may take time).')
     parser.add_argument('-u', '--user', help='Git user name (required if importing)')
     parser.add_argument('-m', '--mail', help='Git user e-mail address (required if importing)')
-    parser.add_argument('-U', '--username', help='ID service username (required if using ID service).')
+    parser.add_argument('-U', '--username', help='ID service username')
+    parser.add_argument('-P', '--password', help='ID service password')
     args = parser.parse_args()
     
     # check args
@@ -97,9 +123,6 @@ def main():
     if not os.path.exists(args.collection):
         print('ddr-import: Collection does not exist.')
         sys.exit(1)
-
-    print('Username: %s' % args.username)
-    password = getpass.getpass()
     
     start = datetime.now()
     
@@ -110,10 +133,13 @@ def main():
     ci = identifier.Identifier(collection_path)
     logging.debug(ci)
     logging.debug(ci.path_abs())
+
+    session = None
     
     if (args.command == 'check') or (not args.nocheck):
+        session = get_idservice_session(args, session)
         batch_import.check(
-            csv_path, ci, vocabs_path, args.username, password
+            csv_path, ci, vocabs_path, session
         )
     
     if   args.command == 'entity':
@@ -133,11 +159,9 @@ def main():
         )
     
     elif args.command == 'register':
+        session = get_idservice_session(args, session)
         batch_import.register_entity_ids(
-            csv_path,
-            ci,
-            args.username,
-            password
+            csv_path, ci, session
         )
         logging.info('IF YOU SEE THIS IT WORKED')
     
