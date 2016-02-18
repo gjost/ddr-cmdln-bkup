@@ -42,7 +42,7 @@ def test_repository(repo):
     
     @param repo: GitPython repository
     """
-    logging.info('Checking repository')
+    logging.info('Checking repository %s' % repo)
     staged = dvcs.list_staged(repo)
     if staged:
         logging.error('*** Staged files in repo %s' % repo.working_dir)
@@ -55,7 +55,7 @@ def test_repository(repo):
         for f in modified:
             logging.error('*** %s' % f)
         raise ModifiedFilesError('Repository contains modified files - import cancelled!')
-    logging.debug('repository clean')
+    logging.debug('ok')
 
 def test_entities(collection_path, object_class, rowds):
     """Test-loads Entities mentioned in rows; crashes if any are missing.
@@ -369,6 +369,9 @@ def check(csv_path, cidentifier, vocabs_path, session):
     @param session: requests.session object
     @returns: nothing
     """
+    logging.info('------------------------------------------------------------------------')
+    logging.info('batch import check')
+    
     rowds = check_things(csv_path, cidentifier, vocabs_path)
     
     logging.info('Confirming all entity IDs available')
@@ -416,7 +419,8 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     @param dryrun: boolean
     @returns: list of updated entities
     """
-    logging.info('-----------------------------------------------')
+    logging.info('------------------------------------------------------------------------')
+    logging.info('batch import entity')
     model = 'entity'
     module = get_module(model)
     field_names = module.field_names()
@@ -480,7 +484,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     @param agent:
     @param dryrun: boolean
     """
-    logging.info('-----------------------------------------------')
+    logging.info('batch import files ----------------------------')
     csv_dir = os.path.dirname(csv_path)
     logging.debug('csv_dir %s' % csv_dir)
 
