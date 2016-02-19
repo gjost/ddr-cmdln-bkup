@@ -93,12 +93,12 @@ def test_entities(cidentifier, object_class, rowds):
         if entity:
             entities[entity.id] = entity
         else:
-            bad.append(eidentifier.id)
+            if eidentifier.id not in bad:
+                bad.append(eidentifier.id)
     if bad:
-        logging.error('One or more entities could not be loaded! - IMPORT CANCELLED!')
         for f in bad:
-            logging.error('    %s' % f)
-        raise Exception('One or more entities could not be loaded! - IMPORT CANCELLED!')
+            logging.error('    %s missing' % f)
+        raise Exception('%s entities could not be loaded! - IMPORT CANCELLED!' % len(bad))
     return entities
 
 def get_module(model):
