@@ -57,19 +57,18 @@ def test_repository(repo):
         raise ModifiedFilesError('Repository contains modified files - import cancelled!')
     logging.debug('ok')
 
-def test_entities(collection_path, object_class, rowds):
+def test_entities(cidentifier, object_class, rowds):
     """Test-loads Entities mentioned in rows; crashes if any are missing.
     
     When files are being updated/added, it's important that all the parent
     entities already exist.
     
-    @param collection_path:
+    @param cidentifier: identifier.Identifier
     @param rowds: List of rowds
     @param object_class: subclass of Entity
     @returns: dict of Entities by ID
     """
     logging.info('Validating parent entities')
-    cidentifier = identifier.Identifier(path=collection_path)
     # get unique entity_ids
     eids = []
     for rowd in rowds:
