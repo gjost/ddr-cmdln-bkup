@@ -472,7 +472,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     return updated
 
 
-def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
+def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, log_path=None, dryrun=False):
     """Updates metadata for files in csv_path.
     
     TODO how to handle excluded fields like XMP???
@@ -483,6 +483,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     @param git_name: str
     @param git_mail: str
     @param agent: str
+    @param log_path: str Absolute path to addfile log for all files
     @param dryrun: boolean
     """
     logging.info('batch import files ----------------------------')
@@ -518,9 +519,14 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             raise Exception('Missing file: %s' % rowd['src_path'])
     
     logging.info('Importing - - - - - - - - - - - - - - - -')
+    if log_path:
+        logging.info('Addfile logging to %s' % log_path)
+    
     git_files = []
     for n,rowd in enumerate(rowds):
-        logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['id']))
+        logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
+        start = datetime.now()
+        
         # file or file-role
         fidentifier = identifier.Identifier(
             id=rowd['id'],
@@ -529,18 +535,19 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
         is_stub = fidentifier.object_class() == models.Stub
         # entity (or next non-stub)
         entity = entities[fidentifier.parent_id(stubs=is_stub)]
-        log = ingest.addfile_logger(entity.identifier)
-        logging.debug('| Log:   %s' % log.logpath)
+        logging.debug('| %s' % (entity))
         
-        logging.debug('| Adding %s' % rowd['src_path'])
         file_,repo2,log2 = ingest.add_file(
             entity,
             rowd['src_path'],
             fidentifier.parts['role'],
             rowd,
-            git_name, git_mail, agent
+            git_name, git_mail, agent,
+            log_path=log_path
         )
-        logging.debug('| %s' % file_)
+        
+        elapsed = datetime.now() - start
+        logging.debug('| %s (elapsed %s)' % (file_, elapsed))
     
     return git_files
 

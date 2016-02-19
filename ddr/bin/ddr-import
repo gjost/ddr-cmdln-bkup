@@ -112,6 +112,7 @@ def main():
     parser.add_argument('-m', '--mail', help='Git user e-mail address (required if importing)')
     parser.add_argument('-U', '--username', help='ID service username')
     parser.add_argument('-P', '--password', help='ID service password')
+    parser.add_argument('-l', '--log', help='(optional) Log addfile to this path')
     args = parser.parse_args()
     
     # check args
@@ -160,6 +161,7 @@ def main():
             vocabs_path,
             args.user, args.mail,
             AGENT,
+            args.log,
             args.dryrun
         )
     
