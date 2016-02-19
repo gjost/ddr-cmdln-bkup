@@ -73,15 +73,14 @@ def test_entities(collection_path, object_class, rowds):
     # get unique entity_ids
     eids = []
     for rowd in rowds:
-        # no sha1 yet so this is file-role
-        fridentifier = identifier.Identifier(
+        # file or file-role
+        fidentifier = identifier.Identifier(
             id=rowd['id'],
             base_path=cidentifier.basepath
         )
-        eidentifier = identifier.Identifier(
-            id=fridentifier.parent_id(stubs=1), # file-role is a stub
-            base_path=cidentifier.basepath
-        )
+        is_stub = fidentifier.object_class() == models.Stub
+        # entity (or next non-stub)
+        eidentifier = fidentifier.parent(stubs=is_stub)
         eids.append(eidentifier)
     # test-load the Entities
     entities = {}
@@ -425,6 +424,9 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     module = get_module(model)
     field_names = module.field_names()
     
+    repository = dvcs.repository(cidentifier.path_abs())
+    logging.info(repository)
+    
     logging.info('Reading %s' % csv_path)
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
@@ -504,7 +506,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     logging.debug(repository)
     #test_repository(repository)
 
-    entities = test_entities(cidentifier.path_abs(), entity_class, rowds)
+    entities = test_entities(cidentifier, entity_class, rowds)
     for entity in entities.itervalues():
         entity.changelog_updated = []
         entity.changelog_added = []
@@ -520,13 +522,14 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     git_files = []
     for n,rowd in enumerate(rowds):
         logging.info('+ %s/%s - %s' % (n+1, len(rowds), rowd['id']))
-
-        # Note: all we have are file-roles at this point (no SHA1 yet)
-        fridentifier = identifier.Identifier(
+        # file or file-role
+        fidentifier = identifier.Identifier(
             id=rowd['id'],
             base_path=cidentifier.basepath
         )
-        entity = entities[fridentifier.parent_id(stubs=1)]
+        is_stub = fidentifier.object_class() == models.Stub
+        # entity (or next non-stub)
+        entity = entities[fidentifier.parent_id(stubs=is_stub)]
         log = ingest.addfile_logger(entity.identifier)
         logging.debug('| Log:   %s' % log.logpath)
         
@@ -534,7 +537,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
         file_,repo2,log2 = ingest.add_file(
             entity,
             rowd['src_path'],
-            fridentifier.parts['role'],
+            fidentifier.parts['role'],
             rowd,
             git_name, git_mail, agent
         )
