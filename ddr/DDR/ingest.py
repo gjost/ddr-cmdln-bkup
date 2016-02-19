@@ -45,31 +45,37 @@ class AddFileLogger():
         self.not_ok(msg)
         raise Exception(msg)
 
-def _log_path(eidentifier, base_dir=config.LOG_DIR):
+def _log_path(identifier, base_dir=config.LOG_DIR):
     """Generates path to collection addfiles.log.
     
     Previously each entity had its own addfile.log.
     Going forward each collection will have a single log file.
         /STORE/log/REPO-ORG-CID-addfile.log
     
-    @param eidentifier: Identifier (Entity)
+    @param identifier: Identifier
     @param base_dir: [optional] str
     @returns: absolute path to logfile
     """
     return os.path.join(
         base_dir, 'addfile',
-        eidentifier.parent_id(),
-        '%s.log' % eidentifier.id
+        identifier.collection_id(),
+        '%s.log' % identifier.id
     )
 
-def addfile_logger(eidentifier, base_dir=config.LOG_DIR):
-    """
-    @param eidentifier: Identifier (Entity)
+def addfile_logger(identifier=None, log_path=None, base_dir=config.LOG_DIR):
+    """Gets an AddFileLogger object for an Identifier OR specified path.
+    
+    @param identifier: Identifier
+    @param log_path: str
     @param base_dir: [optional] str
     @returns: AddFileLogger
     """
+    assert identifier or log_path
     log = AddFileLogger()
-    log.logpath = _log_path(eidentifier, base_dir)
+    if identifier:
+        log.logpath = _log_path(identifier, base_dir)
+    elif log_path:
+        log.logpath = log_path
     logdir = os.path.dirname(log.logpath)
     if not os.path.exists(logdir):
         os.makedirs(logdir)
@@ -272,7 +278,7 @@ def stage_files(entity, git_files, annex_files, new_files, log):
             log.crash('Add file aborted, see log file for details.')
     return repo
 
-def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
+def add_file(entity, src_path, role, data, git_name, git_mail, agent='', log_path=None):
     """Add file to entity
     
     This method breaks out of OOP and manipulates entity.json directly.
@@ -287,12 +293,16 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     @param data: 
     @param git_name: Username of git committer.
     @param git_mail: Email of git committer.
-    @param agent: (optional) Name of software making the change.
+    @param agent: str (optional) Name of software making the change.
+    @param log_path: str (optional) Absolute path to addfile log
     @return File,repo,log
     """
     f = None
     repo = None
-    log = addfile_logger(entity.identifier)
+    if log_path:
+        log = addfile_logger(log_path=log_path)
+    else:
+        log = addfile_logger(identifier=entity.identifier)
     
     log.ok('------------------------------------------------------------------------')
     log.ok('DDR.models.Entity.add_file: START')
@@ -427,7 +437,7 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     # IMPORTANT: changelog is not staged!
     return file_,repo,log
 
-def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
+def add_access( entity, ddrfile, git_name, git_mail, agent='', log_path=None ):
     """Generate new access file for entity
     
     This method breaks out of OOP and manipulates entity.json directly.
@@ -440,12 +450,16 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     @param ddrfile: File
     @param git_name: Username of git committer.
     @param git_mail: Email of git committer.
-    @param agent: (optional) Name of software making the change.
+    @param agent: str (optional) Name of software making the change.
+    @param log_path: str (optional) Absolute path to addfile log
     @return file_ File object
     """
     f = None
     repo = None
-    log = addfile_logger(entity.identifier)
+    if log_path:
+        log = addfile_logger(log_path=log_path)
+    else:
+        log = addfile_logger(identifier=entity.identifier)
     
     src_path = ddrfile.path_abs
     
