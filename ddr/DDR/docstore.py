@@ -1,4 +1,6 @@
 """
+TODO pass ES connection object to docstore.* instead of HOSTS,INDEX
+
 example walkthrough:
 ------------------------------------------------------------------------
 
