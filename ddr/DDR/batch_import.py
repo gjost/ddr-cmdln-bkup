@@ -311,6 +311,27 @@ def populate_object(obj, module, field_names, rowd):
     if obj.modified:
         obj.record_lastmod = datetime.now()
 
+def object_writable(o, field_names):
+    """True if file nonexistent or CSV values CSV differ from file
+    
+    @param o: object
+    @param field_names: list
+    @returns: boolean
+    """
+    if not os.path.exists(o.path_abs):
+        return True
+    existing = o.identifier.object()
+    if not existing:
+        return False
+    changed = [
+        field_name
+        for field_name in field_names
+        if getattr(o, field_name) != getattr(existing, field_name)
+    ]
+    if changed:
+        return True
+    return False
+
 def write_entity_changelog(entity, git_name, git_mail, agent):
     msg = 'Updated entity file {}'
     messages = [
@@ -402,8 +423,9 @@ def check(csv_path, cidentifier, vocabs_path, session):
 def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
     """Reads a CSV file, checks for errors, and writes entity.json files
     
-    IMPORTANT: No objects in CSV must exist!
-    IMPORTANT: All objects in CSV must have the same set of fields!
+    Running function multiple times with the same CSV file is idempotent.
+    After the initial pass, files will only be modified if the CSV data
+    has been updated.
     
     This function writes and stages files but does not commit them!
     That is left to the user or to another function.
@@ -441,12 +463,14 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
         entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
         populate_object(entity, module, field_names, rowd)
-
+        entity_writable = object_writable(entity, field_names)
+        
         if dryrun:
             pass
-        else:
+        elif entity_writable:
             # write files
-            os.makedirs(entity.path_abs)
+            if not os.path.exists(entity.path_abs):
+                os.makedirs(entity.path_abs)
             logging.debug('    writing %s' % entity.json_path)
             entity.write_json()
             # TODO better to write to collection changelog?
@@ -458,7 +482,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
 
     if dryrun:
         logging.info('Dry run - no modifications')
-    else:
+    elif updated:
         # stage modified files
         logging.info('Staging changes to the repo')
         for path in git_files:
