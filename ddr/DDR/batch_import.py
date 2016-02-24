@@ -57,6 +57,19 @@ def test_repository(repo):
         raise ModifiedFilesError('Repository contains modified files - import cancelled!')
     logging.debug('ok')
 
+def fidentifier_parent(fidentifier):
+    """Returns entity Identifier for either 'file' or 'file-role'
+    
+    We want to support adding new files and updating existing ones.
+    New file IDs have no SHA1, thus they are actually file-roles.
+    Identifier.parent() returns different objects depending on value of 'stubs'.
+    This function ensures that the parent of 'fidentifier' will always be an Entity.
+    
+    @param fidentifier: Identifier
+    """
+    is_stub = fidentifier.object_class() == models.Stub
+    return fidentifier.parent(stubs=is_stub)
+    
 def test_entities(cidentifier, object_class, rowds):
     """Test-loads Entities mentioned in rows; crashes if any are missing.
     
