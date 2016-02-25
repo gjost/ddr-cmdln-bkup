@@ -74,6 +74,14 @@ logging.basicConfig(
 )
 
 
+def log_error(err):
+    """
+    @param err: Exception
+    """
+    logging.error('************************************************************************')
+    logging.error(err)
+    logging.error('************************************************************************')
+
 def get_idservice_session(args, session=None):
     """Log user in to ID service and return session; prompt if necessary
     
@@ -137,40 +145,52 @@ def main():
     logging.debug(ci.path_abs())
 
     session = None
-    
+        
     if (args.command == 'check') or (not args.nocheck):
-        session = get_idservice_session(args, session)
-        batch_import.check(
-            csv_path, ci, vocabs_path, session
-        )
+        try:
+            session = get_idservice_session(args, session)
+            batch_import.check(
+                csv_path, ci, vocabs_path, session
+            )
+        except Exception as err:
+            log_error(err)
     
     if   args.command == 'entity':
-        imported = batch_import.import_entities(
-            csv_path,
-            ci,
-            vocabs_path,
-            args.user, args.mail,
-            AGENT,
-            args.dryrun
-        )
+        try:
+            imported = batch_import.import_entities(
+                csv_path,
+                ci,
+                vocabs_path,
+                args.user, args.mail,
+                AGENT,
+                args.dryrun
+            )
+        except Exception as err:
+            log_error(err)
     
     elif args.command == 'file':
-        imported = batch_import.import_files(
-            csv_path,
-            ci,
-            vocabs_path,
-            args.user, args.mail,
-            AGENT,
-            args.log,
-            args.dryrun
-        )
+        try:
+            imported = batch_import.import_files(
+                csv_path,
+                ci,
+                vocabs_path,
+                args.user, args.mail,
+                AGENT,
+                args.log,
+                args.dryrun
+            )
+        except Exception as err:
+            log_error(err)
     
     elif args.command == 'register':
         session = get_idservice_session(args, session)
-        batch_import.register_entity_ids(
-            csv_path, ci, session
-        )
-        logging.info('IF YOU SEE THIS IT WORKED')
+        try:
+            batch_import.register_entity_ids(
+                csv_path, ci, session
+            )
+            logging.info('IF YOU SEE THIS IT WORKED')
+        except Exception as err:
+            log_error(err)
     
     finish = datetime.now()
     elapsed = finish - start
