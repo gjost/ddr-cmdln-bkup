@@ -66,53 +66,19 @@ def fidentifier_parent(fidentifier):
     This function ensures that the parent of 'fidentifier' will always be an Entity.
     
     @param fidentifier: Identifier
+    @returns: boolean
     """
     is_stub = fidentifier.object_class() == models.Stub
     return fidentifier.parent(stubs=is_stub)
+
+def file_is_new(fidentifier):
+    """Indicate whether file is new (ingest) or not (update)
     
-def test_entities(cidentifier, object_class, rowds):
-    """Test-loads Entities mentioned in rows; crashes if any are missing.
-    
-    When files are being updated/added, it's important that all the parent
-    entities already exist.
-    
-    @param cidentifier: identifier.Identifier
-    @param rowds: List of rowds
-    @param object_class: subclass of Entity
-    @returns: dict of Entities by ID
+    @param fidentifier: Identifier
+    @returns: boolean
     """
-    logging.info('Validating parent entities')
-    # get unique entity_ids
-    eids = []
-    for rowd in rowds:
-        # file or file-role
-        fidentifier = identifier.Identifier(
-            id=rowd['id'],
-            base_path=cidentifier.basepath
-        )
-        is_stub = fidentifier.object_class() == models.Stub
-        # entity (or next non-stub)
-        eidentifier = fidentifier.parent(stubs=is_stub)
-        eids.append(eidentifier)
-    # test-load the Entities
-    entities = {}
-    bad = []
-    for eidentifier in eids:
-        entity_path = eidentifier.path_abs()
-        # update an existing entity
-        entity = None
-        if os.path.exists(entity_path):
-            entity = object_class.from_identifier(eidentifier)
-        if entity:
-            entities[entity.id] = entity
-        else:
-            if eidentifier.id not in bad:
-                bad.append(eidentifier.id)
-    if bad:
-        for f in bad:
-            logging.error('    %s missing' % f)
-        raise Exception('%s entities could not be loaded! - IMPORT CANCELLED!' % len(bad))
-    return entities
+    return fidentifier.object_class() == models.Stub
+
 
 def get_module(model):
     """Gets modules.Module for the model
@@ -341,9 +307,7 @@ def object_writable(o, field_names):
         for field_name in field_names
         if getattr(o, field_name) != getattr(existing, field_name)
     ]
-    if changed:
-        return True
-    return False
+    return changed
 
 def write_entity_changelog(entity, git_name, git_mail, agent):
     msg = 'Updated entity file {}'
@@ -524,6 +488,12 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     @param dryrun: boolean
     """
     logging.info('batch import files ----------------------------')
+    
+    # TODO hard-coded model name...
+    model = 'file'
+    module = get_module(model)
+    field_names = module.field_names()
+    
     csv_dir = os.path.dirname(csv_path)
     logging.debug('csv_dir %s' % csv_dir)
 
@@ -543,48 +513,114 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     logging.debug(repository)
     #test_repository(repository)
 
-    entities = test_entities(cidentifier, entity_class, rowds)
-    for entity in entities.itervalues():
-        entity.changelog_updated = []
-        entity.changelog_added = []
-
-    logging.info('Checking source files')
-    for rowd in rowds:
-        rowd['src_path'] = os.path.join(csv_dir, rowd['basename_orig'])
-        logging.debug('| %s' % rowd['src_path'])
-        if not os.path.exists(rowd['src_path']):
-            raise Exception('Missing file: %s' % rowd['src_path'])
-    
-    logging.info('Importing - - - - - - - - - - - - - - - -')
-    if log_path:
-        logging.info('Addfile logging to %s' % log_path)
-    
-    git_files = []
-    for n,rowd in enumerate(rowds):
-        logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
-        start = datetime.now()
-        
-        # file or file-role
-        fidentifier = identifier.Identifier(
+    fidentifiers = {
+        rowd['id']: identifier.Identifier(
             id=rowd['id'],
             base_path=cidentifier.basepath
         )
-        is_stub = fidentifier.object_class() == models.Stub
-        # entity (or next non-stub)
-        entity = entities[fidentifier.parent_id(stubs=is_stub)]
-        logging.debug('| %s' % (entity))
-        
-        file_,repo2,log2 = ingest.add_file(
-            entity,
-            rowd['src_path'],
-            fidentifier.parts['role'],
-            rowd,
-            git_name, git_mail, agent,
-            log_path=log_path
-        )
-        
-        elapsed = datetime.now() - start
-        logging.debug('| %s (elapsed %s)' % (file_, elapsed))
+        for rowd in rowds
+    }
+    fidentifier_parents = {
+        fi.id: fidentifier_parent(fi)
+        for fi in fidentifiers.itervalues()
+    }
+    # eidentifiers, removing duplicates
+    eidentifiers = list(set([e for e in fidentifier_parents.itervalues()]))
+    entities = {}
+    bad_entities = []
+    for eidentifier in eidentifiers:
+        if os.path.exists(eidentifier.path_abs()):
+            entity = eidentifier.object()
+            entities[eidentifier.id] = entity
+        else:
+            if eidentifier.id not in bad:
+                bad_entities.append(eidentifier.id)
+    if bad_entities:
+        for f in bad_entities:
+            logging.error('    %s missing' % f)
+        raise Exception('%s entities could not be loaded! - IMPORT CANCELLED!' % len(bad_entities))
+
+    logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
+    logging.info('Updating existing files')
+    start_updates = datetime.now()
+    git_files = []
+    updated = []
+    elapsed_rounds_updates = []
+    for n,rowd in enumerate(rowds):
+        if not file_is_new(fidentifiers[rowd['id']]):
+            logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
+            start_round = datetime.now()
+            
+            fidentifier = fidentifiers[rowd['id']]
+            eidentifier = fidentifier_parents[fidentifier.id]
+            entity = entities[eidentifier.id]
+            logging.debug('| %s' % (entity))
+    
+            file_ = models.File.create(fidentifier.path_abs(), fidentifier)
+            populate_object(file_, module, field_names, rowd)
+            file_writable = object_writable(file_, field_names)
+            
+            if dryrun:
+                pass
+            elif file_writable:
+                logging.debug('    writing %s' % file_.json_path)
+                file_.write_json()
+                # TODO better to write to collection changelog?
+                #write_entity_changelog(entity, git_name, git_mail, agent)
+                # stage
+                git_files.append(file_.json_path_rel)
+                #git_files.append(entity.changelog_path_rel)
+                updated.append(file_)
+            
+            elapsed_round = datetime.now() - start_round
+            elapsed_rounds_updates.append(elapsed_round)
+            logging.debug('| %s (%s)' % (fidentifier, elapsed_round))
+    
+    elapsed_updates = datetime.now() - start_updates
+    logging.debug('%s updated in %s' % (len(elapsed_rounds_updates), elapsed_updates))
+    
+    logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
+    logging.info('Adding new files')
+    start_adds = datetime.now()
+    elapsed_rounds_adds = []
+    logging.info('Checking source files')
+    for rowd in rowds:
+        if file_is_new(fidentifiers[rowd['id']]):
+            rowd['src_path'] = os.path.join(csv_dir, rowd['basename_orig'])
+            logging.debug('| %s' % rowd['src_path'])
+            if not os.path.exists(rowd['src_path']):
+                raise Exception('Missing file: %s' % rowd['src_path'])
+    if log_path:
+        logging.info('addfile logging to %s' % log_path)
+    for n,rowd in enumerate(rowds):
+        if file_is_new(fidentifiers[rowd['id']]):
+            logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
+            start_round = datetime.now()
+            
+            fidentifier = fidentifiers[rowd['id']]
+            eidentifier = fidentifier_parents[fidentifier.id]
+            entity = entities[eidentifier.id]
+            logging.debug('| %s' % (entity))
+    
+            if dryrun:
+                pass
+            elif file_is_new(fidentifier):
+                # ingest
+                file_,repo2,log2 = ingest.add_file(
+                    entity,
+                    rowd['src_path'],
+                    fidentifier.parts['role'],
+                    rowd,
+                    git_name, git_mail, agent,
+                    log_path=log_path
+                )
+            elapsed_round = datetime.now() - start_round
+            elapsed_rounds_adds.append(elapsed_round)
+            logging.debug('| %s (%s)' % (file_, elapsed_round))
+    
+    elapsed_adds = datetime.now() - start_adds
+    logging.debug('%s added in %s' % (len(elapsed_rounds_adds), elapsed_adds))
+    logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
     
     return git_files
 
