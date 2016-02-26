@@ -154,6 +154,7 @@ def main():
             )
         except Exception as err:
             log_error(err)
+            sys.exit(1)
     
     if   args.command == 'entity':
         try:
