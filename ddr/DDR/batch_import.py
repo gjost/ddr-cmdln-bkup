@@ -435,6 +435,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     git_files = []
     updated = []
     elapsed_rounds = []
+    obj_metadata = None
     
     if dryrun:
         logging.info('Dry run - no modifications')
@@ -446,6 +447,13 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
         populate_object(entity, module, field_names, rowd)
         entity_writable = object_writable(entity, field_names)
+        # Getting obj_metadata takes about 1sec each time
+        # TODO caching works as long as all objects have same metadata...
+        if not obj_metadata:
+            obj_metadata = models.object_metadata(
+                eidentifier.fields_module(),
+                repository.working_dir
+            )
         
         if dryrun:
             pass
@@ -454,7 +462,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
             if not os.path.exists(entity.path_abs):
                 os.makedirs(entity.path_abs)
             logging.debug('    writing %s' % entity.json_path)
-            entity.write_json()
+            entity.write_json(obj_metadata=obj_metadata)
             # TODO better to write to collection changelog?
             write_entity_changelog(entity, git_name, git_mail, agent)
             # stage
@@ -560,6 +568,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     git_files = []
     updated = []
     elapsed_rounds_updates = []
+    obj_metadata = None
     for n,rowd in enumerate(rowds):
         if not file_is_new(fidentifiers[rowd['id']]):
             logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
@@ -573,12 +582,19 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             file_ = models.File.create(fidentifier.path_abs(), fidentifier)
             populate_object(file_, module, field_names, rowd)
             file_writable = object_writable(file_, field_names)
+            # Getting obj_metadata takes about 1sec each time
+            # TODO caching works as long as all objects have same metadata...
+            if not obj_metadata:
+                obj_metadata = models.object_metadata(
+                    fidentifier.fields_module(),
+                    repository.working_dir
+                )
             
             if dryrun:
                 pass
             elif file_writable:
                 logging.debug('    writing %s' % file_.json_path)
-                file_.write_json()
+                file_.write_json(obj_metadata=obj_metadata)
                 # TODO better to write to collection changelog?
                 #write_entity_changelog(entity, git_name, git_mail, agent)
                 # stage

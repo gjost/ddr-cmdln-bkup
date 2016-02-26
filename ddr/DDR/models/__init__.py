@@ -597,23 +597,31 @@ class Collection( object ):
         else:
             self.record_lastmod = datetime.now()
     
-    def dump_json(self, template=False, doc_metadata=False):
+    def dump_json(self, template=False, doc_metadata=False, obj_metadata={}):
         """Dump Collection data to JSON-formatted text.
         
         @param template: [optional] Boolean. If true, write default values for fields.
         @param doc_metadata: boolean. Insert object_metadata().
+        @param obj_metadata: dict Cached results of object_metadata.
         @returns: JSON-formatted text
         """
         module = self.identifier.fields_module()
         data = prep_json(self, module, template=template)
-        if doc_metadata:
+        if obj_metadata:
+            data.insert(0, obj_metadata)
+        elif doc_metadata:
             data.insert(0, object_metadata(module, self.path))
         return format_json(data)
     
-    def write_json(self):
+    def write_json(self, obj_metadata={}):
         """Write JSON file to disk.
+        
+        @param obj_metadata: dict Cached results of object_metadata.
         """
-        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(
+            self.dump_json(doc_metadata=True, obj_metadata=obj_metadata),
+            self.json_path
+        )
     
     def post_json(self, hosts, index):
         # NOTE: this is same basic code as docstore.index
@@ -939,18 +947,21 @@ class Entity( object ):
         if hasattr(self, 'record_lastmod') and self.record_lastmod: self.record_lastmod = parsedt(self.record_lastmod)
         self.rm_file_duplicates()
 
-    def dump_json(self, template=False, doc_metadata=False):
+    def dump_json(self, template=False, doc_metadata=False, obj_metadata={}):
         """Dump Entity data to JSON-formatted text.
         
         @param template: [optional] Boolean. If true, write default values for fields.
         @param doc_metadata: boolean. Insert object_metadata().
+        @param obj_metadata: dict Cached results of object_metadata.
         @returns: JSON-formatted text
         """
         module = self.identifier.fields_module()
         data = prep_json(self, module,
                          exceptions=['files', 'filemeta'],
                          template=template,)
-        if doc_metadata:
+        if obj_metadata:
+            data.insert(0, obj_metadata)
+        elif doc_metadata:
             data.insert(0, object_metadata(module, self.parent_path))
         files = []
         if not template:
@@ -972,10 +983,15 @@ class Entity( object ):
         data.append( {'files':files} )
         return format_json(data)
 
-    def write_json(self):
+    def write_json(self, obj_metadata={}):
         """Write JSON file to disk.
+        
+        @param obj_metadata: dict Cached results of object_metadata.
         """
-        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(
+            self.dump_json(doc_metadata=True, obj_metadata=obj_metadata),
+            self.json_path
+        )
     
     def post_json(self, hosts, index):
         # NOTE: this is same basic code as docstore.index
@@ -1454,24 +1470,32 @@ class File( object ):
             os.path.basename(self.access_abs)
         )
     
-    def dump_json(self, doc_metadata=False):
+    def dump_json(self, doc_metadata=False, obj_metadata={}):
         """Dump File data to JSON-formatted text.
         
         @param doc_metadata: boolean. Insert object_metadata().
+        @param obj_metadata: dict Cached results of object_metadata.
         @returns: JSON-formatted text
         """
         module = self.identifier.fields_module()
         data = prep_json(self, module)
-        if doc_metadata:
+        if obj_metadata:
+            data.insert(0, obj_metadata)
+        elif doc_metadata:
             data.insert(0, object_metadata(module, self.collection_path))
         # what we call path_rel in the .json is actually basename
         data.insert(1, {'path_rel': self.basename})
         return format_json(data)
 
-    def write_json(self):
+    def write_json(self, obj_metadata={}):
         """Write JSON file to disk.
+        
+        @param obj_metadata: dict Cached results of object_metadata.
         """
-        fileio.write_text(self.dump_json(doc_metadata=True), self.json_path)
+        fileio.write_text(
+            self.dump_json(doc_metadata=True, obj_metadata=obj_metadata),
+            self.json_path
+        )
     
     def post_json(self, hosts, index, public=False):
         # NOTE: this is same basic code as docstore.index
