@@ -225,7 +225,7 @@ def predict_staged(already, planned):
     total = already + additions
     return total
 
-def stage_files(entity, git_files, annex_files, new_files, log):
+def stage_files(entity, git_files, annex_files, new_files, log, show_staged=True):
     # TODO move to DDR.dvcs?
     repo = dvcs.repository(entity.collection_path)
     log.ok('| repo %s' % repo)
@@ -245,16 +245,21 @@ def stage_files(entity, git_files, annex_files, new_files, log):
     stage_ok = False
     staged = []
     try:
+        log.ok('git stage')
         dvcs.stage(repo, git_files)
+        log.ok('annex stage')
         dvcs.annex_stage(repo, annex_files)
+        log.ok('ok')
         staged = dvcs.list_staged(repo)
     except:
         # FAILED! print traceback to addfile log
         log.not_ok(traceback.format_exc().strip())
     finally:
-        log.ok('| %s files staged:' % len(staged))
-        for sp in staged:
-            log.ok('|   %s' % sp)
+        if show_staged:
+            log.ok('| %s files staged:' % len(staged))
+            log.ok('show_staged %s' % show_staged)
+            for sp in staged:
+                log.ok('|   %s' % sp)
         if len(staged) == len(stage_predicted):
             log.ok('| %s files staged (%s new, %s modified)' % (
                 len(staged), len(stage_new), len(stage_already))
@@ -278,7 +283,7 @@ def stage_files(entity, git_files, annex_files, new_files, log):
             log.crash('Add file aborted, see log file for details.')
     return repo
 
-def add_file(entity, src_path, role, data, git_name, git_mail, agent='', log_path=None):
+def add_file(entity, src_path, role, data, git_name, git_mail, agent='', log_path=None, show_staged=True):
     """Add file to entity
     
     This method breaks out of OOP and manipulates entity.json directly.
@@ -295,6 +300,7 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent='', log_pat
     @param git_mail: Email of git committer.
     @param agent: str (optional) Name of software making the change.
     @param log_path: str (optional) Absolute path to addfile log
+    @param show_staged: boolean Log list of staged files
     @return File,repo,log
     """
     f = None
@@ -431,13 +437,13 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent='', log_pat
     ]
     if file_.access_abs and os.path.exists(file_.access_abs):
         annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
-    repo = stage_files(entity, git_files, annex_files, new_files, log)
+    repo = stage_files(entity, git_files, annex_files, new_files, log, show_staged=show_staged)
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!
     return file_,repo,log
 
-def add_access( entity, ddrfile, git_name, git_mail, agent='', log_path=None ):
+def add_access( entity, ddrfile, git_name, git_mail, agent='', log_path=None, show_staged=True ):
     """Generate new access file for entity
     
     This method breaks out of OOP and manipulates entity.json directly.
@@ -452,6 +458,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='', log_path=None ):
     @param git_mail: Email of git committer.
     @param agent: str (optional) Name of software making the change.
     @param log_path: str (optional) Absolute path to addfile log
+    @param show_staged: boolean Log list of staged files
     @return file_ File object
     """
     f = None
@@ -532,7 +539,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='', log_path=None ):
     annex_files = [
         file_.access_rel
     ]
-    repo = stage_files(entity, git_files, annex_files, new_files, log)
+    repo = stage_files(entity, git_files, annex_files, new_files, log, show_staged=show_staged)
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!

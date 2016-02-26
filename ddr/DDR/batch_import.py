@@ -642,8 +642,10 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
                     fidentifier.parts['role'],
                     rowd,
                     git_name, git_mail, agent,
-                    log_path=log_path
+                    log_path=log_path,
+                    show_staged=False
                 )
+            
             elapsed_round = datetime.now() - start_round
             elapsed_rounds_adds.append(elapsed_round)
             logging.debug('| %s (%s)' % (file_, elapsed_round))
