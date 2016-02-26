@@ -469,11 +469,9 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     if dryrun:
         logging.info('Dry run - no modifications')
     elif updated:
-        # stage modified files
-        logging.info('Staging changes to the repo')
+        logging.info('Staging %s modified files' % len(git_files))
         start_stage = datetime.now()
-        for path in git_files:
-            repository.git.add(path)
+        dvcs.stage(repository, git_files)
         for path in util.natural_sort(dvcs.list_staged(repository)):
             if path in git_files:
                 logging.debug('+ %s' % path)

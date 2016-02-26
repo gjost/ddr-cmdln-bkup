@@ -391,8 +391,7 @@ def stage(repo, git_files=[]):
     @param repo: A GitPython repository
     @param git_files: list of file paths, relative to repo bas
     """
-    for path in git_files:
-        repo.git.add(path)
+    repo.git.add([git_files])
 
 def commit(repo, msg, agent):
     """Commit some changes.
