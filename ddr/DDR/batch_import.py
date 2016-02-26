@@ -429,13 +429,18 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
     
-    logging.info('Importing - - - - - - - - - - - - - - - -')
+    logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
+    logging.info('Importing')
+    start_updates = datetime.now()
     git_files = []
     updated = []
+    elapsed_rounds = []
+    
     if dryrun:
         logging.info('Dry run - no modifications')
     for n,rowd in enumerate(rowds):
         logging.info('%s/%s - %s' % (n+1, len(rowds), rowd['id']))
+        start_round = datetime.now()
         
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
         entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
@@ -456,19 +461,30 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
             git_files.append(entity.json_path_rel)
             git_files.append(entity.changelog_path_rel)
             updated.append(entity)
+        
+        elapsed_round = datetime.now() - start_round
+        elapsed_rounds.append(elapsed_round)
+        logging.debug('| %s (%s)' % (eidentifier, elapsed_round))
 
     if dryrun:
         logging.info('Dry run - no modifications')
     elif updated:
         # stage modified files
         logging.info('Staging changes to the repo')
+        start_stage = datetime.now()
         for path in git_files:
             repository.git.add(path)
         for path in util.natural_sort(dvcs.list_staged(repository)):
             if path in git_files:
-                logging.debug('| %s' % path)
-            else:
                 logging.debug('+ %s' % path)
+            else:
+                logging.debug('| %s' % path)
+        elapsed_stage = datetime.now() - start_stage
+        logging.debug('ok (%s)' % elapsed_stage)
+    
+    elapsed_updates = datetime.now() - start_updates
+    logging.debug('%s updated in %s' % (len(elapsed_rounds), elapsed_updates))
+    logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
     
     return updated
 
