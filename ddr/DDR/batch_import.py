@@ -664,9 +664,14 @@ def register_entity_ids(csv_path, cidentifier, session, dryrun=True):
     
     logging.info('Looking up already registered IDs')
     idservice_eids = idservice.entities_existing(session, cidentifier)
-    unregistered = unregistered_ids(rowds, idservice_eids)
-    logging.info('%s IDs to register.' % len(unregistered))
-    if not dryrun:
+    unregistered = _unregistered_ids(rowds, idservice_eids)
+    num_unregistered = len(unregistered)
+    logging.info('%s IDs to register.' % num_unregistered)
+    if dryrun:
+        logging.info('These IDs would be registered if not --dryrun')
+        for n,eid in enumerate(unregistered):
+            logging.info('| %s/%s %s' % (n, num_unregistered, eid))
+    else:
         logging.info('Registering IDs')
         idservice.register_entity_ids(session, cidentifier.id, unregistered)
     

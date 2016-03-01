@@ -187,7 +187,7 @@ def main():
         session = get_idservice_session(args, session)
         try:
             batch_import.register_entity_ids(
-                csv_path, ci, session
+                csv_path, ci, session, args.dryrun
             )
             logging.info('IF YOU SEE THIS IT WORKED')
         except Exception as err:
