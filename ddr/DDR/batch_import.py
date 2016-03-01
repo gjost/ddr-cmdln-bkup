@@ -214,32 +214,6 @@ def ids_in_local_repo(rowds, model, collection_path):
     already = [i for i in new_ids if i in existing_ids]
     return already
 
-def check_things(csv_path, cidentifier, vocabs_path):
-    """Validate the CSV file, repo, etc
-    
-    TODO function duplicates code from elsewhere, is only used once
-    """
-    logging.info('Reading input file %s' % csv_path)
-    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
-    logging.info('%s rows' % len(rowds))
-    logging.info('Adding identifiers to rows')
-    for rowd in rowds:
-        rowd['identifier'] = identifier.Identifier(rowd['id'])
-    logging.info('OK')
-    
-    logging.info('Looking for modified or uncommitted files in repo')
-    repository = dvcs.repository(cidentifier.path_abs())
-    logging.debug(repository)
-    #test_repository(repository)
-    
-    model = guess_model(rowds)
-    module = get_module(model)
-    field_names = module.field_names()
-    vocabs = load_vocab_files(vocabs_path)
-    
-    validate_csv_file(module, vocabs, headers, rowds)
-    return rowds
-
 def unregistered_ids(rowds, idservice_eids):
     """Looks at CSV data and ID service; returns unregistered IDs.
     
@@ -365,7 +339,25 @@ def check(csv_path, cidentifier, vocabs_path, session):
     logging.info('------------------------------------------------------------------------')
     logging.info('batch import check')
     
-    rowds = check_things(csv_path, cidentifier, vocabs_path)
+    logging.info('Reading input file %s' % csv_path)
+    headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+    logging.info('%s rows' % len(rowds))
+    logging.info('Adding identifiers to rows')
+    for rowd in rowds:
+        rowd['identifier'] = identifier.Identifier(rowd['id'])
+    logging.info('OK')
+    
+    logging.info('Looking for modified or uncommitted files in repo')
+    repository = dvcs.repository(cidentifier.path_abs())
+    logging.debug(repository)
+    test_repository(repository)
+    
+    model = guess_model(rowds)
+    module = get_module(model)
+    field_names = module.field_names()
+    vocabs = load_vocab_files(vocabs_path)
+    
+    validate_csv_file(module, vocabs, headers, rowds)
     
     logging.info('Confirming all entity IDs available')
     csv_eids = [rowd['id'] for rowd in rowds]
@@ -392,6 +384,8 @@ def check(csv_path, cidentifier, vocabs_path, session):
     already_added = ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
     if already_added:
         raise Exception('The following entities already exist: %s' % already_added)
+    else:
+        logging.info('ok')
 
 
 def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
