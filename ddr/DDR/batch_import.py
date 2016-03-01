@@ -587,10 +587,10 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
                 logging.debug('    writing %s' % file_.json_path)
                 file_.write_json(obj_metadata=obj_metadata)
                 # TODO better to write to collection changelog?
-                #write_entity_changelog(entity, git_name, git_mail, agent)
+                write_entity_changelog(entity, git_name, git_mail, agent)
                 # stage
                 git_files.append(file_.json_path_rel)
-                #git_files.append(entity.changelog_path_rel)
+                git_files.append(entity.changelog_path_rel)
                 updated.append(file_)
             
             elapsed_round = datetime.now() - start_round
