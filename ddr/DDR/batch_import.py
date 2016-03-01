@@ -34,28 +34,6 @@ class ModifiedFilesError(Exception):
 class UncommittedFilesError(Exception):
     pass
 
-def test_repository(repo):
-    """Raise exception if staged or modified files in repo
-    
-    Entity.add_files will not work properly if the repo contains staged
-    or modified files.
-    
-    @param repo: GitPython repository
-    """
-    logging.info('Checking repository %s' % repo)
-    staged = dvcs.list_staged(repo)
-    if staged:
-        logging.error('*** Staged files in repo %s' % repo.working_dir)
-        for f in staged:
-            logging.error('*** %s' % f)
-        raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
-    modified = dvcs.list_modified(repo)
-    if modified:
-        logging.error('Modified files in repo: %s' % repo.working_dir)
-        for f in modified:
-            logging.error('*** %s' % f)
-        raise ModifiedFilesError('Repository contains modified files - import cancelled!')
-    logging.debug('ok')
 
 def fidentifier_parent(fidentifier):
     """Returns entity Identifier for either 'file' or 'file-role'
@@ -327,8 +305,35 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
 # ----------------------------------------------------------------------
 
 
-def check(csv_path, cidentifier, vocabs_path, session):
+def check_repository(cidentifier):
+    """Load repository, check for staged or modified files
+    
+    Entity.add_files will not work properly if the repo contains staged
+    or modified files.
+    
+    @param cidentifier: Identifier
+    @returns: GitPython.Repository
     """
+    logging.info('Checking repository')
+    repo = dvcs.repository(cidentifier.path_abs())
+    logging.info('Checking repository %s' % repo)
+    staged = dvcs.list_staged(repo)
+    if staged:
+        logging.error('*** Staged files in repo %s' % repo.working_dir)
+        for f in staged:
+            logging.error('*** %s' % f)
+        raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
+    modified = dvcs.list_modified(repo)
+    if modified:
+        logging.error('Modified files in repo: %s' % repo.working_dir)
+        for f in modified:
+            logging.error('*** %s' % f)
+        raise ModifiedFilesError('Repository contains modified files - import cancelled!')
+    logging.debug('ok')
+    return repo
+
+def check_csv(csv_path, cidentifier, vocabs_path):
+    """Load CSV, validate headers and rows
     
     @param csv_path: Absolute path to CSV data file.
     @param cidentifier: Identifier
@@ -336,8 +341,7 @@ def check(csv_path, cidentifier, vocabs_path, session):
     @param session: requests.session object
     @returns: nothing
     """
-    logging.info('------------------------------------------------------------------------')
-    logging.info('batch import check')
+    logging.info('Checking CSV file')
     
     logging.info('Reading input file %s' % csv_path)
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
@@ -347,30 +351,29 @@ def check(csv_path, cidentifier, vocabs_path, session):
         rowd['identifier'] = identifier.Identifier(rowd['id'])
     logging.info('OK')
     
-    logging.info('Looking for modified or uncommitted files in repo')
-    repository = dvcs.repository(cidentifier.path_abs())
-    logging.debug(repository)
-    test_repository(repository)
-    
     model = guess_model(rowds)
     module = get_module(model)
-    field_names = module.field_names()
     vocabs = load_vocab_files(vocabs_path)
-    
     validate_csv_file(module, vocabs, headers, rowds)
+
+def check_eids(rowds, cidentifier, session):
+    """
     
+    @param csv_path: Absolute path to CSV data file.
+    @param cidentifier: Identifier
+    @param session: requests.session object
+    @returns: nothing
+    """
+    logging.info('Checking entity IDs')
+    # ID service
     logging.info('Confirming all entity IDs available')
     csv_eids = [rowd['id'] for rowd in rowds]
     idservice_eids = idservice.entities_existing(session, cidentifier)
     unregistered = unregistered_ids(rowds, idservice_eids)
-    if unregistered == csv_eids) and not registered:
+    if (unregistered == csv_eids) and not registered:
         logging.info('ALL entity IDs available')
     elif registered:
         logging.info('Already registered: %s' % registered)
-    
-    # check for modified or uncommitted files in repo
-    repository = dvcs.repository(cidentifier.path_abs())
-    test_repository(repository)
     
     # confirm file entities not in repo
     logging.info('Checking for existing IDs')

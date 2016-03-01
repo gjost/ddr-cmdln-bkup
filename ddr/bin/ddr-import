@@ -149,9 +149,9 @@ def main():
     if (args.command == 'check') or (not args.nocheck):
         try:
             session = get_idservice_session(args, session)
-            batch_import.check(
-                csv_path, ci, vocabs_path, session
-            )
+            rowds = batch_import.check_csv(csv_path, ci, vocabs_path)
+            repo = batch_import.check_repository(ci)
+            batch_import.check_eids(rowds, ci, session)
         except Exception as err:
             log_error(err)
             sys.exit(1)
