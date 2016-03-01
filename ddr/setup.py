@@ -70,6 +70,7 @@ setup(
         'bin/ddr-import',
         'bin/ddr-filter',
         'bin/ddr-index',
+        'bin/ddr-info',
         'bin/ddr-massupdate',
         'bin/ddr-pubcopy',
         'bin/ddrdensho255fix',

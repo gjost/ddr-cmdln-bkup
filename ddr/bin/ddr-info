@@ -1,0 +1,129 @@
+#!/usr/bin/env python
+
+#
+# ddr-info
+#
+
+description = """Print info about a repository."""
+
+epilog = """
+
+ddr-info /PATH/TO/REPO
+
+---"""
+
+
+import argparse
+from datetime import datetime
+import json
+import logging
+import sys
+
+from DDR import dvcs
+from DDR import identifier
+from DDR import util
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    stream=sys.stdout,
+)
+
+
+def file_info(repo):
+    """Info from looking at set of metadata files
+    
+    @param repo: GitPython.Repository object
+    @returns: dict
+    """
+    data = {}
+    paths = util.find_meta_files(
+        repo.working_dir,
+        recursive=True,
+        force_read=True
+    )
+    identifiers = [
+        identifier.Identifier(path)
+        for path in paths
+    ]
+    data['total objects'] = len(identifiers)
+    # model totals
+    for i in identifiers:
+        key = '%s objects' % i.model
+        if not data.get(key):
+            data[key] = 0
+        data[key] = data[key] + 1
+    # role totals
+    roles = identifier.VALID_COMPONENTS['role']
+    for role in roles:
+        key = '%s files' % role
+        data[key] = 0
+    for i in identifiers:
+        if i.model == 'file':
+            for role in roles:
+                if role in i.path_abs():
+                    key = '%s files' % role
+                    data[key] = data[key] + 1
+    return data
+
+AINFO_FIELDS = {
+    'local annex keys': 'local annex keys',
+    'local annex size': 'local annex size',
+    'annexed files in working tree': 'working tree files',
+    'size of annexed files in working tree': 'working tree size',
+}
+
+def annex_info(repo):
+    """Info from git-annex info command
+    
+    @param repo: GitPython.Repository object
+    @returns: dict
+    """
+    WHITELIST = [f for f in AINFO_FIELDS.iterkeys()]
+    ainfo = {
+        AINFO_FIELDS[key]: val
+        for key,val in dvcs.annex_status(repo).iteritems()
+        if key in WHITELIST
+    }
+    return ainfo
+
+def output(data):
+    for key,val in data.iteritems():
+        logging.info('%s: %s' % (key,val))
+
+
+def main():
+
+    parser = argparse.ArgumentParser(
+        description=description,
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument('collection', help='Absolute path to Collection.')
+    parser.add_argument('-j', '--json', action='store_true', help='Output as JSON')
+    args = parser.parse_args()
+    
+    start = datetime.now()
+    
+    repo = dvcs.repository(args.collection)
+    #logging.debug(repo)
+
+    data = {}
+    #logging.debug('Getting file info')
+    data.update(file_info(repo))
+    
+    #logging.debug('Getting annex info')
+    data.update(annex_info(repo))
+
+    if args.json:
+        print(json.dumps(data))
+    else:
+        output(data)
+    
+    finish = datetime.now()
+    elapsed = finish - start
+    #logging.info('DONE - (%s)' % (elapsed))
+    
+
+if __name__ == '__main__':
+    main()
