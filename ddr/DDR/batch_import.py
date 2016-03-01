@@ -35,7 +35,9 @@ class UncommittedFilesError(Exception):
     pass
 
 
-def fidentifier_parent(fidentifier):
+# helper functions -----------------------------------------------------
+
+def _fidentifier_parent(fidentifier):
     """Returns entity Identifier for either 'file' or 'file-role'
     
     We want to support adding new files and updating existing ones.
@@ -49,7 +51,7 @@ def fidentifier_parent(fidentifier):
     is_stub = fidentifier.object_class() == models.Stub
     return fidentifier.parent(stubs=is_stub)
 
-def file_is_new(fidentifier):
+def _file_is_new(fidentifier):
     """Indicate whether file is new (ingest) or not (update)
     
     @param fidentifier: Identifier
@@ -58,7 +60,7 @@ def file_is_new(fidentifier):
     return fidentifier.object_class() == models.Stub
 
 
-def get_module(model):
+def _get_module(model):
     """Gets modules.Module for the model
     
     @param model: str
@@ -77,7 +79,7 @@ def get_module(model):
     logging.debug(module)
     return module
 
-def guess_model(rowds):
+def _guess_model(rowds):
     """Loops through rowds and guesses model
     
     # TODO guess schema too
@@ -102,7 +104,7 @@ def guess_model(rowds):
     logging.debug('model: %s' % model)
     return model
 
-def load_vocab_files(vocabs_path):
+def _load_vocab_files(vocabs_path):
     """Loads vocabulary term files in the 'ddr' repository
     
     @param vocabs_path: Absolute path to dir containing vocab .json files.
@@ -119,7 +121,7 @@ def load_vocab_files(vocabs_path):
     ]
     return json_texts
 
-def prep_valid_values(json_texts):
+def _prep_valid_values(json_texts):
     """Prepares dict of acceptable values for controlled-vocab fields.
     
     TODO should be method of DDR.modules.Module
@@ -137,7 +139,7 @@ def prep_valid_values(json_texts):
     ...     '{"terms": [{"id": "advertisement"}, {"id": "album"}, {"id": "architecture"}], "id": "genre"}',
     ...     '{"terms": [{"id": "eng"}, {"id": "jpn"}, {"id": "chi"}], "id": "language"}',
     ... ]
-    >>> batch.prep_valid_values(json_texts)
+    >>> batch._prep_valid_values(json_texts)
     {u'genre': [u'advertisement', u'album', u'architecture'], u'language': [u'eng', u'jpn', u'chi']}
     
     @param json_texts: list of raw text contents of files.
@@ -152,11 +154,11 @@ def prep_valid_values(json_texts):
             valid_values[field] = values
     return valid_values
 
-def validate_csv_file(module, vocabs, headers, rowds):
+def _validate_csv_file(module, vocabs, headers, rowds):
     """Validate CSV headers and data against schema/field definitions
     
     @param module: modules.Module
-    @param vocabs: dict Output of prep_valid_values()
+    @param vocabs: dict Output of _prep_valid_values()
     @param headers: list
     @param rowds: list
     """
@@ -164,14 +166,14 @@ def validate_csv_file(module, vocabs, headers, rowds):
     field_names = module.field_names()
     nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
     required_fields = module.required_fields(nonrequired_fields)
-    valid_values = prep_valid_values(vocabs)
+    valid_values = _prep_valid_values(vocabs)
     # check
     logging.info('Validating headers')
     csvfile.validate_headers(headers, field_names, nonrequired_fields)
     logging.info('Validating rows')
     csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
 
-def ids_in_local_repo(rowds, model, collection_path):
+def _ids_in_local_repo(rowds, model, collection_path):
     """Lists which IDs in CSV are present in local repo.
     
     @param rowds: list of dicts
@@ -192,7 +194,7 @@ def ids_in_local_repo(rowds, model, collection_path):
     already = [i for i in new_ids if i in existing_ids]
     return already
 
-def unregistered_ids(rowds, idservice_eids):
+def _unregistered_ids(rowds, idservice_eids):
     """Finds CSV EIDs that are not registered with ID service
     
     NOTES: idservice_eids is output of idservice.entities_existing.
@@ -212,7 +214,7 @@ def unregistered_ids(rowds, idservice_eids):
     return unregistered
 
     
-def populate_object(obj, module, field_names, rowd):
+def _populate_object(obj, module, field_names, rowd):
     """Update entity with values from CSV row.
     
     TODO Populates entity attribs EXCEPT FOR .files!!!
@@ -239,7 +241,7 @@ def populate_object(obj, module, field_names, rowd):
     if obj.modified:
         obj.record_lastmod = datetime.now()
 
-def object_writable(o, field_names):
+def _object_writable(o, field_names):
     """True if file nonexistent or CSV values CSV differ from file
     
     @param o: object
@@ -258,7 +260,7 @@ def object_writable(o, field_names):
     ]
     return changed
 
-def write_entity_changelog(entity, git_name, git_mail, agent):
+def _write_entity_changelog(entity, git_name, git_mail, agent):
     msg = 'Updated entity file {}'
     messages = [
         msg.format(entity.json_path),
@@ -268,7 +270,7 @@ def write_entity_changelog(entity, git_name, git_mail, agent):
         entity.changelog_path, messages,
         user=git_name, email=git_mail)
 
-def write_file_changelogs(entities, git_name, git_mail, agent):
+def _write_file_changelogs(entities, git_name, git_mail, agent):
     """Writes entity update/add changelogs, returns list of changelog paths
     
     Assembles appropriate changelog messages and then updates changelog for
@@ -303,7 +305,6 @@ def write_file_changelogs(entities, git_name, git_mail, agent):
     
 
 # ----------------------------------------------------------------------
-
 
 def check_repository(cidentifier):
     """Load repository, check for staged or modified files
@@ -351,10 +352,10 @@ def check_csv(csv_path, cidentifier, vocabs_path):
         rowd['identifier'] = identifier.Identifier(rowd['id'])
     logging.info('OK')
     
-    model = guess_model(rowds)
-    module = get_module(model)
-    vocabs = load_vocab_files(vocabs_path)
-    validate_csv_file(module, vocabs, headers, rowds)
+    model = _guess_model(rowds)
+    module = _get_module(model)
+    vocabs = _load_vocab_files(vocabs_path)
+    _validate_csv_file(module, vocabs, headers, rowds)
 
 def check_eids(rowds, cidentifier, session):
     """
@@ -369,7 +370,7 @@ def check_eids(rowds, cidentifier, session):
     logging.info('Confirming all entity IDs available')
     csv_eids = [rowd['id'] for rowd in rowds]
     idservice_eids = idservice.entities_existing(session, cidentifier)
-    unregistered = unregistered_ids(rowds, idservice_eids)
+    unregistered = _unregistered_ids(rowds, idservice_eids)
     if (unregistered == csv_eids) and not registered:
         logging.info('ALL entity IDs available')
     elif registered:
@@ -377,7 +378,7 @@ def check_eids(rowds, cidentifier, session):
     
     # confirm file entities not in repo
     logging.info('Checking for existing IDs')
-    already_added = ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
+    already_added = _ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
     if already_added:
         raise Exception('The following entities already exist: %s' % already_added)
     else:
@@ -406,7 +407,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     logging.info('------------------------------------------------------------------------')
     logging.info('batch import entity')
     model = 'entity'
-    module = get_module(model)
+    module = _get_module(model)
     field_names = module.field_names()
     
     repository = dvcs.repository(cidentifier.path_abs())
@@ -432,8 +433,8 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
         entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
-        populate_object(entity, module, field_names, rowd)
-        entity_writable = object_writable(entity, field_names)
+        _populate_object(entity, module, field_names, rowd)
+        entity_writable = _object_writable(entity, field_names)
         # Getting obj_metadata takes about 1sec each time
         # TODO caching works as long as all objects have same metadata...
         if not obj_metadata:
@@ -452,7 +453,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
             entity.write_json(obj_metadata=obj_metadata)
             # TODO better to write to collection changelog?
             # TODO write all additions to changelog at one time
-            write_entity_changelog(entity, git_name, git_mail, agent)
+            _write_entity_changelog(entity, git_name, git_mail, agent)
             # stage
             git_files.append(entity.json_path_rel)
             git_files.append(entity.changelog_path_rel)
@@ -501,7 +502,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     
     # TODO hard-coded model name...
     model = 'file'
-    module = get_module(model)
+    module = _get_module(model)
     field_names = module.field_names()
     
     csv_dir = os.path.dirname(csv_path)
@@ -531,7 +532,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
         for rowd in rowds
     }
     fidentifier_parents = {
-        fi.id: fidentifier_parent(fi)
+        fi.id: _fidentifier_parent(fi)
         for fi in fidentifiers.itervalues()
     }
     # eidentifiers, removing duplicates
@@ -558,7 +559,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     elapsed_rounds_updates = []
     obj_metadata = None
     for n,rowd in enumerate(rowds):
-        if not file_is_new(fidentifiers[rowd['id']]):
+        if not _file_is_new(fidentifiers[rowd['id']]):
             logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
             start_round = datetime.now()
             
@@ -566,8 +567,8 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             eidentifier = fidentifier_parents[fidentifier.id]
             entity = entities[eidentifier.id]
             file_ = models.File.create(fidentifier.path_abs(), fidentifier)
-            populate_object(file_, module, field_names, rowd)
-            file_writable = object_writable(file_, field_names)
+            _populate_object(file_, module, field_names, rowd)
+            file_writable = _object_writable(file_, field_names)
             # Getting obj_metadata takes about 1sec each time
             # TODO caching works as long as all objects have same metadata...
             if not obj_metadata:
@@ -582,7 +583,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
                 logging.debug('    writing %s' % file_.json_path)
                 file_.write_json(obj_metadata=obj_metadata)
                 # TODO better to write to collection changelog?
-                write_entity_changelog(entity, git_name, git_mail, agent)
+                _write_entity_changelog(entity, git_name, git_mail, agent)
                 # stage
                 git_files.append(file_.json_path_rel)
                 git_files.append(entity.changelog_path_rel)
@@ -601,7 +602,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     elapsed_rounds_adds = []
     logging.info('Checking source files')
     for rowd in rowds:
-        if file_is_new(fidentifiers[rowd['id']]):
+        if _file_is_new(fidentifiers[rowd['id']]):
             rowd['src_path'] = os.path.join(csv_dir, rowd['basename_orig'])
             logging.debug('| %s' % rowd['src_path'])
             if not os.path.exists(rowd['src_path']):
@@ -609,7 +610,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     if log_path:
         logging.info('addfile logging to %s' % log_path)
     for n,rowd in enumerate(rowds):
-        if file_is_new(fidentifiers[rowd['id']]):
+        if _file_is_new(fidentifiers[rowd['id']]):
             logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
             start_round = datetime.now()
             
@@ -620,7 +621,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     
             if dryrun:
                 pass
-            elif file_is_new(fidentifier):
+            elif _file_is_new(fidentifier):
                 # ingest
                 # TODO make sure this updates entity.files
                 file_,repo2,log2 = ingest.add_file(
@@ -654,7 +655,7 @@ def register_entity_ids(csv_path, cidentifier, session, dryrun=True):
     """
     logging.info('-----------------------------------------------')
     model = 'entity'
-    module = get_module(model)
+    module = _get_module(model)
     field_names = module.field_names()
     
     logging.info('Reading %s' % csv_path)
