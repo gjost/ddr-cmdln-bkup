@@ -648,11 +648,12 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     return git_files
 
 
-def register_entity_ids(csv_path, cidentifier, session):
+def register_entity_ids(csv_path, cidentifier, session, dryrun=True):
     """
     @param csv_path: Absolute path to CSV data file.
     @param cidentifier: Identifier
     @param session: requests.session object
+    @param register: boolean Whether or not to register IDs
     @returns: nothing
     """
     logging.info('-----------------------------------------------')
@@ -668,6 +669,8 @@ def register_entity_ids(csv_path, cidentifier, session):
     idservice_eids = idservice.entities_existing(session, cidentifier)
     unregistered = unregistered_ids(rowds, idservice_eids)
     logging.info('%s IDs to register.' % len(unregistered))
-    logging.info('Registering IDs')
-    idservice.register_entity_ids(session, cidentifier.id, unregistered)
+    if not dryrun:
+        logging.info('Registering IDs')
+        idservice.register_entity_ids(session, cidentifier.id, unregistered)
     
+    logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
