@@ -193,7 +193,7 @@ def ids_in_local_repo(rowds, model, collection_path):
     return already
 
 def unregistered_ids(rowds, idservice_eids):
-    """Looks at CSV data and ID service; returns unregistered IDs.
+    """Finds CSV EIDs that are not registered with ID service
     
     NOTES: idservice_eids is output of idservice.entities_existing.
     
@@ -385,7 +385,7 @@ def check_eids(rowds, cidentifier, session):
 
 
 def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
-    """Reads a CSV file, checks for errors, and writes entity.json files
+    """Adds or updates entities from a CSV file
     
     Running function multiple times with the same CSV file is idempotent.
     After the initial pass, files will only be modified if the CSV data
@@ -451,6 +451,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
             logging.debug('    writing %s' % entity.json_path)
             entity.write_json(obj_metadata=obj_metadata)
             # TODO better to write to collection changelog?
+            # TODO write all additions to changelog at one time
             write_entity_changelog(entity, git_name, git_mail, agent)
             # stage
             git_files.append(entity.json_path_rel)
@@ -483,7 +484,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
 
 
 def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, log_path=None, dryrun=False):
-    """Updates metadata for files in csv_path.
+    """Adds or updates files from a CSV file
     
     TODO how to handle excluded fields like XMP???
     
@@ -564,8 +565,6 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             fidentifier = fidentifiers[rowd['id']]
             eidentifier = fidentifier_parents[fidentifier.id]
             entity = entities[eidentifier.id]
-            logging.debug('| %s' % (entity))
-    
             file_ = models.File.create(fidentifier.path_abs(), fidentifier)
             populate_object(file_, module, field_names, rowd)
             file_writable = object_writable(file_, field_names)
@@ -623,6 +622,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
                 pass
             elif file_is_new(fidentifier):
                 # ingest
+                # TODO make sure this updates entity.files
                 file_,repo2,log2 = ingest.add_file(
                     entity,
                     rowd['src_path'],
