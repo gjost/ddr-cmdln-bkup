@@ -362,15 +362,8 @@ def check(csv_path, cidentifier, vocabs_path, session):
     logging.info('Confirming all entity IDs available')
     csv_eids = [rowd['id'] for rowd in rowds]
     idservice_eids = idservice.entities_existing(session, cidentifier)
-    registered = [
-        eid for eid in csv_eids
-        if eid in idservice_eids
-    ]
-    unregistered = [
-        eid for eid in csv_eids
-        if eid not in idservice_eids
-    ]
-    if (unregistered == csv_eids) and not registered:
+    unregistered = unregistered_ids(rowds, idservice_eids)
+    if unregistered == csv_eids) and not registered:
         logging.info('ALL entity IDs available')
     elif registered:
         logging.info('Already registered: %s' % registered)
