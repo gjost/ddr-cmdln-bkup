@@ -201,19 +201,16 @@ def ids_in_local_repo(rowds, model, collection_path):
     @param collection_path: str Absolute path to collection repo.
     @returns: list of IDs.
     """
-    new_ids = [rowd['id'] for rowd in rowds]
-    
-    # TODO optimize this?
     metadata_paths = util.find_meta_files(
-        collection_path, recursive=True, force_read=True
+        collection_path,
+        model=model,
+        recursive=True, force_read=True
     )
-    existing_ids = []
-    for path in metadata_paths:
-        i = identifier.Identifier(path=path)
-        if i.model == model:
-            existing_ids.append(i.id)
-    
-    new = [i for i in new_ids if i not in existing_ids]
+    existing_ids = [
+        identifier.Identifier(path=path)
+        for path in metadata_paths
+    ]
+    new_ids = [rowd['id'] for rowd in rowds]
     already = [i for i in new_ids if i in existing_ids]
     return already
 
