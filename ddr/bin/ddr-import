@@ -123,22 +123,23 @@ def main():
     parser.add_argument('-l', '--log', help='(optional) Log addfile to this path')
     args = parser.parse_args()
     
-    # check args
-    if not os.path.exists(args.csv):
+    # ensure we have absolute paths (CWD+relpath)
+    csv_path = os.path.abspath(os.path.normpath(args.csv))
+    collection_path = os.path.abspath(os.path.normpath(args.collection))
+    vocabs_path = os.path.normpath(VOCABS_PATH)
+    
+    # Check args
+    if not os.path.exists(csv_path):
         print('ddr-import: CSV file does not exist.')
         sys.exit(1)
-    if not (os.path.isfile(args.csv) and os.path.isdir(args.collection)):
+    if not (os.path.isfile(csv_path) and os.path.isdir(collection_path)):
         print('ddr-import: CSV filename comes before collection.')
         sys.exit(1)
-    if not os.path.exists(args.collection):
+    if not os.path.exists(collection_path):
         print('ddr-import: Collection does not exist.')
         sys.exit(1)
     
     start = datetime.now()
-    
-    csv_path = os.path.normpath(args.csv)
-    collection_path = os.path.normpath(args.collection)
-    vocabs_path = os.path.normpath(VOCABS_PATH)
 
     ci = identifier.Identifier(collection_path)
     logging.debug(ci)

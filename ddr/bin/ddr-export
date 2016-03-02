@@ -133,17 +133,21 @@ def main():
     parser.add_argument('destination', help='Absolute path to destination directory or file.')
     args = parser.parse_args()
     
+    # ensure we have absolute paths (CWD+relpath)
+    collection_path = os.path.abspath(args.collection)
+    destination_path = os.path.abspath(args.destination)
+    
     if args.idfile and not os.path.exists(args.idfile):
         raise Exception('IDs file does not exist: %s' % args.idfile)
-    elif not os.path.exists(args.collection):
-        raise Exception('Collection does not exist: %s' % args.collection)
+    elif not os.path.exists(collection_path):
+        raise Exception('Collection does not exist: %s' % collection_path)
     elif args.model not in identifier.MODELS:
         raise Exception("Bad model name: '%s'" % args.model)
 
-    if os.path.basename(args.destination):
-        filename = args.destination
-    elif os.path.isdir(args.destination):
-        filename = make_path(args.destination, args.collection, args.model)
+    if os.path.basename(destination_path):
+        filename = destination_path
+    elif os.path.isdir(destination_path):
+        filename = make_path(destination_path, collection_path, args.model)
     logging.info('Writing to %s' % filename)
     if not os.access(os.path.dirname(filename), os.W_OK):
         raise Exception('Cannot write to %s.' % filename)
@@ -155,13 +159,13 @@ def main():
         logging.info('Blank: no paths')
     elif args.idfile:
         logging.info('Looking for paths in %s' % args.idfile)
-        paths = make_paths(args.collection, read_id_file(args.idfile))
+        paths = make_paths(collection_path, read_id_file(args.idfile))
     elif args.include:
         logging.info('Including paths: "%s"' % args.include)
-        paths = filter_paths(all_paths(args.collection, args.model), args.include)
+        paths = filter_paths(all_paths(collection_path, args.model), args.include)
     else:
-        logging.info('All paths in %s' % args.collection)
-        paths = all_paths(args.collection, args.model)
+        logging.info('All paths in %s' % collection_path)
+        paths = all_paths(collection_path, args.model)
     logging.info('found %s paths' % len(paths))
     
     if args.exclude:
