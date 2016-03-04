@@ -58,6 +58,7 @@ import getpass
 import logging
 import os
 import sys
+import traceback
 
 from DDR import config
 from DDR import batch_import
@@ -74,13 +75,20 @@ logging.basicConfig(
 )
 
 
-def log_error(err):
-    """
+def log_error(err, debug=False):
+    """Print Exception message to log, or traceback to console
+    
     @param err: Exception
+    @param debug: boolean If True, print traceback to console
     """
-    logging.error('************************************************************************')
-    logging.error(err)
-    logging.error('************************************************************************')
+    if debug:
+        print('************************************************************************')
+        traceback.print_exc()
+        print('************************************************************************')
+    else:
+        logging.error('************************************************************************')
+        logging.error(err)
+        logging.error('************************************************************************')
 
 def get_idservice_session(args, session=None):
     """Log user in to ID service and return session; prompt if necessary
@@ -116,6 +124,7 @@ def main():
     parser.add_argument('-i', '--idservice', help='URL of ID service, if different from configs.')
     parser.add_argument('-N', '--nocheck', action='store_true', help='Do not run checking/validation (large collections may take time).')
     parser.add_argument('-d', '--dryrun', action='store_true', help="Simulated run-through; don't modify files.")
+    parser.add_argument('-D', '--debug', action='store_true', help='Print error tracebacks.')
     parser.add_argument('-u', '--user', help='Git user name (required if importing)')
     parser.add_argument('-m', '--mail', help='Git user e-mail address (required if importing)')
     parser.add_argument('-U', '--username', help='ID service username')
@@ -154,7 +163,7 @@ def main():
             repo = batch_import.check_repository(ci)
             batch_import.check_eids(rowds, ci, session)
         except Exception as err:
-            log_error(err)
+            log_error(err, args.debug)
             sys.exit(1)
     
     if   args.command == 'entity':
@@ -168,7 +177,7 @@ def main():
                 args.dryrun
             )
         except Exception as err:
-            log_error(err)
+            log_error(err, args.debug)
     
     elif args.command == 'file':
         try:
@@ -182,7 +191,7 @@ def main():
                 args.dryrun
             )
         except Exception as err:
-            log_error(err)
+            log_error(err, args.debug)
     
     elif args.command == 'register':
         session = get_idservice_session(args, session)
@@ -192,7 +201,7 @@ def main():
             )
             logging.info('IF YOU SEE THIS IT WORKED')
         except Exception as err:
-            log_error(err)
+            log_error(err, args.debug)
     
     finish = datetime.now()
     elapsed = finish - start
