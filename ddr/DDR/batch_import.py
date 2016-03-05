@@ -79,6 +79,25 @@ def _get_module(model):
     logging.debug(module)
     return module
 
+def _field_directives(module):
+    """Lists module fields marked with specified directive.
+    
+    The 'csv' section of each field dict in module.FIELDS has instructions
+    for exporting and importing.
+    
+    ['export']['required']: must export field
+    ['import']['required']: field must be present in CSV
+    ['import']['ignore']: ignore field in CSV; don't overwrite object data
+    
+    @param module: modules.Module
+    @param csv_operation: str ['export', 'new', 'update']
+    @param directive: str ['require', 'ignore']
+    """
+    return {
+        f['name']: f['csv']
+        for f in module.module.FIELDS
+    }
+
 def _guess_model(rowds):
     """Loops through rowds and guesses model
     
@@ -214,7 +233,7 @@ def _unregistered_ids(rowds, idservice_eids):
     return unregistered
 
     
-def _populate_object(obj, module, field_names, rowd):
+def _populate_object(obj, module, field_names, field_directives, rowd):
     """Update entity with values from CSV row.
     
     TODO Populates entity attribs EXCEPT FOR .files!!!
@@ -222,13 +241,15 @@ def _populate_object(obj, module, field_names, rowd):
     @param obj:
     @param module:
     @param field_names:
+    @param field_directives:
     @param rowd:
     @returns: entity,modified
     """
     # run csvload_* functions on row data, set values
     obj.modified = 0
     for field in field_names:
-        if field in rowd.keys():
+        directives = field_directives[field]['import']
+        if (field in rowd.keys()) and ('ignore' not in directives):
             oldvalue = getattr(obj, field, '')
             value = module.function(
                 'csvload_%s' % field,
@@ -409,6 +430,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     model = 'entity'
     module = _get_module(model)
     field_names = module.field_names()
+    field_directives = _field_directives(module)
     
     repository = dvcs.repository(cidentifier.path_abs())
     logging.info(repository)
@@ -433,7 +455,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
         entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
-        _populate_object(entity, module, field_names, rowd)
+        _populate_object(entity, module, field_names, field_directives, rowd)
         entity_writable = _object_writable(entity, field_names)
         # Getting obj_metadata takes about 1sec each time
         # TODO caching works as long as all objects have same metadata...
@@ -504,6 +526,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     model = 'file'
     module = _get_module(model)
     field_names = module.field_names()
+    field_directives = _field_directives(module)
     
     csv_dir = os.path.dirname(csv_path)
     logging.debug('csv_dir %s' % csv_dir)
@@ -567,7 +590,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             eidentifier = fidentifier_parents[fidentifier.id]
             entity = entities[eidentifier.id]
             file_ = models.File.create(fidentifier.path_abs(), fidentifier)
-            _populate_object(file_, module, field_names, rowd)
+            _populate_object(file_, module, field_names, field_directives, rowd)
             file_writable = _object_writable(file_, field_names)
             # Getting obj_metadata takes about 1sec each time
             # TODO caching works as long as all objects have same metadata...
