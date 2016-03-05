@@ -454,7 +454,9 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         start_round = datetime.now()
         
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
-        entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
+        entity = eidentifier.object()
+        if not entity:
+            entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
         _populate_object(entity, module, field_names, field_directives, rowd)
         entity_writable = _object_writable(entity, field_names)
         # Getting obj_metadata takes about 1sec each time
@@ -589,7 +591,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             fidentifier = fidentifiers[rowd['id']]
             eidentifier = fidentifier_parents[fidentifier.id]
             entity = entities[eidentifier.id]
-            file_ = models.File.create(fidentifier.path_abs(), fidentifier)
+            file_ = fidentifier.object()
             _populate_object(file_, module, field_names, field_directives, rowd)
             file_writable = _object_writable(file_, field_names)
             # Getting obj_metadata takes about 1sec each time
