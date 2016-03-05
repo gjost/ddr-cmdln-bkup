@@ -529,6 +529,11 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     module = _get_module(model)
     field_names = module.field_names()
     field_directives = _field_directives(module)
+
+    # Remove 'id' field.
+    # It has to be in the CSV but it's not in repo_models.files.FIELDS.
+    # having it there causes problems with field_directives in populate_object.
+    field_names.remove('id')
     
     csv_dir = os.path.dirname(csv_path)
     logging.debug('csv_dir %s' % csv_dir)
