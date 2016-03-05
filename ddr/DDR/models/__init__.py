@@ -109,6 +109,12 @@ def sort_file_paths(json_paths, rank='role-eid-sort'):
 def create_object(identifier):
     """Creates a new object initial values from module.FIELDS.
     
+    If identifier.fields_module().FIELDS.field['default'] is non-None
+    it is used as the value.
+    Use "None" for things like Object.id, which should already be set
+    in the object constructor, and which you do not want to overwrite
+    with a default value. Ahem.
+    
     @param identifier: Identifier
     @returns: object
     """
@@ -117,9 +123,11 @@ def create_object(identifier):
         identifier.path_abs(),
         identifier=identifier
     )
-    # set initial values
+    # set default values
     for f in identifier.fields_module().FIELDS:
-        if hasattr(f, 'name') and hasattr(f, 'initial'):
+        if f['default'] != None:
+            setattr(obj, f['name'], f['default'])
+        elif hasattr(f, 'name') and hasattr(f, 'initial'):
             setattr(obj, f['name'], f['initial'])
     return obj
 
