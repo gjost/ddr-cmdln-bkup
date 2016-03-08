@@ -285,6 +285,7 @@ def prep_csv(obj, module, headers=[]):
         field_names = headers
     else:
         field_names = module.field_names()
+        # TODO field_directives go here!
     # seealso DDR.modules.Module.function
     values = []
     for field_name in field_names:
@@ -320,7 +321,8 @@ def load_csv(obj, module, rowd):
     }
     obj.modified = []
     for field,value in rowd.iteritems():
-        if 'ignore' not in field_directives[field]:
+        ignored = 'ignore' in field_directives[field]
+        if not ignored:
             oldvalue = getattr(obj, field, '')
             value = module.function(
                 'csvload_%s' % field,
