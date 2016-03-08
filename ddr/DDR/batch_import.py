@@ -59,45 +59,6 @@ def _file_is_new(fidentifier):
     """
     return fidentifier.object_class() == models.Stub
 
-
-def _get_module(model):
-    """Gets modules.Module for the model
-    
-    @param model: str
-    @returns: modules.Module
-    """
-    object_class = identifier.class_for_name(
-        identifier.MODEL_CLASSES[model]['module'],
-        identifier.MODEL_CLASSES[model]['class']
-    )
-    logging.debug(object_class)
-    module = modules.Module(
-        identifier.module_for_name(
-            identifier.MODEL_REPO_MODELS[model]['module']
-        )
-    )
-    logging.debug(module)
-    return module
-
-def _field_directives(module):
-    """Lists module fields marked with specified directive.
-    
-    The 'csv' section of each field dict in module.FIELDS has instructions
-    for exporting and importing.
-    
-    ['export']['required']: must export field
-    ['import']['required']: field must be present in CSV
-    ['import']['ignore']: ignore field in CSV; don't overwrite object data
-    
-    @param module: modules.Module
-    @param csv_operation: str ['export', 'new', 'update']
-    @param directive: str ['require', 'ignore']
-    """
-    return {
-        f['name']: f['csv']
-        for f in module.module.FIELDS
-    }
-
 def _guess_model(rowds):
     """Loops through rowds and guesses model
     
@@ -379,9 +340,6 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
     logging.info('------------------------------------------------------------------------')
     logging.info('batch import entity')
     model = 'entity'
-    module = _get_module(model)
-    field_names = module.field_names()
-    field_directives = _field_directives(module)
     
     repository = dvcs.repository(cidentifier.path_abs())
     logging.info(repository)
@@ -477,9 +435,6 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     
     # TODO hard-coded model name...
     model = 'file'
-    module = _get_module(model)
-    field_names = module.field_names()
-    field_directives = _field_directives(module)
     
     csv_dir = os.path.dirname(csv_path)
     logging.debug('csv_dir %s' % csv_dir)
@@ -635,10 +590,6 @@ def register_entity_ids(csv_path, cidentifier, session, dryrun=True):
     @returns: nothing
     """
     logging.info('-----------------------------------------------')
-    model = 'entity'
-    module = _get_module(model)
-    field_names = module.field_names()
-    
     logging.info('Reading %s' % csv_path)
     headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
     logging.info('%s rows' % len(rowds))
