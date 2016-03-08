@@ -122,8 +122,8 @@ def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-b', '--blank', action='store_true', help='Blank CSV, just headers (all fields).')
-    parser.add_argument('-B', '--blankr', action='store_true', help='Blank CSV, just headers (required fields only).')
+    parser.add_argument('-b', '--blank', action='store_true', help='Blank CSV, just headers.')
+    parser.add_argument('-r', '--required', action='store_true', help='Required fields only.')
     parser.add_argument('-I', '--idfile', help='File containing list of IDs, one per line.')
     parser.add_argument('-i', '--include', help='ID(s) to include (see help for formatting).')
     parser.add_argument('-e', '--exclude', help='ID(s) to exclude (see help for formatting).')
@@ -155,7 +155,7 @@ def main():
     start = datetime.now()
     
     paths = []
-    if args.blank or args.blankr:
+    if args.blank:
         logging.info('Blank: no paths')
     elif args.idfile:
         logging.info('Looking for paths in %s' % args.idfile)
@@ -175,7 +175,7 @@ def main():
         num_excluded = len(paths) - before
         logging.info('excluded %s' % abs(num_excluded))
     
-    if not paths and not (args.blank or args.blankr):
+    if not paths and not (args.blank):
         raise Exception('ERROR: Could not find metadata paths.')
     logging.info('Exporting %s paths' % len(paths))
 
@@ -184,7 +184,7 @@ def main():
         for n,path in enumerate(paths):
             logging.info('%s/%s %s' % (n+1, len(paths), path))
     else:
-        batch_export.export(paths, args.model, filename, required_only=args.blankr)
+        batch_export.export(paths, args.model, filename, required_only=args.required)
     
     finish = datetime.now()
     elapsed = finish - start
