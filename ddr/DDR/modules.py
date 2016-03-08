@@ -36,23 +36,11 @@ class Module(object):
         
         @returns: list of field names
         """
-        if hasattr(self.module, 'FIELDS_CSV_EXCLUDED'):
-            excluded = self.module.FIELDS_CSV_EXCLUDED
-        else:
-            excluded = []
-        fields = [
+        field_names = [
             field['name']
             for field in getattr(self.module, 'FIELDS', [])
-            if not field['name'] in excluded
         ]
-        # TODO don't refer to specific models
-        if self.module.MODEL == 'collection':
-            pass
-        elif self.module.MODEL == 'entity':
-            pass
-        elif self.module.MODEL == 'file':
-            fields.insert(0, 'id')
-        return fields
+        return field_names
     
     def required_fields(self, exceptions=[]):
         """Reads module.FIELDS and returns names of required fields.
