@@ -475,7 +475,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             entity = eidentifier.object()
             entities[eidentifier.id] = entity
         else:
-            if eidentifier.id not in bad:
+            if eidentifier.id not in bad_entities:
                 bad_entities.append(eidentifier.id)
     if bad_entities:
         for f in bad_entities:
