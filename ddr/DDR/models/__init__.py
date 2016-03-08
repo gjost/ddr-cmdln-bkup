@@ -304,39 +304,43 @@ def prep_csv(obj, module, headers=[]):
         values.append(value)
     return values
 
-def load_csv(obj, module, headers, row):
+def load_csv(obj, module, rowd):
     """Populates object from a row in a CSV file.
     
     @param obj: Collection/Entity/File object.
-    @param module: collection/entity/file module from 'ddr' repo.
-    @param headers: list Names of fields.
-    @param row: list One line of a CSV file.
-    @returns: dict
+    @param module: modules.Module
+    @param rowd: dict Headers/row cells for one line of a CSV file.
+    @returns: list of changed fields
     """
-    module_field_names = [mf['name'] for mf in module.FIELDS]
-    for n in range(0, len(row)):
-        key = headers[n]
-        val = row[n]
-        if key in module_field_names:
-            setattr(obj, key, val)
-    # Fill in missing fields with default values from module.FIELDS.
-    # Note: should not replace fields that are just empty.
-    for mf in module.FIELDS:
-        if not hasattr(document, mf['name']):
-            setattr(document, mf['name'], mf.get('default',None))
-    return csv_data
+    # In repo_models.object.FIELDS, individual fields can be marked
+    # so they are ignored (e.g. not included) when importing.
+    field_directives = {
+        f['name']: f['csv']['import']
+        for f in module.module.FIELDS
+    }
+    obj.modified = []
+    for field,value in rowd.iteritems():
+        if 'ignore' not in field_directives[field]:
+            oldvalue = getattr(obj, field, '')
+            value = module.function(
+                'csvload_%s' % field,
+                rowd[field]
+            )
+            value = util.normalize_text(value)
+            if value != oldvalue:
+                obj.modified.append(field)
+            setattr(obj, field, value)
+    return obj.modified
 
-def from_csv(model, headers, row, identifier):
-    """Instantiate object.
+def from_csv(identifier, rowd):
+    """Instantiates a File object from CSV row data.
     
-    @param model: LocalCollection, LocalEntity, or File
-    @param headers: list Names of fields.
-    @param row: list One line of a CSV file.
     @param identifier: [optional] Identifier
+    @param rowd: dict Headers/row cells for one line of a CSV file.
     @returns: object
     """
-    obj = model(identifier.path_abs('json'), identifier)
-    obj.load_csv(headers, row)
+    obj = identifier.object()
+    obj.load_csv(headers, rowd)
     return obj
 
 def load_xml():
@@ -864,15 +868,14 @@ class Entity( object ):
         return from_json(Entity, path_abs, identifier)
     
     @staticmethod
-    def from_csv(headers, row, identifier=None):
-        """Instantiates an Entity object from specified entity.json.
+    def from_csv(identifier, rowd):
+        """Instantiates a File object from CSV row data.
         
-        @param headers: list Names of fields.
-        @param row: list One line of a CSV file.
         @param identifier: [optional] Identifier
+        @param rowd: dict Headers/row cells for one line of a CSV file.
         @returns: Entity
         """
-        return from_csv(Entity, headers, row, identifier)
+        return from_csv(identifier, rowd)
     
     @staticmethod
     def from_identifier(identifier):
@@ -1017,14 +1020,14 @@ class Entity( object ):
             }
         )
 
-    def load_csv(self, headers, row):
+    def load_csv(self, rowd):
         """Populate Entity data from CSV-formatted text.
         
-        @param headers: list Names of fields.
-        @param row: list One line of a CSV file.
+        @param rowd: dict Headers/row cells for one line of a CSV file.
+        @returns: list of changed fields
         """
-        module = self.identifier.fields_module()
-        load_csv(self, module, headers, row)
+        module = modules.Module(self.identifier.fields_module())
+        modified = load_csv(self, module, rowd)
         # special cases
         def parsedt(txt):
             d = datetime.now()
@@ -1039,6 +1042,7 @@ class Entity( object ):
         if hasattr(self, 'record_created') and self.record_created: self.record_created = parsedt(self.record_created)
         if hasattr(self, 'record_lastmod') and self.record_lastmod: self.record_lastmod = parsedt(self.record_lastmod)
         self.rm_file_duplicates()
+        return modified
 
     def dump_csv(self, headers=[]):
         """Dump Entity data to CSV-formatted text.
@@ -1397,15 +1401,14 @@ class File( object ):
         return from_json(File, path_abs, identifier)
     
     @staticmethod
-    def from_csv(headers, row, identifier=None):
-        """Instantiates a File object from specified *.json.
+    def from_csv(identifier, rowd):
+        """Instantiates a File object from CSV row data.
         
-        @param headers: list Names of fields.
-        @param row: list One line of a CSV file.
         @param identifier: [optional] Identifier
+        @param rowd: dict Headers/row cells for one line of a CSV file.
         @returns: DDRFile
         """
-        return from_csv(File, headers, row, identifier)
+        return from_csv(identifier, rowd)
     
     @staticmethod
     def from_identifier(identifier):
@@ -1521,30 +1524,40 @@ class File( object ):
             }
         )
     
-    def load_csv(self, headers, row):
+    def load_csv(self, rowd):
         """Populate File data from JSON-formatted text.
         
-        @param headers: list Names of fields.
-        @param row: list One line of a CSV file.
+        @param rowd: dict Headers/row cells for one line of a CSV file.
+        @returns: list of changed fields
         """
-        module = self.identifier.fields_module()
-        json_data = load_csv(self, module, headers, row)
+        # remove 'id' from rowd because files.FIELDS has no 'id' field
+        # TODO files.FIELDS really should have an ID field...
+        if 'id' in rowd.iterkeys():
+            rowd.pop('id')
+        module = modules.Module(self.identifier.fields_module())
+        modified = load_csv(self, module, rowd)
         # fill in the blanks
         if self.access_rel:
             access_abs = os.path.join(self.entity_files_path, self.access_rel)
             if os.path.exists(access_abs):
                 self.access_abs = access_abs
         # Identifier does not know file extension
+        def add_extension(path, ext):
+            # add extenstions if not already present
+            base,ext = os.path.splitext(path)
+            if not ext:
+                return path + ext
+            return path
         self.ext = os.path.splitext(self.basename_orig)[1]
-        self.path = self.path + self.ext
-        self.path_abs = self.path_abs + self.ext
-        self.path_rel = self.path_rel + self.ext
-        self.basename = self.basename + self.ext
+        self.path_abs = add_extension(self.path_abs, self.ext)
+        self.path_rel = add_extension(self.path_rel, self.ext)
+        self.basename = add_extension(self.basename, self.ext)
         # fix access_rel
         self.access_rel = os.path.join(
             os.path.dirname(self.path_rel),
             os.path.basename(self.access_abs)
         )
+        return modified
     
     def dump_csv(self, headers=[]):
         """Dump File data to list of values suitable for CSV.

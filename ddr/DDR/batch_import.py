@@ -232,55 +232,6 @@ def _unregistered_ids(rowds, idservice_eids):
     ]
     return unregistered
 
-    
-def _populate_object(obj, module, field_names, field_directives, rowd):
-    """Update entity with values from CSV row.
-    
-    TODO Populates entity attribs EXCEPT FOR .files!!!
-    
-    @param obj:
-    @param module:
-    @param field_names:
-    @param field_directives:
-    @param rowd:
-    @returns: entity,modified
-    """
-    # run csvload_* functions on row data, set values
-    obj.modified = 0
-    for field in field_names:
-        directives = field_directives[field]['import']
-        if (field in rowd.keys()) and ('ignore' not in directives):
-            oldvalue = getattr(obj, field, '')
-            value = module.function(
-                'csvload_%s' % field,
-                rowd[field]
-            )
-            value = util.normalize_text(value)
-            if value != oldvalue:
-                obj.modified += 1
-            setattr(obj, field, value)
-    if obj.modified:
-        obj.record_lastmod = datetime.now()
-
-def _object_writable(o, field_names):
-    """True if file nonexistent or CSV values CSV differ from file
-    
-    @param o: object
-    @param field_names: list
-    @returns: boolean
-    """
-    if not os.path.exists(o.path_abs):
-        return True
-    existing = o.identifier.object()
-    if not existing:
-        return False
-    changed = [
-        field_name
-        for field_name in field_names
-        if getattr(o, field_name) != getattr(existing, field_name)
-    ]
-    return changed
-
 def _write_entity_changelog(entity, git_name, git_mail, agent):
     msg = 'Updated entity file {}'
     messages = [
@@ -454,11 +405,11 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         start_round = datetime.now()
         
         eidentifier = identifier.Identifier(id=rowd['id'], base_path=cidentifier.basepath)
+        # if there is an existing object it will be loaded
         entity = eidentifier.object()
         if not entity:
             entity = models.Entity.create(eidentifier.path_abs(), eidentifier)
-        _populate_object(entity, module, field_names, field_directives, rowd)
-        entity_writable = _object_writable(entity, field_names)
+        modified = entity.load_csv(rowd)
         # Getting obj_metadata takes about 1sec each time
         # TODO caching works as long as all objects have same metadata...
         if not obj_metadata:
@@ -469,7 +420,7 @@ def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agen
         
         if dryrun:
             pass
-        elif entity_writable:
+        elif modified:
             # write files
             if not os.path.exists(entity.path_abs):
                 os.makedirs(entity.path_abs)
@@ -529,11 +480,6 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     module = _get_module(model)
     field_names = module.field_names()
     field_directives = _field_directives(module)
-
-    # Remove 'id' field.
-    # It has to be in the CSV but it's not in repo_models.files.FIELDS.
-    # having it there causes problems with field_directives in populate_object.
-    field_names.remove('id')
     
     csv_dir = os.path.dirname(csv_path)
     logging.debug('csv_dir %s' % csv_dir)
@@ -605,8 +551,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
         eidentifier = fidentifier_parents[fidentifier.id]
         entity = entities[eidentifier.id]
         file_ = fidentifier.object()
-        _populate_object(file_, module, field_names, field_directives, rowd)
-        file_writable = _object_writable(file_, field_names)
+        modified = file_.load_csv(rowd)
         # Getting obj_metadata takes about 1sec each time
         # TODO caching works as long as all objects have same metadata...
         if not obj_metadata:
@@ -617,7 +562,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
         
         if dryrun:
             pass
-        elif file_writable:
+        elif modified:
             logging.debug('    writing %s' % file_.json_path)
             file_.write_json(obj_metadata=obj_metadata)
             # TODO better to write to collection changelog?
