@@ -56,12 +56,13 @@ def export(json_paths, model, csv_path, required_only=False):
     
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
         writer = fileio.csv_writer(csvfile)
+        # headers in first line
         writer.writerow(headers)
         for n,json_path in enumerate(json_paths):
             i = identifier.Identifier(json_path)
             logging.info('%s/%s - %s' % (n+1, json_paths_len, i.id))
             obj = object_class.from_identifier(i)
             if obj:
-                writer.writerow(obj.dump_csv())
+                writer.writerow(obj.dump_csv(headers=headers))
     
     return csv_path
