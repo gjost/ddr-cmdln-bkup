@@ -581,6 +581,15 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             logging.error('    %s missing' % f)
         raise Exception('%s entities could not be loaded! - IMPORT CANCELLED!' % len(bad_entities))
 
+    # separate into new and existing lists
+    rowds_new = []
+    rowds_existing = []
+    for n,rowd in enumerate(rowds):
+        if _file_is_new(fidentifiers[rowd['id']]):
+            rowds_new.append(rowd)
+        else:
+            rowds_existing.append(rowd)
+    
     logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
     logging.info('Updating existing files')
     start_updates = datetime.now()
@@ -588,40 +597,39 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     updated = []
     elapsed_rounds_updates = []
     obj_metadata = None
-    for n,rowd in enumerate(rowds):
-        if not _file_is_new(fidentifiers[rowd['id']]):
-            logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
-            start_round = datetime.now()
-            
-            fidentifier = fidentifiers[rowd['id']]
-            eidentifier = fidentifier_parents[fidentifier.id]
-            entity = entities[eidentifier.id]
-            file_ = fidentifier.object()
-            _populate_object(file_, module, field_names, field_directives, rowd)
-            file_writable = _object_writable(file_, field_names)
-            # Getting obj_metadata takes about 1sec each time
-            # TODO caching works as long as all objects have same metadata...
-            if not obj_metadata:
-                obj_metadata = models.object_metadata(
-                    fidentifier.fields_module(),
-                    repository.working_dir
-                )
-            
-            if dryrun:
-                pass
-            elif file_writable:
-                logging.debug('    writing %s' % file_.json_path)
-                file_.write_json(obj_metadata=obj_metadata)
-                # TODO better to write to collection changelog?
-                _write_entity_changelog(entity, git_name, git_mail, agent)
-                # stage
-                git_files.append(file_.json_path_rel)
-                git_files.append(entity.changelog_path_rel)
-                updated.append(file_)
-            
-            elapsed_round = datetime.now() - start_round
-            elapsed_rounds_updates.append(elapsed_round)
-            logging.debug('| %s (%s)' % (fidentifier, elapsed_round))
+    for n,rowd in enumerate(rowds_existing):
+        logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
+        start_round = datetime.now()
+        
+        fidentifier = fidentifiers[rowd['id']]
+        eidentifier = fidentifier_parents[fidentifier.id]
+        entity = entities[eidentifier.id]
+        file_ = fidentifier.object()
+        _populate_object(file_, module, field_names, field_directives, rowd)
+        file_writable = _object_writable(file_, field_names)
+        # Getting obj_metadata takes about 1sec each time
+        # TODO caching works as long as all objects have same metadata...
+        if not obj_metadata:
+            obj_metadata = models.object_metadata(
+                fidentifier.fields_module(),
+                repository.working_dir
+            )
+        
+        if dryrun:
+            pass
+        elif file_writable:
+            logging.debug('    writing %s' % file_.json_path)
+            file_.write_json(obj_metadata=obj_metadata)
+            # TODO better to write to collection changelog?
+            _write_entity_changelog(entity, git_name, git_mail, agent)
+            # stage
+            git_files.append(file_.json_path_rel)
+            git_files.append(entity.changelog_path_rel)
+            updated.append(file_)
+        
+        elapsed_round = datetime.now() - start_round
+        elapsed_rounds_updates.append(elapsed_round)
+        logging.debug('| %s (%s)' % (fidentifier, elapsed_round))
     
     elapsed_updates = datetime.now() - start_updates
     logging.debug('%s updated in %s' % (len(elapsed_rounds_updates), elapsed_updates))
@@ -631,42 +639,40 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     start_adds = datetime.now()
     elapsed_rounds_adds = []
     logging.info('Checking source files')
-    for rowd in rowds:
-        if _file_is_new(fidentifiers[rowd['id']]):
-            rowd['src_path'] = os.path.join(csv_dir, rowd['basename_orig'])
-            logging.debug('| %s' % rowd['src_path'])
-            if not os.path.exists(rowd['src_path']):
-                raise Exception('Missing file: %s' % rowd['src_path'])
+    for rowd in rowds_new:
+        rowd['src_path'] = os.path.join(csv_dir, rowd['basename_orig'])
+        logging.debug('| %s' % rowd['src_path'])
+        if not os.path.exists(rowd['src_path']):
+            raise Exception('Missing file: %s' % rowd['src_path'])
     if log_path:
         logging.info('addfile logging to %s' % log_path)
-    for n,rowd in enumerate(rowds):
-        if _file_is_new(fidentifiers[rowd['id']]):
-            logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
-            start_round = datetime.now()
-            
-            fidentifier = fidentifiers[rowd['id']]
-            eidentifier = fidentifier_parents[fidentifier.id]
-            entity = entities[eidentifier.id]
-            logging.debug('| %s' % (entity))
-    
-            if dryrun:
-                pass
-            elif _file_is_new(fidentifier):
-                # ingest
-                # TODO make sure this updates entity.files
-                file_,repo2,log2 = ingest.add_file(
-                    entity,
-                    rowd['src_path'],
-                    fidentifier.parts['role'],
-                    rowd,
-                    git_name, git_mail, agent,
-                    log_path=log_path,
-                    show_staged=False
-                )
-            
-            elapsed_round = datetime.now() - start_round
-            elapsed_rounds_adds.append(elapsed_round)
-            logging.debug('| %s (%s)' % (file_, elapsed_round))
+    for n,rowd in enumerate(rowds_new):
+        logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
+        start_round = datetime.now()
+        
+        fidentifier = fidentifiers[rowd['id']]
+        eidentifier = fidentifier_parents[fidentifier.id]
+        entity = entities[eidentifier.id]
+        logging.debug('| %s' % (entity))
+
+        if dryrun:
+            pass
+        elif _file_is_new(fidentifier):
+            # ingest
+            # TODO make sure this updates entity.files
+            file_,repo2,log2 = ingest.add_file(
+                entity,
+                rowd['src_path'],
+                fidentifier.parts['role'],
+                rowd,
+                git_name, git_mail, agent,
+                log_path=log_path,
+                show_staged=False
+            )
+        
+        elapsed_round = datetime.now() - start_round
+        elapsed_rounds_adds.append(elapsed_round)
+        logging.debug('| %s (%s)' % (file_, elapsed_round))
     
     elapsed_adds = datetime.now() - start_adds
     logging.debug('%s added in %s' % (len(elapsed_rounds_adds), elapsed_adds))
