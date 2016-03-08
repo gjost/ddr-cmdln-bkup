@@ -1030,19 +1030,21 @@ class Entity( object ):
         """
         module = modules.Module(self.identifier.fields_module())
         modified = load_csv(self, module, rowd)
-        # special cases
-        def parsedt(txt):
-            d = datetime.now()
-            try:
-                d = datetime.strptime(txt, config.DATETIME_FORMAT)
-            except:
-                try:
-                    d = datetime.strptime(txt, config.TIME_FORMAT)
-                except:
-                    pass
-            return d
-        if hasattr(self, 'record_created') and self.record_created: self.record_created = parsedt(self.record_created)
-        if hasattr(self, 'record_lastmod') and self.record_lastmod: self.record_lastmod = parsedt(self.record_lastmod)
+        ## special cases
+        #def parsedt(txt):
+        #    d = datetime.now()
+        #    try:
+        #        d = datetime.strptime(txt, config.DATETIME_FORMAT)
+        #    except:
+        #        try:
+        #            d = datetime.strptime(txt, config.TIME_FORMAT)
+        #        except:
+        #            pass
+        #    return d
+        if not hasattr(self, 'record_created'):
+            self.record_created = datetime.now()
+        if modified and hasattr(self, 'record_lastmod'):
+            self.record_lastmod = datetime.now()
         self.rm_file_duplicates()
         return modified
 
