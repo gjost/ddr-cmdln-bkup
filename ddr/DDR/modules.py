@@ -19,20 +19,7 @@ class Module(object):
         return "<%s.%s '%s'>" % (self.__module__, self.__class__.__name__, self.path)
     
     def field_names(self):
-        """Manipulates list of fieldnames to include/exclude columns from CSV.
-        
-        >>> m = TestModule()
-        >>> m.FIELDS = [{'name':'id'}, {'name':'title'}, {'name':'description'}]
-        >>> m.FIELDS_CSV_EXCLUDED = ['description']
-        >>> m.MODEL = 'collection'
-        >>> batch.module_field_names(m)
-        ['id', 'title']
-        >>> m.MODEL = 'entity'
-        >>> batch.module_field_names(m)
-        ['id', 'title']
-        >>> m.MODEL = 'file'
-        >>> batch.module_field_names(m)
-        ['file_id', 'id', 'title']
+        """Returns list of module fieldnames.
         
         @returns: list of field names
         """
@@ -41,32 +28,23 @@ class Module(object):
             for field in getattr(self.module, 'FIELDS', [])
         ]
         return field_names
-    
-    def required_fields(self, exceptions=[]):
-        """Reads module.FIELDS and returns names of required fields.
+
+    def csv_export_fields(self, required_only=False):
+        """Returns list of module fields marked for CSV export
         
-        >>> fields = [
-        ...     {'name':'id', 'form':{'required':True}},
-        ...     {'name':'title', 'form':{'required':True}},
-        ...     {'name':'description', 'form':{'required':False}},
-        ...     {'name':'formless'},
-        ...     {'name':'files', 'form':{'required':True}},
-        ... ]
-        >>> exceptions = ['files', 'whatever']
-        >>> batch.get_required_fields(fields, exceptions)
-        ['id', 'title']
-        
-        @param exceptions: list of field names
-        @returns: list of field names
+        @param required_only: boolean
+        @returns: list
         """
-        required_fields = [
-            field['name']
-            for field in self.module.FIELDS
-            if field.get('form', None) \
-            and field['form']['required'] \
-            and (field['name'] not in exceptions)
+        # In repo_models.object.FIELDS, individual fields can be marked
+        # so they are ignored (e.g. not included) when exporting.
+        export_directives = {
+            f['name']: f['csv']['export']
+            for f in self.module.FIELDS
+        }
+        return [
+            f for f in self.field_names()
+            if not ('ignore' in export_directives[f])
         ]
-        return required_fields
     
     def is_valid(self):
         """Indicates whether this is a proper module

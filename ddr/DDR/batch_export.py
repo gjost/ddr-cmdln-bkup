@@ -48,10 +48,11 @@ def export(json_paths, model, csv_path, required_only=False):
     json_paths_len = len(json_paths)
     
     make_tmpdir(os.path.dirname(csv_path))
-    if required_only:
-        headers = module.required_fields()
-    else:
-        headers = module.field_names()
+    
+    headers = module.csv_export_fields(required_only)
+    # make sure we export 'id' if it's not in model FIELDS (ahem, files)
+    if 'id' not in headers:
+        headers.insert(0, 'id')
     
     with codecs.open(csv_path, 'wb', 'utf-8') as csvfile:
         writer = fileio.csv_writer(csvfile)
