@@ -6,8 +6,6 @@ Import new records
 Register newly added EIDs
 """
 
-from collections import OrderedDict
-from copy import deepcopy
 from datetime import datetime
 import json
 import logging
