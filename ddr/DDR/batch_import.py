@@ -497,6 +497,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     git_files = []
     updated = []
     elapsed_rounds_updates = []
+    staged = []
     obj_metadata = None
     for n,rowd in enumerate(rowds_existing):
         logging.info('+ %s/%s - %s (%s)' % (n+1, len(rowds), rowd['id'], rowd['basename_orig']))
@@ -533,6 +534,22 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
     
     elapsed_updates = datetime.now() - start_updates
     logging.debug('%s updated in %s' % (len(elapsed_rounds_updates), elapsed_updates))
+            
+    if dryrun:
+        pass
+    elif modified:
+        logging.info('Staging %s modified files' % len(git_files))
+        start_stage = datetime.now()
+        dvcs.stage(repository, git_files)
+        staged = util.natural_sort(dvcs.list_staged(repository))
+        for path in staged:
+            if path in git_files:
+                logging.debug('+ %s' % path)
+            else:
+                logging.debug('| %s' % path)
+        elapsed_stage = datetime.now() - start_stage
+        logging.debug('ok (%s)' % elapsed_stage)
+        logging.debug('%s staged in %s' % (len(staged), elapsed_stage))
     
     logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
     logging.info('Adding new files')
