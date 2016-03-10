@@ -190,25 +190,6 @@ def _ids_in_local_repo(rowds, model, collection_path):
     already = [i for i in new_ids if i in existing_ids]
     return already
 
-def _unregistered_ids(rowds, idservice_eids):
-    """Finds CSV EIDs that are not registered with ID service
-    
-    NOTES: idservice_eids is output of idservice.entities_existing.
-    
-    @param rowds: list
-    @param idservice_eids: list
-    """
-    csv_eids = [rowd['id'] for rowd in rowds]
-    registered = [
-        eid for eid in csv_eids
-        if eid in idservice_eids
-    ]
-    unregistered = [
-        eid for eid in csv_eids
-        if eid not in idservice_eids
-    ]
-    return unregistered
-
 def _write_entity_changelog(entity, git_name, git_mail, agent):
     msg = 'Updated entity file {}'
     messages = [
@@ -314,12 +295,9 @@ def check_eids(rowds, cidentifier, session):
     @param session: requests.session object
     @returns: nothing
     """
-    logging.info('Checking entity IDs')
-    # ID service
     logging.info('Confirming all entity IDs available')
     csv_eids = [rowd['id'] for rowd in rowds]
-    idservice_eids = idservice.entities_existing(session, cidentifier)
-    unregistered = _unregistered_ids(rowds, idservice_eids)
+    registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
     if (unregistered == csv_eids) and not registered:
         logging.info('ALL entity IDs available')
     elif registered:
@@ -611,8 +589,8 @@ def register_entity_ids(csv_path, cidentifier, session, dryrun=True):
     logging.info('%s rows' % len(rowds))
     
     logging.info('Looking up already registered IDs')
-    idservice_eids = idservice.entities_existing(session, cidentifier)
-    unregistered = _unregistered_ids(rowds, idservice_eids)
+    csv_eids = [rowd['id'] for rowd in rowds]
+    registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
     num_unregistered = len(unregistered)
     logging.info('%s IDs to register.' % num_unregistered)
     if dryrun:

@@ -203,6 +203,25 @@ def entities_existing(session, cidentifier):
         raise Exception('Not logged in. Please try again.')
     return _object_ids_existing(soup, OBJECTID_TAGCLASS[cidentifier.model])
 
+def check_eids(session, cidentifier, check_eids):
+    """Given list of EIDs, indicates which are registered,unregistered.
+    
+    @param session: requests.session object
+    @param cidentifier: identifier.Identifier object
+    @param check_eids: list of EIDs to check
+    @returns: (registered,unregistered)
+    """
+    idservice_eids = entities_existing(session, cidentifier)
+    registered = [
+        eid for eid in check_eids
+        if eid in idservice_eids
+    ]
+    unregistered = [
+        eid for eid in check_eids
+        if eid not in idservice_eids
+    ]
+    return registered,unregistered
+    
 def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
     """Generate the next N object IDs.
     
