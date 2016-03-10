@@ -274,7 +274,7 @@ def check_repository(cidentifier):
     """
     logging.info('Checking repository')
     repo = dvcs.repository(cidentifier.path_abs())
-    logging.info('Checking repository %s' % repo)
+    logging.info(repo)
     staged = dvcs.list_staged(repo)
     if staged:
         logging.error('*** Staged files in repo %s' % repo.working_dir)
@@ -333,12 +333,12 @@ def check_eids(rowds, cidentifier, session):
     csv_eids = [rowd['id'] for rowd in rowds]
     registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
     if (unregistered == csv_eids) and not registered:
-        logging.info('ALL entity IDs available')
+        logging.info('ok')
     elif registered:
         logging.info('Already registered: %s' % registered)
     
     # confirm file entities not in repo
-    logging.info('Checking for existing IDs')
+    logging.info('Checking for locally existing IDs')
     already_added = _ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
     if already_added:
         raise Exception('The following entities already exist: %s' % already_added)
