@@ -283,7 +283,11 @@ def check_csv(csv_path, cidentifier, vocabs_path):
     logging.info('OK')
     
     model = _guess_model(rowds)
-    module = _get_module(model)
+    module = modules.Module(
+        identifier.module_for_name(
+            identifier.MODEL_REPO_MODELS[model]['module']
+        )
+    )
     vocabs = _load_vocab_files(vocabs_path)
     _validate_csv_file(module, vocabs, headers, rowds)
 
