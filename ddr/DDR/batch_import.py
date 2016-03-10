@@ -290,6 +290,8 @@ def check_csv(csv_path, cidentifier, vocabs_path):
     )
     vocabs = _load_vocab_files(vocabs_path)
     _validate_csv_file(module, vocabs, headers, rowds)
+    
+    return rowds
 
 def check_eids(rowds, cidentifier, session):
     """
