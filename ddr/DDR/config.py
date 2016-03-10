@@ -56,3 +56,5 @@ WORKBENCH_NEWENT_URL = config.get('workbench','workbench_newent_url')
 WORKBENCH_REGISTER_EIDS_URL = config.get('workbench','workbench_register_eids_url')
 WORKBENCH_URL = config.get('workbench','workbench_url')
 WORKBENCH_USERINFO = config.get('workbench','workbench_userinfo_url')
+
+VOCAB_TERMS_URL = config.get('local', 'vocab_terms_url')

@@ -13,6 +13,8 @@ import json
 import logging
 import os
 
+import grequests
+
 from DDR import changelog
 from DDR import config
 from DDR import csvfile
@@ -100,6 +102,31 @@ def _load_vocab_files(vocabs_path):
         for path in json_paths
     ]
     return json_texts
+
+def _vocab_urls(module):
+    """
+    @param module: modules.Module
+    @return: list of URLs
+    """
+    return [
+        config.VOCAB_TERMS_URL % field.get('name')
+        for field in module.module.FIELDS
+        if field.get('vocab')
+    ]
+
+def _http_get_vocabs(urls):
+    """Gets vocab JSON texts from vocabs API
+    
+    Gets URL template from config.VOCAB_TERMS_URL
+    
+    @param module: modules.Module
+    @returns list of JSON strings
+    """
+    # GET URLs in parallel
+    responses = grequests.map(
+        (grequests.get(u) for u in urls)
+    )
+    return [r.text for r in responses]
 
 def _prep_valid_values(json_texts):
     """Prepares dict of acceptable values for controlled-vocab fields.
@@ -288,9 +315,10 @@ def check_csv(csv_path, cidentifier, vocabs_path):
             identifier.MODEL_REPO_MODELS[model]['module']
         )
     )
-    vocabs = _load_vocab_files(vocabs_path)
+    logging.info('Loading vocabs from API (%s)' % config.VOCAB_TERMS_URL)
+    vocab_urls = _vocab_urls(module)
+    vocabs = _http_get_vocabs(vocab_urls)
     _validate_csv_file(module, vocabs, headers, rowds)
-    
     return rowds
 
 def check_eids(rowds, cidentifier, session):
