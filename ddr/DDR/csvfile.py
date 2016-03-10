@@ -58,10 +58,12 @@ def validate_headers(headers, field_names, exceptions):
         header for header in headers
         if header not in field_names
     ]
+    errs = {}
     if missing_headers:
-        raise Exception('MISSING HEADER(S): %s' % missing_headers)
+        errs['Missing headers'] = missing_headers
     if bad_headers:
-        raise Exception('BAD HEADER(S): %s' % bad_headers)
+        errs['Bad headers'] = bad_headers
+    return errs
     
 def account_row(required_fields, rowd):
     """Returns list of any required fields that are missing from rowd.
@@ -118,48 +120,70 @@ def check_row_values(module, headers, valid_values, rowd):
             invalid.append(field)
     return invalid
 
-
 def find_duplicate_ids(rowds):
-    unique = []
-    duplicates = []
-    for rowd in rowds:
-        if rowd['id'] not in unique:
-            unique.append(rowd['id'])
+    """Look for duplicate object IDs.
+    
+    @param rowds: list of dicts
+    @returns: list of errors (n, duplicate ID)
+    """
+    errs = []
+    ids = []
+    for n,rowd in enumerate(rowds):
+        if rowd['id'] in ids:
+            err = [n, rowd['id']]
+            msg = 'row %s: %s' % (err)
+            errs.append(msg)
         else:
-            duplicates.append(rowd['id'])
-    if duplicates:
-        raise Exception('Duplicate IDs: %s' % duplicates)
+            ids.append(rowd['id'])
+    return errs
 
 def find_multiple_cids(rowds):
-    cids = {}
-    for rowd in rowds:
+    """Look for pointers to multiple collections
+    
+    @param rowds: list of dicts
+    @returns: list of errors (n, cid)
+    """
+    cids = []
+    for n,rowd in enumerate(rowds):
         oid = identifier.Identifier(rowd['id'])
         cid = oid.collection().id
-        if cid in cids.keys():
-            cids[cid].append(oid.id)
-        else:
-            cids[cid] = [oid.id]
-    # all IDs must belong to same collection
-    if cids and (len(cids.keys()) > 1):
-        raise Exception('File contains IDs from multiple collections: %s' % cids.keys())
+        if cid not in cids:
+            cids.append(cid)
+    if len(cids) > 1:
+        return cids
+    return []
 
 def find_missing_required(required_fields, rowds):
-    ids = [
-        rowd['id']
-        for rowd in rowds
-        if account_row(required_fields, rowd)
-    ]
-    if ids:
-        raise Exception('Missing required fields for these IDs: %s' % ids)
+    """Find rows that are missing values for required fields.
+    
+    @param required_fields: list
+    @param rowds: list of dicts
+    @returns: list of errors (n, object ID, bad_fields)
+    """
+    errs = []
+    for n,rowd in enumerate(rowds):
+        bad_fields = account_row(required_fields, rowd)
+        if bad_fields:
+            msg = 'row %s: %s %s' % (n, rowd['id'], bad_fields)
+            errs.append(msg)
+    return errs
 
 def find_invalid_values(module, headers, valid_values, rowds):
-    ids = [
-        rowd['id']
-        for rowd in rowds
-        if check_row_values(module, headers, valid_values, rowd)
-    ]
-    if ids:
-        raise Exception('Invalid values for these IDs: %s' % ids)
+    """Find controlled-vocab fields that contain bad data.
+    
+    @param module: modules.Module object
+    @param headers: List of field names
+    @param valid_values:
+    @param rowds: list of dicts
+    @returns: list of strings (row n, object ID, bad_fields)
+    """
+    errs = []
+    for n,rowd in enumerate(rowds):
+        bad_fields = check_row_values(module, headers, valid_values, rowd)
+        if bad_fields:
+            msg = 'row %s: %s %s' % (n, rowd['id'], bad_fields)
+            errs.append(msg)
+    return errs
     
 def validate_rowds(module, headers, required_fields, valid_values, rowds):
     """Examines rows and raises exceptions if problems.
@@ -175,8 +199,17 @@ def validate_rowds(module, headers, required_fields, valid_values, rowds):
     @param valid_values:
     @param rowds: List of row dicts
     """
-    find_duplicate_ids(rowds)
-    find_multiple_cids(rowds)
-    find_missing_required(required_fields, rowds)
-    find_invalid_values(module, headers, valid_values, rowds)
-    
+    duplicate_ids = find_duplicate_ids(rowds)
+    multiple_cids = find_multiple_cids(rowds)
+    missing_required = find_missing_required(required_fields, rowds)
+    invalid_values = find_invalid_values(module, headers, valid_values, rowds)
+    errs = {}
+    if duplicate_ids:
+        errs['Duplicate IDs'] = duplicate_ids
+    if multiple_cids:
+        errs['Multiple collection IDs'] = multiple_cids
+    if missing_required:
+        errs['Missing required fields'] = missing_required
+    if invalid_values:
+        errs['Invalid values'] = invalid_values
+    return errs

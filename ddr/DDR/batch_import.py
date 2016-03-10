@@ -149,9 +149,25 @@ def _validate_csv_file(module, vocabs, headers, rowds):
     valid_values = _prep_valid_values(vocabs)
     # check
     logging.info('Validating headers')
-    csvfile.validate_headers(headers, field_names, nonrequired_fields)
+    header_errs = csvfile.validate_headers(headers, field_names, nonrequired_fields)
+    if not header_errs.keys():
+        logging.info('ok')
+    else:
+        for name,errs in header_errs.iteritems():
+            if errs:
+                logging.error(name)
+                for err in errs:
+                    logging.error('* %s' % err)
     logging.info('Validating rows')
-    csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
+    rowds_errs = csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
+    if not rowds_errs.keys():
+        logging.info('ok')
+    else:
+        for name,errs in rowds_errs.iteritems():
+            if errs:
+                logging.error(name)
+                for err in errs:
+                    logging.error('* %s' % err)
 
 def _ids_in_local_repo(rowds, model, collection_path):
     """Lists which IDs in CSV are present in local repo.
