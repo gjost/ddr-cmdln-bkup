@@ -11,7 +11,7 @@ import json
 import logging
 import os
 
-import grequests
+import requests
 
 from DDR import changelog
 from DDR import config
@@ -120,11 +120,11 @@ def _http_get_vocabs(urls):
     @param module: modules.Module
     @returns list of JSON strings
     """
-    # GET URLs in parallel
-    responses = grequests.map(
-        (grequests.get(u) for u in urls)
-    )
-    return [r.text for r in responses]
+    texts = [
+        requests.get(url).text
+        for url in urls
+    ]
+    return texts
 
 def _prep_valid_values(json_texts):
     """Prepares dict of acceptable values for controlled-vocab fields.
