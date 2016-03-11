@@ -563,7 +563,7 @@ def import_files(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, 
             
     if dryrun:
         pass
-    elif modified:
+    elif git_files:
         logging.info('Staging %s modified files' % len(git_files))
         start_stage = datetime.now()
         dvcs.stage(repository, git_files)
