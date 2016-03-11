@@ -130,8 +130,7 @@ def find_duplicate_ids(rowds):
     ids = []
     for n,rowd in enumerate(rowds):
         if rowd['id'] in ids:
-            err = [n, rowd['id']]
-            msg = 'row %s: %s' % (err)
+            msg = 'row %s: %s' % (n, rowd['id'])
             errs.append(msg)
         else:
             ids.append(rowd['id'])
