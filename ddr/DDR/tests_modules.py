@@ -37,6 +37,39 @@ def test_Module_is_valid():
     assert modules.Module(TestModule2()).is_valid() == (False,'TestModule2.FIELDS is not a list.')
     assert modules.Module(TestModule3()).is_valid() == (True,'ok')
 
+#def test_field_names():
+#    # we're using a class not a module but functionally it's the same
+#    class TestModule(object):
+#        __name__ = 'TestModule'
+#        __file__ = 'ddr/repo_models'
+#        MODEL = None
+#        FIELDS_CSV_EXCLUDED = []
+#        FIELDS = []
+#    m = TestModule()
+#    m.FIELDS = [{'name':'id'}, {'name':'title'}, {'name':'description'}]
+#    m.FIELDS_CSV_EXCLUDED = ['description']
+#    # test
+#    m.MODEL = 'collection'
+#    assert modules.Module(TestModule()).field_names(m) == ['id', 'title']
+#    m.MODEL = 'entity'
+#    assert modules.Module(TestModule()).field_names(m) == ['id', 'title']
+#    m.MODEL = 'file'
+#    assert modules.Module(TestModule()).field_names(m) == ['file_id', 'id', 'title']
+#    m.MODEL = 'entity'
+
+#def test_required_fields():
+#    # we're using a class not a module but functionally it's the same
+#    fields = [
+#        {'name':'id', 'form':{'required':True}},
+#        {'name':'title', 'form':{'required':True}},
+#        {'name':'description', 'form':{'required':False}},
+#        {'name':'formless'},
+#        {'name':'files', 'form':{'required':True}},
+#    ]
+#    exceptions = ['files', 'whatever']
+#    expected = ['id', 'title']
+#    assert batch_update.get_required_fields(fields, exceptions) == expected
+
 def test_Module_function():
     class TestModule(object):
         def hello(self, text):

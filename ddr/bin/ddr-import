@@ -4,28 +4,50 @@
 # ddr-import
 #
 
-description = """Imports DDR entities or files from CSV to the specified collection."""
+description = """Imports new entities or files with data from CSV files."""
 
 epilog = """
-Importing New Files
 
-* Export a blank files CSV file or copy the header from an existing file.
-* Note that entity and file CSVs have different headers!
-* Add information to the CSV file.
-* Put the CSV file and files to import into a directory with no subfolders.
-* This directory must be visible to the DDR app, e.g. a VirtualBox shared dir.
-* Run the ddr-import command:
-    $ ddr-import -u $USER -m $MAIL -U $USERNAME -P $PASSWORD /media/sf_ddrshared/ddr-test-123-files.csv /var/www/media/ddr/ddr-test-123/
+#EXAMPLES:
+#    ddr-import entity --check /tmp/ddr-import/ddr-test-123-entity-20150123.csv
+#    ddr-import entity --user=gjost --mail=gjost@densho.org /tmp/ddr-import/ddr-test-123-entity-20150123.csv /tmp/ddr/ddr-test-123/
+#    ddr-import entity --register /tmp/ddr-import/ddr-test-123-entity-20150123.csv
 
-The following fields work differently when adding new files:
-* file_id: Desired file ID, minus the SHA1 hash (ex: "ddr-test-123-45-master").
-* basename_orig: The filename to import, with no path (ex: "my-file.jpg").
 
-Examples:
+I want to be able to edit the CSV, stick it in a directory
 
-    $ ddr-import -u gjost -m gjost@densho.org /tmp/ddr-test-123-entity-201501234560.csv /var/www/media/base/ddr-test-123
-    $ ddr-import -u gjost -m gjost@densho.org /tmp/ddr-test-123-file-201501234560.csv /var/www/media/base/ddr-test-123
-    $ ddr-import -u gjost -m gjost@densho.org -M file /tmp/NO_COLLECTIONID_OR_MODEL.csv /var/www/media/base/ddr-test-123
+Check integrity of CSV and other stuff:
+
+    $ ddr-import check /path/to/ddr-test-123-entity-new.csv \
+      /var/www/media/ddr/ddr-test-123/
+
+Import the entities, disabling checking since we just did it:
+
+    $ ddr-import entity -N -u gjost -m gjost@densho.org \
+      /path/to/ddr-test-123-entity-new.csv \
+      /var/www/media/ddr/ddr-test-123/
+
+This should
+- check CSV file, alert me if problems
+- make sure not importing existing entities/files
+- check with ID service to make sure IDs available
+  (i.e. not trying to register existing ones)
+- import data, create new entities/files
+- stage changes to git repo
+
+When it's all done I want to run a command to register the new IDs
+
+    $ ddr-import register -Ugjost /path/to/ddr-test-123-entity-new.csv \
+      /var/www/media/ddr/ddr-test-123/
+
+This should
+- ask for password
+- read all the IDs in CSV
+- get existing IDs from ID service
+- figure out which ones are new
+- register new IDs
+
+And then I want to run a command to commit the changes
 
 ---"""
 
@@ -33,16 +55,18 @@ Examples:
 import argparse
 from datetime import datetime
 import getpass
-import json
 import logging
 import os
 import sys
+import traceback
 
-from DDR import batch
-from DDR.config import REPO_MODELS_PATH
-from DDR import idservice
+from DDR import config
+from DDR import batch_import
 from DDR import identifier
-from DDR import models
+from DDR import idservice
+
+VOCABS_PATH = os.path.join(config.REPO_MODELS_PATH, 'vocab')
+AGENT = 'ddr-import'
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -50,183 +74,134 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-VOCABS_PATH = os.path.join(REPO_MODELS_PATH, 'vocab')
 
-
-def guess_model(csv_path, collection_path, args_model=None):
-    """Try to guess module from csv path.
+def log_error(err, debug=False):
+    """Print Exception message to log, or traceback to console
     
-    Works if CSV path in the form COLLECTIONID-MODEL.csv
-    e.g. ddr-test-123-entity.csv
-    
-    @param csv_path: Absolute path to CSV file.
-    @param collection_path: Absolute path to collection repo.
-    @param args_model: str 'entity' or 'file'
-    @returns: model
+    @param err: Exception
+    @param debug: boolean If True, print traceback to console
     """
-    if collection_path[-1] == os.sep:
-        collection_path = collection_path[:-1]
-    cid = os.path.basename(collection_path)
-    try:
-        model = os.path.splitext(
-            os.path.basename(csv_path)
-        )[0].replace(cid,'').replace('-','')
-    except:
-        model = None
-    if model and (model in identifier.MODELS):
-        return model
-    return args_model
-
-def username_password(args):
-    """
-    @param args:
-    """
-    if args.username:
-        username = args.username
+    if debug:
+        print('************************************************************************')
+        traceback.print_exc()
+        print('************************************************************************')
     else:
-        username = args.user
-    if args.password:
-        password = args.password
-    else:
-        password = getpass.getpass(prompt='Password: ')
-    return username,password
+        logging.error('************************************************************************')
+        logging.error(err)
+        logging.error('************************************************************************')
 
-def get_entity_ids(collection_id, session):
+def get_idservice_session(args, session=None):
+    """Log user in to ID service and return session; prompt if necessary
+    
+    @param args: argparse.Namespace Output of argparse.ArgumentParser.parse_args()
+    @param session: requests.session object
+    @returns: requests.session object
     """
-    TODO do we actually need to log in?
-    TODO make this work with Identifier
-    
-    @param collection_id: str
-    @param session: requests.session.Session object
-    """
-    logging.debug('Getting entity IDs')
-    repo,org,cid = collection_id.split('-')
-    return idservice.entities_latest(session, repo,org,cid, -1)
-
-def register_ids(added, collection_id, session):
-    """Register the specified entity IDs with the ID service
-    
-    TODO make this work with Identifier
-    
-    @param added: list of Entity objects
-    @param collection_id: str
-    @param session: requests.session.Session object
-    """
-    logging.debug('Registering new entity IDs')
-    idservice.register_entity_ids(session, added)
-
-def confirm_added(expected, collection_id, session):
-    """Confirm that entity_ids were added.
-    
-    TODO make this work with Identifier
-    
-    @param expected: list of entities
-    @param collection_id: str
-    @param session: requests.session.Session object
-    @returns: list of entity_ids NOT added
-    """
-    logging.debug('Confirming that entity IDs were added')
-    entity_ids = get_entity_ids(collection_id, session)
-    confirmed = [entity.id for entity in expected if entity.id in entity_ids]
-    return confirmed
+    if not session:
+        logging.debug('No session--logging in')
+        if args.username:
+            logging.debug('Username: %s' % args.username)
+            username = args.username
+        else:
+            username = raw_input('Username: ')
+        if args.password:
+            password = args.password
+            dummy = ''.join(['*' for n in args.password])
+            logging.debug('Password: %s' % dummy)
+        else:
+            password = getpass.getpass(prompt='Password: ')
+        session = idservice.login(username, password)
+    return session
 
 
 def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('command', help="Command: 'check', 'entity', 'file', 'register'.")
     parser.add_argument('csv', help='Absolute path to CSV file.')
     parser.add_argument('collection', help='Absolute path to Collection.')
-    parser.add_argument('-u', '--user', required=True, help='Git user name')
-    parser.add_argument('-m', '--mail', required=True, help='Git user e-mail address')
-    parser.add_argument('-M', '--model', help="Model: 'entity' or 'file'.")
-    parser.add_argument('-U', '--username', help='ID service username if different from Git user name.')
-    parser.add_argument('-P', '--password', help='ID service pasword. If not given here, you will be prompted.')
+    parser.add_argument('-i', '--idservice', help='URL of ID service, if different from configs.')
+    parser.add_argument('-N', '--nocheck', action='store_true', help='Do not run checking/validation (large collections may take time).')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Simulated run-through; don't modify files.")
+    parser.add_argument('-D', '--debug', action='store_true', help='Print error tracebacks.')
+    parser.add_argument('-u', '--user', help='Git user name (required if importing)')
+    parser.add_argument('-m', '--mail', help='Git user e-mail address (required if importing)')
+    parser.add_argument('-U', '--username', help='ID service username')
+    parser.add_argument('-P', '--password', help='ID service password')
+    parser.add_argument('-l', '--log', help='(optional) Log addfile to this path')
     args = parser.parse_args()
     
-    # check args
-    if not os.path.exists(args.csv):
-        raise Exception('ddr-import: CSV file does not exist.')
-    if not (os.path.isfile(args.csv) and os.path.isdir(args.collection)):
-        raise Exception('ddr-import: CSV filename comes before collection.')
-    if not os.path.exists(args.collection):
-        raise Exception('ddr-import: Collection does not exist.')
+    # ensure we have absolute paths (CWD+relpath)
+    csv_path = os.path.abspath(os.path.normpath(args.csv))
+    collection_path = os.path.abspath(os.path.normpath(args.collection))
+    vocabs_path = os.path.normpath(VOCABS_PATH)
     
-    model = guess_model(args.csv, args.collection, args.model)
-    if not model:
-        raise Exception('ddr-import: Could not guess model based on csv and collection. Add an -M arg.')
-    
-    # TODO this still knows too much about entities and files...
-    entity_class = identifier.class_for_name(
-        identifier.MODEL_CLASSES['entity']['module'],
-        identifier.MODEL_CLASSES['entity']['class']
-    )
-    file_class = identifier.class_for_name(
-        identifier.MODEL_CLASSES['file']['module'],
-        identifier.MODEL_CLASSES['file']['class']
-    )
-    entity_module = identifier.module_for_name(
-        identifier.MODEL_REPO_MODELS['entity']['module']
-    )
-    file_module = identifier.module_for_name(
-        identifier.MODEL_REPO_MODELS['file']['module']
-    )
+    # Check args
+    if not os.path.exists(csv_path):
+        print('ddr-import: CSV file does not exist.')
+        sys.exit(1)
+    if not (os.path.isfile(csv_path) and os.path.isdir(collection_path)):
+        print('ddr-import: CSV filename comes before collection.')
+        sys.exit(1)
+    if not os.path.exists(collection_path):
+        print('ddr-import: Collection does not exist.')
+        sys.exit(1)
     
     start = datetime.now()
-    if model == 'entity':
 
-        cidentifier = identifier.Identifier(args.collection)
-        cidentifier.path_abs
-        collection_id = cidentifier.id
-        
-        username,password = username_password(args)
-        session = idservice.login(username, password)
+    ci = identifier.Identifier(collection_path)
+    logging.debug(ci)
+    logging.debug(ci.path_abs())
 
-        # Check max IDs before and after
-        max_eid_before = get_entity_ids(collection_id, session)[-1]
-        # Update the collection repo
-        updated = batch.update_entities(
-            args.csv,
-            args.collection,
-            entity_class, entity_module, VOCABS_PATH,
-            args.user, args.mail, 'ddr-import'
-        )
-        max_eid_after = get_entity_ids(collection_id, session)[-1]
-        # Quit if someone else added entity IDs on the workbench
-        if not (max_eid_before == max_eid_after):
-            raise Exception('Entity IDs were requested during operation.')
+    session = None
         
-        # See if any new entities were added
-        added = []
-        while updated:
-            entity = updated.pop(0)
-            if entity.new:
-                added.append(entity)
-        if added:
-            logging.info('New entities were created:')
-            for entity in added:
-                logging.info('| %s' % entity.id)
-            added_ids = [entity.id for entity in added]
-            confirmed_ids = []
-            
-            # Register new entity IDs with ID service
-            register = raw_input('Register new IDs with ID service? [y/N] ')
-            if register and (register == 'y'):
-                # register and confirm
-                register_ids(added, collection_id, session)
-                confirmed_ids = confirm_added(added, collection_id, session)
-            if confirmed_ids and (confirmed_ids == added_ids):
-                logging.info('Entity IDs registered with ID service.')
-            else:
-                raise Exception('Some entity ids not added.')
-                
-    elif model == 'file':
-        updated = batch.update_files(
-            args.csv,
-            args.collection,
-            entity_class, file_class, file_module, VOCABS_PATH,
-            args.user, args.mail, 'ddr-import'
-        )
+    if (args.command == 'check') or (not args.nocheck):
+        try:
+            session = get_idservice_session(args, session)
+            rowds = batch_import.check_csv(csv_path, ci, vocabs_path)
+            repo = batch_import.check_repository(ci)
+            batch_import.check_eids(rowds, ci, session)
+        except Exception as err:
+            log_error(err, args.debug)
+            sys.exit(1)
+    
+    if   args.command == 'entity':
+        try:
+            imported = batch_import.import_entities(
+                csv_path,
+                ci,
+                vocabs_path,
+                args.user, args.mail,
+                AGENT,
+                args.dryrun
+            )
+        except Exception as err:
+            log_error(err, args.debug)
+    
+    elif args.command == 'file':
+        try:
+            imported = batch_import.import_files(
+                csv_path,
+                ci,
+                vocabs_path,
+                args.user, args.mail,
+                AGENT,
+                args.log,
+                args.dryrun
+            )
+        except Exception as err:
+            log_error(err, args.debug)
+    
+    elif args.command == 'register':
+        session = get_idservice_session(args, session)
+        try:
+            batch_import.register_entity_ids(
+                csv_path, ci, session, args.dryrun
+            )
+            logging.info('IF YOU SEE THIS IT WORKED')
+        except Exception as err:
+            log_error(err, args.debug)
     
     finish = datetime.now()
     elapsed = finish - start

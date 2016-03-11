@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+
+#
+# ddr-update
+#
+
+description = """Updates DDR entities or files with data from CSV files."""
+
+epilog = """
+---"""
+
+
+import argparse
+from datetime import datetime
+import getpass
+import json
+import logging
+import os
+import sys
+
+from DDR import batch_update
+from DDR.config import REPO_MODELS_PATH
+from DDR import idservice
+from DDR import identifier
+from DDR import models
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    stream=sys.stdout,
+)
+
+VOCABS_PATH = os.path.join(REPO_MODELS_PATH, 'vocab')
+
+
+def guess_model(csv_path, collection_path, args_model=None):
+    """Try to guess module from csv path.
+    
+    Works if CSV path in the form COLLECTIONID-MODEL.csv
+    e.g. ddr-test-123-entity.csv
+    
+    @param csv_path: Absolute path to CSV file.
+    @param collection_path: Absolute path to collection repo.
+    @param args_model: str 'entity' or 'file'
+    @returns: model
+    """
+    if collection_path[-1] == os.sep:
+        collection_path = collection_path[:-1]
+    cid = os.path.basename(collection_path)
+    try:
+        model = os.path.splitext(
+            os.path.basename(csv_path)
+        )[0].replace(cid,'').replace('-','')
+    except:
+        model = None
+    if model and (model in identifier.MODELS):
+        return model
+    return args_model
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('csv', help='Absolute path to CSV file.')
+    parser.add_argument('collection', help='Absolute path to Collection.')
+    parser.add_argument('-u', '--user', required=True, help='Git user name')
+    parser.add_argument('-m', '--mail', required=True, help='Git user e-mail address')
+    parser.add_argument('-M', '--model', help="Model: 'entity' or 'file'.")
+    args = parser.parse_args()
+    
+    # check args
+    if not os.path.exists(args.csv):
+        print('ddr-update: CSV file does not exist.')
+        sys.exit(1)
+    if not (os.path.isfile(args.csv) and os.path.isdir(args.collection)):
+        print('ddr-update: CSV filename comes before collection.')
+        sys.exit(1)
+    if not os.path.exists(args.collection):
+        print('ddr-update: Collection does not exist.')
+        sys.exit(1)
+    
+    cidentifier = identifier.Identifier(args.collection)
+    
+    model = guess_model(args.csv, args.collection, args.model)
+    if not model:
+        print('ddr-update: Could not guess model based on csv and collection. Add an -M arg.')
+        sys.exit(1)
+        
+    start = datetime.now()
+    if model == 'entity':
+        
+        updated = batch_update.update_entities(
+            args.csv,
+            args.collection,
+            VOCABS_PATH,
+            args.user, args.mail, 'ddr-update'
+        )
+                
+    elif model == 'file':
+        
+        updated = batch_update.update_files(
+            args.csv,
+            args.collection,
+            VOCABS_PATH,
+            args.user, args.mail, 'ddr-update'
+        )
+    
+    finish = datetime.now()
+    elapsed = finish - start
+    logging.info('DONE - %s elapsed' % elapsed)
+
+
+if __name__ == '__main__':
+    main()

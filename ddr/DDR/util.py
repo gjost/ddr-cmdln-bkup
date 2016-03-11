@@ -104,3 +104,35 @@ def file_hash(path, algo='sha1'):
         h.update(data)
     f.close()
     return h.hexdigest()
+
+def normalize_text(text):
+    """Strip text, convert line endings, etc.
+    
+    TODO make this work on lists, dict values
+    TODO handle those ^M chars
+    
+    >>> normalize_text('  this is a test')
+    'this is a test'
+    >>> normalize_text('this is a test  ')
+    'this is a test'
+    >>> normalize_text('this\r\nis a test')
+    'this\\nis a test'
+    >>> normalize_text('this\ris a test')
+    'this\\nis a test'
+    >>> normalize_text('this\\nis a test')
+    'this\\nis a test'
+    >>> normalize_text(['this is a test'])
+    ['this is a test']
+    >>> normalize_text({'this': 'is a test'})
+    {'this': 'is a test'}
+    """
+    def process(t):
+        try:
+            t = t.strip()
+            t = t.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\\n')
+        except AttributeError:
+            pass # doesn't work on ints and lists :P
+        return t
+    if isinstance(text, basestring):
+        return process(text)
+    return text

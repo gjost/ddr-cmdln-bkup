@@ -17,24 +17,37 @@ Sample ID formats:
     ddr-test-123-*            All files in a collection
     ddr-test-123-[1-5,7-8,10] Ranges of entities
 
-Example:
+Examples:
 
     $ ddr-export entity /var/www/media/base/ddr-testing-123 /tmp
     $ ddr-export file /var/www/media/base/ddr-testing-123 /tmp
+
+You can also print out blank CSV files with all fields:
+
+    $ ddr-export -b entity /var/www/media/base/ddr-testing-123 /tmp
+    $ ddr-export -b file /var/www/media/base/ddr-testing-123 /tmp
+
+And with only required fields:
+
+    $ ddr-export -B entity /var/www/media/base/ddr-testing-123 /tmp
+    $ ddr-export -B file /var/www/media/base/ddr-testing-123 /tmp
+
+You can specify the exact filename:
+
+    $ ddr-export entity /var/www/media/base/ddr-testing-123 /tmp/ddr-testing-123-entities.csv
+    $ ddr-export file /var/www/media/base/ddr-testing-123 /tmp/just-some-files-YYYYMMDD.csv
 
 ddr-export"""
 
 
 import argparse
 from datetime import datetime
-import json
 import logging
 import os
 import re
 import sys
 
-from DDR import batch
-from DDR import models
+from DDR import batch_export
 from DDR import identifier
 from DDR import util
 
@@ -44,37 +57,6 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
-
-def parse_ids(text):
-    """Parses IDs arg and returns list of IDs.
-    
-    ddr-test-123-*            All entities in a collection
-    ddr-test-123-1-*          All files in an entity
-    ddr-test-123-*            All files in a collection
-    ddr-test-123-[1-5,7-8,10] Ranges of entities
-    
-    TODO Seriously? Can't we just pass in a regex?
-    
-    @param text: str
-    @returns: list
-    """
-    ids = []
-    if ('[' in text) and (']' in text):
-        f0 = text.split('[')[0]
-        fids = text.split('[')[1].split(']')[0]
-        fids1 = fids.split(',')
-        for x in fids1:
-            if '-' in x:
-                lo,hi = x.split('-')
-                for y in range(int(lo), int(hi)+1):
-                    i = f0 + str(y)
-                    ids.append(i)
-            else:
-                i = f0 + str(x)
-                ids.append(i)
-    elif '*' in text:
-        fid = text
-    return ids
 
 def read_id_file(path):
     """Read file and return list of IDs
@@ -87,7 +69,9 @@ def read_id_file(path):
     ids = [line.strip() for line in text.strip().split('\n')]
     return ids
 
-def make_paths(collection_path, model, ids):
+def make_paths(collection_path, ids):
+    """
+    """
     basedir = os.path.dirname(collection_path)
     paths = [
         identifier.Identifier(object_id, basedir).path_abs('json')
@@ -95,7 +79,13 @@ def make_paths(collection_path, model, ids):
     ]
     return paths
 
-def make_csv_path(destdir, collection_path, model):
+def make_path(destdir, collection_path, model):
+    """Assemble path for CSV file.
+    
+    @param destdir: str Absolute path to destination dir
+    @param collection_path: str Absolute path to collection repository
+    @param model: str One of ['collection', 'entity', 'file']
+    """
     filename = '%s-%s-%s.csv' % (
         identifier.Identifier(collection_path).id,
         model,
@@ -103,22 +93,26 @@ def make_csv_path(destdir, collection_path, model):
     )
     return os.path.join(destdir, filename)
 
-def filter_paths(paths, pattern):
+def filter_paths(paths, pattern, exclude=False):
     """Get metadata paths containing a regex.
     
     @param paths: list
     @param pattern: str A regular expression
+    @param exclude: boolean If true, exclude paths matching pattern.
     @returns: list of absolute paths
     """
-    filtered = []
     prog = re.compile(pattern)
-    while paths:
-        path = paths.pop()
-        if prog.search(path):
-            filtered.append(path)
-    return filtered
+    if exclude:
+        return [path for path in paths if not prog.search(path)]
+    else:
+        return [path for path in paths if prog.search(path)]
 
 def all_paths(collection_path, model):
+    """Get all .json paths for specified model.
+    
+    @param collection_path: str Absolute path to collection repo
+    @param model: str One of ['collection', 'entity', 'file']
+    """
     return util.find_meta_files(
         basedir=collection_path, model=model, recursive=1, force_read=1
     )
@@ -128,54 +122,76 @@ def main():
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-i', '--ids', help='ID(s) (see help for formatting).')
+    parser.add_argument('-b', '--blank', action='store_true', help='Blank CSV, just headers.')
+    parser.add_argument('-r', '--required', action='store_true', help='Required fields only.')
     parser.add_argument('-I', '--idfile', help='File containing list of IDs, one per line.')
+    parser.add_argument('-i', '--include', help='ID(s) to include (see help for formatting).')
+    parser.add_argument('-e', '--exclude', help='ID(s) to exclude (see help for formatting).')
+    parser.add_argument('-d', '--dryrun', action='store_true', help="Print paths but don't export anything.")
     parser.add_argument('model', help="Model: 'entity' or 'file'.")
     parser.add_argument('collection', help='Absolute path to Collection.')
-    parser.add_argument('destdir', help='Absolute path to destination directory.')
+    parser.add_argument('destination', help='Absolute path to destination directory or file.')
     args = parser.parse_args()
+    
+    # ensure we have absolute paths (CWD+relpath)
+    collection_path = os.path.abspath(args.collection)
+    destination_path = os.path.abspath(args.destination)
     
     if args.idfile and not os.path.exists(args.idfile):
         raise Exception('IDs file does not exist: %s' % args.idfile)
-    elif not os.path.exists(args.collection):
-        raise Exception('Collection does not exist: %s' % args.collection)
+    elif not os.path.exists(collection_path):
+        raise Exception('Collection does not exist: %s' % collection_path)
     elif args.model not in identifier.MODELS:
         raise Exception("Bad model name: '%s'" % args.model)
-    
-    # Gets Entity or File class
-    object_class = identifier.class_for_name(
-        identifier.MODEL_CLASSES[args.model]['module'],
-        identifier.MODEL_CLASSES[args.model]['class']
-    )
-    # Gets module from repo_modules
-    fields_module = identifier.module_for_name(
-        identifier.MODEL_REPO_MODELS[args.model]['module']
-    )
-    
-    csv = make_csv_path(args.destdir, args.collection, args.model)
-    logging.info('Writing to %s' % csv)
-    if not os.access(os.path.dirname(csv), os.W_OK):
-        raise Exception('Cannot write to %s.' % csv)
+
+    if os.path.basename(destination_path):
+        filename = destination_path
+    elif os.path.isdir(destination_path):
+        filename = make_path(destination_path, collection_path, args.model)
+    logging.info('Writing to %s' % filename)
+    if not os.access(os.path.dirname(filename), os.W_OK):
+        raise Exception('Cannot write to %s.' % filename)
     
     start = datetime.now()
     
-    logging.info('Gathering entity paths')
     paths = []
-    if args.idfile:  # file containing list of IDs
-        paths = make_paths(args.collection, args.model, read_id_file(args.idfile))
-    elif args.ids:  # ID pattern
-        paths = filter_paths(all_paths(args.collection, args.model), args.ids)
-    else:  # just get everything
-        paths = all_paths(args.collection, args.model)
-    if not paths:
-        raise Exception('ERROR: Could not find metadata paths.')
-    logging.info('%s matching paths' % len(paths))
+    if args.blank:
+        logging.info('Blank: no paths')
+    elif args.idfile:
+        logging.info('Looking for paths in %s' % args.idfile)
+        paths = make_paths(collection_path, read_id_file(args.idfile))
+    elif args.include:
+        logging.info('Including paths: "%s"' % args.include)
+        paths = filter_paths(all_paths(collection_path, args.model), args.include)
+    else:
+        logging.info('All paths in %s' % collection_path)
+        paths = all_paths(collection_path, args.model)
+    logging.info('found %s paths' % len(paths))
     
-    batch.export(paths, object_class, fields_module, csv)
+    if args.exclude:
+        logging.info('Excluding paths: "%s"' % args.exclude)
+        before = len(paths)
+        paths = filter_paths(paths, args.exclude, exclude=True)
+        num_excluded = len(paths) - before
+        logging.info('excluded %s' % abs(num_excluded))
+    
+    if not paths and not (args.blank):
+        raise Exception('ERROR: Could not find metadata paths.')
+    logging.info('Exporting %s paths' % len(paths))
+
+    if args.dryrun:
+        logging.info("Dry run -- no output!")
+        for n,path in enumerate(paths):
+            logging.info('%s/%s %s' % (n+1, len(paths), path))
+    else:
+        batch_export.export(paths, args.model, filename, required_only=args.required)
     
     finish = datetime.now()
     elapsed = finish - start
-    logging.info('DONE - (%s elapsed) - %s' % (elapsed, csv))
+    if args.dryrun:
+        logging.info('DONE - (%s elapsed) (DRY RUN)' % (elapsed))
+    else:
+        logging.info('DONE - (%s elapsed) - %s' % (elapsed, filename))
     
     
 

@@ -45,31 +45,37 @@ class AddFileLogger():
         self.not_ok(msg)
         raise Exception(msg)
 
-def _log_path(eidentifier, base_dir=config.LOG_DIR):
+def _log_path(identifier, base_dir=config.LOG_DIR):
     """Generates path to collection addfiles.log.
     
     Previously each entity had its own addfile.log.
     Going forward each collection will have a single log file.
         /STORE/log/REPO-ORG-CID-addfile.log
     
-    @param eidentifier: Identifier (Entity)
+    @param identifier: Identifier
     @param base_dir: [optional] str
     @returns: absolute path to logfile
     """
     return os.path.join(
         base_dir, 'addfile',
-        eidentifier.parent_id(),
-        '%s.log' % eidentifier.id
+        identifier.collection_id(),
+        '%s.log' % identifier.id
     )
 
-def addfile_logger(eidentifier, base_dir=config.LOG_DIR):
-    """
-    @param eidentifier: Identifier (Entity)
+def addfile_logger(identifier=None, log_path=None, base_dir=config.LOG_DIR):
+    """Gets an AddFileLogger object for an Identifier OR specified path.
+    
+    @param identifier: Identifier
+    @param log_path: str
     @param base_dir: [optional] str
     @returns: AddFileLogger
     """
+    assert identifier or log_path
     log = AddFileLogger()
-    log.logpath = _log_path(eidentifier, base_dir)
+    if identifier:
+        log.logpath = _log_path(identifier, base_dir)
+    elif log_path:
+        log.logpath = log_path
     logdir = os.path.dirname(log.logpath)
     if not os.path.exists(logdir):
         os.makedirs(logdir)
@@ -219,7 +225,7 @@ def predict_staged(already, planned):
     total = already + additions
     return total
 
-def stage_files(entity, git_files, annex_files, new_files, log):
+def stage_files(entity, git_files, annex_files, new_files, log, show_staged=True):
     # TODO move to DDR.dvcs?
     repo = dvcs.repository(entity.collection_path)
     log.ok('| repo %s' % repo)
@@ -239,16 +245,21 @@ def stage_files(entity, git_files, annex_files, new_files, log):
     stage_ok = False
     staged = []
     try:
+        log.ok('git stage')
         dvcs.stage(repo, git_files)
+        log.ok('annex stage')
         dvcs.annex_stage(repo, annex_files)
+        log.ok('ok')
         staged = dvcs.list_staged(repo)
     except:
         # FAILED! print traceback to addfile log
         log.not_ok(traceback.format_exc().strip())
     finally:
-        log.ok('| %s files staged:' % len(staged))
-        for sp in staged:
-            log.ok('|   %s' % sp)
+        if show_staged:
+            log.ok('| %s files staged:' % len(staged))
+            log.ok('show_staged %s' % show_staged)
+            for sp in staged:
+                log.ok('|   %s' % sp)
         if len(staged) == len(stage_predicted):
             log.ok('| %s files staged (%s new, %s modified)' % (
                 len(staged), len(stage_new), len(stage_already))
@@ -272,7 +283,7 @@ def stage_files(entity, git_files, annex_files, new_files, log):
             log.crash('Add file aborted, see log file for details.')
     return repo
 
-def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
+def add_file(entity, src_path, role, data, git_name, git_mail, agent='', log_path=None, show_staged=True):
     """Add file to entity
     
     This method breaks out of OOP and manipulates entity.json directly.
@@ -287,12 +298,17 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     @param data: 
     @param git_name: Username of git committer.
     @param git_mail: Email of git committer.
-    @param agent: (optional) Name of software making the change.
+    @param agent: str (optional) Name of software making the change.
+    @param log_path: str (optional) Absolute path to addfile log
+    @param show_staged: boolean Log list of staged files
     @return File,repo,log
     """
     f = None
     repo = None
-    log = addfile_logger(entity.identifier)
+    if log_path:
+        log = addfile_logger(log_path=log_path)
+    else:
+        log = addfile_logger(identifier=entity.identifier)
     
     log.ok('------------------------------------------------------------------------')
     log.ok('DDR.models.Entity.add_file: START')
@@ -421,13 +437,13 @@ def add_file(entity, src_path, role, data, git_name, git_mail, agent=''):
     ]
     if file_.access_abs and os.path.exists(file_.access_abs):
         annex_files.append(file_.access_abs.replace('%s/' % file_.collection_path, ''))
-    repo = stage_files(entity, git_files, annex_files, new_files, log)
+    repo = stage_files(entity, git_files, annex_files, new_files, log, show_staged=show_staged)
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!
     return file_,repo,log
 
-def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
+def add_access( entity, ddrfile, git_name, git_mail, agent='', log_path=None, show_staged=True ):
     """Generate new access file for entity
     
     This method breaks out of OOP and manipulates entity.json directly.
@@ -440,12 +456,17 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     @param ddrfile: File
     @param git_name: Username of git committer.
     @param git_mail: Email of git committer.
-    @param agent: (optional) Name of software making the change.
+    @param agent: str (optional) Name of software making the change.
+    @param log_path: str (optional) Absolute path to addfile log
+    @param show_staged: boolean Log list of staged files
     @return file_ File object
     """
     f = None
     repo = None
-    log = addfile_logger(entity.identifier)
+    if log_path:
+        log = addfile_logger(log_path=log_path)
+    else:
+        log = addfile_logger(identifier=entity.identifier)
     
     src_path = ddrfile.path_abs
     
@@ -518,7 +539,7 @@ def add_access( entity, ddrfile, git_name, git_mail, agent='' ):
     annex_files = [
         file_.access_rel
     ]
-    repo = stage_files(entity, git_files, annex_files, new_files, log)
+    repo = stage_files(entity, git_files, annex_files, new_files, log, show_staged=show_staged)
     
     # IMPORTANT: Files are only staged! Be sure to commit!
     # IMPORTANT: changelog is not staged!

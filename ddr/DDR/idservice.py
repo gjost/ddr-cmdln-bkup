@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import requests
 
 from DDR import config
+from DDR import identifier
 
 MESSAGES = {
     'API_LOGIN_NOT_200': 'Error: status code {} on POST', # status code
@@ -124,7 +125,7 @@ def logout():
         return 'ok'
     return 'error: unspecified'
 
-def _objects_latest(session, url, args, num_objects=1):
+def _object_ids_existing(soup, tag_class):
     """Get the most recent N entity IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -134,26 +135,32 @@ def _objects_latest(session, url, args, num_objects=1):
     
     TODO Replace screenscraping with a real API
     
-    @param session: requests.session object
-    @param url: URL of page to scrape.
-    @param args: tuple Tag and class that contains the IDs.
-    @param num_objects: int N most recent IDs to get.
+    @param soup: a BeautifulSoup object containing page HTML
+    @param tag_class: tuple Tag and class that contains the IDs.
     @returns: list of IDs
     """
-    objects = []
-    r = session.get(url)
-    soup = BeautifulSoup(r.text)
-    if _needs_login(soup):
-        raise Exception('Not logged in. Please try again.')
-    ids = []
-    for o in soup.find_all(args[0], args[1]):
-        ids.append(o.string.strip())
-    if num_objects:
-        return ids[-num_objects:]
-    else:
-        return ids
+    ids = [
+        o.string.strip()
+        for o in soup.find_all(
+            tag_class[0],
+            tag_class[1]
+        )
+    ]
+    return ids
 
-def collections_latest(session, repo, org, num_objects=1):
+def get_ancestor(identifier, model):
+    ai = None
+    for i in identifier.lineage(stubs=1):
+        if i.model == model:
+            ai = i
+    return ai
+
+OBJECTID_TAGCLASS = {
+    'organization': ('a', 'collection'),
+    'collection': ('td', 'eid'),
+}
+
+def collections_existing(session, cidentifier):
     """Get the most recent N collection IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -164,15 +171,18 @@ def collections_latest(session, repo, org, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
-    @param num_objects: int N most recent IDs to get.
+    @param cidentifier: identifier.Identifier object
     @returns: list of IDs
     """
-    url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
-    return _objects_latest(session, url, ('a','collection'), num_objects)
+    oi = get_ancestor(cidentifier, 'organization')
+    url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
+    r = session.get(url)
+    soup = BeautifulSoup(r.text)
+    if _needs_login(soup):
+        raise Exception('Not logged in. Please try again.')
+    return _object_ids_existing(soup, OBJECTID_TAGCLASS[oi.model])
 
-def entities_latest(session, repo, org, cid, num_objects=1):
+def entities_existing(session, cidentifier):
     """Get the most recent N entity IDs for the logged-in user.
     
     <table id="collections" class="table table-striped table-bordered table-condensed">
@@ -183,15 +193,35 @@ def entities_latest(session, repo, org, cid, num_objects=1):
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
-    @param cid: int/str Collection id
-    @param num_objects: int N most recent IDs to get.
+    @param cidentifier: identifier.Identifier object
     @returns: list of IDs
     """
-    url = '{}/kiroku/{}-{}-{}/'.format(config.WORKBENCH_URL, repo, org, cid)
-    return _objects_latest(session, url, ('td','eid'), num_objects)
+    url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, cidentifier.id)
+    r = session.get(url)
+    soup = BeautifulSoup(r.text)
+    if _needs_login(soup):
+        raise Exception('Not logged in. Please try again.')
+    return _object_ids_existing(soup, OBJECTID_TAGCLASS[cidentifier.model])
 
+def check_eids(session, cidentifier, check_eids):
+    """Given list of EIDs, indicates which are registered,unregistered.
+    
+    @param session: requests.session object
+    @param cidentifier: identifier.Identifier object
+    @param check_eids: list of EIDs to check
+    @returns: (registered,unregistered)
+    """
+    idservice_eids = entities_existing(session, cidentifier)
+    registered = [
+        eid for eid in check_eids
+        if eid in idservice_eids
+    ]
+    unregistered = [
+        eid for eid in check_eids
+        if eid not in idservice_eids
+    ]
+    return registered,unregistered
+    
 def _objects_next(model, session, new_ids_url, csrf_token_url, tag_class, num_ids=1 ):
     """Generate the next N object IDs.
     
@@ -239,61 +269,66 @@ def _objects_next_process(new_ids_url, text, find, num_ids):
     object_ids = ids[-num_ids:]
     return object_ids
 
-def collections_next(session, repo, org, num_ids=1):
+def collections_next(session, identifier, num_ids=1):
     """Generate the next N collection IDs for the logged-in user.
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
+    @param identifier: identifier.Identifier object
     @param num_ids: int The number of new IDs requested.
     @returns: list of collection_ids or debugging info.
     """
-    new_ids_url = config.WORKBENCH_NEWCOL_URL.replace('REPO',repo).replace('ORG',org)
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
+    oi = get_ancestor(identifier, 'organization')
+    new_ids_url = config.WORKBENCH_NEWCOL_URL.replace('REPO-ORG',oi.id)
+    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
     tag_class = ['a', 'collection']
     return _objects_next(
         'collection', session, new_ids_url, csrf_token_url, tag_class, num_ids)
 
-def entities_next(session, repo, org, cid, num_ids=1):
+def entities_next(session, identifier, num_ids=1):
     """Generate the next N entity IDs for the logged-in user.
     
     @param session: requests.session object
-    @param repo: str Repository keyword
-    @param org: str Organization keyword
-    @param cid: str Collection ID
+    @param identifier: identifier.Identifier object
     @param num_ids: int The number of new IDs requested.
     @returns: list of entity_ids or debugging info.
     """
-    new_ids_url = config.WORKBENCH_NEWENT_URL.replace('REPO',repo).replace('ORG',org).replace('CID',str(cid))
-    csrf_token_url = '{}/kiroku/{}-{}/'.format(config.WORKBENCH_URL, repo, org)
+    oi = get_ancestor(identifier, 'organization')
+    ci = get_ancestor(identifier, 'collection')
+    new_ids_url = config.WORKBENCH_NEWENT_URL.replace('REPO-ORG-CID', ci.id)
+    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, oi.id)
     tag_class = ['td', 'eid']
     return _objects_next(
         'entity', session, new_ids_url, csrf_token_url, tag_class, num_ids)
 
-def register_entity_ids(session, entities):
+def _csrf_token_url(collection_id):
+    return '{}/kiroku/{}/'.format(config.WORKBENCH_URL, collection_id)
+
+def _register_eids_url(collection_id):
+    return config.WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
+
+def register_entity_ids(session, collection_id, entity_ids):
     """Register the specified entity IDs with the ID service
     
     TODO Replace screenscraping with a real API
     
     @param session: requests.session object
-    @param entities: list of Entity objects - all will be added!
+    @param collection_id: str Collection ID
+    @param entity_ids: list of Entity IDs - all will be added!
     @returns: list of IDs added
     """
-    collection_id = entities[0].parent_id
-    entity_ids = '\n'.join([entity.id for entity in entities])
-    csrf_token_url = '{}/kiroku/{}/'.format(config.WORKBENCH_URL, collection_id)
-    csrf_token = _get_csrf_token(session, csrf_token_url)
-    register_eids_url = config.WORKBENCH_REGISTER_EIDS_URL.replace('REPO-ORG-CID', collection_id)
+    csrf_token = _get_csrf_token(session, _csrf_token_url(collection_id))
+    eids = '\n'.join([
+        eid for eid in entity_ids
+    ])
+    data = {
+        'csrftoken': csrf_token,
+        'entity_ids': eids,
+    }
     r = session.post(
-        register_eids_url,
+        _register_eids_url(collection_id),
         headers={'X-CSRFToken': csrf_token},
         cookies={'csrftoken': csrf_token},
-        data={
-            'csrftoken': csrf_token,
-            'entity_ids': entity_ids,
-        },
+        data=data
     )
     if not (r.status_code == 200):
-        raise IOError('Could not get new object ID(s) (%s:%s on %s)' % (
-            r.status_code, r.reason, register_eids_url))
-    return entity_ids
+        raise

@@ -396,3 +396,4 @@ def test_indexer():
     index = 'fakeindex'
     results = docstore.index(hosts, index, '/tmp', recursive=True, public=True)
     assert results == {'successful': 0, 'bad': [], 'total': 0}
+                       
