@@ -8,6 +8,9 @@ import git
 from nose.tools import assert_raises
 
 import batch
+import identifier
+
+TMP_DIR = '/tmp/tests-ddr-batch'
 
 
 # Exporter
@@ -18,7 +21,64 @@ import batch
 # TODO check_repository
 # TODO check_csv
 # TODO check_eids
-# TODO _guess_model
+
+def test_guess_model():
+    # no rows
+    rowds0 = []
+    expected0 = []
+    #out0 = batch.Checker._guess_model(rowds0)
+    #assert out0 == expected0
+    assert_raises(Exception, batch.Checker._guess_model, rowds0)
+    # no identifiers
+    rowds1 = [
+        {'id':'ddr-testing-123-1'},
+        {'id':'ddr-testing-123-1'},
+    ]
+    expected1 = []
+    assert_raises(Exception, batch.Checker._guess_model, rowds1)
+    # too many models
+    rowds2 = [
+        {
+            'id':'ddr-testing-123-1',
+            'identifier': identifier.Identifier('ddr-testing-123-1'),
+        },
+        {
+            'id':'ddr-testing-123-2-master',
+            'identifier': identifier.Identifier('ddr-testing-123-2-master'),
+        },
+    ]
+    assert_raises(Exception, batch.Checker._guess_model, rowds2)
+    # entities
+    rowds3 = [
+        {
+            'id':'ddr-testing-123-1',
+            'identifier': identifier.Identifier('ddr-testing-123-1'),
+        },
+    ]
+    expected3 = 'entity'
+    out3 = batch.Checker._guess_model(rowds3)
+    assert out3 == expected3
+    # files
+    rowds4 = [
+        {
+            'id':'ddr-testing-123-2-master-a1b2c3',
+            'identifier': identifier.Identifier('ddr-testing-123-2-master-a1b2c3'),
+        },
+    ]
+    expected4 = 'file'
+    out4 = batch.Checker._guess_model(rowds4)
+    assert out4 == expected4
+    # file-roles are files
+    rowds5 = [
+        {
+            'id':'ddr-testing-123-2-master',
+            'identifier': identifier.Identifier('ddr-testing-123-2-master'),
+        },
+    ]
+    expected5 = 'file'
+    out5 = batch.Checker._guess_model(rowds5)
+    assert out5 == expected5
+
 # TODO _ids_in_local_repo
 # TODO _load_vocab_files
 # TODO _vocab_urls
