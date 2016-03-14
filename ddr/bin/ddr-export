@@ -184,7 +184,7 @@ def main():
         for n,path in enumerate(paths):
             logging.info('%s/%s %s' % (n+1, len(paths), path))
     else:
-        batch_export.export(paths, args.model, filename, required_only=args.required)
+        batch_export.Exporter.export(paths, args.model, filename, required_only=args.required)
     
     finish = datetime.now()
     elapsed = finish - start

@@ -159,16 +159,16 @@ def main():
     if (args.command == 'check') or (not args.nocheck):
         try:
             session = get_idservice_session(args, session)
-            rowds = batch_import.check_csv(csv_path, ci, vocabs_path)
-            repo = batch_import.check_repository(ci)
-            batch_import.check_eids(rowds, ci, session)
+            rowds = batch_import.Importer.check_csv(csv_path, ci, vocabs_path)
+            repo = batch_import.Importer.check_repository(ci)
+            batch_import.Importer.check_eids(rowds, ci, session)
         except Exception as err:
             log_error(err, args.debug)
             sys.exit(1)
     
     if   args.command == 'entity':
         try:
-            imported = batch_import.import_entities(
+            imported = batch_import.Importer.import_entities(
                 csv_path,
                 ci,
                 vocabs_path,
@@ -181,7 +181,7 @@ def main():
     
     elif args.command == 'file':
         try:
-            imported = batch_import.import_files(
+            imported = batch_import.Importer.import_files(
                 csv_path,
                 ci,
                 vocabs_path,
@@ -196,7 +196,7 @@ def main():
     elif args.command == 'register':
         session = get_idservice_session(args, session)
         try:
-            batch_import.register_entity_ids(
+            batch_import.Importer.register_entity_ids(
                 csv_path, ci, session, args.dryrun
             )
             logging.info('IF YOU SEE THIS IT WORKED')
