@@ -47,7 +47,7 @@ import os
 import re
 import sys
 
-from DDR import batch_export
+from DDR import batch
 from DDR import identifier
 from DDR import util
 
@@ -184,7 +184,7 @@ def main():
         for n,path in enumerate(paths):
             logging.info('%s/%s %s' % (n+1, len(paths), path))
     else:
-        batch_export.Exporter.export(paths, args.model, filename, required_only=args.required)
+        batch.Exporter.export(paths, args.model, filename, required_only=args.required)
     
     finish = datetime.now()
     elapsed = finish - start
