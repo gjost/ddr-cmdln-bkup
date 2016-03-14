@@ -189,10 +189,21 @@ def test_annex_set_description():
 
 # TODO fetch
 
-STATUS_LONG = """# On branch master
+# git-status --long (sometimes changes)
+STATUS_LONG_0 = """# On branch master
 nothing to commit (working directory clean)"""
+STATUS_LONG_1 = """# On branch master
+nothing to commit, working directory clean"""
+STATUS_LONG = [
+    STATUS_LONG_0,
+    STATUS_LONG_1,
+]
 
-STATUS_SHORT = """## master"""
+# git-status --short (more stable)
+STATUS_SHORT_0 = """## master"""
+STATUS_SHORT = [
+    STATUS_SHORT_0,
+]
 
 def test_repo_status():
     path = '/tmp/test-ddr-dvcs/test-repo'
@@ -200,8 +211,8 @@ def test_repo_status():
     out0 = dvcs.repo_status(repo, short=False)
     out1 = dvcs.repo_status(repo, short=True)
     cleanup_repo(path)
-    assert out0 == STATUS_LONG
-    assert out1 == STATUS_SHORT
+    assert out0 in STATUS_LONG
+    assert out1 in STATUS_SHORT
 
 ANNEX_STATUS = """root: DEBUG: 
 supported backends: SHA256 SHA1 SHA512 SHA224 SHA384 SHA256E SHA1E SHA512E SHA224E SHA384E WORM URL
