@@ -50,24 +50,27 @@ def test_validate_headers():
     headers0 = ['id', 'title']
     field_names0 = ['id', 'title', 'notused']
     exceptions = ['notused']
+    
     # UNIX style silent if everything's OK
-    assert not csvfile.validate_headers(headers0, field_names0, exceptions)
+    expected0 = {}
+    out0 = csvfile.validate_headers(headers0, field_names0, exceptions)
+    assert out0 == expected0
     # missing header
     headers1 = ['id']
     field_names1 = ['id', 'title', 'notused']
-    assert_raises(
-        Exception,
-        csvfile.validate_headers,
-        headers1, field_names1, exceptions
-    )
+    expected1 = {
+        'Missing headers': ['title'],
+    }
+    out1 = csvfile.validate_headers(headers1, field_names1, exceptions)
+    assert out1 == expected1
     # bad header
     headers2 = ['id', 'title', 'badheader']
     field_names2 = ['id', 'title']
-    assert_raises(
-        Exception,
-        csvfile.validate_headers,
-        headers2, field_names2, exceptions
-    )
+    expected2 = {
+        'Bad headers': ['badheader'],
+    }
+    out2 = csvfile.validate_headers(headers2, field_names2, exceptions)
+    assert out2 == expected2
 
 def test_account_row():
     required_fields0 = ['id', 'title']
@@ -140,17 +143,19 @@ def test_find_duplicate_ids():
         {'id':'ddr-test-123-456', 'status':'inprocess',},
         {'id':'ddr-test-123-457', 'status':'complete',},
     ]
-    csvfile.find_duplicate_ids(rowds0)
+    expected0 = []
+    out0 = csvfile.find_duplicate_ids(rowds0)
+    assert out0 == expected0
     # error
     rowds1 = [
         {'id':'ddr-test-123-456', 'status':'inprocess',},
         {'id':'ddr-test-123-456', 'status':'complete',},
     ]
-    assert_raises(
-        Exception,
-        csvfile.find_duplicate_ids,
-        rowds1
-    )
+    expected1 = [
+        'row 1: ddr-test-123-456'
+    ]
+    out1 = csvfile.find_duplicate_ids(rowds1)
+    assert out1 == expected1
 
 def test_find_multiple_cids():
     # OK
@@ -158,17 +163,20 @@ def test_find_multiple_cids():
         {'id':'ddr-test-123-456', 'status':'inprocess',},
         {'id':'ddr-test-123-457', 'status':'complete',},
     ]
-    csvfile.find_duplicate_ids(rowds0)
+    expected0 = []
+    out0 = csvfile.find_duplicate_ids(rowds0)
+    assert out0 == expected0
     # error
     rowds1 = [
         {'id':'ddr-test-123-456', 'status':'inprocess',},
         {'id':'ddr-test-124-457', 'status':'complete',},
     ]
-    assert_raises(
-        Exception,
-        csvfile.find_multiple_cids,
-        rowds1
-    )
+    expected1 = [
+        'ddr-test-123',
+        'ddr-test-124',
+    ]
+    out1 = csvfile.find_multiple_cids(rowds1)
+    assert out1 == expected1
 
 def test_find_missing_required():
     # OK
@@ -177,17 +185,19 @@ def test_find_missing_required():
         {'id':'ddr-test-123', 'status':'inprocess',},
         {'id':'ddr-test-124', 'status':'inprocess',},
     ]
-    csvfile.find_missing_required(required_fields, rowds0)
+    expected0 = []
+    out0 = csvfile.find_missing_required(required_fields, rowds0)
+    assert out0 == expected0
     # error
     rowds1 = [
         {'id':'ddr-test-123', 'status':'inprocess',},
         {'id':'ddr-test-124',},
     ]
-    assert_raises(
-        Exception,
-        csvfile.find_missing_required,
-        required_fields, rowds1
-    )
+    expected1 = [
+        "row 1: ddr-test-124 ['status']"
+    ]
+    out1 = csvfile.find_missing_required(required_fields, rowds1)
+    assert out1 == expected1
 
 def test_find_invalid_values():
     module = modules.Module(TestSchema())
@@ -196,22 +206,23 @@ def test_find_invalid_values():
     valid_values = {
         'status': ['inprocess', 'complete',]
     }
-    
     # OK
     rowds0 = [
         {'id':'ddr-test-123', 'status':'inprocess',},
         {'id':'ddr-test-124', 'status':'complete',},
     ]
-    csvfile.find_invalid_values(module, headers, valid_values, rowds0)
+    expected0 = []
+    out0 = csvfile.find_invalid_values(module, headers, valid_values, rowds0)
+    assert out0 == expected0
     # error
     rowds1 = [
         {'id':'ddr-test-123', 'status':'inprogress',},
         {'id':'ddr-test-124', 'status':'complete',},
     ]
-    assert_raises(
-        Exception,
-        csvfile.find_invalid_values,
-        module, headers, valid_values, rowds1
-    )
+    expected1 = [
+        "row 1: ddr-test-123 ['status']"
+    ]
+    out1 = csvfile.find_invalid_values(module, headers, valid_values, rowds1)
+    assert out1 == expected1
 
 # validate_rowds
