@@ -108,33 +108,31 @@ def test_check_row_values():
     valid_values = {
         'status': ['inprocess', 'complete',]
     }
-    
     rowd0 = {
         'id': 'ddr-test-123',
         'status': 'inprocess',
     }
+    expected0 = []
     out0 = csvfile.check_row_values(module, headers, valid_values, rowd0)
     print('out0 %s' % out0)
-    expected0 = []
     assert out0 == expected0
-
     # invalid ID
     rowd1 = {
         'id': 'not a valid ID',
-        'status': 'inprogress',
+        'status': 'inprocess',
     }
+    expected1 = ['id']
     out1 = csvfile.check_row_values(module, headers, valid_values, rowd1)
     print('out1 %s' % out1)
-    expected1 = ['id']
     assert out1 == expected1
-    
+    # invalid value
     rowd2 = {
-        'id': 'ddr-test-123',
+        'id': 'ddr-testing-123',
         'status': 'inprogress',
     }
-    out2 = csvfile.check_row_values(module, headers, valid_values, rowd1)
-    print('out2 %s' % out2)
     expected2 = ['status']
+    out2 = csvfile.check_row_values(module, headers, valid_values, rowd2)
+    print('out2 %s' % out2)
     assert out2 == expected2
 
 def test_find_duplicate_ids():
