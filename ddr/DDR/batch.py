@@ -93,38 +93,94 @@ class Exporter():
         return csv_path
 
 
-class ModifiedFilesError(Exception):
-    pass
-
-class UncommittedFilesError(Exception):
-    pass
-
-
-class Importer():
+class Checker():
 
     @staticmethod
-    def _fidentifier_parent(fidentifier):
-        """Returns entity Identifier for either 'file' or 'file-role'
+    def check_repository(cidentifier):
+        """Load repository, check for staged or modified files
         
-        We want to support adding new files and updating existing ones.
-        New file IDs have no SHA1, thus they are actually file-roles.
-        Identifier.parent() returns different objects depending on value of 'stubs'.
-        This function ensures that the parent of 'fidentifier' will always be an Entity.
+        Entity.add_files will not work properly if the repo contains staged
+        or modified files.
         
-        @param fidentifier: Identifier
-        @returns: boolean
+        @param cidentifier: Identifier
+        @returns: GitPython.Repository
         """
-        is_stub = fidentifier.object_class() == models.Stub
-        return fidentifier.parent(stubs=is_stub)
+        logging.info('Checking repository')
+        repo = dvcs.repository(cidentifier.path_abs())
+        logging.info(repo)
+        staged = dvcs.list_staged(repo)
+        if staged:
+            logging.error('*** Staged files in repo %s' % repo.working_dir)
+            for f in staged:
+                logging.error('*** %s' % f)
+            raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
+        modified = dvcs.list_modified(repo)
+        if modified:
+            logging.error('Modified files in repo: %s' % repo.working_dir)
+            for f in modified:
+                logging.error('*** %s' % f)
+            raise ModifiedFilesError('Repository contains modified files - import cancelled!')
+        logging.debug('ok')
+        return repo
 
     @staticmethod
-    def _file_is_new(fidentifier):
-        """Indicate whether file is new (ingest) or not (update)
+    def check_csv(csv_path, cidentifier, vocabs_path):
+        """Load CSV, validate headers and rows
         
-        @param fidentifier: Identifier
-        @returns: boolean
+        @param csv_path: Absolute path to CSV data file.
+        @param cidentifier: Identifier
+        @param vocabs_path: Absolute path to vocab dir
+        @param session: requests.session object
+        @returns: nothing
         """
-        return fidentifier.object_class() == models.Stub
+        logging.info('Checking CSV file')
+        
+        logging.info('Reading input file %s' % csv_path)
+        headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
+        logging.info('%s rows' % len(rowds))
+        logging.info('Adding identifiers to rows')
+        for rowd in rowds:
+            rowd['identifier'] = identifier.Identifier(rowd['id'])
+        logging.info('OK')
+        
+        model = Checker._guess_model(rowds)
+        module = modules.Module(
+            identifier.module_for_name(
+                identifier.MODEL_REPO_MODELS[model]['module']
+            )
+        )
+        logging.info('Loading vocabs from API (%s)' % config.VOCAB_TERMS_URL)
+        vocab_urls = Checker._vocab_urls(module)
+        vocabs = Checker._http_get_vocabs(vocab_urls)
+        Checker._validate_csv_file(module, vocabs, headers, rowds)
+        return rowds
+
+    @staticmethod
+    def check_eids(rowds, cidentifier, session):
+        """
+        
+        @param csv_path: Absolute path to CSV data file.
+        @param cidentifier: Identifier
+        @param session: requests.session object
+        @returns: nothing
+        """
+        logging.info('Confirming all entity IDs available')
+        csv_eids = [rowd['id'] for rowd in rowds]
+        registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
+        if (unregistered == csv_eids) and not registered:
+            logging.info('ok')
+        elif registered:
+            logging.info('Already registered: %s' % registered)
+        
+        # confirm file entities not in repo
+        logging.info('Checking for locally existing IDs')
+        already_added = Checker._ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
+        if already_added:
+            raise Exception('The following entities already exist: %s' % already_added)
+        else:
+            logging.info('ok')
+
+    # ----------------------------------------------------------------------
 
     @staticmethod
     def _guess_model(rowds):
@@ -151,6 +207,28 @@ class Importer():
             model = 'file'
         logging.debug('model: %s' % model)
         return model
+
+    @staticmethod
+    def _ids_in_local_repo(rowds, model, collection_path):
+        """Lists which IDs in CSV are present in local repo.
+        
+        @param rowds: list of dicts
+        @param model: str
+        @param collection_path: str Absolute path to collection repo.
+        @returns: list of IDs.
+        """
+        metadata_paths = util.find_meta_files(
+            collection_path,
+            model=model,
+            recursive=True, force_read=True
+        )
+        existing_ids = [
+            identifier.Identifier(path=path)
+            for path in metadata_paths
+        ]
+        new_ids = [rowd['id'] for rowd in rowds]
+        already = [i for i in new_ids if i in existing_ids]
+        return already
 
     @staticmethod
     def _load_vocab_files(vocabs_path):
@@ -244,7 +322,7 @@ class Importer():
         field_names = module.field_names()
         nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
         required_fields = module.required_fields(nonrequired_fields)
-        valid_values = Importer._prep_valid_values(vocabs)
+        valid_values = Checker._prep_valid_values(vocabs)
         # check
         logging.info('Validating headers')
         header_errs = csvfile.validate_headers(headers, field_names, nonrequired_fields)
@@ -267,27 +345,38 @@ class Importer():
                     for err in errs:
                         logging.error('* %s' % err)
 
+
+class ModifiedFilesError(Exception):
+    pass
+
+class UncommittedFilesError(Exception):
+    pass
+
+class Importer():
+
     @staticmethod
-    def _ids_in_local_repo(rowds, model, collection_path):
-        """Lists which IDs in CSV are present in local repo.
+    def _fidentifier_parent(fidentifier):
+        """Returns entity Identifier for either 'file' or 'file-role'
         
-        @param rowds: list of dicts
-        @param model: str
-        @param collection_path: str Absolute path to collection repo.
-        @returns: list of IDs.
+        We want to support adding new files and updating existing ones.
+        New file IDs have no SHA1, thus they are actually file-roles.
+        Identifier.parent() returns different objects depending on value of 'stubs'.
+        This function ensures that the parent of 'fidentifier' will always be an Entity.
+        
+        @param fidentifier: Identifier
+        @returns: boolean
         """
-        metadata_paths = util.find_meta_files(
-            collection_path,
-            model=model,
-            recursive=True, force_read=True
-        )
-        existing_ids = [
-            identifier.Identifier(path=path)
-            for path in metadata_paths
-        ]
-        new_ids = [rowd['id'] for rowd in rowds]
-        already = [i for i in new_ids if i in existing_ids]
-        return already
+        is_stub = fidentifier.object_class() == models.Stub
+        return fidentifier.parent(stubs=is_stub)
+
+    @staticmethod
+    def _file_is_new(fidentifier):
+        """Indicate whether file is new (ingest) or not (update)
+        
+        @param fidentifier: Identifier
+        @returns: boolean
+        """
+        return fidentifier.object_class() == models.Stub
 
     @staticmethod
     def _write_entity_changelog(entity, git_name, git_mail, agent):
@@ -335,91 +424,6 @@ class Importer():
         return git_files
 
     # ----------------------------------------------------------------------
-
-    @staticmethod
-    def check_repository(cidentifier):
-        """Load repository, check for staged or modified files
-        
-        Entity.add_files will not work properly if the repo contains staged
-        or modified files.
-        
-        @param cidentifier: Identifier
-        @returns: GitPython.Repository
-        """
-        logging.info('Checking repository')
-        repo = dvcs.repository(cidentifier.path_abs())
-        logging.info(repo)
-        staged = dvcs.list_staged(repo)
-        if staged:
-            logging.error('*** Staged files in repo %s' % repo.working_dir)
-            for f in staged:
-                logging.error('*** %s' % f)
-            raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
-        modified = dvcs.list_modified(repo)
-        if modified:
-            logging.error('Modified files in repo: %s' % repo.working_dir)
-            for f in modified:
-                logging.error('*** %s' % f)
-            raise ModifiedFilesError('Repository contains modified files - import cancelled!')
-        logging.debug('ok')
-        return repo
-
-    @staticmethod
-    def check_csv(csv_path, cidentifier, vocabs_path):
-        """Load CSV, validate headers and rows
-        
-        @param csv_path: Absolute path to CSV data file.
-        @param cidentifier: Identifier
-        @param vocabs_path: Absolute path to vocab dir
-        @param session: requests.session object
-        @returns: nothing
-        """
-        logging.info('Checking CSV file')
-        
-        logging.info('Reading input file %s' % csv_path)
-        headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
-        logging.info('%s rows' % len(rowds))
-        logging.info('Adding identifiers to rows')
-        for rowd in rowds:
-            rowd['identifier'] = identifier.Identifier(rowd['id'])
-        logging.info('OK')
-        
-        model = Importer._guess_model(rowds)
-        module = modules.Module(
-            identifier.module_for_name(
-                identifier.MODEL_REPO_MODELS[model]['module']
-            )
-        )
-        logging.info('Loading vocabs from API (%s)' % config.VOCAB_TERMS_URL)
-        vocab_urls = Importer._vocab_urls(module)
-        vocabs = Importer._http_get_vocabs(vocab_urls)
-        Importer._validate_csv_file(module, vocabs, headers, rowds)
-        return rowds
-
-    @staticmethod
-    def check_eids(rowds, cidentifier, session):
-        """
-        
-        @param csv_path: Absolute path to CSV data file.
-        @param cidentifier: Identifier
-        @param session: requests.session object
-        @returns: nothing
-        """
-        logging.info('Confirming all entity IDs available')
-        csv_eids = [rowd['id'] for rowd in rowds]
-        registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
-        if (unregistered == csv_eids) and not registered:
-            logging.info('ok')
-        elif registered:
-            logging.info('Already registered: %s' % registered)
-        
-        # confirm file entities not in repo
-        logging.info('Checking for locally existing IDs')
-        already_added = Importer._ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
-        if already_added:
-            raise Exception('The following entities already exist: %s' % already_added)
-        else:
-            logging.info('ok')
 
     @staticmethod
     def import_entities(csv_path, cidentifier, vocabs_path, git_name, git_mail, agent, dryrun=False):
