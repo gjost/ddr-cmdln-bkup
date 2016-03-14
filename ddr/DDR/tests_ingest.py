@@ -34,7 +34,7 @@ def test_log_path():
 
 def test_check_dir():
     eid = 'ddr-test-123-456'
-    log = ingest.addfile_logger(identifier.Identifier(eid), BASEDIR)
+    log = ingest.addfile_logger(identifier.Identifier(eid), base_dir=BASEDIR)
     label = 'testing'
     assert ingest.check_dir('tmp', '/tmp', log)
     assert_raises(
@@ -76,7 +76,7 @@ def test_copy_to_workdir():
     src_path = os.path.join(BASEDIR, 'src', 'somefile.tif')
     tmp_path = os.path.join(BASEDIR, 'tmp', 'somefile.tif')
     tmp_path_renamed = os.path.join(BASEDIR, 'tmp', 'ddr-test-123-456-master-abc123.tif')
-    log = ingest.addfile_logger(entity, BASEDIR)
+    log = ingest.addfile_logger(entity, base_dir=BASEDIR)
     # prep
     src_dir = os.path.dirname(src_path)
     tmp_dir = os.path.dirname(tmp_path)
@@ -106,7 +106,7 @@ def test_make_access_file():
     src_path = os.path.join(BASEDIR, 'src', 'somefile.png')
     access_dest_path = os.path.join(BASEDIR, 'ddr-test-123-456-master-abc123-a.jpg')
     expected = access_dest_path
-    log = ingest.addfile_logger(identifier.Identifier('ddr-test-123-456'), BASEDIR)
+    log = ingest.addfile_logger(identifier.Identifier('ddr-test-123-456'), base_dir=BASEDIR)
     # no src_path so fails
     assert ingest.make_access_file(src_path, access_dest_path, log) == None
     # prep
@@ -131,7 +131,7 @@ def test_move_files():
         (os.path.join(BASEDIR, 'src', 'file1.txt'), os.path.join(BASEDIR, 'dest', 'file1.txt')),
         (os.path.join(BASEDIR, 'src', 'file2.txt'), os.path.join(BASEDIR, 'dest', 'file2.txt')),
     ]
-    log = ingest.addfile_logger(identifier.Identifier('ddr-test-123-456'), BASEDIR)
+    log = ingest.addfile_logger(identifier.Identifier('ddr-test-123-456'), base_dir=BASEDIR)
     # fresh start
     for tmp,dest in files:
         shutil.rmtree(os.path.dirname(tmp), ignore_errors=True)
