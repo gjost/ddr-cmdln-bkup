@@ -361,6 +361,9 @@ class Checker():
         """
         # gather data
         field_names = module.field_names()
+        # Files don't have an 'id' field but we have to have one in CSV
+        if 'id' not in field_names:
+            field_names.insert(0, 'id')
         nonrequired_fields = module.module.REQUIRED_FIELDS_EXCEPTIONS
         required_fields = module.required_fields(nonrequired_fields)
         valid_values = Checker._prep_valid_values(vocabs)
