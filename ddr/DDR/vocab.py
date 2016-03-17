@@ -170,8 +170,8 @@ class Index( object ):
         """List of terms that have term.id as their parent_id.
         """
         term_ids = self._parents_to_children.get(term.id, [])
-        terms = self._get_by_term_ids(term_ids)
-        return terms
+        term_ids.sort()
+        return self._get_by_term_ids(term_ids)
    
     def _siblings( self, term ):
         """List of other terms with same parent_id.
