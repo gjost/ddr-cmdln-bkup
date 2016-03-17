@@ -245,7 +245,7 @@ class Index( object ):
                 self.load_json(f.read())
         elif extension.lower() == '.csv':
             with open(path, 'r') as f:
-                self.load_csv(f.read(), delimiter=delimiter, quotechar=quotechar, quoting=quoting)
+                self.load_csv(f.read())
     
     def write( self, path):
         """Write to the specified file (.json or .csv).
