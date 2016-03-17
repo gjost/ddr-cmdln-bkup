@@ -102,10 +102,17 @@ class Checker():
         Entity.add_files will not work properly if the repo contains staged
         or modified files.
         
+        Results dict includes:
+        - 'passed': boolean
+        - 'repo': GitPython repository
+        - 'staged': list of staged files
+        - 'modified': list of modified files
+        
         @param cidentifier: Identifier
-        @returns: GitPython.Repository
+        @returns: dict
         """
         logging.info('Checking repository')
+        passed = False
         repo = dvcs.repository(cidentifier.path_abs())
         logging.info(repo)
         staged = dvcs.list_staged(repo)
@@ -113,19 +120,33 @@ class Checker():
             logging.error('*** Staged files in repo %s' % repo.working_dir)
             for f in staged:
                 logging.error('*** %s' % f)
-            raise UncommittedFilesError('Repository contains staged/uncommitted files - import cancelled!')
         modified = dvcs.list_modified(repo)
         if modified:
             logging.error('Modified files in repo: %s' % repo.working_dir)
             for f in modified:
                 logging.error('*** %s' % f)
-            raise ModifiedFilesError('Repository contains modified files - import cancelled!')
-        logging.debug('ok')
-        return repo
+        if repo and (not (staged or modified)):
+            passed = True
+            logging.info('ok')
+        else:
+            logging.error('FAIL')
+        return {
+            'passed': passed,
+            'repo': repo,
+            'staged': staged,
+            'modified': modified,
+        }
 
     @staticmethod
     def check_csv(csv_path, cidentifier, vocabs_path):
         """Load CSV, validate headers and rows
+        
+        Results dict includes:
+        - 'passed'
+        - 'headers'
+        - 'rowds'
+        - 'header_errs'
+        - 'rowds_errs'
         
         @param csv_path: Absolute path to CSV data file.
         @param cidentifier: Identifier
@@ -134,51 +155,74 @@ class Checker():
         @returns: nothing
         """
         logging.info('Checking CSV file')
-        
-        logging.info('Reading input file %s' % csv_path)
+        passed = False
         headers,rowds = csvfile.make_rowds(fileio.read_csv(csv_path))
-        logging.info('%s rows' % len(rowds))
-        logging.info('Adding identifiers to rows')
         for rowd in rowds:
             rowd['identifier'] = identifier.Identifier(rowd['id'])
-        logging.info('OK')
-        
+        logging.info('%s rows' % len(rowds))
         model = Checker._guess_model(rowds)
-        module = modules.Module(
-            identifier.module_for_name(
-                identifier.MODEL_REPO_MODELS[model]['module']
-            )
+        module = Checker._get_module(model)
+        vocabs = Checker._get_vocabs(module)
+        header_errs,rowds_errs = Checker._validate_csv_file(
+            module, vocabs, headers, rowds
         )
-        logging.info('Loading vocabs from API (%s)' % config.VOCAB_TERMS_URL)
-        vocab_urls = Checker._vocab_urls(module)
-        vocabs = Checker._http_get_vocabs(vocab_urls)
-        Checker._validate_csv_file(module, vocabs, headers, rowds)
-        return rowds
-
+        if (not header_errs) and (not rowds_errs):
+            passed = True
+            logging.info('ok')
+        else:
+            logging.error('FAIL')
+        return {
+            'passed': passed,
+            'headers': headers,
+            'rowds': rowds,
+            'header_errs': header_errs,
+            'rowds_errs': rowds_errs,
+        }
+    
     @staticmethod
     def check_eids(rowds, cidentifier, session):
         """
         
+        Results dict includes:
+        - passed
+        - csv_eids
+        - registered
+        
         @param csv_path: Absolute path to CSV data file.
         @param cidentifier: Identifier
         @param session: requests.session object
-        @returns: nothing
+        @returns: CheckResult
         """
         logging.info('Confirming all entity IDs available')
+        passed = False
         csv_eids = [rowd['id'] for rowd in rowds]
-        registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
-        if (unregistered == csv_eids) and not registered:
+        registered,unregistered = idservice.check_eids(
+            session, cidentifier, csv_eids
+        )
+        if (unregistered == csv_eids) \
+        and not registered:
             logging.info('ok')
         elif registered:
             logging.info('Already registered: %s' % registered)
-        
         # confirm file entities not in repo
         logging.info('Checking for locally existing IDs')
-        already_added = Checker._ids_in_local_repo(rowds, cidentifier.model, cidentifier.path_abs())
+        already_added = Checker._ids_in_local_repo(
+            rowds, cidentifier.model, cidentifier.path_abs()
+        )
         if already_added:
-            raise Exception('The following entities already exist: %s' % already_added)
-        else:
+            logging.error('The following entities already exist: %s' % already_added)
+        if (unregistered == csv_eids) \
+        and (not registered) \
+        and (not already_added):
+            passed = True
             logging.info('ok')
+        else:
+            logging.error('FAIL')
+        return {
+            'passed': passed,
+            'csv_eids': csv_eids,
+            'registered': unregistered,
+        }
 
     # ----------------------------------------------------------------------
 
@@ -207,6 +251,14 @@ class Checker():
             model = 'file'
         logging.debug('model: %s' % model)
         return model
+
+    @staticmethod
+    def _get_module(model):
+        return modules.Module(
+            identifier.module_for_name(
+                identifier.MODEL_REPO_MODELS[model]['module']
+            )
+        )
 
     @staticmethod
     def _ids_in_local_repo(rowds, model, collection_path):
@@ -249,31 +301,19 @@ class Checker():
         return json_texts
 
     @staticmethod
-    def _vocab_urls(module):
-        """
-        @param module: modules.Module
-        @return: list of URLs
-        """
-        return [
+    def _get_vocabs(module):
+        logging.info('Loading vocabs from API (%s)' % config.VOCAB_TERMS_URL)
+        urls = [
             config.VOCAB_TERMS_URL % field.get('name')
             for field in module.module.FIELDS
             if field.get('vocab')
         ]
-
-    @staticmethod
-    def _http_get_vocabs(urls):
-        """Gets vocab JSON texts from vocabs API
-        
-        Gets URL template from config.VOCAB_TERMS_URL
-        
-        @param module: modules.Module
-        @returns list of JSON strings
-        """
-        texts = [
+        vocabs = [
             requests.get(url).text
             for url in urls
         ]
-        return texts
+        logging.info('ok')
+        return vocabs
 
     @staticmethod
     def _prep_valid_values(json_texts):
@@ -317,6 +357,7 @@ class Checker():
         @param vocabs: dict Output of _prep_valid_values()
         @param headers: list
         @param rowds: list
+        @returns: list [header_errs, rowds_errs]
         """
         # gather data
         field_names = module.field_names()
@@ -326,25 +367,27 @@ class Checker():
         # check
         logging.info('Validating headers')
         header_errs = csvfile.validate_headers(headers, field_names, nonrequired_fields)
-        if not header_errs.keys():
-            logging.info('ok')
-        else:
+        if header_errs.keys():
             for name,errs in header_errs.iteritems():
                 if errs:
                     logging.error(name)
                     for err in errs:
                         logging.error('* %s' % err)
+            logging.error('FAIL')
+        else:
+            logging.info('ok')
         logging.info('Validating rows')
         rowds_errs = csvfile.validate_rowds(module, headers, required_fields, valid_values, rowds)
-        if not rowds_errs.keys():
-            logging.info('ok')
-        else:
+        if rowds_errs.keys():
             for name,errs in rowds_errs.iteritems():
                 if errs:
                     logging.error(name)
                     for err in errs:
                         logging.error('* %s' % err)
-
+            logging.error('FAIL')
+        else:
+            logging.info('ok')
+        return [header_errs, rowds_errs]
 
 class ModifiedFilesError(Exception):
     pass

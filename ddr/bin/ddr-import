@@ -157,13 +157,23 @@ def main():
     session = None
         
     if (args.command == 'check') or (not args.nocheck):
-        try:
-            session = get_idservice_session(args, session)
-            rowds = batch.Checker.check_csv(csv_path, ci, vocabs_path)
-            repo = batch.Checker.check_repository(ci)
-            batch.Checker.check_eids(rowds, ci, session)
-        except Exception as err:
-            log_error(err, args.debug)
+        session = get_idservice_session(args, session)
+        chkcsv = batch.Checker.check_csv(csv_path, ci, vocabs_path)
+        chkrepo = batch.Checker.check_repository(ci)
+        chkeids = batch.Checker.check_eids(chkcsv['rowds'], ci, session)
+        
+        tests = 0
+        passed = 0
+        def passfail(results, tests, passed):
+            tests += 1
+            if results['passed']:
+                passed += 1
+            return tests,passed
+        tests,passed = passfail(chkcsv, tests, passed)
+        tests,passed = passfail(chkrepo, tests, passed)
+        tests,passed = passfail(chkeids, tests, passed)
+        if passed != tests:
+            logging.error('TESTS FAILED--QUITTING!')
             sys.exit(1)
     
     if   args.command == 'entity':
