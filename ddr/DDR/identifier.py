@@ -480,6 +480,57 @@ def class_for_name(module_name, class_name):
     )
     return c
 
+def _field_names(template):
+    """Extract field names from string formatting template.
+    """
+    return [v[1] for v in string.Formatter().parse(template)]
+
+def max_id(model, identifiers):
+    """Returns highest existing ID for the specied model
+    """
+    component = _field_names(ID_TEMPLATES[model]).pop()
+    existing = [i.parts[component] for i in identifiers]
+    existing.sort()
+    return existing[-1] + 1
+
+def available(num_new, model, identifiers, startwith=None):
+    """Can {num} {model} IDs to {list} starting with {n}; complain if duplicates
+    
+    >>> model = 'entity'
+    >>> c = Collection('/PATH/TO/ddr-test-123')
+    >>> identifiers = [i.id for i in c.family(model=model)]
+    >>> add_ids(10, model, identifiers, 42)
+    [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+    
+    @param num_new: int
+    @param model: str
+    @param identifiers: list
+    @param startwith: int
+    @returns: dict {'success', 'max_id', 'new', 'taken'}
+    """
+    # Get name of the ID component from the model's ID_TEMPLATE
+    # e.g. for Entity we want 'eid'
+    # This is the part we will increment
+    component = _field_names(ID_TEMPLATES[model]).pop()
+    # then get {component} from each Identifier.parts
+    existing = [i.parts[component] for i in identifiers]
+    existing.sort()
+    max_id = existing[-1] + 1
+    
+    if startwith:
+        start = startwith
+    else:
+        start = max_id + 1
+    new = range(start, start + num_new)
+    
+    taken = [x for x in set(new).intersection(existing)]
+    return {
+        'max_id': max_id,
+        'new': new,
+        'taken': taken,
+        'success': taken == [],
+    }
+
 
 class MissingBasepathException(Exception):
     pass
