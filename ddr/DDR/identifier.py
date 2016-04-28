@@ -718,7 +718,18 @@ class Identifier(object):
     
     def __repr__(self):
         return "<%s.%s %s:%s>" % (self.__module__, self.__class__.__name__, self.model, self.id)
-
+    
+    def _key(self):
+        """Key for Pythonic object sorting.
+        Integer components are returned as ints, enabling natural sorting.
+        """
+        return self.parts.values()
+    
+    def __lt__(self, other):
+        """Enables Pythonic sorting; see Identifier._key.
+        """
+        return self._key() < other._key()
+    
     def components(self):
         """Model and parts of the ID as a list.
         """
