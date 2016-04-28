@@ -730,6 +730,20 @@ class Identifier(object):
         """
         return self._key() < other._key()
     
+    def next(self):
+        """Returns next Identifier if last ID component is numeric
+        
+        @returns: Identifier
+        """
+        partsd = {'model': self.model}
+        for k,v in self.parts.iteritems():
+            partsd[k] = v
+        if not isinstance(v, int):
+            raise Exception('Not a next-able model: %s' % (self.model))
+        # increment the last component of the ID
+        partsd[k] = v + 1
+        return Identifier(parts=partsd, base_path=self.basepath)
+    
     def components(self):
         """Model and parts of the ID as a list.
         """
