@@ -68,6 +68,7 @@ setup(
         'bin/ddr-checkbinaries',
         'bin/ddr-export',
         'bin/ddr-filter',
+        'bin/ddr-idservice',
         'bin/ddr-import',
         'bin/ddr-index',
         'bin/ddr-info',
