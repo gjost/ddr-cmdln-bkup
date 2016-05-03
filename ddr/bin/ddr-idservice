@@ -9,7 +9,7 @@ description = """Writes collection ID data to JSON for importing by idservice ap
 epilog = """
 EXAMPLE
 
-ddr-idservice /PATH/TO/ddr-test-123 /PATH/TO/COLLECTION.mysql
+ddr-idservice /PATH/TO/ddr-test-123 /PATH/TO/COLLECTION.json
 
 ---"""
 
