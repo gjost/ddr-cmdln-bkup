@@ -1,4 +1,5 @@
 import ConfigParser
+import os
 import sys
 
 CONFIG_FILES = [
@@ -40,11 +41,11 @@ DATETIME_FORMAT = config.get('cmdln','datetime_format')
 ACCESS_FILE_APPEND = config.get('cmdln','access_file_append')
 ACCESS_FILE_EXTENSION = config.get('cmdln','access_file_extension')
 ACCESS_FILE_GEOMETRY = config.get('cmdln','access_file_geometry')
-FACETS_PATH = config.get('cmdln','vocab_facets_path')
-MAPPINGS_PATH = config.get('cmdln','vocab_mappings_path')
+FACETS_PATH = os.path.join(REPO_MODELS_PATH, 'vocab')
+MAPPINGS_PATH = os.path.join(REPO_MODELS_PATH, 'docstore', 'mappings.json')
+TEMPLATE_EAD = os.path.join(REPO_MODELS_PATH, 'templates', 'ead.xml')
+TEMPLATE_METS = os.path.join(REPO_MODELS_PATH, 'templates', 'mets.xml')
 TEMPLATE_EJSON = config.get('cmdln','template_ejson')
-TEMPLATE_EAD = config.get('cmdln','template_ead')
-TEMPLATE_METS = config.get('cmdln','template_mets')
 
 CGIT_URL = config.get('workbench','cgit_url')
 GIT_REMOTE_NAME = config.get('workbench','remote')
