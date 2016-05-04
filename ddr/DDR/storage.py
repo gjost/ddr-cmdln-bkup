@@ -191,7 +191,15 @@ def find_store_dirs(base, marker, levels=2, excludes=['.git']):
                 dirs.remove(x)
         if (marker in files):
             hits.append(root)
-        depth = len(os.path.relpath(root, start=base).split(os.sep))
+        # split up relative path, excluding '.'
+        relpath = [
+            x
+            for x in os.path.relpath(
+                    root, start=base
+            ).replace('.', '').split(os.sep)
+            if x
+        ]
+        depth = len(relpath)
         if (depth >= levels) or (marker in files):
             # don't go any further down
             del dirs[:]
