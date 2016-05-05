@@ -291,13 +291,13 @@ Example:
 
     cidentifier = None
     collection = None
-    if args.collection:
+    if hasattr(args, 'collection'):
         cidentifier = Identifier(args.collection, MEDIA_BASE)
         collection = Collection.from_identifier(cidentifier)
     
     eidentifier = None
     entity = None
-    if args.entity:
+    if hasattr(args, 'entity'):
         eidentifier = Identifier(args.entity, MEDIA_BASE)
         entity = Entity.from_identifier(eidentifier)
     
