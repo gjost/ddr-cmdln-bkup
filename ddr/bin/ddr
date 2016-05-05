@@ -294,6 +294,9 @@ Example:
     if hasattr(args, 'collection'):
         cidentifier = Identifier(args.collection, MEDIA_BASE)
         collection = Collection.from_identifier(cidentifier)
+    elif hasattr(args, 'cid'):
+        cidentifier = Identifier(args.cid, MEDIA_BASE)
+        collection = Collection.from_identifier(cidentifier)
     
     eidentifier = None
     entity = None
