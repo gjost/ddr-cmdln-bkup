@@ -656,6 +656,20 @@ e2-8184-835f755b29c5')]
         remotes.append(r)
     return remotes
 
+def remote_add(repo, url, name=config.GIT_REMOTE_NAME):
+    """Add the specified remote name unless it already exists
+    
+    @param repo: GitPython Repository
+    @param url: str Git remote URL
+    @param name: str remote name
+    """
+    if name in [r.name for r in repo.remotes]:
+        logging.debug('remote exists: %s %s %s' % (repo, name, url))
+    else:
+        logging.debug('remote_add(%s, %s %s)' % (repo, name, url))
+        repo.create_remote(name, url)
+        logging.debug('ok')
+
 def repos_remotes(repo):
     """Gets list of remotes for each repo in path.
     
