@@ -304,10 +304,12 @@ Example:
     # call selected function
     #exit,msg = args.func(args)
     if   args.cmd == 'status':
-        exit,msg = status(collection)
+        msg = status(collection)
+        exit = 0
         print(msg)
     elif args.cmd == 'astatus':
-        exit,msg = annex_status(collection)
+        msg = annex_status(collection)
+        exit = 0
         print(msg)
     elif args.cmd == 'create':
         templates = args.templates.strip().split(',')
