@@ -729,7 +729,17 @@ class Identifier(object):
         """Enables Pythonic sorting; see Identifier._key.
         """
         return self._key() < other._key()
-    
+
+    @staticmethod
+    def nextable(model):
+        NEXTABLE = [
+            'collection',
+            'entity',
+        ]
+        if model in NEXTABLE:
+            return True
+        return False
+        
     def next(self):
         """Returns next Identifier if last ID component is numeric
         
