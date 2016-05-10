@@ -839,7 +839,12 @@ class Identifier(object):
         if pid:
             return self.__class__(id=pid, base_path=self.basepath)
         return None
-    
+
+    def child_models(self, stubs=False):
+        if stubs:
+            return CHILDREN_ALL.get(self.model, [])
+        return CHILDREN.get(self.model, [])
+        
     def child(self, model, idparts, base_path=None):
         """Returns a *new* child Identifier with specified properties.
         
