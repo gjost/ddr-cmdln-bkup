@@ -653,18 +653,17 @@ def remotes(repo, paths=None, clone_log_n=1):
         r = {'name':remote.name}
         for key,val in repo.config_reader().items('remote "%s"' % remote.name):
             r[key] = val
-        
-        # allow for 'url' and 'annex-rsyncurl'
+        # handle regular remotes and git-annex special remotes
         if r.get('url'):
-            target = r['url']
+            r['target'] = r['url']
         elif r.get('annex-rsyncurl'):
-            target = r['annex-rsyncurl']
+            r['target'] = r['annex-rsyncurl']
         else:
-            target = ''
-        
-        r['local'] = is_local(target)
-        r['local_exists'] = local_exists(target)
-        r['clone'] = is_clone(repo.working_dir, target, clone_log_n)
+            r['target'] = ''
+        #
+        r['local'] = is_local(r['target'])
+        r['local_exists'] = local_exists(r['target'])
+        r['clone'] = is_clone(repo.working_dir, r['target'], clone_log_n)
         remotes.append(r)
     return remotes
 
