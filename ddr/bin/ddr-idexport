@@ -13,8 +13,16 @@ files there.
 
 EXAMPLE
 
-    $ ddr-idservice /PATH/TO/ddr-test-123 /tmp/ddr-test-123.json
-    $ ddr-idservice /PATH/TO/ddr-test-123 /tmp/
+On local machine:
+
+    $ ddr-idexport /PATH/TO/ddr-test-123 /tmp/ddr-test-123.json
+    $ ddr-idexport /PATH/TO/ddr-test-123 /tmp/
+
+On idservice machine:
+
+    $ sudo su ddr
+    $ cd /usr/local/src/ddr-idservice/idservice
+    $ python manage.py idimport /tmp/ddr-test-123.json
 
 ---"""
 
