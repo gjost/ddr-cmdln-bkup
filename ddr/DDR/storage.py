@@ -191,7 +191,15 @@ def find_store_dirs(base, marker, levels=2, excludes=['.git']):
                 dirs.remove(x)
         if (marker in files):
             hits.append(root)
-        depth = len(os.path.relpath(root, start=base).split(os.sep))
+        # split up relative path, excluding '.'
+        relpath = [
+            x
+            for x in os.path.relpath(
+                    root, start=base
+            ).replace('.', '').split(os.sep)
+            if x
+        ]
+        depth = len(relpath)
         if (depth >= levels) or (marker in files):
             # don't go any further down
             del dirs[:]
@@ -278,8 +286,11 @@ def devices(symlink=None):
     localdevices = local_devices(envoy.run('udisks --dump', timeout=2).std_out)
     localstores = local_stores(localdevices, levels=3, symlink=symlink)
     # NFS shares
-    nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
-    nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
+    # NOTE: Disabled until find_store_dirs can deal with dirs containing
+    #       YUGE numbers of files (e.g. the photorec recovery dirs).
+    #nfsdevices = nfs_devices(envoy.run('df -T', timeout=2).std_out)
+    #nfsstores = nfs_stores(nfsdevices, levels=3, symlink=symlink)
+    nfsstores = []
     # sort by label
     devices = sorted(
         localstores + nfsstores,

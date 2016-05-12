@@ -636,9 +636,12 @@ def remotes(repo, paths=None, clone_log_n=1):
     >>> remotes(repo)
     [<git.Remote "origin">, <git.Remote "serenity">, <git.Remote "wd5000bmv-2">, <git.Remote "memex">, <git.Remote "seagate596-2010">]
     >>> cr = repo.config_reader()
+    # normal remote
     >>> cr.items('remote "serenity"')
-[('url', 'gjost@jostwebwerks.com:~/git/music.git'), ('fetch', '+refs/heads/*:refs/remotes/serenity/*'), ('annex-uuid', 'e7e4c020-9335-11
-e2-8184-835f755b29c5')]
+[('url', 'gjost@jostwebwerks.com:~/git/music.git'), ('fetch', '+refs/heads/*:refs/remotes/serenity/*'), ('annex-uuid', 'e7e4c020-9335-11e2-8184-835f755b29c5')],
+    # git-annex special remote
+    >>> cr.items('remote "hq-backup-gold-test1"')
+[('name', 'hq-backup-gold-test1')), ('annex-uuid', '2c6fc912-3ba2-4df2-a741-8021cc66d918'), ('annex-rsyncurl', '10.0.1.10:/densho_backup/hq-backup-gold/ddr-testing-268')]
     
     @param repo: A GitPython Repo object
     @param paths: 
@@ -650,11 +653,33 @@ e2-8184-835f755b29c5')]
         r = {'name':remote.name}
         for key,val in repo.config_reader().items('remote "%s"' % remote.name):
             r[key] = val
-        r['local'] = is_local(r.get('url', None))
-        r['local_exists'] = local_exists(r.get('url', None))
-        r['clone'] = is_clone(repo.working_dir, r['url'], clone_log_n)
+        # handle regular remotes and git-annex special remotes
+        if r.get('url'):
+            r['target'] = r['url']
+        elif r.get('annex-rsyncurl'):
+            r['target'] = r['annex-rsyncurl']
+        else:
+            r['target'] = ''
+        #
+        r['local'] = is_local(r['target'])
+        r['local_exists'] = local_exists(r['target'])
+        r['clone'] = is_clone(repo.working_dir, r['target'], clone_log_n)
         remotes.append(r)
     return remotes
+
+def remote_add(repo, url, name=config.GIT_REMOTE_NAME):
+    """Add the specified remote name unless it already exists
+    
+    @param repo: GitPython Repository
+    @param url: str Git remote URL
+    @param name: str remote name
+    """
+    if name in [r.name for r in repo.remotes]:
+        logging.debug('remote exists: %s %s %s' % (repo, name, url))
+    else:
+        logging.debug('remote_add(%s, %s %s)' % (repo, name, url))
+        repo.create_remote(name, url)
+        logging.debug('ok')
 
 def repos_remotes(repo):
     """Gets list of remotes for each repo in path.

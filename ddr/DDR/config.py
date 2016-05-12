@@ -48,7 +48,7 @@ TEMPLATE_METS = os.path.join(REPO_MODELS_PATH, 'templates', 'mets.xml')
 TEMPLATE_EJSON = config.get('cmdln','template_ejson')
 
 CGIT_URL = config.get('workbench','cgit_url')
-GIT_REMOTE_NAME = config.get('workbench','remote')
+GIT_REMOTE_NAME = 'origin'  # config.get('workbench','remote')
 GITOLITE = config.get('workbench','gitolite')
 WORKBENCH_LOGIN_TEST = config.get('workbench','login_test_url')
 WORKBENCH_LOGIN_URL = config.get('workbench','workbench_login_url')

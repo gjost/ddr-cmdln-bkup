@@ -188,9 +188,8 @@ def clone(user_name, user_mail, identifier, dest_path):
     dvcs.git_set_configs(repo, user_name, user_mail)
     dvcs.annex_set_configs(repo, user_name, user_mail)
     drive_label = storage.drive_label(repo.working_dir)
-    dvcs.set_annex_description(repo, drive_label=drive_label)
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, git_url)
+    dvcs.annex_set_description(repo, dvcs.annex_status(repo), drive_label=drive_label)
+    dvcs.remote_add(repo, git_url, config.GIT_REMOTE_NAME)
     return 0,'ok'
 
 
@@ -234,7 +233,7 @@ def create(user_name, user_mail, identifier, templates, agent=''):
     else:
         logging.error('    .git/ IS MISSING!')
     # there is no master branch at this point
-    repo.create_remote(config.GIT_REMOTE_NAME, git_url)
+    dvcs.remote_add(repo, git_url, config.GIT_REMOTE_NAME)
     dvcs.git_set_configs(repo, user_name, user_mail)
     dvcs.annex_set_configs(repo, user_name, user_mail)
     git_files = []
@@ -301,7 +300,7 @@ def create(user_name, user_mail, identifier, templates, agent=''):
     logging.debug('OK')
     
     drive_label = storage.drive_label(repo.working_dir)
-    dvcs.set_annex_description(repo, drive_label=drive_label)
+    dvcs.annex_set_description(repo, dvcs.annex_status(repo), drive_label=drive_label)
     return 0,'ok'
 
 
@@ -368,8 +367,7 @@ def update(user_name, user_mail, collection, updated_files, agent=''):
     if repo:
         logging.debug('    git repo {}'.format(collection.path))
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     
     # prep log entries
     changelog_messages = []
@@ -421,13 +419,12 @@ def sync(user_name, user_mail, collection):
     repo = dvcs.repository(collection.path, user_name, user_mail)
     logging.debug('repo: %s' % repo)
     drive_label = storage.drive_label(repo.working_dir)
-    dvcs.set_annex_description(repo, drive_label=drive_label)
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.annex_set_description(repo, dvcs.annex_status(repo), drive_label=drive_label)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     # list remotes
     logging.debug('remotes')
     for remote in dvcs.remotes(repo):
-        logging.debug('- %s %s' % (remote['name'], remote['url']))
+        logging.debug('- %s %s' % (remote['name'], remote['target']))
     # pull
     logging.debug('git pull %s master' % config.GIT_REMOTE_NAME)
     repo.git.checkout('master')
@@ -463,8 +460,7 @@ def entity_create(user_name, user_mail, collection, eidentifier, updated_files, 
     """
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     git_files = []
     
     # entity dir
@@ -556,8 +552,7 @@ def entity_destroy(user_name, user_mail, collection, entity, agent=''):
     
     repo = dvcs.repository(collection.path_abs, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     git_files = []
     
     # remove entity directory
@@ -611,8 +606,7 @@ def file_destroy(user_name, user_mail, collection, entity, rm_files, updated_fil
     """
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     
     # updated file paths are relative to collection root
     git_files = [os.path.join('files', entity.id, f) for f in updated_files]
@@ -668,8 +662,7 @@ def entity_update(user_name, user_mail, collection, entity, updated_files, agent
     """
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     
     # entity file paths are relative to collection root
     git_files = []
@@ -723,8 +716,7 @@ def entity_annex_add(user_name, user_mail, collection, entity, updated_files, ne
     """
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     git_files = []
     annex_files = []
     
@@ -809,8 +801,7 @@ def annex_push(collection, file_path_rel):
     # let's do this thing
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     logging.debug('    git annex copy -t {} {}'.format(config.GIT_REMOTE_NAME, file_path_rel))
     stdout = repo.git.annex('copy', '-t', config.GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))
@@ -849,8 +840,7 @@ def annex_pull(collection, file_path_rel):
     # let's do this thing
     repo = dvcs.repository(collection.path, user_name, user_mail)
     repo.git.checkout('master')
-    if not config.GIT_REMOTE_NAME in [r.name for r in repo.remotes]:
-        repo.create_remote(config.GIT_REMOTE_NAME, collection.git_url)
+    dvcs.remote_add(repo, collection.git_url, config.GIT_REMOTE_NAME)
     logging.debug('    git annex copy -t {} {}'.format(config.GIT_REMOTE_NAME, file_path_rel))
     stdout = repo.git.annex('copy', '-f', config.GIT_REMOTE_NAME, file_path_rel)
     logging.debug('\n{}'.format(stdout))
@@ -901,19 +891,11 @@ def sync_group(groupfile, local_base, local_name, remote_base, remote_name):
             repo.git.config('annex.sshcaching', 'false')
             logging.debug('ok')
         
-        # add/update remotes
-        def add_remote(repo_path, remote_name, remote_path):
-            repo = git.Repo(repo_path)
-            if remote_name in [rem.name for rem in repo.remotes]:
-                logging.debug('remote exists: %s %s' % (remote_name, remote_path))
-            else:
-                logging.debug(repo_path)
-                logging.debug('remote add %s %s' % (remote_name, remote_path))
-                repo.create_remote(remote_name, remote_path)
-                logging.debug('ok')
         remote_path = os.path.join(remote_base, r['id'])
-        add_remote(repo_path, remote_name, remote_path) # local -> remote
-        add_remote(remote_path, local_name, repo_path)  # remote -> local
+        # local -> remote
+        dvcs.remote_add(git.Repo(repo_path), remote_path, remote_name)
+        # remote -> local
+        dvcs.remote_add(git.Repo(remote_path), repo_path, local_name)
         
         # annex sync
         logging.debug('annex sync')
