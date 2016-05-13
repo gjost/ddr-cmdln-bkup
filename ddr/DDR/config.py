@@ -5,6 +5,7 @@ import sys
 CONFIG_FILES = [
     '/etc/ddr/ddr.cfg', '/etc/ddr/local.cfg',
     '/etc/ddr/ddrpublic.cfg', '/etc/ddr/ddrpublic-local.cfg',
+    '/etc/ddr/idservice.cfg', '/etc/ddr/idservice-local.cfg',
 ]
 
 class NoConfigError(Exception):

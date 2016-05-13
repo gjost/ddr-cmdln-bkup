@@ -480,6 +480,57 @@ def class_for_name(module_name, class_name):
     )
     return c
 
+def _field_names(template):
+    """Extract field names from string formatting template.
+    """
+    return [v[1] for v in string.Formatter().parse(template)]
+
+def max_id(model, identifiers):
+    """Returns highest existing ID for the specied model
+    """
+    component = _field_names(ID_TEMPLATES[model]).pop()
+    existing = [i.parts[component] for i in identifiers]
+    existing.sort()
+    return existing[-1] + 1
+
+def available(num_new, model, identifiers, startwith=None):
+    """Can {num} {model} IDs to {list} starting with {n}; complain if duplicates
+    
+    >>> model = 'entity'
+    >>> c = Collection('/PATH/TO/ddr-test-123')
+    >>> identifiers = [i.id for i in c.family(model=model)]
+    >>> add_ids(10, model, identifiers, 42)
+    [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+    
+    @param num_new: int
+    @param model: str
+    @param identifiers: list
+    @param startwith: int
+    @returns: dict {'success', 'max_id', 'new', 'taken'}
+    """
+    # Get name of the ID component from the model's ID_TEMPLATE
+    # e.g. for Entity we want 'eid'
+    # This is the part we will increment
+    component = _field_names(ID_TEMPLATES[model]).pop()
+    # then get {component} from each Identifier.parts
+    existing = [i.parts[component] for i in identifiers]
+    existing.sort()
+    max_id = existing[-1] + 1
+    
+    if startwith:
+        start = startwith
+    else:
+        start = max_id + 1
+    new = range(start, start + num_new)
+    
+    taken = [x for x in set(new).intersection(existing)]
+    return {
+        'max_id': max_id,
+        'new': new,
+        'taken': taken,
+        'success': taken == [],
+    }
+
 
 class MissingBasepathException(Exception):
     pass
@@ -667,7 +718,42 @@ class Identifier(object):
     
     def __repr__(self):
         return "<%s.%s %s:%s>" % (self.__module__, self.__class__.__name__, self.model, self.id)
+    
+    def _key(self):
+        """Key for Pythonic object sorting.
+        Integer components are returned as ints, enabling natural sorting.
+        """
+        return self.parts.values()
+    
+    def __lt__(self, other):
+        """Enables Pythonic sorting; see Identifier._key.
+        """
+        return self._key() < other._key()
 
+    @staticmethod
+    def nextable(model):
+        NEXTABLE = [
+            'collection',
+            'entity',
+        ]
+        if model in NEXTABLE:
+            return True
+        return False
+        
+    def next(self):
+        """Returns next Identifier if last ID component is numeric
+        
+        @returns: Identifier
+        """
+        partsd = {'model': self.model}
+        for k,v in self.parts.iteritems():
+            partsd[k] = v
+        if not isinstance(v, int):
+            raise Exception('Not a next-able model: %s' % (self.model))
+        # increment the last component of the ID
+        partsd[k] = v + 1
+        return Identifier(parts=partsd, base_path=self.basepath)
+    
     def components(self):
         """Model and parts of the ID as a list.
         """
@@ -753,7 +839,12 @@ class Identifier(object):
         if pid:
             return self.__class__(id=pid, base_path=self.basepath)
         return None
-    
+
+    def child_models(self, stubs=False):
+        if stubs:
+            return CHILDREN_ALL.get(self.model, [])
+        return CHILDREN.get(self.model, [])
+        
     def child(self, model, idparts, base_path=None):
         """Returns a *new* child Identifier with specified properties.
         

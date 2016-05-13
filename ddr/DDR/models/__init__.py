@@ -560,6 +560,23 @@ class Collection( object ):
                 entities.append(entity)
         return entities
     
+    def identifiers(self, model=None, force_read=False):
+        """Lists Identifiers for all or subset of Collection's descendents.
+        
+        >>> c = Collection.from_json('/tmp/ddr-testing-123')
+        >>> c.descendants()
+        [<Entity ddr-testing-123-1>, <Entity ddr-testing-123-2>, ...]
+        
+        @param model: str Restrict list to model.
+        @returns: list of Identifiers
+        """
+        return [
+            Identifier(path)
+            for path in util.find_meta_files(
+                self.path, recursive=1, model=model, force_read=force_read
+            )
+        ]
+    
     def labels_values(self):
         """Apply display_{field} functions to prep object data for the UI.
         """
