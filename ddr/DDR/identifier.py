@@ -485,6 +485,25 @@ def _field_names(template):
     """
     return [v[1] for v in string.Formatter().parse(template)]
 
+def first_id(i, model):
+    """Returns first child Identifier in series
+    
+    No guarantee that it's a legal Identifier...
+    
+    @param i: Identifier
+    @param model: str
+    @returns: Identifier
+    """
+    logging.debug('first_id(%s, %s)' % (i, model))
+    parts = {k:v for k,v in i.parts.iteritems()}
+    next_component = _field_names(ID_TEMPLATES[model]).pop()
+    parts[next_component] = 1
+    parts['model'] = model
+    logging.debug(parts)
+    new = Identifier(parts=parts)
+    logging.debug(new)
+    return new
+
 def max_id(model, identifiers):
     """Returns highest existing ID for the specied model
     """
