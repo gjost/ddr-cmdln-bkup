@@ -59,4 +59,10 @@ WORKBENCH_REGISTER_EIDS_URL = config.get('workbench','workbench_register_eids_ur
 WORKBENCH_URL = config.get('workbench','workbench_url')
 WORKBENCH_USERINFO = config.get('workbench','workbench_userinfo_url')
 
+IDSERVICE_API_BASE = config.get('idservice', 'api_base')
+IDSERVICE_LOGIN_URL = IDSERVICE_API_BASE + '/rest-auth/login/'
+IDSERVICE_LOGOUT_URL = IDSERVICE_API_BASE + '/rest-auth/logout/'
+IDSERVICE_USERINFO_URL = IDSERVICE_API_BASE + '/rest-auth/user/'
+IDSERVICE_NEXT_OBJECT_URL = IDSERVICE_API_BASE + '/objectids/{objectid}/next/{model}/'
+
 VOCAB_TERMS_URL = config.get('local', 'vocab_terms_url')

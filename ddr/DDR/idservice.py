@@ -1,11 +1,108 @@
 import json
 import logging
+logger = logging.getLogger(__name__)
 
 from bs4 import BeautifulSoup
 import requests
 
 from DDR import config
 from DDR import identifier
+
+
+class IDServiceClient():
+    """Client for interacting with ddr-idservice REST API
+    
+    >>> from DDR import identifier
+    >>> from DDR import idservice
+    >>> ic = idservice.IDServiceClient()
+    >>> ic.login(username, password)
+    200
+    >>> ic.username
+    'USERNAME'
+    >>> ic.token
+    u'8df7a4b117edcdc8ca1ae318a403bacfa3cf8133'
+    >>> oidentifier = identifier.Identifier('ddr-test')
+    >>> ic.next_id(oidentifier, 'collection')
+    201,'ddr-test-123'
+    >>> cidentifier = identifier.Identifier('ddr-test-123')
+    >>> ic.next_id(cidentifier, 'entity')
+    201,'ddr-test-123-1'
+    >>> ic.next_id(cidentifier, 'entity')
+    201,'ddr-test-123-1'
+    """
+    debug = False
+    username = None
+    token = None
+    
+    def _auth_headers(self):
+        return {'Authorization': 'Token %s' % self.token}
+
+    def login(self, username, password):
+        """Initiate a session.
+        
+        @param username: str
+        @param password: str
+        @return: int HTTP status code
+        """
+        self.username = username
+        logging.debug('idservice.IDServiceClient.login(%s)' % (self.username))
+        r = requests.post(
+            config.IDSERVICE_LOGIN_URL,
+            data = {'username':username, 'password':password,},
+        )
+        self.token = r.json()['key']
+        return r.status_code
+    
+    def resume(self, username, token):
+        """Resume a session without logging in.
+        
+        @param username: str
+        @param token: str
+        """
+        self.username = username
+        self.token = token
+    
+    def logout(self):
+        """End a session.
+        
+        @return: int HTTP status code
+        """
+        logging.debug('idservice.IDServiceClient.logout() %s' % (self.username))
+        r = requests.post(
+            config.IDSERVICE_LOGOUT_URL,
+            headers=self._auth_headers(),
+        )
+        return r.status_code
+    
+    def user_info(self):
+        """Get user information (username, first/last name, email)
+        
+        @return: int,dict HTTP status code, userinfo dict
+        """
+        r = requests.get(
+            config.IDSERVICE_USERINFO_URL,
+            headers=self._auth_headers(),
+        )
+        return r.status_code,json.loads(r.content)
+    
+    def next_object_id(self, oidentifier, model):
+        """Get the next object ID of the specified type
+        
+        @param oidentifier: identifier.Identifier
+        @param model: str
+        @return: int,str HTTP status code, object ID string
+        """
+        logging.debug('idservice.IDServiceClient.next_object_id(%s, %s)' % (oidentifier, model))
+        r = requests.post(
+            config.IDSERVICE_NEXT_OBJECT_URL.format(objectid=oidentifier.id, model=model),
+            headers=self._auth_headers(),
+        )
+        objectid = None
+        if r.status_code == 201:
+            objectid = r.json()['id']
+        logging.debug(objectid)
+        return r.status_code,objectid
+
 
 MESSAGES = {
     'API_LOGIN_NOT_200': 'Error: status code {} on POST', # status code
