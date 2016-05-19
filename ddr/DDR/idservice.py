@@ -42,7 +42,7 @@ class IDServiceClient():
         
         @param username: str
         @param password: str
-        @return: int HTTP status code
+        @return: int,str (status_code,reason)
         """
         self.username = username
         logging.debug('idservice.IDServiceClient.login(%s)' % (self.username))
@@ -51,7 +51,7 @@ class IDServiceClient():
             data = {'username':username, 'password':password,},
         )
         self.token = r.json()['key']
-        return r.status_code
+        return r.status_code,r.reason
     
     def resume(self, username, token):
         """Resume a session without logging in.
@@ -65,32 +65,32 @@ class IDServiceClient():
     def logout(self):
         """End a session.
         
-        @return: int HTTP status code
+        @return: int,str (status_code,reason)
         """
         logging.debug('idservice.IDServiceClient.logout() %s' % (self.username))
         r = requests.post(
             config.IDSERVICE_LOGOUT_URL,
             headers=self._auth_headers(),
         )
-        return r.status_code
+        return r.status_code,r.reason
     
     def user_info(self):
         """Get user information (username, first/last name, email)
         
-        @return: int,dict HTTP status code, userinfo dict
+        @return: int,str,dict (status code, reason, userinfo dict)
         """
         r = requests.get(
             config.IDSERVICE_USERINFO_URL,
             headers=self._auth_headers(),
         )
-        return r.status_code,json.loads(r.content)
+        return r.status_code,r.reason,json.loads(r.content)
     
     def next_object_id(self, oidentifier, model):
         """Get the next object ID of the specified type
         
         @param oidentifier: identifier.Identifier
         @param model: str
-        @return: int,str HTTP status code, object ID string
+        @return: int,str,str (status code, reason, object ID string)
         """
         logging.debug('idservice.IDServiceClient.next_object_id(%s, %s)' % (oidentifier, model))
         r = requests.post(
@@ -100,8 +100,8 @@ class IDServiceClient():
         objectid = None
         if r.status_code == 201:
             objectid = r.json()['id']
-        logging.debug(objectid)
-        return r.status_code,objectid
+            logging.debug(objectid)
+        return r.status_code,r.reason,objectid
 
 
 MESSAGES = {
