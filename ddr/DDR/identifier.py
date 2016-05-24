@@ -19,16 +19,6 @@ MODELS = [
     i['model'] for i in IDENTIFIERS
 ]
 
-# map model names to DDR python classes
-MODEL_CLASSES = {
-    i['model']: {
-        'module': i['class'][0:i['class'].rindex('.')],
-        'class': i['class'][i['class'].rindex('.')+1:],
-    }
-    for i in IDENTIFIERS
-}
-
-# TODO no hard-coding: import using os.listdir
 MODULES = { key:None for key in MODELS }
 try:
     from repo_models import collection as collectionmodule
@@ -39,6 +29,15 @@ try:
     MODULES['file'] = filemodule
 except ImportError:
     raise Exception('Could not import repo_models modules!')
+
+# map model names to DDR python classes
+MODEL_CLASSES = {
+    i['model']: {
+        'module': i['class'][0:i['class'].rindex('.')],
+        'class': i['class'][i['class'].rindex('.')+1:],
+    }
+    for i in IDENTIFIERS
+}
 
 # map model names to module files in ddr repo's repo_models
 MODEL_REPO_MODELS = {
