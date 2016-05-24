@@ -18,6 +18,7 @@ except ImportError:
 MODELS = [
     i['model'] for i in IDENTIFIERS
 ]
+MODELS.reverse()
 
 MODULES = { key:None for key in MODELS }
 try:
@@ -66,24 +67,26 @@ CONTAINERS = [
     for i in IDENTIFIERS
     if i['children'] or i['children_all']
 ]
+CONTAINERS.reverse()
 
 # Pointers from models to their parent models
 PARENTS = {
-    i['model']: i['parent']
+    i['model']: i.get('parent')
     for i in IDENTIFIERS
-    if i['parent']
+    if 'Stub' not in i['class']
 }
 # including Stubs
 PARENTS_ALL = {
-    i['model']: i['parents_all']
+    i['model']: i.get('parents_all')
     for i in IDENTIFIERS
 }
 CHILDREN = {val:key for key,val in PARENTS.iteritems() if val}
 CHILDREN_ALL = {val:key for key,val in PARENTS_ALL.iteritems() if val}
 
 # Keywords that can legally appear in IDs
+# TODO list should include 'ext'?
 ID_COMPONENTS = [
-    i['component']
+    i['component']['name']
     for i in IDENTIFIERS
 ]
 
@@ -110,42 +113,39 @@ FILETYPE_MATCH_ANNEX = {
 }
 
 # ----------------------------------------------------------------------
+# TODO are we using ID_PATTERNS memos?
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
 # Record format: (regex, memo, model)
 #
 
 # (regex, memo, model) NOTE: 'memo' is not used for anything yet
-ID_PATTERNS = [
-    [
-        (re.compile(p), '', i['model'])
-        for p in i['patterns']['id']
-    ]
-    for i in IDENTIFIERS
-]
+ID_PATTERNS = []
+for i in IDENTIFIERS:
+    for regex in i['patterns']['id']:
+        p = (re.compile(regex), '', i['model'])
+        ID_PATTERNS.append(p)
 
+# TODO are we using PATH_PATTERNS memos?
 # In the current path scheme, collection and entity ID components are repeated.
 # Fields can't appear multiple times in regexes so redundant fields have numbers.
 # (regex, memo, model) NOTE: 'memo' is not used for anything yet
-PATH_PATTERNS = [
-    [
-        (re.compile(p), '', i['model'])
-        for p in i['patterns']['path']
-    ]
-    for i in IDENTIFIERS
-]
+PATH_PATTERNS = []
+for i in IDENTIFIERS:
+    for regex in i['patterns']['path']:
+        p = (re.compile(regex), '', i['model'])
+        PATH_PATTERNS.append(p)
 
+# TODO check
 # Simple path regexes suitable for use inside for-loops
-PATH_PATTERNS_LOOP = [
-]
+PATH_PATTERNS_LOOP = []
 
+# TODO check
 # (regex, memo, model) NOTE: 'memo' is not used for anything yet
-URL_PATTERNS = [
-    [
-        (re.compile(p), '', i['model'])
-        for p in i['patterns']['url']
-    ]
-    for i in IDENTIFIERS
-]
+URL_PATTERNS = []
+for i in IDENTIFIERS:
+    for regex in i['patterns']['url']:
+        p = (re.compile(regex), '', i['model'])
+        URL_PATTERNS.append(p)
 
 # ----------------------------------------------------------------------
 # Templates used to generate IDs, paths, and URLs from model and tokens
