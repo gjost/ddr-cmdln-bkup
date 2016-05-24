@@ -171,6 +171,45 @@ def test_parse_args_kwargs():
 # TODO test_module_for_name
 # TODO test_class_for_name
 
+def test_identifier_first_id():
+    out0 = identifier.first_id(
+        identifier.Identifier('ddr-testing'),
+        'collection'
+    )
+    expected0 = identifier.Identifier('ddr-testing-1')
+    assert out0.id == expected0.id
+    
+    out1 = identifier.first_id(
+        identifier.Identifier('ddr-testing-123'),
+        'entity'
+    )
+    expected1 = identifier.Identifier('ddr-testing-123-1')
+    assert out1.id == expected1.id
+
+def test_identifier_max_id():
+    model0 = 'entity'
+    identifiers0 = [
+        identifier.Identifier('ddr-testing-123-1'),
+        identifier.Identifier('ddr-testing-123-2'),
+        identifier.Identifier('ddr-testing-123-3'),
+    ]
+    out0 = identifier.max_id(model0, identifiers0)
+    expected0 = 3
+    assert out0 == expected0
+    
+    model1 = 'entity'
+    identifiers1 = [
+        identifier.Identifier('ddr-testing-123-3'),
+        identifier.Identifier('ddr-testing-123-1'),
+        identifier.Identifier('ddr-testing-123-2'),
+    ]
+    out1 = identifier.max_id(model1, identifiers1)
+    expected1 = 3
+    assert out1 == expected1
+
+def test_identifier_available():
+    assert False
+
 def test_identifier_wellformed():
     for base_path in BASE_PATHS:
         REPO_PATH_ABS       = os.path.join(base_path, 'ddr')
@@ -205,6 +244,44 @@ def test_identifier_wellformed():
 #    expected1 = ['org']
 #    assert identifier.Identifier.valid(in0, components=COMPONENTS) == expected0 
 #    assert identifier.Identifier.valid(in1, components=COMPONENTS) == expected1 
+
+def test_identifier_nextable():
+    assert identifier.Identifier.nextable('repository') == False
+    assert identifier.Identifier.nextable('organization') == False
+    assert identifier.Identifier.nextable('collection') == True
+    assert identifier.Identifier.nextable('entity') == True
+    assert identifier.Identifier.nextable('file-role') == False
+    assert identifier.Identifier.nextable('file') == False
+
+def test_identifier_next():
+    i0 = identifier.Identifier('ddr')
+    i1 = identifier.Identifier('ddr-testing')
+    i2 = identifier.Identifier('ddr-testing-123')
+    i3 = identifier.Identifier('ddr-testing-123-456')
+    i4 = identifier.Identifier('ddr-testing-123-456-master')
+    i5 = identifier.Identifier('ddr-testing-123-456-master-a1b2c3d4e5')
+    expected2 = identifier.Identifier('ddr-testing-124')
+    expected3 = identifier.Identifier('ddr-testing-123-457')
+    assert_raises(
+        Exception,
+        i0.next,
+    )
+    assert_raises(
+        Exception,
+        i1.next,
+    )
+    out2 = i2.next()
+    out3 = i3.next()
+    assert_raises(
+        Exception,
+        i4.next,
+    )
+    assert_raises(
+        Exception,
+        i5.next,
+    )
+    assert out2.id == expected2.id
+    assert out3.id == expected3.id
 
 def test_identifier_components():
     in0 = 'ddr'
