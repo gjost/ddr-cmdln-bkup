@@ -403,12 +403,16 @@ def first_id(i, model):
     return new
 
 def max_id(model, identifiers):
-    """Returns highest existing ID for the specied model
+    """Returns highest *existing* ID for the specied model
+    
+    @param model: str
+    @param i: Identifier
+    @returns: int
     """
     component = _field_names(ID_TEMPLATES[model]).pop()
     existing = [i.parts[component] for i in identifiers]
     existing.sort()
-    return existing[-1] + 1
+    return existing[-1]
 
 def available(num_new, model, identifiers, startwith=None):
     """Can {num} {model} IDs to {list} starting with {n}; complain if duplicates
