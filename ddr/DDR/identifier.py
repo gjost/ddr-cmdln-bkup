@@ -42,12 +42,12 @@ MODEL_CLASSES = {
 
 # map model names to module files in ddr repo's repo_models
 MODEL_REPO_MODELS = {
-    k: {
-        'module': 'repo_models.%s' % k,
-        'class': k,
-        'as': '%smodule' % k,
+    model: {
+        'module': module.__name__,
+        'class': model,
+        'as': '%smodule' % model,
     }
-    for k,v in MODULES.iteritems() if v
+    for model,module in MODULES.iteritems() if module
 }
 
 
