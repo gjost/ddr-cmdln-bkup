@@ -124,6 +124,7 @@ for i in IDENTIFIERS:
     for regex in i['patterns']['id']:
         p = (re.compile(regex), '', i['model'])
         ID_PATTERNS.append(p)
+ID_PATTERNS.reverse()
 
 # TODO are we using PATH_PATTERNS memos?
 # In the current path scheme, collection and entity ID components are repeated.
@@ -134,6 +135,7 @@ for i in IDENTIFIERS:
     for regex in i['patterns']['path']:
         p = (re.compile(regex), '', i['model'])
         PATH_PATTERNS.append(p)
+PATH_PATTERNS.reverse()
 
 # TODO check
 # Simple path regexes suitable for use inside for-loops
@@ -146,6 +148,7 @@ for i in IDENTIFIERS:
     for regex in i['patterns']['url']:
         p = (re.compile(regex), '', i['model'])
         URL_PATTERNS.append(p)
+URL_PATTERNS.reverse()
 
 # ----------------------------------------------------------------------
 # Templates used to generate IDs, paths, and URLs from model and tokens
