@@ -8,27 +8,18 @@ import string
 from urlparse import urlparse
 
 
+# IDENTIFIERS are defined in ddr-defs
+try:
+    from repo_models.identifier_defs import IDENTIFIERS
+except ImportError:
+    raise Exception('Could not import Identifier definitions!')
+
 # Models in this Repository
 MODELS = [
-    'file',
-    'file-role',
-    'entity',
-    'collection',   # required
-    'organization', # required
-    'repository',   # required
+    i['model'] for i in IDENTIFIERS
 ]
+MODELS.reverse()
 
-# map model names to DDR python classes
-MODEL_CLASSES = {
-    'file':         {'module': 'DDR.models', 'class':'File'},
-    'file-role':    {'module': 'DDR.models', 'class':'Stub'},
-    'entity':       {'module': 'DDR.models', 'class':'Entity'},
-    'collection':   {'module': 'DDR.models', 'class':'Collection'},
-    'organization': {'module': 'DDR.models', 'class':'Stub'},
-    'repository':   {'module': 'DDR.models', 'class':'Stub'},
-}
-
-# TODO no hard-coding: import using os.listdir
 MODULES = { key:None for key in MODELS }
 try:
     from repo_models import collection as collectionmodule
@@ -40,14 +31,27 @@ try:
 except ImportError:
     raise Exception('Could not import repo_models modules!')
 
+# map model names to DDR python classes
+MODEL_CLASSES = {
+    i['model']: {
+        'module': i['class'][0:i['class'].rindex('.')],
+        'class': i['class'][i['class'].rindex('.')+1:],
+    }
+    for i in IDENTIFIERS
+}
+
 # map model names to module files in ddr repo's repo_models
 MODEL_REPO_MODELS = {
-    'file':         {'module': 'repo_models.files', 'class':'file', 'as':'filemodule'},
-    'entity':       {'module': 'repo_models.entity', 'class':'entity', 'as':'entitymodule'},
-    'collection':   {'module': 'repo_models.collection', 'class':'collection', 'as':'collectionmodule'},
+    model: {
+        'module': module.__name__,
+        'class': model,
+        'as': '%smodule' % model,
+    }
+    for model,module in MODULES.iteritems() if module
 }
 
 
+# TODO UPDATE
 # Models that are part of collection repositories. Repository and organizations
 # are above the level of the collection and are thus excluded.
 COLLECTION_MODELS = [
@@ -59,50 +63,46 @@ COLLECTION_MODELS = [
 
 # Models that can contain other models.
 CONTAINERS = [
-    'file-role',
-    'entity',
-    'collection',
-    'organization',
-    'repository',
+    i['model']
+    for i in IDENTIFIERS
+    if i['children'] or i['children_all']
 ]
+CONTAINERS.reverse()
 
 # Pointers from models to their parent models
 PARENTS = {
-    'file': 'entity',
-    'entity': 'collection',
-    'collection': None,
+    i['model']: i.get('parent')
+    for i in IDENTIFIERS
+    if 'Stub' not in i['class']
 }
-# include Stubs
+# including Stubs
 PARENTS_ALL = {
-    #'file': 'entity',
-    'file': 'file-role',
-    'file-role': 'entity',
-    'entity': 'collection',
-    'collection': 'organization',
-    'organization': 'repository',
-    'repository': None,
+    i['model']: i.get('parents_all')
+    for i in IDENTIFIERS
 }
 CHILDREN = {val:key for key,val in PARENTS.iteritems() if val}
 CHILDREN_ALL = {val:key for key,val in PARENTS_ALL.iteritems() if val}
 
 # Keywords that can legally appear in IDs
+# TODO list should include 'ext'?
 ID_COMPONENTS = [
-    'repo', 'org', 'cid', 'eid', 'role', 'sha1', 'ext'
+    i['component']['name']
+    for i in IDENTIFIERS
 ]
 
 # Components in VALID_COMPONENTS.keys() must appear in VALID_COMPONENTS[key] to be valid.
 VALID_COMPONENTS = {
-    'repo': [
-        'ddr'
-    ],
-    'org': [
-        'densho', 'hmwf', 'jamsj', 'janm', 'jcch', 'njpa', 'one', 'pc',
-        'dev', 'test', 'testing',
-    ],
-    'role': [
-        'master', 'mezzanine'
-    ],
+    i['component']['name']: i['component']['valid']
+    for i in IDENTIFIERS
+    if i['component']['valid']
 }
+
+# Models whose components are sequential
+NEXTABLE_MODELS = [
+    i['model']
+    for i in IDENTIFIERS
+    if i['component']['type'] == int
+]
 
 # Bits of file paths that uniquely identify file types.
 # Suitable for use on command-line e.g. in git-annex-whereis.
@@ -113,169 +113,73 @@ FILETYPE_MATCH_ANNEX = {
 }
 
 # ----------------------------------------------------------------------
+# TODO are we using ID_PATTERNS memos?
 # Regex patterns used to match IDs, paths, and URLs and extract model and tokens
 # Record format: (regex, memo, model)
-# TODO compile regexes
 #
 
-def _compile_patterns(patterns):
-    """Replace str regexes with compiled regular expression objects.
-    """
-    new = []
-    for p in patterns:
-        pattern = [x for x in p]
-        pattern[0] = re.compile(p[0])
-        new.append(pattern)
-    return new
-
 # (regex, memo, model) NOTE: 'memo' is not used for anything yet
-ID_PATTERNS = _compile_patterns((
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', '', 'file'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', '', 'file-role'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', '', 'entity'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', '', 'collection'),
-    (r'^(?P<repo>[\w]+)-(?P<org>[\w]+)$', '', 'organization'),
-    (r'^(?P<repo>[\w]+)$', '', 'repository'),
-))
+ID_PATTERNS = []
+for i in IDENTIFIERS:
+    for regex in i['patterns']['id']:
+        p = (re.compile(regex), '', i['model'])
+        ID_PATTERNS.append(p)
+ID_PATTERNS.reverse()
 
+# TODO are we using PATH_PATTERNS memos?
 # In the current path scheme, collection and entity ID components are repeated.
 # Fields can't appear multiple times in regexes so redundant fields have numbers.
 # (regex, memo, model) NOTE: 'memo' is not used for anything yet
-PATH_PATTERNS = _compile_patterns((
-    # file-abs
-    (r'(?P<basepath>[\w/-]+)/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-abs', 'file'),
-    (r'(?P<basepath>[\w/-]+)/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-abs', 'file'),
-    (r'(?P<basepath>[\w/-]+)/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo1>[\w]+)-(?P<org1>[\w]+)-(?P<cid1>[\d]+)-(?P<eid1>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-abs', 'file'),
-    # file-rel
-    (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.(?P<ext>[\w]+)$', 'file-ext-rel', 'file'),
-    (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)\.json$', 'file-meta-rel', 'file'),
-    (r'^files/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)-(?P<eid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+)$', 'file-rel', 'file'),
-    # entity
-    (r'(?P<basepath>[\w/-]+)/(?P<repo0>[\w]+)-(?P<org0>[\w]+)-(?P<cid0>[\d]+)/files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)', 'entity-abs', 'entity'),
-    (r'^files/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'entity-rel', 'entity'),
-    # collection
-    (r'(?P<basepath>[\w/-]+)/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)', 'collection-abs', 'collection'),
-    (r'^collection.json$', 'collection-meta-rel', 'collection'),
-    # organization
-    (r'(?P<basepath>[\w/-]+)/(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'organization-abs', 'organization'),
-    (r'^organization.json$', 'organization-meta-rel', 'organization'),
-    # repository
-    (r'(?P<basepath>[\w/-]+)/(?P<repo>[\w]+)/repository.json$', 'repository-meta-abs', 'repository'),
-    (r'(?P<basepath>[\w/-]+)/(?P<repo>[\w]+)$', 'repository-meta-abs', 'repository'),
-    (r'^repository.json$', 'repository-meta-rel', 'repository'),
-))
+PATH_PATTERNS = []
+for i in IDENTIFIERS:
+    for regex in i['patterns']['path']:
+        p = (re.compile(regex), '', i['model'])
+        PATH_PATTERNS.append(p)
+PATH_PATTERNS.reverse()
 
+# TODO check
 # Simple path regexes suitable for use inside for-loops
-PATH_PATTERNS_LOOP = (
-    (r'(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w\d]+).json$', '' 'file-json'),
-    (r'entity.json$', '' 'entity-json'),
-    (r'collection.json$', '' 'collection-json'),
-)
+PATH_PATTERNS_LOOP = []
 
+# TODO check
 # (regex, memo, model) NOTE: 'memo' is not used for anything yet
-URL_PATTERNS = _compile_patterns((
-    # editor
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)-(?P<sha1>[\w]+)$', 'editor-file', 'file'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)-(?P<role>[\w]+)$', 'editor-file-role', 'file-role'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)-(?P<eid>[\d]+)$', 'editor-entity', 'entity'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)-(?P<cid>[\d]+)$', 'editor-collection', 'collection'),
-    (r'/ui/(?P<repo>[\w]+)-(?P<org>[\w]+)$', 'editor-organization', 'organization'),
-    (r'/ui/(?P<repo>[\w]+)$', 'editor-repository', 'repository'),
-    # public
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)/(?P<sha1>[\w]+)$', 'public-file', 'file'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)/(?P<role>[\w]+)$', 'public-file-role', 'file-role'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)/(?P<eid>[\d]+)$', 'public-entity', 'entity'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)/(?P<cid>[\d]+)$', 'public-collection', 'collection'),
-    (r'^/(?P<repo>[\w]+)/(?P<org>[\w]+)$', 'public-organization', 'organization'),
-    (r'^/(?P<repo>[\w]+)$', 'public-repository', 'repository'),
-))
+URL_PATTERNS = []
+for i in IDENTIFIERS:
+    for regex in i['patterns']['url']:
+        p = (re.compile(regex), '', i['model'])
+        URL_PATTERNS.append(p)
+URL_PATTERNS.reverse()
 
 # ----------------------------------------------------------------------
 # Templates used to generate IDs, paths, and URLs from model and tokens
 #
 
 ID_TEMPLATES = {
-    'file':         '{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    'file-role':    '{repo}-{org}-{cid}-{eid}-{role}',
-    'entity':       '{repo}-{org}-{cid}-{eid}',
-    'collection':   '{repo}-{org}-{cid}',
-    'organization': '{repo}-{org}',
-    'repository':   '{repo}',
+    i['model']: i['templates']['id']
+    for i in IDENTIFIERS
 }
 
-PATH_TEMPLATES = {
-    'file-rel':         'files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    # file-role-rel
-    'entity-rel':       'files/{repo}-{org}-{cid}-{eid}',
-    'file-abs':         '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}/files/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    # file-role-abs
-    'entity-abs':       '{basepath}/{repo}-{org}-{cid}/files/{repo}-{org}-{cid}-{eid}',
-    'collection-abs':   '{basepath}/{repo}-{org}-{cid}',
-    'organization-abs': '{basepath}/{repo}-{org}',
-    'repository-abs':   '{basepath}/{repo}',
-    #'file-rel':         '{eid}/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    #'entity-rel':       '{eid}',
-    #'file-abs':         '{basepath}/{repo}-{org}-{cid}/{eid}/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-    #'entity-abs':       '{basepath}/{repo}-{org}-{cid}/{eid}',
-    #'collection-abs':   '{basepath}/{repo}-{org}-{cid}',
-    #'organization-abs': '{basepath}/{repo}-{org}',
-    #'repository-abs':   '{basepath}/{repo}',
-}
+PATH_TEMPLATES = {}
+for i in IDENTIFIERS:
+    for k,v in i['templates']['path'].iteritems():
+        if v:
+            key = '%s-%s' % (i['model'],k)
+            PATH_TEMPLATES[key] = v
 
-URL_TEMPLATES = {
-    'editor': {
-        'file':         '/ui/{repo}-{org}-{cid}-{eid}-{role}-{sha1}',
-        'file-role':    '/ui/{repo}-{org}-{cid}-{eid}-{role}',
-        'entity':       '/ui/{repo}-{org}-{cid}-{eid}',
-        'collection':   '/ui/{repo}-{org}-{cid}',
-        'organization': '/ui/{repo}-{org}',
-        'repository':   '/ui/{repo}',
-    },
-    'public': {
-        'file':         '/{repo}/{org}/{cid}/{eid}/{role}/{sha1}',
-        'file-role':    '/{repo}/{org}/{cid}/{eid}/{role}',
-        'entity':       '/{repo}/{org}/{cid}/{eid}',
-        'collection':   '/{repo}/{org}/{cid}',
-        'organization': '/{repo}/{org}',
-        'repository':   '/{repo}',
-    },
-}
+URL_TEMPLATES = {}
+for i in IDENTIFIERS:
+    for k,v in i['templates']['url'].iteritems():
+        if v:
+            if not URL_TEMPLATES.get(k):
+                URL_TEMPLATES[k] = {}
+            URL_TEMPLATES[k][i['model']] = v
 
 # Additional file types that may be present in a repo
 ADDITIONAL_PATHS = {
-    'file': {
-        'access': '{id}-a.jpg',
-        'json': '{id}.json',
-    },
-    'file-role': {
-    },
-    'entity': {
-        'changelog': 'changelog',
-        'control': 'control',
-        'files': 'files',
-        'json': 'entity.json',
-        'lock': 'lock',
-        'mets': 'mets.xml',
-    },
-    'collection': {
-        'annex': '.git/annex',
-        'changelog': 'changelog',
-        'control': 'control',
-        'ead': 'ead.xml',
-        'files': 'files',
-        'gitignore': '.gitignore',
-        'git': '.git',
-        'json': 'collection.json',
-        'lock': 'lock',
-    },
-    'organization': {
-        'json': 'organization.json',
-    },
-    'repository': {
-        'json': 'repository.json',
-    },
+    i['model']: i['files']
+    for i in IDENTIFIERS
 }
-
+    
 
 def identify_object(text, patterns):
     """Split ID, path, or URL into model and tokens and assign to Identifier
@@ -502,12 +406,16 @@ def first_id(i, model):
     return new
 
 def max_id(model, identifiers):
-    """Returns highest existing ID for the specied model
+    """Returns highest *existing* ID for the specied model
+    
+    @param model: str
+    @param i: Identifier
+    @returns: int
     """
     component = _field_names(ID_TEMPLATES[model]).pop()
     existing = [i.parts[component] for i in identifiers]
     existing.sort()
-    return existing[-1] + 1
+    return existing[-1]
 
 def available(num_new, model, identifiers, startwith=None):
     """Can {num} {model} IDs to {list} starting with {n}; complain if duplicates
@@ -748,11 +656,7 @@ class Identifier(object):
 
     @staticmethod
     def nextable(model):
-        NEXTABLE = [
-            'collection',
-            'entity',
-        ]
-        if model in NEXTABLE:
+        if model in NEXTABLE_MODELS:
             return True
         return False
         
