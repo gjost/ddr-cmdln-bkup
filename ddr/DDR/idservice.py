@@ -50,7 +50,7 @@ class IDServiceClient():
             config.IDSERVICE_LOGIN_URL,
             data = {'username':username, 'password':password,},
         )
-        self.token = r.json()['key']
+        self.token = r.json().get('key')
         return r.status_code,r.reason
     
     def resume(self, username, token):
