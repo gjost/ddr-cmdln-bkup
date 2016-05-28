@@ -64,5 +64,7 @@ IDSERVICE_LOGIN_URL = IDSERVICE_API_BASE + '/rest-auth/login/'
 IDSERVICE_LOGOUT_URL = IDSERVICE_API_BASE + '/rest-auth/logout/'
 IDSERVICE_USERINFO_URL = IDSERVICE_API_BASE + '/rest-auth/user/'
 IDSERVICE_NEXT_OBJECT_URL = IDSERVICE_API_BASE + '/objectids/{objectid}/next/{model}/'
+IDSERVICE_CHECKIDS_URL = IDSERVICE_API_BASE + '/objectids/{objectid}/check/'
+IDSERVICE_REGISTERIDS_URL = IDSERVICE_API_BASE + '/objectids/{objectid}/register/'
 
 VOCAB_TERMS_URL = config.get('local', 'vocab_terms_url')

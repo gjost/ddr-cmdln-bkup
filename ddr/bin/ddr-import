@@ -90,28 +90,30 @@ def log_error(err, debug=False):
         logging.error(err)
         logging.error('************************************************************************')
 
-def get_idservice_session(args, session=None):
-    """Log user in to ID service and return session; prompt if necessary
+def idservice_api_login(args):
+    """Login to ID service, return auth token and user info; prompt if necessary
     
     @param args: argparse.Namespace Output of argparse.ArgumentParser.parse_args()
-    @param session: requests.session object
-    @returns: requests.session object
+    @returns: idservice.IDServiceClient
     """
-    if not session:
-        logging.debug('No session--logging in')
-        if args.username:
-            logging.debug('Username: %s' % args.username)
-            username = args.username
-        else:
-            username = raw_input('Username: ')
-        if args.password:
-            password = args.password
-            dummy = ''.join(['*' for n in args.password])
-            logging.debug('Password: %s' % dummy)
-        else:
-            password = getpass.getpass(prompt='Password: ')
-        session = idservice.login(username, password)
-    return session
+    if args.username:
+        logging.debug('Username: %s' % args.username)
+        username = args.username
+    else:
+        username = raw_input('Username: ')
+    if args.password:
+        password = args.password
+        dummy = ''.join(['*' for n in args.password])
+        logging.debug('Password: %s' % dummy)
+    else:
+        password = getpass.getpass(prompt='Password: ')
+    
+    ic = idservice.IDServiceClient()
+    status1,reason1 = ic.login(username, password)
+    if status1 != 200:
+        logging.error('Login failed[1]: %s %s' % (status1,reason1))
+        sys.exit(1)
+    return ic
 
 
 def main():
@@ -153,14 +155,14 @@ def main():
     ci = identifier.Identifier(collection_path)
     logging.debug(ci)
     logging.debug(ci.path_abs())
-
-    session = None
-        
+    
+    idservice_client = None
+    
     if (args.command == 'check') or (not args.nocheck):
-        session = get_idservice_session(args, session)
+        idservice_client = idservice_api_login(args)
         chkcsv = batch.Checker.check_csv(csv_path, ci, vocabs_path)
         chkrepo = batch.Checker.check_repository(ci)
-        chkeids = batch.Checker.check_eids(chkcsv['rowds'], ci, session)
+        chkeids = batch.Checker.check_eids(chkcsv['rowds'], ci, idservice_client)
         
         tests = 0
         passed = 0
@@ -204,10 +206,10 @@ def main():
             log_error(err, args.debug)
     
     elif args.command == 'register':
-        session = get_idservice_session(args, session)
+        idservice_client = idservice_api_login(args)
         try:
             batch.Importer.register_entity_ids(
-                csv_path, ci, session, args.dryrun
+                csv_path, ci, idservice_client, args.dryrun
             )
             logging.info('IF YOU SEE THIS IT WORKED')
         except Exception as err:

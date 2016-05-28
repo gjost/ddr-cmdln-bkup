@@ -180,7 +180,7 @@ class Checker():
         }
     
     @staticmethod
-    def check_eids(rowds, cidentifier, session):
+    def check_eids(rowds, cidentifier, idservice_client):
         """
         
         Results dict includes:
@@ -190,15 +190,18 @@ class Checker():
         
         @param csv_path: Absolute path to CSV data file.
         @param cidentifier: Identifier
-        @param session: requests.session object
+        @param idservice_client: idservice.IDServiceClient
         @returns: CheckResult
         """
         logging.info('Confirming all entity IDs available')
         passed = False
         csv_eids = [rowd['id'] for rowd in rowds]
-        registered,unregistered = idservice.check_eids(
-            session, cidentifier, csv_eids
+        status,reason,registered,unregistered = idservice_client.check_eids(
+            cidentifier, csv_eids
         )
+        logging.info('%s %s' % (status,reason))
+        if status != 200:
+            raise Exception('%s %s' % (status,reason))
         if (unregistered == csv_eids) \
         and not registered:
             logging.info('ok')
@@ -751,11 +754,11 @@ class Importer():
         return git_files
 
     @staticmethod
-    def register_entity_ids(csv_path, cidentifier, session, dryrun=True):
+    def register_entity_ids(csv_path, cidentifier, idservice_client, dryrun=True):
         """
         @param csv_path: Absolute path to CSV data file.
         @param cidentifier: Identifier
-        @param session: requests.session object
+        @param idservice_client: idservice.IDServiceCrequests.session object
         @param register: boolean Whether or not to register IDs
         @returns: nothing
         """
@@ -766,7 +769,10 @@ class Importer():
         
         logging.info('Looking up already registered IDs')
         csv_eids = [rowd['id'] for rowd in rowds]
-        registered,unregistered = idservice.check_eids(session, cidentifier, csv_eids)
+        status1,reason1,registered,unregistered = idservice_client.check_eids(cidentifier, csv_eids)
+        logging.info('%s %s' % (status1,reason1))
+        if status != 200:
+            raise Exception('%s %s' % (status1,reason1))
         num_unregistered = len(unregistered)
         logging.info('%s IDs to register.' % num_unregistered)
         for eid in unregistered:
@@ -777,7 +783,9 @@ class Importer():
                 logging.info('| %s/%s %s' % (n, num_unregistered, eid))
         else:
             logging.info('Registering IDs')
-            idservice.register_entity_ids(session, cidentifier.id, unregistered)
-            logging.info('ok')
+            status2,reason2 = idservice_client.register_entity_ids(cidentifier, unregistered)
+            logging.info('%s %s' % (status2,reason2))
+            if status != 200:
+                raise Exception('%s %s' % (status2,reason2))
         
         logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')

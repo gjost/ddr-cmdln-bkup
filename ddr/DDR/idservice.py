@@ -102,6 +102,44 @@ class IDServiceClient():
             objectid = r.json()['id']
             logging.debug(objectid)
         return r.status_code,r.reason,objectid
+    
+    def check_eids(self, cidentifier, entity_ids):
+        """Given list of EIDs, indicates which are registered,unregistered.
+        
+        @param cidentifier: identifier.Identifier object
+        @param entity_ids: list of Entity IDs!
+        @returns: (status_code,reason,registered,unregistered)
+        """
+        logging.debug('idservice.IDServiceClient.check_eids(%s, %s)' % (cidentifier, entity_ids))
+        r = requests.post(
+            config.IDSERVICE_CHECKIDS_URL.format(objectid=cidentifier.id),
+            headers=self._auth_headers(),
+            data={'object_ids': entity_ids},
+        )
+        data = json.loads(r.text)
+        logging.debug(data)
+        registered = data['present']
+        unregistered = data['absent']
+        return r.status_code,r.reason,registered,unregistered
+    
+    def register_eids(self, cidentifier, entity_ids):
+        """Register the specified entity IDs with the ID service
+        
+        @param cidentifier: identifier.Identifier object
+        @param entity_ids: list of unregistered Entity IDs to add
+        @returns: (status_code,reason,added_ids_list)
+        """
+        logging.debug('idservice.IDServiceClient.register_eids(%s, %s)' % (cidentifier, entity_ids))
+        r = requests.post(
+            config.IDSERVICE_REGISTERIDS_URL.format(objectid=cidentifier.id),
+            headers=self._auth_headers(),
+            data={'object_ids': entity_ids},
+        )
+        data = json.loads(r.text)
+        logging.debug(data)
+        registered = data['created']
+        return r.status_code,r.reason,registered
+
 
 
 MESSAGES = {
