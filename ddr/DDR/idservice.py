@@ -110,14 +110,14 @@ class IDServiceClient():
         @param entity_ids: list of Entity IDs!
         @returns: (status_code,reason,registered,unregistered)
         """
-        logging.debug('idservice.IDServiceClient.check_eids(%s, %s)' % (cidentifier, entity_ids))
+        logging.debug('idservice.IDServiceClient.check_eids(%s, %s entity_ids)' % (cidentifier, len(entity_ids)))
         r = requests.post(
             config.IDSERVICE_CHECKIDS_URL.format(objectid=cidentifier.id),
             headers=self._auth_headers(),
             data={'object_ids': entity_ids},
         )
         data = json.loads(r.text)
-        logging.debug(data)
+        #logging.debug(data)
         return r.status_code,r.reason,data['registered'],data['unregistered']
     
     def register_eids(self, cidentifier, entity_ids):

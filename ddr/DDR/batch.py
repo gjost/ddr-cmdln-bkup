@@ -202,29 +202,22 @@ class Checker():
         logging.info('%s %s' % (status,reason))
         if status != 200:
             raise Exception('%s %s' % (status,reason))
-        if (unregistered == csv_eids) \
-        and not registered:
-            logging.info('ok')
-        elif registered:
-            logging.info('Already registered: %s' % registered)
+        logging.info('%s registered' % len(registered))
+        logging.info('%s NOT registered' % len(unregistered))
         # confirm file entities not in repo
         logging.info('Checking for locally existing IDs')
         already_added = Checker._ids_in_local_repo(
             rowds, cidentifier.model, cidentifier.path_abs()
         )
+        logging.debug('%s locally existing' % len(already_added))
         if already_added:
             logging.error('The following entities already exist: %s' % already_added)
-        if (unregistered == csv_eids) \
-        and (not registered) \
-        and (not already_added):
-            passed = True
-            logging.info('ok')
-        else:
-            logging.error('FAIL')
+        logging.info('ok')
         return {
-            'passed': passed,
+            'passed': True,
             'csv_eids': csv_eids,
-            'registered': unregistered,
+            'registered': registered,
+            'unregistered': unregistered,
         }
 
     # ----------------------------------------------------------------------

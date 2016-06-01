@@ -158,7 +158,7 @@ def main():
     
     idservice_client = None
     
-    if (args.command == 'check') or (not args.nocheck):
+    if (args.command == 'check'):
         idservice_client = idservice_api_login(args)
         chkcsv = batch.Checker.check_csv(csv_path, ci, vocabs_path)
         chkrepo = batch.Checker.check_repository(ci)
