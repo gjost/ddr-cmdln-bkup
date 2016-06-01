@@ -212,7 +212,13 @@ class Checker():
         logging.debug('%s locally existing' % len(already_added))
         if already_added:
             logging.error('The following entities already exist: %s' % already_added)
-        logging.info('ok')
+        if (unregistered == csv_eids) \
+        and (not registered) \
+        and (not already_added):
+            passed = True
+            logging.info('ok')
+        else:
+            logging.error('FAIL')
         return {
             'passed': True,
             'csv_eids': csv_eids,
