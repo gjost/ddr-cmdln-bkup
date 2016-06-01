@@ -771,7 +771,7 @@ class Importer():
         csv_eids = [rowd['id'] for rowd in rowds]
         status1,reason1,registered,unregistered = idservice_client.check_eids(cidentifier, csv_eids)
         logging.info('%s %s' % (status1,reason1))
-        if status != 200:
+        if status1 != 200:
             raise Exception('%s %s' % (status1,reason1))
         num_unregistered = len(unregistered)
         logging.info('%s IDs to register.' % num_unregistered)
@@ -783,9 +783,9 @@ class Importer():
                 logging.info('| %s/%s %s' % (n, num_unregistered, eid))
         else:
             logging.info('Registering IDs')
-            status2,reason2 = idservice_client.register_entity_ids(cidentifier, unregistered)
+            status2,reason2,registered = idservice_client.register_eids(cidentifier, unregistered)
             logging.info('%s %s' % (status2,reason2))
-            if status != 200:
+            if status2 != 201:
                 raise Exception('%s %s' % (status2,reason2))
         
         logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')

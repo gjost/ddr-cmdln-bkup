@@ -417,8 +417,8 @@ def max_id(model, identifiers):
     existing.sort()
     return existing[-1]
 
-def available(num_new, model, identifiers, startwith=None):
-    """Can {num} {model} IDs to {list} starting with {n}; complain if duplicates
+def add_ids(num_new, model, identifiers, startwith=None):
+    """Add {num} {model} IDs to {list} starting with {n}; complain if duplicates
     
     >>> model = 'entity'
     >>> c = Collection('/PATH/TO/ddr-test-123')
@@ -437,8 +437,7 @@ def available(num_new, model, identifiers, startwith=None):
     # This is the part we will increment
     component = _field_names(ID_TEMPLATES[model]).pop()
     # then get {component} from each Identifier.parts
-    existing = [i.parts[component] for i in identifiers]
-    existing.sort()
+    existing = sorted([i.parts[component] for i in identifiers])
     max_id = existing[-1] + 1
     
     if startwith:
@@ -455,6 +454,19 @@ def available(num_new, model, identifiers, startwith=None):
         'success': taken == [],
     }
 
+def available(existing, new):
+    """Add new list to existing list; successful if no clashes.
+    
+    @param existing: list 
+    @param new: list 
+    @returns: {'new': list, 'taken': list, 'success': boolean}
+    """
+    data = {
+        'overlap': [x for x in set(new).intersection(existing)],
+    }
+    data['success'] = data['overlap'] == []
+    return data
+    
 
 class MissingBasepathException(Exception):
     pass

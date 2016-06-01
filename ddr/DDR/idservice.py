@@ -118,9 +118,7 @@ class IDServiceClient():
         )
         data = json.loads(r.text)
         logging.debug(data)
-        registered = data['present']
-        unregistered = data['absent']
-        return r.status_code,r.reason,registered,unregistered
+        return r.status_code,r.reason,data['registered'],data['unregistered']
     
     def register_eids(self, cidentifier, entity_ids):
         """Register the specified entity IDs with the ID service
@@ -137,8 +135,7 @@ class IDServiceClient():
         )
         data = json.loads(r.text)
         logging.debug(data)
-        registered = data['created']
-        return r.status_code,r.reason,registered
+        return r.status_code,r.reason,data['created']
 
 
 
