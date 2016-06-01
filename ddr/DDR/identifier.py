@@ -10,7 +10,7 @@ from urlparse import urlparse
 
 # IDENTIFIERS are defined in ddr-defs
 try:
-    from repo_models.identifier_defs import IDENTIFIERS
+    from repo_models.identifier import IDENTIFIERS
 except ImportError:
     raise Exception('Could not import Identifier definitions!')
 
