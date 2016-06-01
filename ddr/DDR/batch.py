@@ -766,19 +766,23 @@ class Importer():
         logging.info('%s %s' % (status1,reason1))
         if status1 != 200:
             raise Exception('%s %s' % (status1,reason1))
+        
         num_unregistered = len(unregistered)
         logging.info('%s IDs to register.' % num_unregistered)
-        for eid in unregistered:
-            logging.info('| %s' % eid)
-        if dryrun:
+        
+        if unregistered and dryrun:
             logging.info('These IDs would be registered if not --dryrun')
             for n,eid in enumerate(unregistered):
                 logging.info('| %s/%s %s' % (n, num_unregistered, eid))
-        else:
+        
+        elif unregistered:
             logging.info('Registering IDs')
-            status2,reason2,registered = idservice_client.register_eids(cidentifier, unregistered)
+            for n,eid in enumerate(unregistered):
+                logging.info('| %s/%s %s' % (n, num_unregistered, eid))
+            status2,reason2,created = idservice_client.register_eids(cidentifier, unregistered)
             logging.info('%s %s' % (status2,reason2))
             if status2 != 201:
                 raise Exception('%s %s' % (status2,reason2))
+            logging.info('%s registered' % len(created))
         
         logging.info('- - - - - - - - - - - - - - - - - - - - - - - -')
