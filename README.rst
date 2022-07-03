@@ -1,3 +1,5 @@
+This repository has been moved to https://git.sr.ht/~gjost/ddr-cmdln-bkup
+
 =========
 ddr-cmdln
 =========
